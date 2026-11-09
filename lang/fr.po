@@ -4722,15 +4722,6 @@ msgstr "Titre et image"
 msgid "Title and picture of this NX..."
 msgstr "Titre et image de ce NX..."
 
-msgid "The title and picture the game list shows, for a game whose own could not be read. The game itself is not changed."
-msgstr "Le titre et l'image affichés dans la liste des jeux, pour un jeu dont les siens n'ont pas pu être lus. Le jeu lui-même n'est pas modifié."
-
-msgid "Without a new picture, the file keeps its own. An empty publisher keeps the one it has."
-msgstr "Sans nouvelle image, le fichier garde la sienne. Un éditeur vide garde celui qu'il a."
-
-msgid "The new picture replaces the one the file has."
-msgstr "La nouvelle image remplace celle du fichier."
-
 msgid "Saving the title and picture..."
 msgstr "Enregistrement du titre et de l'image..."
 
@@ -4843,3 +4834,24 @@ msgstr "Estimation du temps restant…"
 
 msgid "Original files that depend on this content may no longer be rebuildable."
 msgstr "Les fichiers d’origine qui dépendent de ce contenu pourraient ne plus être reconstructibles."
+
+msgid "Customize how this game appears in the library."
+msgstr "Personnalisez l’affichage de ce jeu dans la bibliothèque."
+
+msgid "Restore ROM picture"
+msgstr "Restaurer l’image de la ROM"
+
+msgid "The ROM picture will be restored when you save."
+msgstr "L’image de la ROM sera restaurée à l’enregistrement."
+
+msgid "The new picture will be applied when you save."
+msgstr "La nouvelle image sera appliquée à l’enregistrement."
+
+msgid "No picture"
+msgstr "Aucune image"
+
+msgid "Current picture"
+msgstr "Image actuelle"
+
+msgid "This archive has no recoverable ROM picture."
+msgstr "Cette archive ne contient pas d’image de ROM récupérable."

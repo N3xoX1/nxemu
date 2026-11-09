@@ -1098,7 +1098,6 @@ msgid "Game"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
-#: src/nxemu/ui/assets/nx_contents_dialog.rml
 #: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Publisher"
@@ -1216,7 +1215,12 @@ msgid "The file stays as it was until the change is complete. Cancelling leaves 
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_contents_dialog.rml
-msgid "The title and picture the game list shows, for a game whose own could not be read. The game itself is not changed."
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Title and picture"
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_contents_dialog.rml
+msgid "Customize how this game appears in the library."
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_contents_dialog.rml
@@ -1225,8 +1229,7 @@ msgid "Picture from a file"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_contents_dialog.rml
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Title and picture"
+msgid "Restore ROM picture"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_contents_dialog.rml
@@ -3157,6 +3160,10 @@ msgid "Removing %1 %2..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "The ROM picture will be restored when you save."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
 msgid "Newest"
 msgstr ""
 
@@ -3182,7 +3189,15 @@ msgid "Retry without rebuild data"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
-msgid "Without a new picture, the file keeps its own. An empty publisher keeps the one it has."
+msgid "No picture"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "This archive has no recoverable ROM picture."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Current picture"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
@@ -3191,11 +3206,11 @@ msgid "Pictures"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
-msgid "The picture could not be saved."
+msgid "The new picture will be applied when you save."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
-msgid "The new picture replaces the one the file has."
+msgid "The picture could not be saved."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp

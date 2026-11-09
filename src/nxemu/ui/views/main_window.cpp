@@ -308,7 +308,27 @@ bool MainWindow::Create()
                                                             openPage,
                                                         });
     const auto canWorkOnFiles = [this] { return !m_session.IsRunning() && m_pendingGame.empty(); };
-    m_nxContentsDialog = std::make_unique<NxContentsDialog>(m_window, m_assetDir, NxContentsDialog::Host{canWorkOnFiles, [this] { RescanGames(); }});
+    m_nxContentsDialog = std::make_unique<NxContentsDialog>(m_window, m_assetDir, NxContentsDialog::Host{
+        canWorkOnFiles, [this] { RescanGames(); },
+        [this](const std::string & path) {
+            NxContentsDialog::Pictures pictures;
+            IRomInfoPtr info(m_session.Modules().Systemloader().RomInfo(path.c_str(), 0, 0));
+            if (!info) return pictures;
+            const auto read = [&](auto method) -> std::vector<uint8_t> {
+                uint32_t size = 0;
+                if ((info.Get()->*method)(nullptr, &size) != LoaderResultStatus::Success || size == 0 || size > 64 * 1024 * 1024)
+                    return {};
+                std::vector<uint8_t> bytes(size);
+                if ((info.Get()->*method)(bytes.data(), &size) != LoaderResultStatus::Success || size > bytes.size())
+                    return {};
+                bytes.resize(size);
+                return bytes;
+            };
+            pictures.current = read(&IRomInfo::ReadIcon);
+            pictures.original = read(&IRomInfo::ReadOriginalIcon);
+            return pictures;
+        },
+    });
     m_nxConvertDialog = std::make_unique<NxConvertDialog>(m_window, m_assetDir, NxConvertDialog::Host{
         canWorkOnFiles, [this] { RescanGames(); },
         [this](const std::string & path, bool editTitle) {

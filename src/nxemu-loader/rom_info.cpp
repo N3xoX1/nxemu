@@ -287,6 +287,12 @@ LoaderResultStatus RomInfo::ReadIcon(uint8_t * buffer, uint32_t * bufferSize)
     return LoaderResultStatus::ErrorNotInitialized;
 }
 
+LoaderResultStatus RomInfo::ReadOriginalIcon(uint8_t * buffer, uint32_t * bufferSize)
+{
+    if (GetFileType() != LoaderFileType::NX) return LoaderResultStatus::ErrorNoIcon;
+    return static_cast<Loader::AppLoader_NX *>(m_loader.get())->ReadOriginalIcon(buffer, bufferSize);
+}
+
 LoaderResultStatus RomInfo::ReadBanner(uint8_t * buffer, uint32_t * bufferSize)
 {
     if (!m_loader)

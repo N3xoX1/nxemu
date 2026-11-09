@@ -14,10 +14,16 @@ class UiWindow;
 class NxContentsDialog final : public Dialog
 {
 public:
+    struct Pictures
+    {
+        std::vector<uint8_t> current;
+        std::vector<uint8_t> original;
+    };
     struct Host
     {
         std::function<bool()> canWork;        // no game running or starting
         std::function<void()> libraryChanged; // the file changed
+        std::function<Pictures(const std::string &)> readPictures;
     };
 
     NxContentsDialog(UiWindow & window, const std::filesystem::path & assetDir, Host host);
@@ -66,6 +72,8 @@ private:
     void ShowPage(const char * page);
     void ShowEdit();
     void ChoosePicture();
+    void StagePicture(const std::vector<uint8_t> & icon, const std::string & note);
+    void ClearEditPictures();
     void SaveMetadata();
     void ForgetPicture();
 
@@ -91,6 +99,8 @@ private:
     bool m_editOnOpen = false;
     std::string m_catalogTitle;
     std::string m_shownTitle; // the title the edit page started from
-    std::string m_picture; // the chosen picture as a 256x256 JPEG file, until it is saved
+    std::string m_currentPicture;
+    std::vector<uint8_t> m_originalPicture;
+    std::string m_picture; // staged image file, until it is saved
     unsigned m_pictures = 0;
 };

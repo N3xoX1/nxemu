@@ -405,6 +405,12 @@ public:
         return LoaderResultStatus::Success;
     }
 
+    LoaderResultStatus ReadOriginalIcon(uint8_t * buffer, uint32_t * bufferSize) override
+    {
+        IRomInfo * romInfo = RealRomInfo();
+        return romInfo != nullptr ? romInfo->ReadOriginalIcon(buffer, bufferSize) : LoaderResultStatus::ErrorNoIcon;
+    }
+
     LoaderResultStatus ReadBanner(uint8_t * buffer, uint32_t * bufferSize) override
     {
         IRomInfo * romInfo = RealRomInfo();

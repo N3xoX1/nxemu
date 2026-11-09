@@ -45,6 +45,7 @@ public:
     LoaderResultStatus ReadTitle(char* out,uint32_t* size) override;
     LoaderResultStatus ReadDisplayVersion(char* out,uint32_t* size) const;
     LoaderResultStatus ReadIcon(uint8_t* out,uint32_t* size) override;
+    LoaderResultStatus ReadOriginalIcon(uint8_t* out,uint32_t* size) const;
     LoaderResultStatus ReadNSOModules(Modules& modules) override;
     bool IsRomFSUpdatable() const override { return false; }
 private:

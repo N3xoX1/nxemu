@@ -354,6 +354,7 @@ nxinterface IRomInfo
     virtual IFileSysNACP * GetControlMetadata() = 0;
     virtual IVirtualFile * ReadManualRomFS() = 0;
     virtual void Release() = 0;
+    virtual LoaderResultStatus ReadOriginalIcon(uint8_t * buffer, uint32_t * bufferSize) = 0;
 };
 
 enum class FirmwareInstallStage : uint32_t

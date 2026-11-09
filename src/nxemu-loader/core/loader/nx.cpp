@@ -603,7 +603,7 @@ LoaderResultStatus AppLoader_NX::ReadTitle(char* out,uint32_t* size) {
     return Copy(reinterpret_cast<const uint8_t*>(title.data()),title.size(),reinterpret_cast<uint8_t*>(out),size);
 }
 LoaderResultStatus AppLoader_NX::ReadIcon(uint8_t* out,uint32_t* size) {
-    if (impl_->status!=LoaderResultStatus::Success) return impl_->status;
+    if (!impl_->session || impl_->app == Absent) return LoaderResultStatus::ErrorNoIcon;
     const auto& archive=impl_->session->archive();
     const auto local=PreferredLocalized(archive,impl_->app,[&](uint32_t i) { return archive.localized_entries()[i].icon_index!=Absent; });
     const auto icon=local!=Absent ? archive.localized_entries()[local].icon_index : archive.applications()[impl_->app].icon_index;
@@ -612,6 +612,32 @@ LoaderResultStatus AppLoader_NX::ReadIcon(uint8_t* out,uint32_t* size) {
     if (!bytes) return LoaderResultStatus::ErrorNoIcon;
     return Copy(bytes.value->data(),bytes.value->size(),out,size);
 }
+LoaderResultStatus AppLoader_NX::ReadOriginalIcon(uint8_t * out, uint32_t * size) const
+{
+    if (impl_->status != LoaderResultStatus::Success || !impl_->control)
+        return LoaderResultStatus::ErrorNoIcon;
+
+    auto icon = FileSys::ParseControlRomFS(impl_->control->RomFS()).second;
+    if (!icon && impl_->control_snapshot != impl_->base)
+    {
+        const auto base = Find(impl_->base_meta, LoaderContentRecordType::Control, impl_->program);
+        if (base)
+        {
+            const FileSys::NCA control(base);
+            if (control.GetStatus() == LoaderResultStatus::Success)
+                icon = FileSys::ParseControlRomFS(control.RomFS()).second;
+        }
+    }
+    if (!icon || icon->GetSize() == 0 || icon->GetSize() > 1024 * 1024)
+        return LoaderResultStatus::ErrorNoIcon;
+    if (size == nullptr) return LoaderResultStatus::ErrorNotImplemented;
+    const auto length = static_cast<uint32_t>(icon->GetSize());
+    if (out && *size < length) return LoaderResultStatus::ErrorBufferTooSmall;
+    *size = length;
+    if (out && icon->Read(out, length, 0) != length) return LoaderResultStatus::ErrorNoIcon;
+    return LoaderResultStatus::Success;
+}
+
 LoaderResultStatus AppLoader_NX::ReadDisplayVersion(char* out,uint32_t* size) const {
     if (impl_->status!=LoaderResultStatus::Success) return impl_->status;
     const auto& s=impl_->session->archive().snapshots()[impl_->selected];

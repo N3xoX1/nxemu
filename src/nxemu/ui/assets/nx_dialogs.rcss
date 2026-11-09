@@ -72,21 +72,58 @@ body.narrow .nx-body
     border-color: var(--accent);
 }
 
-.nx-edit-picture-row
+.nx-edit-card
 {
     display: flex;
-    align-items: flex-end;
-    gap: 12dp;
-    margin: 8dp 0 12dp 0;
+    align-items: flex-start;
+    gap: 16dp;
+    padding: 16dp;
+    border: 1dp var(--border);
+    border-radius: 10dp;
+    background-color: var(--surface);
+}
+
+.nx-edit-fields
+{
+    flex: 1;
+    min-width: 0dp;
+}
+
+.nx-edit-actions
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8dp;
+    margin: 4dp 0 10dp 0;
+}
+
+.nx-edit-fields .nx-note
+{
+    margin-bottom: 0dp;
 }
 
 .nx-edit-picture
 {
-    width: 96dp;
-    height: 96dp;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 128dp;
+    height: 128dp;
     border-radius: 8dp;
     overflow: hidden;
-    background-color: var(--border);
+    color: var(--text-secondary);
+    background-color: var(--raised);
+}
+
+.narrow .nx-edit-card
+{
+    flex-direction: column;
+}
+
+.narrow .nx-edit-fields
+{
+    width: 100%;
 }
 
 .nx-edit-picture img

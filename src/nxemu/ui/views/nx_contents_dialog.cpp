@@ -146,7 +146,7 @@ void NxContentsDialog::OnOpen()
     m_items.clear();
     m_originals.clear();
     m_applicationId.clear();
-    ForgetPicture();
+    ClearEditPictures();
     m_size = 0;
     m_message.clear();
     m_retryAdd = false;
@@ -252,7 +252,7 @@ void NxContentsDialog::Finished(const NxTool::State & state)
     }
     if (task == Task::Metadata)
     {
-        ForgetPicture();
+        ClearEditPictures();
         if (state.succeeded)
         {
             m_changed = true;
@@ -408,13 +408,17 @@ void NxContentsDialog::OnCommand(const std::string & command)
     {
         ChoosePicture();
     }
+    else if (command == "restore-rom-picture" && !m_originalPicture.empty())
+    {
+        StagePicture(m_originalPicture, Tr("The ROM picture will be restored when you save."));
+    }
     else if (command == "save-metadata")
     {
         SaveMetadata();
     }
     else if (command == "keep")
     {
-        ForgetPicture();
+        ClearEditPictures();
         ShowList();
     }
 }
@@ -426,6 +430,7 @@ void NxContentsDialog::OnCloseRequested()
         m_tool.Cancel();
         return;
     }
+    ClearEditPictures();
     Close();
     if (m_changed)
     {
@@ -545,12 +550,20 @@ void NxContentsDialog::ShowEdit()
     {
         field->SetValue(title);
     }
-    if (auto * field = rmlui_dynamic_cast<Rml::ElementFormControlInput *>(Document()->GetElementById("edit-publisher")))
+    ClearEditPictures();
+    auto pictures = m_host.readPictures(m_archive);
+    m_originalPicture = std::move(pictures.original);
+    if (!pictures.current.empty())
+        m_currentPicture = m_window.Renderer().AddMemoryImage(std::move(pictures.current));
+    SetText("edit-picture", m_currentPicture.empty() ? Escaped(Tr("No picture")) :
+        "<img src=\"" + Rml::StringUtilities::EncodeRml(m_currentPicture) + "\"/>");
+    if (auto * restore = Document()->GetElementById("restore-rom-picture"))
     {
-        field->SetValue("");
+        restore->SetClass("disabled", m_originalPicture.empty());
+        if (m_originalPicture.empty()) restore->RemoveAttribute("data-command");
+        else restore->SetAttribute("data-command", "restore-rom-picture");
     }
-    SetText("edit-picture", "");
-    SetText("edit-note", Escaped(Tr("Without a new picture, the file keeps its own. An empty publisher keeps the one it has.")));
+    SetText("edit-note", Escaped(m_originalPicture.empty() ? Tr("This archive has no recoverable ROM picture.") : Tr("Current picture")));
     if (Rml::Element * note = Document()->GetElementById("edit-note"))
     {
         note->SetClass("failed", false);
@@ -579,7 +592,12 @@ void NxContentsDialog::ChoosePicture()
         }
         return;
     }
-    ForgetPicture();
+    StagePicture(icon, Tr("The new picture will be applied when you save."));
+}
+
+void NxContentsDialog::StagePicture(const std::vector<uint8_t> & icon, const std::string & message)
+{
+    Rml::Element * note = Document()->GetElementById("edit-note");
     // A new name each time: the interface keeps the textures of the files it showed.
     std::error_code error;
     const std::filesystem::path file = std::filesystem::temp_directory_path(error) / ("nxemu-nx-icon-" + std::to_string(++m_pictures) + ".jpg");
@@ -595,9 +613,10 @@ void NxContentsDialog::ChoosePicture()
         }
         return;
     }
+    ForgetPicture();
     m_picture = Common::FS::PathToUTF8String(file);
     SetText("edit-picture", "<img src=\"" + Rml::StringUtilities::EncodeRml(UiRenderer::FileImageSource(m_picture)) + "\"/>");
-    SetText("edit-note", Escaped(Tr("The new picture replaces the one the file has.")));
+    SetText("edit-note", Escaped(message));
     if (note != nullptr)
     {
         note->SetClass("failed", false);
@@ -610,30 +629,21 @@ void NxContentsDialog::SaveMetadata()
     {
         return;
     }
-    std::string title, publisher;
+    std::string title;
     if (auto * field = rmlui_dynamic_cast<Rml::ElementFormControlInput *>(Document()->GetElementById("edit-title")))
     {
         title = field->GetValue();
-    }
-    if (auto * field = rmlui_dynamic_cast<Rml::ElementFormControlInput *>(Document()->GetElementById("edit-publisher")))
-    {
-        publisher = field->GetValue();
     }
     const auto trim = [](std::string & text) {
         text.erase(0, text.find_first_not_of(" \t"));
         text.erase(text.find_last_not_of(" \t") + 1);
     };
     trim(title);
-    trim(publisher);
     std::vector<std::string> arguments{"set-metadata", m_archive, m_applicationId};
     // The title shown is written only once changed: a file name never becomes the title.
     if (!title.empty() && title != m_shownTitle)
     {
         arguments.push_back("title=" + title);
-    }
-    if (!publisher.empty())
-    {
-        arguments.push_back("publisher=" + publisher);
     }
     if (!m_picture.empty())
     {
@@ -641,11 +651,23 @@ void NxContentsDialog::SaveMetadata()
     }
     if (arguments.size() == 3)
     {
+        ClearEditPictures();
         ShowList();
         return;
     }
     m_message.clear();
     Run(Task::Metadata, std::move(arguments), Tr("Saving the title and picture..."));
+}
+
+void NxContentsDialog::ClearEditPictures()
+{
+    ForgetPicture();
+    if (!m_currentPicture.empty())
+    {
+        m_window.Renderer().RemoveMemoryImage(m_currentPicture);
+        m_currentPicture.clear();
+    }
+    m_originalPicture.clear();
 }
 
 void NxContentsDialog::ForgetPicture()
