@@ -695,17 +695,7 @@ void NxConvertDialog::ShowSources()
     {
         rml += std::string("<div class=\"nx-game") + (game.output.empty() ? " blocked" : "") + "\"><div class=\"nx-game-head\"><div class=\"nx-game-name\">" + Escaped(game.name) +
                "</div><div class=\"nx-game-id\">" + stdstr_f("%016llX", static_cast<unsigned long long>(game.applicationId)) + "</div></div>";
-        if (game.firmwareBytes != 0)
-        {
-            const bool include = !m_omitFirmware.contains(game.applicationId);
-            rml += std::string("<div class=\"nx-source") + (include ? "" : " off") + "\"><div class=\"switch" + (include ? " on" : "") +
-                "\" data-command=\"" + std::string(kFirmwarePrefix) + std::to_string(game.applicationId) +
-                "\"><div class=\"switch-knob\"/></div><div class=\"nx-source-texts\"><div class=\"nx-source-what\">" +
-                Escaped(Tr("Bundled firmware") + " · " + Bytes(game.firmwareBytes)) + "</div>";
-            if (!include && m_recipe)
-                rml += "<div class=\"nx-source-file\">" + Escaped(Tr("Omitting firmware disables rebuild data for this game.")) + "</div>";
-            rml += "</div></div>";
-        }
+        bool firmwareShown = false;
         for (const size_t index : game.sources)
         {
             const Source & source = m_sources[index];
@@ -726,11 +716,23 @@ void NxConvertDialog::ShowSources()
                 else if (content.kind == "update")
                     what += " " + Tr("Version %1", {std::to_string(content.version)});
             }
-            if (source.firmwareBytes != 0) what += " · " + Tr("Bundled firmware");
             if (!source.duplicateOf.empty()) what += " · " + Tr("Identical to %1", {FileName(source.duplicateOf)});
             rml += std::string("<div class=\"nx-source") + (source.selected ? "" : " off") + "\"><div class=\"switch" + (source.selected ? " on" : "") + "\" data-command=\"" +
                    kTogglePrefix + std::to_string(index) + "\"><div class=\"switch-knob\"/></div><div class=\"nx-source-texts\"><div class=\"nx-source-what\">" + Escaped(what) +
                    "</div><div class=\"nx-source-file\">" + Escaped(FileName(source.path) + "  ·  " + Bytes(source.size)) + "</div></div></div>";
+            if (!firmwareShown && source.firmwareBytes != 0 &&
+                std::find(game.selected.begin(), game.selected.end(), index) != game.selected.end())
+            {
+                firmwareShown = true;
+                const bool include = !m_omitFirmware.contains(game.applicationId);
+                rml += std::string("<div class=\"nx-source") + (include ? "" : " off") + "\"><div class=\"switch" + (include ? " on" : "") +
+                    "\" data-command=\"" + std::string(kFirmwarePrefix) + std::to_string(game.applicationId) +
+                    "\"><div class=\"switch-knob\"/></div><div class=\"nx-source-texts\"><div class=\"nx-source-what\">" +
+                    Escaped(Tr("Bundled firmware") + " · " + Bytes(game.firmwareBytes)) + "</div>";
+                if (!include && m_recipe)
+                    rml += "<div class=\"nx-source-file\">" + Escaped(Tr("Omitting firmware disables rebuild data for this game.")) + "</div>";
+                rml += "</div></div>";
+            }
         }
         if (game.updateVersions.size() > 1)
             rml += "<div class=\"nx-game-note\">" + Escaped(Tr("Several update versions are available. Keep the versions you want.")) + "</div>";
