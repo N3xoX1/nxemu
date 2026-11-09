@@ -1142,6 +1142,7 @@ msgid "Reading game information"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Configure"
 msgstr ""
 
@@ -1224,6 +1225,7 @@ msgid "Picture from a file"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_contents_dialog.rml
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Title and picture"
 msgstr ""
 
@@ -2631,6 +2633,29 @@ msgid "Opening the game..."
 msgstr ""
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "About %1 s remaining"
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "About %1 min remaining"
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Estimating time remaining..."
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Finishing shader preparation..."
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Reading and verifying NXShader"
 msgstr ""
 
@@ -2897,9 +2922,11 @@ msgid "Start Game"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
+msgid "Hide details"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Show details"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
@@ -3031,11 +3058,13 @@ msgid "Update"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Version %1"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Reading the file..."
 msgstr ""
 
@@ -3076,10 +3105,12 @@ msgid "Already in the file: nothing changed."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Cancelled: some content was already added."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Some content was added before the error: %1"
 msgstr ""
 
@@ -3088,10 +3119,12 @@ msgid "Removed. The space it used is reclaimed by a later change or when it grow
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Adding to %1..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Updates and DLC"
 msgstr ""
 
@@ -3166,11 +3199,27 @@ msgid "Saving the title and picture..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Saved as %1 (%2, the files were %3)"
+msgid "The NX already contains the selected updates and DLC."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Updated %1."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Cancelled: nothing was written"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "The existing NX does not contain this base game."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Saved as %1 (%2, the files were %3)"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Select updates or DLC to add to %1."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3182,11 +3231,15 @@ msgid "Two files hold the game itself: keep only one of them."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "%1 already exists. Open it from the game list to add updates or DLC."
+msgid "Several files have the same content version. Select one copy of each version."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Choose a folder of games"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "NX archive"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3198,7 +3251,27 @@ msgid "Beside each game's files"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Identical to %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Several update versions are available. Keep the versions you want."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Add missing updates and DLC to %1."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Saved as %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Choose an existing NX"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Use default destination"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3218,15 +3291,23 @@ msgid "Add the game's files: the game itself, its updates and its DLC. They can 
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Add missing content"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Convert and add content"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Convert %1 games"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Converting %1 (%2 of %3)..."
+msgid "Converting %1..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Converting %1..."
+msgid "Batch %1 of %2 (%3 %)"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3237,6 +3318,10 @@ msgstr[1] ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Could not move to the trash: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Retry failed jobs"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3253,6 +3338,10 @@ msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Move converted originals to trash…"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%1 of %2 jobs completed"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3660,6 +3749,11 @@ msgstr ""
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Info"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp

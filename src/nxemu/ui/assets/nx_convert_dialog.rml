@@ -47,7 +47,7 @@
         </div>
         <div class="nx-page page-work">
           <div id="work-heading" class="nx-heading" />
-          <div class="progress-track"><div class="nx-fill indeterminate" /></div>
+          <div class="progress-track"><div id="batch-fill" class="nx-fill" /></div>
           <div id="work-detail" class="nx-note" />
           <div class="nx-text">The original files are only read. Cancelling leaves no partial file.</div>
         </div>

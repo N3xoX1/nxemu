@@ -204,6 +204,7 @@ void NxContentsDialog::Finished(const NxTool::State & state)
     {
         m_items.clear();
         m_originals.clear();
+        m_catalogTitle.clear();
         for (const std::vector<std::string> & record : state.records)
         {
             // SNAPSHOT identity kind application title version display name
@@ -226,6 +227,10 @@ void NxContentsDialog::Finished(const NxTool::State & state)
             else if (record[0] == "APP" && record.size() >= 2 && m_applicationId.empty())
             {
                 m_applicationId = record[1];
+            }
+            else if (record[0] == "APP_TITLE" && record.size() >= 2)
+            {
+                m_catalogTitle = record[1];
             }
             else if (record[0] == "SIZE" && record.size() >= 2)
             {
@@ -458,6 +463,7 @@ void NxContentsDialog::ShowList()
             }
         }
     }
+    if (!m_catalogTitle.empty()) name = m_catalogTitle;
     SetText("archive-title", Escaped(name.empty() ? FileName(m_archive) : name));
     SetText("archive-size", Escaped(m_size != 0 ? Bytes(m_size) : std::string()));
     std::vector<size_t> order(m_items.size());
@@ -517,7 +523,7 @@ void NxContentsDialog::ShowEdit()
     {
         return;
     }
-    std::string title;
+    std::string title = m_catalogTitle;
     for (const Item & item : m_items)
     {
         if (title.empty() && (item.kind == "base" || item.kind == "update"))

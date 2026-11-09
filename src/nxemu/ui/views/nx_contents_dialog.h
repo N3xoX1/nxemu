@@ -89,6 +89,7 @@ private:
     std::string m_shownProgress;
     std::string m_applicationId; // as "contents" lists it, 16 hex digits
     bool m_editOnOpen = false;
+    std::string m_catalogTitle;
     std::string m_shownTitle; // the title the edit page started from
     std::string m_picture; // the chosen picture as a 256x256 JPEG file, until it is saved
     unsigned m_pictures = 0;

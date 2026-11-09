@@ -4,10 +4,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iterator>
 #include <set>
 #include <yuzu_common/fs/fs_util.h>
 #include <nxemu/ui/i18n/translation.h>
+#include <nx_disk_source.hpp>
 #include <nxformat.h>
 
 std::vector<std::string> SplitFields(const std::string & line)
@@ -71,7 +73,7 @@ NxTool::~NxTool()
     }
 }
 
-bool NxTool::Start(std::vector<std::string> arguments)
+bool NxTool::Start(std::vector<std::string> arguments, std::vector<ScanSource> knownSources)
 {
     if (Busy())
     {
@@ -84,7 +86,7 @@ bool NxTool::Start(std::vector<std::string> arguments)
         m_state.phase = Phase::Running;
         m_state.started = std::chrono::steady_clock::now();
     }
-    m_thread = std::thread([this, arguments = std::move(arguments)]() mutable { Run(std::move(arguments)); });
+    m_thread = std::thread(&NxTool::Run, this, std::move(arguments), std::move(knownSources));
     return true;
 }
 
@@ -158,7 +160,7 @@ void NxTool::Line(const char * text)
     }
 }
 
-void NxTool::Run(std::vector<std::string> arguments)
+void NxTool::Run(std::vector<std::string> arguments, std::vector<ScanSource> knownSources)
 {
     std::vector<const char *> argv;
     argv.reserve(arguments.size());
@@ -186,8 +188,7 @@ void NxTool::Run(std::vector<std::string> arguments)
     const bool scanGame = arguments.front() == "scan-game";
     if (scanGame || arguments.front() == "scan")
     {
-        // Scan each package independently. A batch inventory can read entire
-        // payloads to disambiguate duplicates, which is only needed at pack time.
+        // Scan metadata per package and compare payloads only for likely duplicates.
         using Records = std::vector<std::vector<std::string>>;
         const auto collect = [](void * user, int isError, const char * line) {
             if (isError == 0 && line != nullptr && line[0] == '@')
@@ -220,13 +221,56 @@ void NxTool::Run(std::vector<std::string> arguments)
             }
             return records;
         };
-        const auto publish = [&](Records records) {
-            std::lock_guard lock(m_mutex);
-            m_state.records.insert(m_state.records.end(), std::make_move_iterator(records.begin()), std::make_move_iterator(records.end()));
-        };
         const auto cancelled = [this] {
             std::lock_guard lock(m_mutex);
             return m_cancel;
+        };
+        const auto sameFile = [&](const std::string & a, const std::string & b) {
+            const std::filesystem::path left{Common::FS::ToU8String(a)}, right{Common::FS::ToU8String(b)};
+            std::error_code error;
+            if (std::filesystem::equivalent(left, right, error)) return true;
+            std::ifstream first(left, std::ios::binary), second(right, std::ios::binary);
+            if (!first || !second) return false;
+            std::vector<char> x(1024 * 1024), y(x.size());
+            while (!cancelled())
+            {
+                first.read(x.data(), x.size());
+                second.read(y.data(), y.size());
+                const auto count = first.gcount();
+                if (count != second.gcount() || !std::equal(x.begin(), x.begin() + count, y.begin())) return false;
+                if (first.eof() || second.eof()) return first.eof() && second.eof() && !first.bad() && !second.bad();
+                if (!first || !second) return false;
+            }
+            return false;
+        };
+        const auto publish = [&](Records records) {
+            auto source = std::find_if(records.begin(), records.end(), [](const auto & row) {
+                return row.size() >= 5 && row[0] == "SOURCE" && row[4] == "Supported";
+            });
+            if (source != records.end())
+            {
+                std::vector<std::string> identities;
+                for (const auto & row : records)
+                {
+                    if (row.size() >= 8 && row[0] == "CONTENT")
+                        identities.push_back(row[2] + "/" + row[3] + "/" + row[4] + "/" + row[5]);
+                }
+                std::sort(identities.begin(), identities.end());
+                std::string signature;
+                for (const auto & identity : identities) signature += identity + ";";
+                if (!signature.empty())
+                {
+                    const auto duplicate = std::find_if(knownSources.begin(), knownSources.end(), [&](const auto & known) {
+                        return known.path != (*source)[1] && known.size == (*source)[2] && known.signature == signature &&
+                               sameFile(known.path, (*source)[1]);
+                    });
+                    (*source).push_back(signature);
+                    if (duplicate != knownSources.end()) (*source).push_back(duplicate->path);
+                    else knownSources.push_back({(*source)[1], (*source)[2], std::move(signature)});
+                }
+            }
+            std::lock_guard lock(m_mutex);
+            m_state.records.insert(m_state.records.end(), std::make_move_iterator(records.begin()), std::make_move_iterator(records.end()));
         };
         const auto isPackage = [](const std::filesystem::directory_entry & entry) {
             auto ext = Common::FS::PathToUTF8String(entry.path().extension());
@@ -300,6 +344,21 @@ void NxTool::Run(std::vector<std::string> arguments)
     else
     {
         code = nxformat_run(argv.data(), argv.size(), onLine, this, handle, error, sizeof(error));
+        if (code == NXFORMAT_OK && arguments.front() == "contents")
+        {
+            const auto source = nx::DiskSource::open(std::filesystem::path{Common::FS::ToU8String(arguments[1])});
+            if (source)
+            {
+                const auto archive = nx::Archive::open(**source.value);
+                if (archive && !archive.value->applications().empty())
+                {
+                    // The contents command reports each snapshot's original title.
+                    // The library and metadata editor use the application title.
+                    std::lock_guard lock(m_mutex);
+                    m_state.records.push_back({"APP_TITLE", std::string(archive.value->title(0))});
+                }
+            }
+        }
     }
     std::lock_guard lock(m_mutex);
     m_handle = nullptr;

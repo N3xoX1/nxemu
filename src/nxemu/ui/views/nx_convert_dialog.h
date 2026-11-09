@@ -4,6 +4,8 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <set>
+#include <tuple>
 #include <nxemu/ui/library/nx_tool.h>
 #include <string>
 #include <vector>
@@ -19,6 +21,7 @@ public:
     {
         std::function<bool()> canWork;      // no game running or starting
         std::function<void()> libraryChanged; // new .nx files were written
+        std::function<void(const std::string &, bool editTitle)> openArchive;
     };
 
     NxConvertDialog(UiWindow & window, const std::filesystem::path & assetDir, Host host);
@@ -46,6 +49,7 @@ private:
         bool supported = false;
         bool selected = true;
         std::string issue;
+        std::string signature, duplicateOf;
         std::vector<Content> contents;
     };
     struct Game
@@ -55,6 +59,10 @@ private:
         std::vector<size_t> sources;
         std::string output; // empty when it cannot be converted
         std::string problem;
+        bool add = false;
+        bool canChooseArchive = false;
+        std::vector<size_t> selected;
+        std::set<uint32_t> updateVersions;
     };
     struct FileStamp
     {
@@ -67,13 +75,22 @@ private:
         std::string name;
         std::string output;
         std::vector<std::string> sources;
+        using Identity = std::tuple<std::string, uint64_t, uint32_t>;
         std::map<std::string, FileStamp> sourceStamps;
+        std::map<std::string, std::vector<Identity>> sourceContents;
+        std::set<Identity> added;
         std::optional<FileStamp> outputStamp;
         uint64_t sourceBytes = 0;
         bool done = false;
         bool succeeded = false;
         bool recipe = true;
         bool canRetry = false;
+        bool add = false;
+        bool retryable = false;
+        uint64_t applicationId = 0;
+        bool inspecting = false;
+        bool inspected = false;
+        std::vector<std::string> missingSources;
         std::string message;
     };
     enum class Step
@@ -89,6 +106,7 @@ private:
     void OnCloseRequested() override;
 
     void Queue(const std::vector<std::string> & paths);
+    std::vector<NxTool::ScanSource> KnownSources() const;
     void AppendScanResults(const NxTool::State & state);
     std::vector<Game> Games() const;
     void ShowStep(Step step);
@@ -96,6 +114,7 @@ private:
     void ShowOptions();
     void StartConversion();
     void NextJob();
+    void RetryJobs(bool withoutRecipe);
     void ShowWork(const NxTool::State & state);
     void ShowResults();
     static std::optional<FileStamp> Stamp(const std::string & path);
@@ -110,6 +129,7 @@ private:
     std::vector<std::string> m_pendingScan; // waiting for the tool
     std::vector<Source> m_sources;
     std::vector<Job> m_jobs;
+    std::map<uint64_t, std::string> m_existingArchives;
     std::vector<std::string> m_confirmTrash;
     std::string m_trashResult;
     size_t m_job = 0;

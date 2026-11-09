@@ -308,8 +308,11 @@ bool MainWindow::Create()
                                                             openPage,
                                                         });
     const auto canWorkOnFiles = [this] { return !m_session.IsRunning() && m_pendingGame.empty(); };
-    m_nxConvertDialog = std::make_unique<NxConvertDialog>(m_window, m_assetDir, NxConvertDialog::Host{canWorkOnFiles, [this] { RescanGames(); }});
     m_nxContentsDialog = std::make_unique<NxContentsDialog>(m_window, m_assetDir, NxContentsDialog::Host{canWorkOnFiles, [this] { RescanGames(); }});
+    m_nxConvertDialog = std::make_unique<NxConvertDialog>(m_window, m_assetDir, NxConvertDialog::Host{
+        canWorkOnFiles, [this] { RescanGames(); },
+        [this](const std::string & path, bool editTitle) { m_nxContentsDialog->Open(path, editTitle); },
+    });
     BindEvents();
 
     m_document->SetClass(m_window.DrawsWindowControls() ? "window-controls" : "system-controls", true);

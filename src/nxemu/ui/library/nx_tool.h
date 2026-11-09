@@ -37,7 +37,13 @@ public:
     ~NxTool();
 
     // The command and its arguments, as for nxconvert. Fails when busy.
-    bool Start(std::vector<std::string> arguments);
+    struct ScanSource
+    {
+        std::string path;
+        std::string size;
+        std::string signature;
+    };
+    bool Start(std::vector<std::string> arguments, std::vector<ScanSource> knownSources = {});
     State Current() const;
     State TakeState(); // take the newly published scan records
     bool Busy() const;
@@ -48,7 +54,7 @@ private:
     NxTool(const NxTool &) = delete;
     NxTool & operator=(const NxTool &) = delete;
 
-    void Run(std::vector<std::string> arguments);
+    void Run(std::vector<std::string> arguments, std::vector<ScanSource> knownSources);
     void Line(const char * line);
 
     mutable std::mutex m_mutex;
