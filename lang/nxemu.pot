@@ -3141,6 +3141,10 @@ msgid "The game no longer sees this DLC. Its saves are not touched."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Original files that depend on this content may no longer be rebuildable."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
 msgid "Choose where the original file goes"
 msgstr ""
 

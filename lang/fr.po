@@ -4840,3 +4840,6 @@ msgstr "Encore environ %1 min"
 
 msgid "Estimating time remaining..."
 msgstr "Estimation du temps restant…"
+
+msgid "Original files that depend on this content may no longer be rebuildable."
+msgstr "Les fichiers d’origine qui dépendent de ce contenu pourraient ne plus être reconstructibles."

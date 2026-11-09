@@ -311,7 +311,10 @@ bool MainWindow::Create()
     m_nxContentsDialog = std::make_unique<NxContentsDialog>(m_window, m_assetDir, NxContentsDialog::Host{canWorkOnFiles, [this] { RescanGames(); }});
     m_nxConvertDialog = std::make_unique<NxConvertDialog>(m_window, m_assetDir, NxConvertDialog::Host{
         canWorkOnFiles, [this] { RescanGames(); },
-        [this](const std::string & path, bool editTitle) { m_nxContentsDialog->Open(path, editTitle); },
+        [this](const std::string & path, bool editTitle) {
+            m_library.StopDetails();
+            m_nxContentsDialog->Open(path, editTitle);
+        },
     });
     BindEvents();
 
@@ -833,6 +836,7 @@ void MainWindow::Run(Action action)
     case Action::ConvertToNx:
         if (!m_session.IsRunning() && m_pendingGame.empty())
         {
+            m_library.StopDetails();
             m_nxConvertDialog->Offer();
         }
         break;
@@ -840,6 +844,7 @@ void MainWindow::Run(Action action)
         if (!m_session.IsRunning() && m_pendingGame.empty())
         {
             // The whole folder is read; only the files of this game are kept.
+            m_library.StopDetails();
             m_nxConvertDialog->Offer(m_menuGame);
         }
         break;
@@ -847,6 +852,7 @@ void MainWindow::Run(Action action)
     case Action::EditMenuGameNx:
         if (!m_session.IsRunning() && m_pendingGame.empty())
         {
+            m_library.StopDetails();
             m_nxContentsDialog->Open(m_menuGame, action == Action::EditMenuGameNx);
         }
         break;

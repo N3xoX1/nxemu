@@ -191,8 +191,8 @@ void NxContentsDialog::OnUpdate()
     }
     else if (state.phase == NxTool::Phase::Done && m_task != Task::None)
     {
-        Finished(state);
         m_tool.Reset();
+        Finished(state);
     }
 }
 
@@ -369,8 +369,12 @@ void NxContentsDialog::OnCommand(const std::string & command)
             const Item & item = m_items[m_asking];
             ShowPage("ask");
             SetText("ask-heading", Escaped(Tr("Remove %1 %2?", {KindName(item.kind), item.kind == "dlc" ? stdstr_f("%04llX", static_cast<unsigned long long>(item.titleId & 0xFFFF)) : Version(item.displayVersion, item.version)})));
-            SetText("ask-text", Escaped(item.kind == "update" ? Tr("The game then starts with the next most recent update in the file, or without one. Its saves are not touched.")
-                                                              : Tr("The game no longer sees this DLC. Its saves are not touched.")));
+            std::string explanation = item.kind == "update"
+                ? Tr("The game then starts with the next most recent update in the file, or without one. Its saves are not touched.")
+                : Tr("The game no longer sees this DLC. Its saves are not touched.");
+            if (!m_originals.empty())
+                explanation += " " + Tr("Original files that depend on this content may no longer be rebuildable.");
+            SetText("ask-text", Escaped(explanation));
         }
     }
     else if (command.rfind(kRebuildPrefix, 0) == 0)

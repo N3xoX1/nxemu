@@ -68,6 +68,9 @@ GameDetails GameDetailsReader::Read(ISystemloader & loader, const std::string & 
     info->PrepareManualContent();
     std::vector<GamePatchInfo> patches(info->GetGamePatches(nullptr, 0));
     patches.resize(info->GetGamePatches(patches.data(), static_cast<uint32_t>(patches.size())));
+    // The details view only needs the copied patch metadata. NX entries hold
+    // the archive session and its shared lock until the provider releases them.
+    loader.ManualContentProvider().ClearAllEntries();
     for (const GamePatchInfo & patch : patches)
     {
         details.addOns.push_back({KindOf(patch.type), patch.key[0] != '\0' ? patch.key : patch.name, patch.name, patch.version, patch.enabled});
