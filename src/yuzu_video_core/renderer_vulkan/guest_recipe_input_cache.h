@@ -84,36 +84,51 @@ public:
         while(remaining) {
             const size_t i=std::countr_zero(remaining);
             remaining&=remaining-1;
-            auto& group=storage->groups[i];
-            if(group.current.empty())continue;
-            if(i==Groups)std::memcpy(group.current.data(),prefix,104*sizeof(u32));
-            else for(size_t word=0;word<group.methods.size();++word)
-                group.current[word]=regs.reg_array[group.methods[word]];
-            const auto hash=Hash{}(group.current.data(),group.current.size()*sizeof(u32));
-            if (diagnostic_keys) diagnostic_key[i==Groups?Groups+2:i]=hash;
-            const size_t slots=group.slots.size();
-            const size_t set=hash & (group.next.size()-1), begin=set*Ways;
-            size_t selected=slots;
-            for(size_t way=0;way<Ways;++way) {
-                const size_t index=begin+way;
-                const auto& slot=group.slots[index];
-                if(slot.id && slot.hash==hash && std::equal(group.current.begin(),group.current.end(),
-                    group.values.begin()+index*group.current.size())) {
-                    selected=index;break;
-                }
-            }
-            if(selected==slots) {
-                selected=begin+group.next[set]++%Ways;
-                if(++generation==0)throw std::runtime_error("Guest input cache generation exhausted");
-                group.slots[selected]={hash,generation};
-                std::copy(group.current.begin(),group.current.end(),group.values.begin()+selected*group.current.size());
-            }
-            key[i==Groups?Groups+2:i]=group.slots[selected].id;
+            if(storage->groups[i].current.empty())continue;
+            key[i==Groups?Groups+2:i]=GroupId(i,&regs,prefix);
         }
         key[Groups]=static_cast<u32>(topology)|(u64{static_cast<u32>(hint)}<<32);
         key[Groups+1]=features;
         if (diagnostic_keys) { diagnostic_key[Groups]=key[Groups]; diagnostic_key[Groups+1]=features; }
-        const size_t set=Hash{}(key.data(),sizeof(key))%Sets, begin=set*Ways;
+        return FindState();
+    }
+private:
+    // Exact id of one group's current words (register values, or the key prefix).
+    u64 GroupId(size_t i, const Maxwell* regs, const void* prefix) {
+        auto& group=storage->groups[i];
+        if(i==Groups)std::memcpy(group.current.data(),prefix,104*sizeof(u32));
+        else for(size_t word=0;word<group.methods.size();++word)
+            group.current[word]=regs->reg_array[group.methods[word]];
+        const auto hash=Hash{}(group.current.data(),group.current.size()*sizeof(u32));
+        if (diagnostic_keys) diagnostic_key[i==Groups?Groups+2:i]=hash;
+        const size_t slots=group.slots.size();
+        const size_t set=hash & (group.next.size()-1), begin=set*Ways;
+        size_t selected=slots;
+        for(size_t way=0;way<Ways;++way) {
+            const size_t index=begin+way;
+            const auto& slot=group.slots[index];
+            if(slot.id && slot.hash==hash && std::equal(group.current.begin(),group.current.end(),
+                group.values.begin()+index*group.current.size())) {
+                selected=index;break;
+            }
+        }
+        if(selected==slots) {
+            selected=begin+group.next[set]++%Ways;
+            if(++generation==0)throw std::runtime_error("Guest input cache generation exhausted");
+            group.slots[selected]={hash,generation};
+            std::copy(group.current.begin(),group.current.end(),group.values.begin()+selected*group.current.size());
+        }
+        return group.slots[selected].id;
+    }
+    // mixed: the group words are already 64-bit hashes, so a fold is enough to pick a set.
+    Result FindState(bool mixed=false) {
+        size_t set;
+        if(mixed) {
+            u64 fold=0;
+            for(const u64 word:key)fold=std::rotl(fold,23)^word;
+            set=((fold*0x9e3779b97f4a7c15ULL)>>32)%Sets;
+        } else set=Hash{}(key.data(),sizeof(key))%Sets;
+        const size_t begin=set*Ways;
         for(size_t way=0;way<Ways;++way) {
             auto& state=storage->states[begin+way];
             if(state.valid && state.entry && state.key==key)return {&state,true};
@@ -124,6 +139,34 @@ public:
         // when the replacement happens to evict that same State slot.
         state.valid=true;state.key=key;state.entry=nullptr;
         return {&state,false};
+    }
+public:
+    // Recomputes the incremental group hashes the engine keeps in its dirty state.
+    void RefreshHashes(const Maxwell& regs, Tegra::Engines::Maxwell3D::DirtyState& dirty, u64 groups) const noexcept {
+        groups &= GuestPipelineState::All;
+        while(groups) {
+            const size_t i=std::countr_zero(groups);
+            groups&=groups-1;
+            u64 hash=0;
+            for(const u16 method:storage->groups[i].methods)
+                hash^=Tegra::Engines::Maxwell3D::DirtyState::ShaderProfileMix(method,regs.reg_array[method]);
+            dirty.shader_profile_hashes[i]=hash;
+        }
+    }
+    // Same lookup as Find, with the register groups identified by the engine's
+    // incremental hashes instead of reading and hashing their words. Equal hashes
+    // are trusted: a 64-bit collision can only skip one recording, never change one.
+    Result FindHashed(const std::array<u64,Tegra::Engines::Maxwell3D::DirtyState::ShaderProfileGroups>& hashes,
+                      Maxwell::PrimitiveTopology topology,
+                      Tegra::Engines::Maxwell3D::EngineHint hint, u32 features,
+                      const void* prefix, bool prefix_changed, u64 known_prefix=0) {
+        static_assert(Tegra::Engines::Maxwell3D::DirtyState::ShaderProfileGroups==Groups);
+        std::copy(hashes.begin(),hashes.end(),key.begin());
+        if(known_prefix)key[Groups+2]=known_prefix;
+        else if(prefix_changed)key[Groups+2]=GroupId(Groups,nullptr,prefix);
+        key[Groups]=static_cast<u32>(topology)|(u64{static_cast<u32>(hint)}<<32);
+        key[Groups+1]=features;
+        return FindState(true);
     }
     // Id of the prefix words of the last Find; never zero after the first one.
     u64 PrefixId() const noexcept { return key[Groups+2]; }

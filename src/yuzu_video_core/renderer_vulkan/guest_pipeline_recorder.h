@@ -6,6 +6,8 @@
 #include "yuzu_video_core/renderer_vulkan/guest_recipe_input_cache.h"
 #include "yuzu_video_core/shader_profile_journal.h"
 #include "yuzu_video_core/shader_profile_runtime.h"
+#include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -43,6 +45,7 @@ public:
         pending_writes.reserve(BatchEntries);
         if (const char* trace=std::getenv("NXEMU_RECIPE_INPUT_TRACE"); trace && *trace) {
             input_trace_path=std::filesystem::u8path(trace);
+            trace_inputs=true;
             input_trace.reserve(524288);
             input_cache.EnableDiagnosticKeys();
         }
@@ -61,6 +64,11 @@ public:
             timing = true;
         }
         if (timing) write_metrics = std::make_shared<VideoCommon::ShaderProfile::Journal::WriteMetrics>();
+        // NXEMU_RECIPE_SAMPLE=1 observes every frame; NXEMU_RECIPE_QUIET sets the quiet frames before sampling.
+        if (const char* option=std::getenv("NXEMU_RECIPE_SAMPLE"); option && *option)
+            sample_period=std::max(1,std::atoi(option));
+        if (const char* option=std::getenv("NXEMU_RECIPE_QUIET"); option && *option)
+            quiet_limit=static_cast<u32>(std::max(0,std::atoi(option)));
     }
     static void MarkFailed(const std::filesystem::path & target) noexcept
     {
@@ -82,6 +90,14 @@ public:
     void Observe(Engine & engine, const GraphicsPipelineCacheKey & key, const DynamicFeatures & features,
                  u64* prefix_memo = nullptr, u64 vertex_inputs = ~0ULL) noexcept
     {
+        // Once no recipe has been new for a while, only one random frame in sample_period
+        // is observed. Draws through a transition seen for the first time are always
+        // observed, with the rest of their frame. Skipped frames leave the register
+        // groups stale, so register writes skip their hash update too.
+        if (skip_frame && prefix_memo && *prefix_memo && channel == &engine) {
+            engine.dirty.shader_profile_stale = 0xffU;
+            return;
+        }
         ObserveState(engine.dirty, engine.regs, engine.draw_manager->GetDrawState().topology,
                      engine.engine_state, &engine, key, features, prefix_memo, vertex_inputs);
     }
@@ -120,11 +136,67 @@ public:
                 dirty.shader_profile_registers[offsetof(Engine::Regs, alpha_test_enabled) / 4] != 0 &&
                 topology == last_topology && hint == last_hint &&
                 (prefix_memo && *prefix_memo ? *prefix_memo == last_prefix_id
-                                             : std::memcmp(last_prefix.data(), &key, sizeof(last_prefix)) == 0)) return;
+                                             : last_prefix_valid && std::memcmp(last_prefix.data(), &key, sizeof(last_prefix)) == 0)) return;
+            // Most changed draws switch between already recorded recipes. Their exact
+            // inputs (register group hashes, program prefix id, topology, hint and
+            // features) are fingerprinted and checked against recently seen ones,
+            // without leaving this inline path.
+            if (channel == source && prefix_memo && *prefix_memo && !trace_inputs && !resync_hashes &&
+                dirty.shader_profile_stale == 0 &&
+                dirty.shader_profile_registers[offsetof(Engine::Regs, alpha_test_enabled) / 4] != 0) {
+                const u64 fingerprint = Fingerprint(dirty.shader_profile_hashes, topology, hint,
+                                                    FeatureBits(features), *prefix_memo);
+                const size_t slot = SeenSlot(fingerprint);
+                if (seen[slot] == fingerprint || seen[slot ^ 1] == fingerprint) {
+                    if (*prefix_memo != last_prefix_id) {
+                        last_prefix_id = *prefix_memo;
+                        last_prefix_valid = false;
+                    }
+                    dirty.shader_profile_changes = 0;
+                    last_topology = topology;
+                    last_hint = hint;
+                    // The previous state is unknown now; a later prefix-only miss captures again.
+                    current_state = nullptr;
+                    return;
+                }
+            }
         }
         ObserveChangedState(dirty,regs,topology,hint,source,key,features,prefix_memo,vertex_inputs);
     }
 private:
+    static u32 FeatureBits(const DynamicFeatures& features) noexcept {
+        return (features.has_extended_dynamic_state ? 1U : 0U) |
+            (features.has_extended_dynamic_state_2 ? 2U : 0U) |
+            (features.has_extended_dynamic_state_2_extra ? 4U : 0U) |
+            (features.has_extended_dynamic_state_3_blend ? 8U : 0U) |
+            (features.has_extended_dynamic_state_3_enables ? 16U : 0U) |
+            (features.has_dynamic_vertex_input ? 32U : 0U) |
+            (features.has_vertex_stride_workaround ? 64U : 0U);
+    }
+    // Never zero, so an empty slot never matches. A 64-bit collision can only skip
+    // recording one recipe, never change a recorded one.
+    static u64 Fingerprint(const std::array<u64, Engine::DirtyState::ShaderProfileGroups>& hashes,
+                           Engine::Regs::PrimitiveTopology topology, Engine::EngineHint hint,
+                           u32 feature_bits, u64 prefix_id) noexcept {
+        u64 x = prefix_id * 0x9e3779b97f4a7c15ULL ^
+                (static_cast<u64>(topology) | static_cast<u64>(hint) << 16 |
+                 static_cast<u64>(feature_bits) << 32) * 0xc2b2ae3d27d4eb4fULL;
+        for (const u64 hash : hashes) x = std::rotl(x, 25) ^ hash;
+        x *= 0xd6e8feb86659fd93ULL;
+        return (x ^ (x >> 32)) | 1;
+    }
+    static constexpr size_t SeenSlots = 16384;
+    static size_t SeenSlot(u64 fingerprint) noexcept { return (fingerprint >> 20) & (SeenSlots - 1); }
+    void RememberSeen(const Engine::DirtyState& dirty, Engine::Regs::PrimitiveTopology topology,
+                      Engine::EngineHint hint, u32 feature_bits) noexcept {
+        if (trace_inputs) return;
+        const u64 fingerprint = Fingerprint(dirty.shader_profile_hashes, topology, hint, feature_bits, last_prefix_id);
+        // Two ways per set: the newest replaces the older one.
+        const size_t slot = SeenSlot(fingerprint);
+        if (seen[slot] == fingerprint || seen[slot ^ 1] == fingerprint) return;
+        seen[slot ^ 1] = seen[slot];
+        seen[slot] = fingerprint;
+    }
     void ObserveChangedState(Engine::DirtyState& dirty, const Engine::Regs& regs,
                       Engine::Regs::PrimitiveTopology topology, Engine::EngineHint hint,
                       const void* source, const GraphicsPipelineCacheKey& key,
@@ -159,25 +231,40 @@ private:
             // Two ids may stand for the same words after an eviction; that only
             // costs a lookup, never a missed recipe.
             const u64 known_prefix = prefix_memo ? *prefix_memo : 0;
+            // A first-seen transition is always observed, but between known pipelines it
+            // rarely holds a new recipe, so only a recorded recipe restarts full observation.
+            // It usually comes with new content, whose state variants show up in the same
+            // frame, so the rest of this frame is observed.
+            if (!known_prefix) {
+                ++new_transitions;
+                skip_frame = false;
+            }
             const bool prefix_changed = known_prefix ? known_prefix != last_prefix_id
-                                                     : std::memcmp(last_prefix.data(), &key, sizeof(last_prefix)) != 0;
+                                                     : !last_prefix_valid || std::memcmp(last_prefix.data(), &key, sizeof(last_prefix)) != 0;
             if (!changed && !prefix_changed) return;
-            const u32 feature_bits = (features.has_extended_dynamic_state ? 1U : 0U) |
-                (features.has_extended_dynamic_state_2 ? 2U : 0U) |
-                (features.has_extended_dynamic_state_2_extra ? 4U : 0U) |
-                (features.has_extended_dynamic_state_3_blend ? 8U : 0U) |
-                (features.has_extended_dynamic_state_3_enables ? 16U : 0U) |
-                (features.has_dynamic_vertex_input ? 32U : 0U) |
-                (features.has_vertex_stride_workaround ? 64U : 0U);
+            const u32 feature_bits = FeatureBits(features);
+            bool hit = false;
             {
                 if (untracked) GuestPipelineState::Track(dirty);
                 const auto* previous_state=current_state;
                 const Entry* previous_entry=previous_state ? previous_state->entry : nullptr;
                 const auto cached = [&] {
                     StageSample measured(timing, input_lookup_wall_ns);
-                    return input_cache.Find(regs, dirty.shader_profile_changes, full_capture,
-                                            topology, hint, feature_bits, &key, prefix_changed, known_prefix);
+                    // Input traces keep the exact word hashing so their keys stay comparable.
+                    if (trace_inputs)
+                        return input_cache.Find(regs, dirty.shader_profile_changes, full_capture,
+                                                topology, hint, feature_bits, &key, prefix_changed, known_prefix);
+                    // Writes that bypass the engine's register path are caught by the
+                    // per-frame resync; a stale hash only costs a capture or one recording.
+                    u64 refresh = dirty.shader_profile_stale;
+                    if (full_capture || resync_hashes) refresh = GuestPipelineState::All;
+                    if (refresh & GuestPipelineState::All) input_cache.RefreshHashes(regs, dirty, refresh);
+                    dirty.shader_profile_stale = 0;
+                    resync_hashes = false;
+                    return input_cache.FindHashed(dirty.shader_profile_hashes, topology, hint, feature_bits,
+                                                  &key, full_capture || prefix_changed, known_prefix);
                 }();
+                hit = cached.hit;
                 current_state = cached.state;
                 last_prefix_id = input_cache.PrefixId();
                 if (prefix_memo) *prefix_memo = last_prefix_id;
@@ -210,7 +297,23 @@ private:
                 last_topology = topology;
                 last_hint = hint;
             }
-            if (prefix_changed || full_capture) std::memcpy(last_prefix.data(), &key, sizeof(last_prefix));
+            if (prefix_changed || full_capture) {
+                // Pipelines keep a memo id for their prefix words, so the 416-byte copy is
+                // only needed for draws without one; those compare words, never a stale copy.
+                if (known_prefix && !full_capture) {
+                    last_prefix_valid = false;
+                } else {
+                    std::memcpy(last_prefix.data(), &key, sizeof(last_prefix));
+                    last_prefix_valid = true;
+                }
+            }
+            // A hit is a known recorded recipe for these exact inputs; its projection
+            // was checked when it was recorded.
+            if (hit && current_state->entry) {
+                if (timing) ++cached_recipe_hits;
+                RememberSeen(dirty, topology, hint, feature_bits);
+                return;
+            }
             if ([&] {
                     FixedPipelineState expected{current_state->projected};
                     expected.MaskUnusedState(vertex_inputs);
@@ -219,6 +322,7 @@ private:
                 throw std::runtime_error("Automatic guest recipe projection mismatch");
             if (current_state->entry) {
                 if (timing) ++cached_recipe_hits;
+                RememberSeen(dirty, topology, hint, feature_bits);
                 return;
             }
             static_assert(GuestPipelineState::WordCount == 278);
@@ -227,8 +331,10 @@ private:
                 StageSample measured(timing, dedup_wall_ns);
                 return entries.find(candidate_entry);
             }();
-            if (duplicate!=entries.end()) { current_state->entry=&*duplicate; if (timing) ++duplicate_entries; return; }
+            if (duplicate!=entries.end()) { current_state->entry=&*duplicate; if (timing) ++duplicate_entries; RememberSeen(dirty, topology, hint, feature_bits); return; }
             current_state->entry = Record(candidate_entry);
+            Discovery();
+            if (!failed) RememberSeen(dirty, topology, hint, feature_bits);
         }
         catch (const std::exception & e)
         {
@@ -256,10 +362,29 @@ private:
         if (pending_writes.size() == BatchEntries) Flush();
         return kept;
     }
+    void Discovery() noexcept {
+        if (quiet_frames >= quiet_limit) ++wakes;
+        quiet_frames = 0;
+        skip_frame = false;
+    }
 public:
+    // Called on the GPU thread once per presented frame.
+    void EndFrame() noexcept {
+        if (quiet_frames < quiet_limit) ++quiet_frames;
+        ++frames;
+        // The observed frame is drawn at random, so a variant that recurs in step with a
+        // fixed period is still seen.
+        sample_state ^= sample_state << 13;
+        sample_state ^= sample_state >> 7;
+        sample_state ^= sample_state << 17;
+        skip_frame = sample_period > 1 && quiet_frames >= quiet_limit && sample_state % sample_period != 0;
+        if (skip_frame) ++skipped_frames;
+        Flush();
+    }
     // Called on the GPU thread at frame boundaries and before shutdown drain.
     // Existing independently checked journal frames retain their exact layout.
     void Flush() noexcept {
+        if (++flushes % 16 == 0) resync_hashes = true;
         if (pending_writes.empty()) return;
         try {
             auto batch = std::move(pending_writes);
@@ -310,7 +435,7 @@ public:
             trace.flush();
             if(!trace)LOG_WARNING(Render_Vulkan,"Cannot write bounded input-cache diagnostic trace");
         } catch(const std::exception&) { LOG_WARNING(Render_Vulkan,"Cannot save input-cache diagnostic trace"); }
-        LOG_INFO(Render_Vulkan, "Automatic guest recipes: total_unique={} loaded={} new={} captures={} failed={} measured_observations={} observer_wall_ns={}", entries.size(), loaded_recipes, entries.size()-loaded_recipes, captures, failed, calls, elapsed_ns);
+        LOG_INFO(Render_Vulkan, "Automatic guest recipes: total_unique={} loaded={} new={} captures={} failed={} measured_observations={} observer_wall_ns={} frames={} skipped_frames={} wakes={} new_transitions={}", entries.size(), loaded_recipes, entries.size()-loaded_recipes, captures, failed, calls, elapsed_ns, frames, skipped_frames, wakes, new_transitions);
         // All writer work is drained before this recorder is destroyed. Observer
         // time is elapsed steady-clock time, not per-thread CPU accounting.
         if (!report_path.empty() && write_metrics) try
@@ -364,6 +489,17 @@ private:
     Engine::EngineHint last_hint{};
     bool failed{};
     bool timing{};
+    bool resync_hashes{true};
+    bool last_prefix_valid{};
+    bool trace_inputs{};
+    std::array<u64, SeenSlots> seen{};
+    u32 flushes{};
+    u32 sample_period{8};
+    u32 quiet_limit{240};
+    u32 quiet_frames{};
+    bool skip_frame{};
+    u64 frames{}, skipped_frames{}, wakes{}, new_transitions{};
+    u64 sample_state{0x9e3779b97f4a7c15ULL};
     std::filesystem::path report_path;
     std::shared_ptr<VideoCommon::ShaderProfile::Journal::WriteMetrics> write_metrics;
 };
