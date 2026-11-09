@@ -1,5 +1,7 @@
 #include "firmware_install.h"
 #include "core/file_sys/card_image.h"
+#include "core/file_sys/partition_filesystem.h"
+#include "core/file_sys/vfs/vfs_nx.h"
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/filesystem.h"
 #include "core/file_sys/registered_cache.h"
@@ -10,6 +12,7 @@
 #include <cctype>
 #include <exception>
 #include <fstream>
+#include <set>
 #include <vector>
 #include <yuzu_common/fs/fs.h>
 #include <yuzu_common/fs/fs_util.h>
@@ -93,6 +96,93 @@ struct Inspection
     bool IsFirmware() const { return describesSystemUpdate && hasVersion; }
 };
 
+// Bound and validate source-resource tables before the legacy HFS parser
+// allocates or follows names/offsets. Payload bytes remain streamed on demand.
+FileSys::VirtualDir OpenSourceHfs(const FileSys::VirtualFile & source)
+{
+    if (source == nullptr || source->GetSize() < 16) return nullptr;
+    const auto header = source->ReadBytes(16);
+    if (header.size() != 16 || !std::equal(header.begin(), header.begin() + 4, "HFS0")) return nullptr;
+    const auto u32 = [](const uint8_t * p) {
+        return uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
+    };
+    const auto u64 = [&u32](const uint8_t * p) { return uint64_t(u32(p)) | (uint64_t(u32(p + 4)) << 32); };
+    const uint32_t count = u32(header.data() + 4), strings = u32(header.data() + 8);
+    if (count > 4096 || strings > 1024 * 1024) return nullptr;
+    const uint64_t names = 16 + uint64_t(count) * 64, data = names + strings;
+    if (data > source->GetSize()) return nullptr;
+    const auto metadata = source->ReadBytes(static_cast<size_t>(data));
+    if (metadata.size() != data) return nullptr;
+    std::set<std::string> seen;
+    std::vector<std::pair<uint64_t, uint64_t>> ranges;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        const auto * entry = metadata.data() + 16 + uint64_t(i) * 64;
+        const uint64_t offset = u64(entry), size = u64(entry + 8);
+        const uint32_t name_offset = u32(entry + 16);
+        if (name_offset >= strings || offset > source->GetSize() - data || size > source->GetSize() - data - offset || u32(entry + 20) > size) return nullptr;
+        const auto first = metadata.begin() + static_cast<size_t>(names + name_offset);
+        const auto last = std::find(first, metadata.end(), uint8_t(0));
+        if (last == metadata.end()) return nullptr;
+        const std::string name(first, last);
+        if (name.empty() || name == "." || name == ".." || name.find_first_of("/\\") != std::string::npos || !seen.insert(name).second) return nullptr;
+        ranges.emplace_back(offset, offset + size);
+    }
+    std::sort(ranges.begin(), ranges.end());
+    for (size_t i = 1; i < ranges.size(); ++i) if (ranges[i].first < ranges[i - 1].second) return nullptr;
+    auto partition = std::make_shared<FileSys::PartitionFilesystem>(source);
+    return partition->GetStatus() == LoaderResultStatus::Success ? partition : nullptr;
+}
+
+// Both container kinds expose the same immutable native HFS0 view. The NX
+// resource contains the original partition, not a synthesized firmware set.
+FileSys::VirtualDir SourceFirmwarePartition(const FileSys::VirtualFile & file, std::string_view host_path,
+                                          Version * version = nullptr)
+{
+    if (file == nullptr) return nullptr;
+    std::array<uint8_t, 4> magic{};
+    if (file->Read(magic.data(), magic.size(), 0) != magic.size()) return nullptr;
+    std::vector<FileSys::VirtualDir> candidates;
+    if (magic == std::array<uint8_t, 4>{'N','X','A','R'})
+    {
+        const auto opened = FileSys::OpenNxSession(file, host_path);
+        if (!opened) return nullptr;
+        const auto session = *opened.value;
+        const auto & resources = session->archive().source_resources();
+        for (uint32_t i = 0; i < resources.size(); ++i)
+        {
+            if (resources[i].kind != 1 || session->archive().applications()[resources[i].application_index].platform != 1) continue;
+            const auto source = FileSys::NxSourceResourceFile(session, i, "partition.hfs0");
+            if (source == nullptr) continue;
+            auto partition = OpenSourceHfs(source);
+            if (partition != nullptr) candidates.push_back(std::move(partition));
+        }
+    }
+    else
+    {
+        FileSys::XCI card(file);
+        if (card.GetStatus() == LoaderResultStatus::Success && card.GetSystemUpdateVersion() != 0)
+        {
+            const auto update = card.GetUpdatePartition();
+            if (update != nullptr) candidates.push_back(update);
+        }
+    }
+    FileSys::VirtualDir selected;
+    Version selected_version{};
+    for (const auto & partition : candidates)
+    {
+        Inspection inspection;
+        for (const auto & entry : partition->GetFiles()) inspection.Add(entry);
+        if (inspection.IsFirmware() && (selected == nullptr || FirmwareInstall::IsNewer(inspection.version, selected_version)))
+        {
+            selected = partition;
+            selected_version = inspection.version;
+        }
+    }
+    if (selected != nullptr && version != nullptr) *version = selected_version;
+    return selected;
+}
+
 class Staging
 {
 public:
@@ -134,11 +224,8 @@ public:
         {
             return FirmwareInstallStatus::SourceUnreadable;
         }
-        FileSys::XCI card(file);
-        if (card.GetStatus() == LoaderResultStatus::Success)
-        {
-            return FillFromGameCard(card);
-        }
+        const auto update = SourceFirmwarePartition(file, Common::FS::PathToUTF8String(source));
+        if (update != nullptr) return FillFromPartition(update);
         switch (ExtractFirmwareZip(file, m_directory, RegisteredName, [this](uint64_t done, uint64_t total) { return Report(FirmwareInstallStage::Copying, done, total); }))
         {
         case FirmwareZipResult::Extracted: return FirmwareInstallStatus::Installed;
@@ -272,13 +359,8 @@ private:
         return FirmwareInstallStatus::Installed;
     }
 
-    FirmwareInstallStatus FillFromGameCard(FileSys::XCI & card)
+    FirmwareInstallStatus FillFromPartition(const FileSys::VirtualDir & update)
     {
-        const FileSys::VirtualDir update = card.GetUpdatePartition();
-        if (update == nullptr || card.GetSystemUpdateVersion() == 0)
-        {
-            return FirmwareInstallStatus::NotFirmware;
-        }
         struct Entry
         {
             FileSys::VirtualFile file;
@@ -440,19 +522,7 @@ bool FirmwareInstall::ReadGameCardVersion(const FileSys::VirtualFilesystem & vfs
     {
         return false;
     }
-    FileSys::XCI card(file);
-    const FileSys::VirtualDir update = card.GetStatus() == LoaderResultStatus::Success ? card.GetUpdatePartition() : nullptr;
-    if (update == nullptr || card.GetSystemUpdateVersion() == 0)
-    {
-        return false;
-    }
-    Inspection inspection;
-    for (const FileSys::VirtualFile & update_file : update->GetFiles())
-    {
-        inspection.Add(update_file);
-    }
-    version = inspection.version;
-    return inspection.IsFirmware();
+    return SourceFirmwarePartition(file, Common::FS::PathToUTF8String(path), &version) != nullptr;
 }
 
 bool FirmwareInstall::IsNewer(const Version & package, const Version & installed)

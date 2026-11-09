@@ -5,6 +5,7 @@
 namespace FileSys {
 // Every directory/file keeps the mounted session alive, including RomFS views
 // retained by the OS after the application loader has released its own handle.
+VirtualFile NxSourceResourceFile(std::shared_ptr<nx::Session> session, uint32_t resource, std::string_view name);
 VirtualDir NxSnapshotDirectory(std::shared_ptr<nx::Session> session, uint32_t snapshot);
 nx::Result<std::shared_ptr<nx::Session>> OpenNxSession(VirtualFile file,
     std::string_view host_path = {}, nx::SessionOptions options = {});

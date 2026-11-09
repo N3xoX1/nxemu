@@ -294,6 +294,13 @@ struct CacheStats {
     std::uint64_t io_ns = 0, hash_ns = 0, copy_ns = 0;
 };
 
+// Source data has independent roots, never executable snapshot ownership.
+struct SourceResource {
+    std::uint32_t application_index = 0xffffffffu;
+    std::uint32_t kind = 0; // 0 opaque source files, 1 original system-update HFS0
+    std::uint32_t root_directory = 0xffffffffu;
+};
+
 struct Application {
     std::uint64_t id = 0;
     std::uint8_t platform = 0;
@@ -612,6 +619,18 @@ struct Archive {
     const std::vector<Application>& applications() const noexcept { return applications_; }
     const std::vector<Program>& programs() const noexcept { return programs_; }
     const std::vector<Snapshot>& snapshots() const noexcept { return snapshots_; }
+    const std::vector<SourceResource>& source_resources() const noexcept { return source_resources_; }
+    Result<FileInfo> source_resource_file(std::uint32_t index, std::string_view name) const {
+        if (!mounted_) return Result<FileInfo>::failure(ErrorCode::invalid_argument,"mount() must succeed before resource access");
+        if (index>=source_resources_.size()) return Result<FileInfo>::failure(ErrorCode::bounds,"source resource index out of range");
+        const auto& dir=directories_[source_resources_[index].root_directory];
+        for (std::uint32_t i=dir.first;i<dir.first+dir.count;++i) {
+            const auto& entry=entries_[i];
+            const auto actual=std::string_view(reinterpret_cast<const char*>(manifest_bytes_.data()+entry.name_offset),entry.name_length);
+            if (actual==name) return file_info({entry.target});
+        }
+        return Result<FileInfo>::failure(ErrorCode::bounds,"source resource file not found");
+    }
     std::string_view snapshot_display_version(std::uint32_t index) const noexcept {
         if (index>=snapshots_.size()) return {};
         const auto& row=snapshots_[index];
@@ -875,6 +894,8 @@ private:
     std::vector<Application> applications_;
     std::vector<Program> programs_;
     std::vector<Snapshot> snapshots_;
+    std::vector<SourceResource> source_resources_;
+    std::uint16_t format_minor_ = 2;
     std::vector<LocalizedEntry> localized_;
     std::vector<std::uint32_t> snapshot_owner_;
     std::vector<std::uint8_t> media_expected_mask_;
@@ -1211,6 +1232,21 @@ inline Status Archive::parse_catalog() {
         if (type==0x00010001 && (owner!=1 || data_size!=4)) return fail(ErrorCode::format,"invalid firmware extension");
         if (type==0x00010002 && (owner!=1 || data_size<3)) return fail(ErrorCode::format,"invalid supported-language extension");
         if (type==0x00010003 && (owner!=1 || data_size<4)) return fail(ErrorCode::format,"invalid regions extension");
+        if (type==0x00010008) {
+            if (owner!=1 || flags!=1 || data_size<16) return fail(ErrorCode::format,"invalid source resource descriptor");
+            const auto* p=catalog_bytes_.data()+data_off;
+            const auto count=u32(p+8);
+            if (std::memcmp(p,"NXSR",4) || u16(p+4)!=1 || u16(p+6)!=16 || u32(p+12) || !count ||
+                count>4096 || data_size!=16ull+8ull*count || source_resources_.size()+count>4096)
+                return fail(ErrorCode::format,"invalid source resource table");
+            std::pair<std::uint32_t,std::uint32_t> prior{};
+            for (std::uint32_t j=0;j<count;++j) {
+                const auto kind=u32(p+16+j*8), root=u32(p+20+j*8);
+                const auto key=std::make_pair(kind,root);
+                if (kind>1 || (j && !(prior<key))) return fail(ErrorCode::format,"invalid or unsorted source resource");
+                source_resources_.push_back({owner_index,kind,root}); prior=key;
+            }
+        }
         if (type==0x00010005) {
             if (owner!=1 || flags!=1 || data_size<16) return fail(ErrorCode::format,"invalid Snapshot Native Metadata descriptor");
             const auto* p=catalog_bytes_.data()+data_off;
@@ -1296,7 +1332,7 @@ inline Status Archive::parse_catalog() {
             }
             if (locale_cursor!=locales || opaque_cursor!=opaque) return fail(ErrorCode::format,"snapshot metadata ranges do not cover payload arrays");
         }
-        if ((flags&1) && type!=0x00010001 && type!=0x00010002 && type!=0x00010003 && type!=0x00010004 && type!=0x00010005) return fail(ErrorCode::unsupported,"unknown required Catalog extension");
+        if ((flags&1) && type!=0x00010001 && type!=0x00010002 && type!=0x00010003 && type!=0x00010004 && type!=0x00010005 && type!=0x00010008) return fail(ErrorCode::unsupported,"unknown required Catalog extension");
         if (type==0x00010002) {
             const auto* payload=catalog_bytes_.data()+data_off;
             const auto languages=u16(payload);
@@ -1332,6 +1368,7 @@ inline Status Archive::parse_catalog() {
         }
         extension_cursor=data_off+data_size;
     }
+    if ((format_minor_==3) != !source_resources_.empty()) return fail(ErrorCode::format,"format version disagrees with source resources");
     if (extension_cursor!=catalog_size_) return fail(ErrorCode::format,"Catalog has unaccounted trailing bytes");
     return ok_status();
 }
@@ -1390,11 +1427,12 @@ inline Status Archive::open_impl() {
 inline Status Archive::open_slot(const std::uint8_t* header, std::uint64_t physical) {
     std::array<std::uint8_t, 256> h{};
     std::memcpy(h.data(), header, h.size());
-    if (u16(h.data()+4) != 0 || u16(h.data()+6) != 2 || u32(h.data()+8) != 256)
+    if (u16(h.data()+4) != 0 || (u16(h.data()+6) != 2 && u16(h.data()+6) != 3) || u32(h.data()+8) != 256)
         return fail(ErrorCode::unsupported, "unsupported NX identity or version");
     if (u16(h.data()+12) != 1 || u16(h.data()+14) != 0) return fail(ErrorCode::unsupported, "unsupported NX header layout or feature bits");
     if (u32(h.data()+224) != check_size || !all_zero(h.data()+228, 24))
         return fail(ErrorCode::format, "invalid check size or nonzero reserved header bytes");
+    format_minor_ = u16(h.data()+6);
     generation_ = u64(h.data()+216);
     const auto declared_size = u64(h.data()+16);
     catalog_offset_ = u64(h.data()+24); catalog_size_ = u64(h.data()+32);
@@ -1649,6 +1687,34 @@ inline Status Archive::mount_impl() {
     if (Sha256::digest(manifest_bytes_.data(),manifest_bytes_.size())!=manifest_digest_)
         return fail(ErrorCode::integrity,"Manifest SHA-256 mismatch");
     st=parse_manifest(); if (!st) return st;
+    std::vector<std::uint32_t> roots;
+    std::uint64_t resource_nodes=0, resource_paths=0;
+    for (const auto& resource:source_resources_) {
+        if (resource.root_directory>=directories_.size() ||
+            std::find(roots.begin(),roots.end(),resource.root_directory)!=roots.end())
+            return fail(ErrorCode::format,"invalid or shared source resource root");
+        roots.push_back(resource.root_directory);
+        for (const auto& snapshot:snapshots_) if (snapshot.root_directory==resource.root_directory)
+            return fail(ErrorCode::format,"source resource root belongs to a snapshot");
+        const auto& dir=directories_[resource.root_directory];
+        if (!dir.count || (resource.kind==1 && dir.count!=1)) return fail(ErrorCode::format,"invalid source resource file set");
+        std::vector<std::uint32_t> used;
+        for (std::uint32_t i=dir.first;i<dir.first+dir.count;++i) {
+            const auto& e=entries_[i];
+            if (e.kind!=2) return fail(ErrorCode::format,"source resource is not a flat unique file set");
+            used.push_back(e.target);
+            const auto name=std::string_view(reinterpret_cast<const char*>(manifest_bytes_.data()+e.name_offset),e.name_length);
+            if (resource.kind==1 && name!="partition.hfs0") return fail(ErrorCode::format,"system update resource lacks partition.hfs0");
+            if (++resource_nodes>options_.max_total_snapshot_nodes || e.name_length>options_.max_total_snapshot_path_bytes-resource_paths)
+                return fail(ErrorCode::resource_limit,"source resource traversal budget exceeded");
+            resource_paths+=e.name_length;
+        }
+        std::sort(used.begin(),used.end());
+        if (std::adjacent_find(used.begin(),used.end())!=used.end()) return fail(ErrorCode::format,"repeated source resource file");
+    }
+    std::sort(roots.begin(),roots.end());
+    for (const auto& entry:entries_) if (entry.kind==1 && std::binary_search(roots.begin(),roots.end(),entry.target))
+        return fail(ErrorCode::format,"source resource root is a child directory");
     st=validate_media(); if (!st) return st;
     return validate_snapshot_identities();
 }

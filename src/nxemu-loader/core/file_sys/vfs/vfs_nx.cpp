@@ -222,6 +222,10 @@ nx::Result<std::shared_ptr<nx::Session>> OpenNxSession(VirtualFile file,std::str
 NxRuntimeStats NxSessionStatistics(const nx::Session& session) {
     return static_cast<CodecSource&>(session.backing_source()).stats();
 }
+VirtualFile NxSourceResourceFile(std::shared_ptr<nx::Session> session,uint32_t resource,std::string_view name) {
+    auto file=session->archive().source_resource_file(resource,name);
+    return file ? std::make_shared<NxFile>(std::move(session),*file.value,std::string(name),nullptr) : nullptr;
+}
 VirtualDir NxSnapshotDirectory(std::shared_ptr<nx::Session> session,uint32_t snapshot) {
     auto root=session->archive().root_directory(snapshot);
     return root ? std::make_shared<NxDirectory>(std::move(session),*root.value,"nx") : nullptr;
