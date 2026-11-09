@@ -2338,6 +2338,7 @@ msgstr ""
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
@@ -3212,10 +3213,6 @@ msgid "Saving the title and picture..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Saved as %1 · %2 of %3"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Cancelled: nothing was written"
 msgstr ""
 
@@ -3303,6 +3300,10 @@ msgstr[1] ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Could not move to the trash: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Saved as %1"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp

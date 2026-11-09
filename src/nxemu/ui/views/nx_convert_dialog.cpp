@@ -198,8 +198,6 @@ void NxConvertDialog::OnUpdate()
             if (state.succeeded)
             {
                 job.outputStamp = Stamp(job.output);
-                const uint64_t size = job.outputStamp ? job.outputStamp->size : 0;
-                job.message = Tr("Saved as %1 · %2 of %3", {FileName(job.output), Bytes(size), Bytes(job.sourceBytes)});
                 m_changed = true;
             }
             else
@@ -874,7 +872,19 @@ void NxConvertDialog::ShowResults()
     for (const Job & job : m_jobs)
     {
         succeeded += job.succeeded;
-        rml += "<div class=\"nx-result-text\">" + Escaped(job.succeeded ? job.message : job.name + " · " + job.message) + "</div>";
+        if (job.succeeded)
+        {
+            rml += "<div class=\"nx-result-item\"><div class=\"nx-result-text\">" +
+                Escaped(Tr("Saved as %1", {FileName(job.output)})) + "</div>";
+            if (job.outputStamp)
+                rml += "<div class=\"nx-result-size\">" +
+                    Escaped(Tr("%1 of %2", {Bytes(job.outputStamp->size), Bytes(job.sourceBytes)})) + "</div>";
+            rml += "</div>";
+        }
+        else
+        {
+            rml += "<div class=\"nx-result-text\">" + Escaped(job.name + " · " + job.message) + "</div>";
+        }
     }
     if (std::any_of(m_jobs.begin(), m_jobs.end(), [](const Job & job) { return job.retryable; }))
         rml += "<button data-command=\"retry-failed\">" + Escaped(Tr("Retry failed jobs")) + "</button> ";

@@ -451,14 +451,40 @@ body.narrow .nx-dialog.at-done
 
 .nx-result-list
 {
-    margin-top: 6dp;
+    margin-top: 10dp;
     max-height: 130dp;
     overflow-y: auto;
+}
+
+.nx-result-item
+{
+    padding: 8dp 10dp;
+    border: 1dp var(--border);
+    border-radius: 6dp;
+    background-color: var(--surface);
+}
+
+.nx-result-item + .nx-result-item
+{
+    margin-top: 6dp;
+}
+
+.nx-result-size
+{
+    margin-top: 3dp;
+    color: var(--accent-text);
+    font-size: 12dp;
 }
 
 .nx-trash-option
 {
     margin-top: 12dp;
+}
+
+.nx-trash-option .nx-option-hint
+{
+    margin-left: 21dp;
+    margin-top: 2dp;
 }
 
 .nx-trash-option.hidden

@@ -4799,8 +4799,8 @@ msgstr "Enregistrer sous %1"
 msgid "%1 already exists. Choose a different destination folder."
 msgstr "%1 existe déjà. Choisissez un autre dossier de destination."
 
-msgid "Saved as %1 · %2 of %3"
-msgstr "Enregistré sous %1 · %2 sur %3"
+msgid "Saved as %1"
+msgstr "Enregistré sous %1"
 
 msgid "Delete originals"
 msgstr "Supprimer les originaux"
