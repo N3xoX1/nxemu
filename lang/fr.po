@@ -4569,9 +4569,6 @@ msgstr "Les fichiers d'origine sont seulement lus. Annuler ne laisse aucun fichi
 msgid "Convert"
 msgstr "Convertir"
 
-msgid "Convert other games"
-msgstr "Convertir d'autres jeux"
-
 msgid "Convert games to &NX..."
 msgstr "Convertir des jeux en &NX..."
 
@@ -4632,9 +4629,6 @@ msgstr "Utilisée"
 msgid "Nothing could be read from this file."
 msgstr "Rien n'a pu être lu dans ce fichier."
 
-msgid "Saved as %1 (%2, the files were %3)"
-msgstr "Enregistré sous %1 (%2, les fichiers faisaient %3)"
-
 msgid "Cancelled: nothing was written"
 msgstr "Annulé : rien n'a été écrit"
 
@@ -4671,17 +4665,8 @@ msgstr "Convertir %1 jeux"
 msgid "Converting %1..."
 msgstr "Conversion de %1..."
 
-msgid "%1 games converted"
-msgstr "%1 jeux convertis"
-
-msgid "Game converted"
-msgstr "Jeu converti"
-
 msgid "%1 of %2 games converted"
 msgstr "%1 jeux convertis sur %2"
-
-msgid "The original files were left as they were."
-msgstr "Les fichiers d'origine sont restés tels quels."
 
 msgid "Rebuilt, identical to the original file."
 msgstr "Reconstruit, identique au fichier d'origine."
@@ -4746,18 +4731,6 @@ msgstr "Annulé : une partie du contenu a déjà été ajoutée."
 msgid "Some content was added before the error: %1"
 msgstr "Une partie du contenu a été ajoutée avant l’erreur : %1"
 
-msgid "Move converted originals to trash…"
-msgstr "Mettre les originaux convertis à la corbeille…"
-
-msgid "Move these original files to the trash?"
-msgstr "Mettre ces fichiers d’origine à la corbeille ?"
-
-msgid "Keep originals"
-msgstr "Garder les originaux"
-
-msgid "Move to trash"
-msgstr "Mettre à la corbeille"
-
 msgid "%n original file moved to the trash."
 msgid_plural "%n original files moved to the trash."
 msgstr[0] "%n fichier d’origine mis à la corbeille."
@@ -4765,9 +4738,6 @@ msgstr[1] "%n fichiers d’origine mis à la corbeille."
 
 msgid "Could not move to the trash: %1"
 msgstr "Impossible de mettre à la corbeille : %1"
-
-msgid "The NX files appear in the game list once their folder is one of the game directories."
-msgstr "Les fichiers NX apparaissent dans la liste des jeux lorsque leur dossier figure parmi les dossiers de jeux."
 
 msgid "Identical to %1"
 msgstr "Identique à %1"
@@ -4828,3 +4798,15 @@ msgstr "Enregistrer sous %1"
 
 msgid "%1 already exists. Choose a different destination folder."
 msgstr "%1 existe déjà. Choisissez un autre dossier de destination."
+
+msgid "Saved as %1 · %2 of %3"
+msgstr "Enregistré sous %1 · %2 sur %3"
+
+msgid "Delete originals"
+msgstr "Supprimer les originaux"
+
+msgid "Move to trash when you click Finish."
+msgstr "Mise à la corbeille en cliquant sur Terminer."
+
+msgid "Conversion completed successfully"
+msgstr "Conversion terminée avec succès"

@@ -18,8 +18,6 @@ namespace
 constexpr const char * kTogglePrefix = "toggle-source:";
 constexpr const char * kLevelPrefix = "level:";
 constexpr std::string_view kFirmwarePrefix = "toggle-firmware:";
-constexpr std::string_view kEditResultPrefix = "edit-result:";
-constexpr std::string_view kManageResultPrefix = "manage-result:";
 
 std::string Escaped(const std::string & text)
 {
@@ -201,7 +199,7 @@ void NxConvertDialog::OnUpdate()
             {
                 job.outputStamp = Stamp(job.output);
                 const uint64_t size = job.outputStamp ? job.outputStamp->size : 0;
-                job.message = Tr("Saved as %1 (%2, the files were %3)", {FileName(job.output), Bytes(size), Bytes(job.sourceBytes)});
+                job.message = Tr("Saved as %1 · %2 of %3", {FileName(job.output), Bytes(size), Bytes(job.sourceBytes)});
                 m_changed = true;
             }
             else
@@ -500,36 +498,12 @@ void NxConvertDialog::OnCommand(const std::string & command)
     {
         RetryJobs(command == "retry-without-recipe");
     }
-    else if (m_step == Step::Done && m_host.canWork() &&
-             (command.starts_with(kEditResultPrefix) || command.starts_with(kManageResultPrefix)))
+    else if (m_step == Step::Done && command == "finish")
     {
-        const bool edit = command.starts_with(kEditResultPrefix);
-        const auto prefix = edit ? kEditResultPrefix : kManageResultPrefix;
-        const size_t index = std::strtoull(command.c_str() + prefix.size(), nullptr, 10);
-        if (index < m_jobs.size() && m_jobs[index].succeeded && Exists(m_jobs[index].output))
-            m_host.openArchive(m_jobs[index].output, edit);
-    }
-    else if (m_step == Step::Done && command == "ask-trash")
-    {
-        m_confirmTrash = TrashCandidates();
-        ShowResults();
-    }
-    else if (m_step == Step::Done && command == "keep-originals")
-    {
-        m_confirmTrash.clear();
-        ShowResults();
-    }
-    else if (m_step == Step::Done && command == "confirm-trash")
-    {
-        TrashOriginals();
-    }
-    else if (m_step == Step::Done && command == "again")
-    {
-        m_sources.clear();
-        m_omitFirmware.clear();
-        m_jobs.clear();
-        ShowStep(Step::Pick);
-        ShowSources();
+        const auto * checkbox = Document()->GetElementById("trash-originals");
+        if (checkbox && checkbox->HasAttribute("checked") && !TrashOriginals())
+            return;
+        OnCloseRequested();
     }
 }
 
@@ -863,9 +837,10 @@ std::vector<std::string> NxConvertDialog::TrashCandidates() const
     return candidates;
 }
 
-void NxConvertDialog::TrashOriginals()
+bool NxConvertDialog::TrashOriginals()
 {
-    if (m_confirmTrash.empty() || !m_host.canWork()) return;
+    if (m_confirmTrash.empty()) return true;
+    if (!m_host.canWork()) return false;
     const auto candidates = TrashCandidates();
     size_t moved = 0;
     std::string failures;
@@ -886,27 +861,20 @@ void NxConvertDialog::TrashOriginals()
     }
     m_confirmTrash.clear();
     m_trashResult = TrCount("%n original file moved to the trash.", "%n original files moved to the trash.", moved);
-    if (!failures.empty()) m_trashResult += " " + Tr("Could not move to the trash: %1", {failures});
+    if (failures.empty()) return true;
+    m_trashResult += " " + Tr("Could not move to the trash: %1", {failures});
     ShowResults();
+    return false;
 }
 
 void NxConvertDialog::ShowResults()
 {
     std::string rml;
     size_t succeeded = 0;
-    for (size_t i = 0; i < m_jobs.size(); ++i)
+    for (const Job & job : m_jobs)
     {
-        const Job & job = m_jobs[i];
-        succeeded += job.succeeded ? 1 : 0;
-        rml += std::string("<div class=\"nx-result") + (job.succeeded ? "" : " failed") + "\"><img src=\"images/" + (job.succeeded ? "check" : "alert") +
-               ".png\" /><div class=\"nx-result-texts\"><div class=\"nx-result-name\">" + Escaped(job.name) + "</div><div class=\"nx-result-text\">" + Escaped(job.message) + "</div>";
-        if (job.succeeded)
-        {
-            const std::string index = std::to_string(i);
-            rml += "<button data-command=\"" + std::string(kEditResultPrefix) + index + "\">" + Escaped(Tr("Title and picture")) + "</button> ";
-            rml += "<button data-command=\"" + std::string(kManageResultPrefix) + index + "\">" + Escaped(Tr("Updates and DLC")) + "</button>";
-        }
-        rml += "</div></div>";
+        succeeded += job.succeeded;
+        rml += "<div class=\"nx-result-text\">" + Escaped(job.succeeded ? job.message : job.name + " · " + job.message) + "</div>";
     }
     if (std::any_of(m_jobs.begin(), m_jobs.end(), [](const Job & job) { return job.retryable; }))
         rml += "<button data-command=\"retry-failed\">" + Escaped(Tr("Retry failed jobs")) + "</button> ";
@@ -914,24 +882,22 @@ void NxConvertDialog::ShowResults()
     {
         rml += "<button data-command=\"retry-without-recipe\">" + Escaped(Tr("Retry without rebuild data")) + "</button>";
     }
-    if (!m_confirmTrash.empty())
-    {
-        rml = "<div class=\"nx-text\">" + Escaped(Tr("Move these original files to the trash?")) + "</div>";
-        for (const auto & path : m_confirmTrash)
-        {
-            rml += "<div class=\"nx-note\">" + Escaped(path) + "</div>";
-        }
-        rml += "<button data-command=\"keep-originals\">" + Escaped(Tr("Keep originals")) + "</button> ";
-        rml += "<button data-command=\"confirm-trash\">" + Escaped(Tr("Move to trash")) + "</button>";
-    }
-    else if (!TrashCandidates().empty())
-    {
-        rml += "<button data-command=\"ask-trash\">" + Escaped(Tr("Move converted originals to trash…")) + "</button>";
-    }
     SetText("results", rml);
-    SetText("result-heading", Escaped(succeeded == m_jobs.size() ? (succeeded > 1 ? Tr("%1 games converted", {std::to_string(succeeded)}) : Tr("Game converted"))
-                                                                : Tr("%1 of %2 games converted", {std::to_string(succeeded), std::to_string(m_jobs.size())})));
-    SetText("result-text", Escaped(!m_trashResult.empty() ? m_trashResult : succeeded != 0
-        ? Tr("The NX files appear in the game list once their folder is one of the game directories.")
-        : Tr("The original files were left as they were.")));
+    const bool success = succeeded == m_jobs.size();
+    if (auto * icon = Document()->GetElementById("result-icon"))
+    {
+        icon->SetAttribute("src", success ? "images/check.png" : "images/alert.png");
+        icon->SetClass("failed", !success);
+    }
+    SetText("result-heading", Escaped(success ? Tr("Conversion completed successfully")
+                                             : Tr("%1 of %2 games converted", {std::to_string(succeeded), std::to_string(m_jobs.size())})));
+    m_confirmTrash = TrashCandidates();
+    if (auto * row = Document()->GetElementById("trash-option"))
+        row->SetClass("hidden", m_confirmTrash.empty());
+    if (auto * checkbox = Document()->GetElementById("trash-originals"))
+    {
+        if (m_confirmTrash.empty()) checkbox->RemoveAttribute("checked");
+        else checkbox->SetAttribute("checked", "");
+    }
+    SetText("result-text", Escaped(m_trashResult));
 }

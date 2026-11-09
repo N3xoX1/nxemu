@@ -698,7 +698,6 @@ msgstr ""
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/nx_contents_dialog.rml
-#: src/nxemu/ui/assets/nx_convert_dialog.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
@@ -811,6 +810,7 @@ msgid "Install"
 msgstr ""
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
 msgid "Finish"
 msgstr ""
 
@@ -1215,7 +1215,6 @@ msgid "The file stays as it was until the change is complete. Cancelling leaves 
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_contents_dialog.rml
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Title and picture"
 msgstr ""
 
@@ -1317,12 +1316,16 @@ msgid "The original files are only read. Cancelling leaves no partial file."
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_convert_dialog.rml
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Convert"
+msgid "Delete originals"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_convert_dialog.rml
-msgid "Convert other games"
+msgid "Move to trash when you click Finish."
+msgstr ""
+
+#: src/nxemu/ui/assets/nx_convert_dialog.rml
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Convert"
 msgstr ""
 
 #: src/nxemu/ui/assets/profiles_dialog.rml
@@ -3119,7 +3122,6 @@ msgid "Adding to %1..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "Updates and DLC"
 msgstr ""
 
@@ -3210,7 +3212,7 @@ msgid "Saving the title and picture..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Saved as %1 (%2, the files were %3)"
+msgid "Saved as %1 · %2 of %3"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
@@ -3308,39 +3310,11 @@ msgid "Retry failed jobs"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Move these original files to the trash?"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Keep originals"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Move to trash"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Move converted originals to trash…"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "%1 games converted"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Game converted"
+msgid "Conversion completed successfully"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "%1 of %2 games converted"
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "The NX files appear in the game list once their folder is one of the game directories."
-msgstr ""
-
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "The original files were left as they were."
 msgstr ""
 
 #: src/nxemu/ui/views/performance_overlay.h

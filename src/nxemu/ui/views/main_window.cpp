@@ -331,10 +331,6 @@ bool MainWindow::Create()
     });
     m_nxConvertDialog = std::make_unique<NxConvertDialog>(m_window, m_assetDir, NxConvertDialog::Host{
         canWorkOnFiles, [this] { RescanGames(); },
-        [this](const std::string & path, bool editTitle) {
-            m_library.StopDetails();
-            m_nxContentsDialog->Open(path, editTitle);
-        },
     });
     BindEvents();
 

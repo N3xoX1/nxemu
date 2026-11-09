@@ -51,17 +51,23 @@
           <div class="nx-text">The original files are only read. Cancelling leaves no partial file.</div>
         </div>
         <div class="nx-page page-done">
-          <div id="result-heading" class="nx-heading" />
-          <div id="result-text" class="nx-text" />
-          <div id="results" class="nx-list" />
+          <div class="nx-result-heading">
+            <img id="result-icon" src="images/check.png" />
+            <div id="result-heading" />
+          </div>
+          <div id="results" class="nx-result-list" />
+          <div id="trash-option" class="nx-trash-option hidden">
+            <label for="trash-originals"><input id="trash-originals" type="checkbox" checked="checked" /> Delete originals</label>
+            <div class="nx-option-hint">Move to trash when you click Finish.</div>
+          </div>
+          <div id="result-text" class="nx-result-text" />
         </div>
       </div>
       <div class="dialog-footer">
         <button class="for-pick" data-command="close">Cancel</button>
         <button id="convert-button" class="for-pick primary">Convert</button>
         <button class="for-work" data-command="cancel">Cancel</button>
-        <button class="for-done" data-command="again">Convert other games</button>
-        <button class="for-done primary" data-command="close">Close</button>
+        <button class="for-done primary" data-command="finish">Finish</button>
       </div>
     </div>
   </body>

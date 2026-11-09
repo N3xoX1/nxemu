@@ -20,7 +20,6 @@ public:
     {
         std::function<bool()> canWork;      // no game running or starting
         std::function<void()> libraryChanged; // new .nx files were written
-        std::function<void(const std::string &, bool editTitle)> openArchive;
     };
 
     NxConvertDialog(UiWindow & window, const std::filesystem::path & assetDir, Host host);
@@ -111,7 +110,7 @@ private:
     void ShowResults();
     static std::optional<FileStamp> Stamp(const std::string & path);
     std::vector<std::string> TrashCandidates() const;
-    void TrashOriginals();
+    bool TrashOriginals();
 
     UiWindow & m_window;
     const Host m_host;
