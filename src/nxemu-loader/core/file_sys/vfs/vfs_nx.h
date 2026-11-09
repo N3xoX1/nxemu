@@ -7,6 +7,11 @@ namespace FileSys {
 // retained by the OS after the application loader has released its own handle.
 VirtualFile NxSourceResourceFile(std::shared_ptr<nx::Session> session, uint32_t resource, std::string_view name);
 VirtualDir NxSnapshotDirectory(std::shared_ptr<nx::Session> session, uint32_t snapshot);
+struct NxCatalog {
+    std::shared_ptr<nx::RandomAccessSource> source;
+    nx::Archive archive;
+};
+std::optional<NxCatalog> OpenNxCatalog(VirtualFile file);
 nx::Result<std::shared_ptr<nx::Session>> OpenNxSession(VirtualFile file,
     std::string_view host_path = {}, nx::SessionOptions options = {});
 struct NxRuntimeStats {

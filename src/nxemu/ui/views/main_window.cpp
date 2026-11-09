@@ -837,7 +837,7 @@ void MainWindow::Run(Action action)
         if (!m_session.IsRunning() && m_pendingGame.empty())
         {
             // The whole folder is read; only the files of this game are kept.
-            m_nxConvertDialog->Offer({Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(m_menuGame)}.parent_path())}, m_menuGame);
+            m_nxConvertDialog->Offer({m_menuGame});
         }
         break;
     case Action::ManageMenuGameNx:

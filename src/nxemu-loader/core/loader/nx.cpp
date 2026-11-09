@@ -349,16 +349,16 @@ struct AppLoader_NX::Impl {
         return std::find(it->second.begin(),it->second.end(),"Update")!=it->second.end() ||
                std::find(it->second.begin(),it->second.end(),key)!=it->second.end();
     }
-    uint32_t Latest(uint32_t pi) const {
+    static uint32_t Latest(const nx::Archive& archive,uint32_t pi) {
         uint32_t found=Absent;
-        const auto program_id=session->archive().programs()[pi].id;
-        for (uint32_t i=0;i<session->archive().snapshots().size();++i) {
-            const auto& s=session->archive().snapshots()[i];
+        const auto program_id=archive.programs()[pi].id;
+        for (uint32_t i=0;i<archive.snapshots().size();++i) {
+            const auto& s=archive.snapshots()[i];
             if (s.program_index!=pi || s.type==2) continue;
             if (IsUpdate(s.type) && UpdateDisabled(program_id,s.numeric_version)) continue;
-            if (found==Absent || s.numeric_version>session->archive().snapshots()[found].numeric_version ||
-                (s.numeric_version==session->archive().snapshots()[found].numeric_version && s.type>session->archive().snapshots()[found].type)) found=i;
-            else if (s.numeric_version==session->archive().snapshots()[found].numeric_version && s.type==session->archive().snapshots()[found].type) return Absent;
+            if (found==Absent || s.numeric_version>archive.snapshots()[found].numeric_version ||
+                (s.numeric_version==archive.snapshots()[found].numeric_version && s.type>archive.snapshots()[found].type)) found=i;
+            else if (s.numeric_version==archive.snapshots()[found].numeric_version && s.type==archive.snapshots()[found].type) return Absent;
         }
         return found;
     }
@@ -413,7 +413,7 @@ struct AppLoader_NX::Impl {
                 (!requested && a.programs()[p].kind==0)) { if (pi!=Absent) return; pi=p; }
         }
         if (pi==Absent) return;
-        selected=Latest(pi);
+        selected=Latest(a,pi);
         if (exact) { auto it=identities.find(*exact); if (it==identities.end()) return; selected=it->second; }
         const bool tree_view=selected!=Absent && IsTree(selected);
         standalone_ok=tree_view;
@@ -501,8 +501,51 @@ AppLoader_NX::AppLoader_NX(FileSys::VirtualFile source,uint64_t program,size_t i
     :AppLoader(source),impl_(std::make_unique<Impl>()) { impl_->Open(std::move(source),program,index,path,snapshot,options,application_id); }
 AppLoader_NX::~AppLoader_NX()=default;
 LoaderFileType AppLoader_NX::IdentifyType(const FileSys::VirtualFile& source) {
-    std::array<uint8_t,4> magic{};
-    return source && source->Read(magic.data(),4,0)==4 && std::memcmp(magic.data(),"NXAR",4)==0 ? LoaderFileType::NX : LoaderFileType::Error;
+    constexpr size_t PageSize = 4096;
+    if (!source || source->GetSize() < 2 * PageSize) return LoaderFileType::Error;
+    for (const size_t offset : {size_t{0}, PageSize}) {
+        std::array<uint8_t,4> magic{};
+        if (source->Read(magic.data(), magic.size(), offset) == magic.size() &&
+            std::memcmp(magic.data(), "NXAR", magic.size()) == 0) return LoaderFileType::NX;
+    }
+    return LoaderFileType::Error;
+}
+std::optional<AppLoader_NX::CatalogMetadata> AppLoader_NX::ReadCatalogMetadata(const FileSys::VirtualFile& file) {
+    auto catalog=FileSys::OpenNxCatalog(file);
+    if (!catalog) return std::nullopt;
+    auto& archive=catalog->archive;
+    CatalogMetadata result;
+    uint32_t app=Absent, program=Absent;
+    for (uint32_t i=0;i<archive.applications().size();++i) {
+        const auto& owner=archive.applications()[i];
+        if (owner.platform!=1) continue;
+        if (app!=Absent) return std::nullopt;
+        app=i;
+        for (uint32_t p=owner.first_program;p!=Absent && p<owner.first_program+owner.program_count;++p) {
+            const auto& entry=archive.programs()[p];
+            result.programs.push_back(entry.id);
+            if (entry.kind!=0) continue;
+            if (program!=Absent) return std::nullopt;
+            program=p;
+        }
+    }
+    if (program==Absent) return std::nullopt;
+    const auto selected=Impl::Latest(archive,program);
+    if (selected==Absent) return std::nullopt;
+    result.program=archive.programs()[program].id;
+    const auto title=PreferredLocalized(archive,app,[&](uint32_t i) { return !archive.localized_title(i).empty(); });
+    result.title=title!=Absent ? archive.localized_title(title) : archive.title(app);
+    result.publisher=archive.publisher(app);
+    result.version=archive.snapshot_display_version(selected);
+    const auto& snapshot=archive.snapshots()[selected];
+    if (result.version.empty() && Impl::IsUpdate(snapshot.type)) result.version="v"+std::to_string(snapshot.numeric_version);
+    const auto local=PreferredLocalized(archive,app,[&](uint32_t i) { return archive.localized_entries()[i].icon_index!=Absent; });
+    const auto icon=local!=Absent ? archive.localized_entries()[local].icon_index : archive.applications()[app].icon_index;
+    if (icon!=Absent) {
+        auto bytes=archive.read_media(icon);
+        if (bytes) result.icon=std::move(*bytes.value);
+    }
+    return result;
 }
 LoaderResultStatus AppLoader_NX::GetStatus() const { return impl_->status; }
 uint32_t AppLoader_NX::SelectedSnapshot() const { return impl_->selected; }

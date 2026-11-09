@@ -23,9 +23,8 @@ public:
 
     bool Busy() const { return m_tool.Busy(); }
     void Cancel();
-    // Opens the dialog with these files or folders. With a focus file, only
-    // the files of that file's game are kept (its folder is read for the rest).
-    void Offer(std::vector<std::string> paths, std::string focus = {});
+    // Opens the dialog with these files or folders.
+    void Offer(std::vector<std::string> paths);
     bool OfferDrop(const std::string & utf8Path);
 
 private:
@@ -63,6 +62,8 @@ private:
         uint64_t sourceBytes = 0;
         bool done = false;
         bool succeeded = false;
+        bool recipe = true;
+        bool canRetry = false;
         std::string message;
     };
     enum class Step
@@ -78,7 +79,7 @@ private:
     void OnCloseRequested() override;
 
     void Queue(const std::vector<std::string> & paths);
-    void ScanFinished(const NxTool::State & state);
+    void AppendScanResults(const NxTool::State & state);
     std::vector<Game> Games() const;
     void ShowStep(Step step);
     void ShowSources();
@@ -93,14 +94,13 @@ private:
     NxTool m_tool;
     Step m_step = Step::Pick;
     std::vector<std::string> m_pendingScan; // waiting for the tool
-    std::vector<std::string> m_scanning;    // given to the running scan
-    std::string m_focus;
     std::vector<Source> m_sources;
     std::vector<Job> m_jobs;
     size_t m_job = 0;
     bool m_converting = false;
     bool m_cancelled = false;
     bool m_recipe = true;
+    bool m_discardScan = false;
     int m_level = 3;
     std::string m_outputDir; // empty: beside each game's files
     bool m_changed = false;

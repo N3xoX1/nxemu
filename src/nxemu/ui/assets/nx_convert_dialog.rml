@@ -25,9 +25,9 @@
             <div class="nx-option">
               <div class="nx-option-label">Compression</div>
               <div class="nx-chips">
-                <div id="level-3" class="nx-chip" data-command="level:3" title="Quickest to convert">Fast</div>
-                <div id="level-9" class="nx-chip" data-command="level:9" title="A little smaller, slower to convert">Smaller</div>
-                <div id="level-13" class="nx-chip" data-command="level:13" title="Smallest file, slowest to convert">Smallest</div>
+                <div id="level-1" class="nx-chip" data-command="level:1" title="Quickest to convert">Fast</div>
+                <div id="level-3" class="nx-chip" data-command="level:3" title="Balances compression and conversion time">Normal</div>
+                <div id="level-13" class="nx-chip" data-command="level:13" title="Compresses the most and takes the longest">Maximum</div>
               </div>
             </div>
             <div class="nx-option">

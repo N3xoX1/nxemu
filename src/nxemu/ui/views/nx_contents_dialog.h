@@ -61,7 +61,7 @@ private:
 
     void Run(Task task, std::vector<std::string> arguments, std::string what);
     void Finished(const NxTool::State & state);
-    void Add(const std::vector<std::string> & files);
+    void Add(std::vector<std::string> files, bool recipe = true);
     void ShowList();
     void ShowPage(const char * page);
     void ShowEdit();
@@ -80,6 +80,10 @@ private:
     std::string m_what;
     std::string m_message;
     bool m_messageFailed = false;
+    std::vector<std::string> m_addFiles;
+    bool m_addRecipe = true;
+    bool m_addCommitted = false;
+    bool m_retryAdd = false;
     size_t m_asking = 0;
     bool m_changed = false;
     std::string m_shownProgress;

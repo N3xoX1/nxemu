@@ -4545,17 +4545,11 @@ msgstr "Conversion la plus rapide"
 msgid "Fast"
 msgstr "Rapide"
 
-msgid "A little smaller, slower to convert"
-msgstr "Un peu plus petit, conversion plus lente"
+msgid "Balances compression and conversion time"
+msgstr "Équilibre la compression et le temps de conversion"
 
-msgid "Smaller"
-msgstr "Plus petit"
-
-msgid "Smallest file, slowest to convert"
-msgstr "Fichier le plus petit, conversion la plus lente"
-
-msgid "Smallest"
-msgstr "Le plus petit"
+msgid "Compresses the most and takes the longest"
+msgstr "Compresse le plus et prend le plus de temps"
 
 msgid "Save to"
 msgstr "Enregistrer dans"
@@ -4763,3 +4757,15 @@ msgstr "Finalisation... (%1)"
 
 msgid "%1 % done (%2)"
 msgstr "%1 % fait (%2)"
+
+msgid "Maximum"
+msgstr "Maximum"
+
+msgid "Retry without rebuild data"
+msgstr "Réessayer sans les données de reconstruction"
+
+msgid "Cancelled: some content was already added."
+msgstr "Annulé : une partie du contenu a déjà été ajoutée."
+
+msgid "Some content was added before the error: %1"
+msgstr "Une partie du contenu a été ajoutée avant l’erreur : %1"

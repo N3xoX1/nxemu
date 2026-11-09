@@ -197,6 +197,14 @@ private:
 };
 } // namespace
 
+std::optional<NxCatalog> OpenNxCatalog(VirtualFile file) {
+    if (!file || file->IsWritable()) return std::nullopt;
+    auto source=std::make_shared<Source>(std::move(file));
+    auto archive=nx::Archive::open(*source);
+    if (!archive) return std::nullopt;
+    return NxCatalog{std::move(source),std::move(*archive.value)};
+}
+
 nx::Result<std::shared_ptr<nx::Session>> OpenNxSession(VirtualFile file,std::string_view host_path,nx::SessionOptions options) {
     if (!options.parallel_reads || options.parallel_reads>64)
         return nx::Result<std::shared_ptr<nx::Session>>::failure(nx::ErrorCode::invalid_argument,"invalid NX parallel-read bound");

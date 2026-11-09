@@ -1274,19 +1274,21 @@ msgid "Fast"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_convert_dialog.rml
-msgid "A little smaller, slower to convert"
+msgid "Balances compression and conversion time"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_convert_dialog.rml
-msgid "Smaller"
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Normal"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_convert_dialog.rml
-msgid "Smallest file, slowest to convert"
+msgid "Compresses the most and takes the longest"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_convert_dialog.rml
-msgid "Smallest"
+msgid "Maximum"
 msgstr ""
 
 #: src/nxemu/ui/assets/nx_convert_dialog.rml
@@ -1779,11 +1781,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "The sharpest. Light work for most graphics devices."
-msgstr ""
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Normal"
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -3079,6 +3076,14 @@ msgid "Already in the file: nothing changed."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Cancelled: some content was already added."
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+msgid "Some content was added before the error: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
 msgid "Removed. The space it used is reclaimed by a later change or when it grows large."
 msgstr ""
 
@@ -3132,6 +3137,11 @@ msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp
 msgid "Rebuild"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_contents_dialog.cpp
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Retry without rebuild data"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_contents_dialog.cpp

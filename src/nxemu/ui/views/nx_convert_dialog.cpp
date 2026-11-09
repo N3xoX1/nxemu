@@ -120,7 +120,7 @@ void NxConvertDialog::Cancel()
     m_tool.Cancel();
 }
 
-void NxConvertDialog::Offer(std::vector<std::string> paths, std::string focus)
+void NxConvertDialog::Offer(std::vector<std::string> paths)
 {
     if (m_converting)
     {
@@ -131,13 +131,7 @@ void NxConvertDialog::Offer(std::vector<std::string> paths, std::string focus)
     {
         m_sources.clear();
         m_pendingScan.clear();
-        m_focus.clear();
         Show();
-    }
-    if (!focus.empty())
-    {
-        m_sources.clear();
-        m_focus = Key(focus);
     }
     Queue(paths);
 }
@@ -162,6 +156,7 @@ void NxConvertDialog::OnOpen()
     if (!m_tool.Busy())
     {
         m_tool.Reset();
+        m_discardScan = false;
     }
     ShowStep(Step::Pick);
     ShowOptions();
@@ -182,7 +177,7 @@ void NxConvertDialog::Queue(const std::vector<std::string> & paths)
 
 void NxConvertDialog::OnUpdate()
 {
-    const NxTool::State state = m_tool.Current();
+    const NxTool::State state = m_converting ? m_tool.Current() : m_tool.TakeState();
     if (m_converting)
     {
         if (state.phase == NxTool::Phase::Done)
@@ -190,6 +185,7 @@ void NxConvertDialog::OnUpdate()
             Job & job = m_jobs[m_job];
             job.done = true;
             job.succeeded = state.succeeded;
+            job.canRetry = job.recipe && CanRetryWithoutRecipe(state);
             if (state.succeeded)
             {
                 std::error_code error;
@@ -211,30 +207,30 @@ void NxConvertDialog::OnUpdate()
         }
         return;
     }
+    if (!m_discardScan && !state.records.empty())
+    {
+        AppendScanResults(state);
+    }
     if (state.phase == NxTool::Phase::Done)
     {
-        ScanFinished(state);
         m_tool.Reset();
+        m_discardScan = false;
+        ShowSources();
     }
-    if (!m_tool.Busy() && !m_pendingScan.empty())
+    if (state.phase != NxTool::Phase::Running && !m_pendingScan.empty())
     {
-        m_scanning.swap(m_pendingScan);
-        m_pendingScan.clear();
         std::vector<std::string> arguments{"scan"};
-        arguments.insert(arguments.end(), m_scanning.begin(), m_scanning.end());
-        if (!m_tool.Start(arguments))
+        arguments.insert(arguments.end(), m_pendingScan.begin(), m_pendingScan.end());
+        if (m_tool.Start(std::move(arguments)))
         {
-            ScanFinished(m_tool.Current());
-            m_tool.Reset();
+            m_pendingScan.clear();
         }
         ShowSources();
     }
 }
 
-void NxConvertDialog::ScanFinished(const NxTool::State & state)
+void NxConvertDialog::AppendScanResults(const NxTool::State & state)
 {
-    const std::vector<std::string> scanned = std::move(m_scanning);
-    m_scanning.clear();
     std::map<std::string, size_t> known;
     for (size_t i = 0; i < m_sources.size(); ++i)
     {
@@ -283,32 +279,6 @@ void NxConvertDialog::ScanFinished(const NxTool::State & state)
             {
                 m_sources[found->second].issue = record[2];
             }
-        }
-    }
-    if (!state.succeeded && !state.cancelled && added.empty())
-    {
-        Source failed;
-        failed.path = scanned.empty() ? std::string() : scanned.front();
-        failed.issue = state.error;
-        failed.selected = false;
-        m_sources.push_back(std::move(failed));
-    }
-    if (!m_focus.empty())
-    {
-        uint64_t application = 0;
-        for (const Source & source : m_sources)
-        {
-            if (Key(source.path) == m_focus && !source.contents.empty())
-            {
-                application = source.contents.front().applicationId;
-            }
-        }
-        if (application != 0)
-        {
-            std::erase_if(m_sources, [&](const Source & source) {
-                return source.contents.empty() || source.contents.front().applicationId != application;
-            });
-            m_focus.clear();
         }
     }
     ShowSources();
@@ -456,6 +426,23 @@ void NxConvertDialog::OnCommand(const std::string & command)
     {
         Cancel();
     }
+    else if (m_step == Step::Done && command == "retry-without-recipe" && m_host.canWork())
+    {
+        for (Job & job : m_jobs)
+        {
+            if (job.canRetry)
+            {
+                job.canRetry = false;
+                job.done = false;
+                job.recipe = false;
+            }
+        }
+        m_job = 0;
+        m_cancelled = false;
+        m_converting = true;
+        ShowStep(Step::Work);
+        NextJob();
+    }
     else if (m_step == Step::Done && command == "again")
     {
         m_sources.clear();
@@ -472,6 +459,7 @@ void NxConvertDialog::OnCloseRequested()
         Cancel();
         return;
     }
+    m_discardScan = m_tool.Busy();
     m_tool.Cancel();
     Close();
     if (m_changed)
@@ -498,7 +486,7 @@ void NxConvertDialog::ShowOptions()
     {
         return;
     }
-    for (const int level : {3, 9, 13})
+    for (const int level : {1, 3, 13})
     {
         if (Rml::Element * chip = Document()->GetElementById("level-" + std::to_string(level)))
         {
@@ -606,6 +594,7 @@ void NxConvertDialog::StartConversion()
         }
         Job job;
         job.name = game.name;
+        job.recipe = m_recipe;
         job.output = game.output;
         for (const size_t index : game.sources)
         {
@@ -633,15 +622,17 @@ void NxConvertDialog::NextJob()
     while (m_job < m_jobs.size() && !m_cancelled)
     {
         Job & job = m_jobs[m_job];
+        if (job.done)
+        {
+            ++m_job;
+            continue;
+        }
         std::vector<std::string> arguments{"pack"};
         arguments.insert(arguments.end(), job.sources.begin(), job.sources.end());
         arguments.push_back(job.output);
         arguments.push_back("--level");
         arguments.push_back(std::to_string(m_level));
-        if (m_recipe)
-        {
-            arguments.push_back("--recipe");
-        }
+        arguments.push_back(job.recipe ? "--recipe" : "--no-recipe");
         m_lastProgress.clear();
         if (m_tool.Start(arguments))
         {
@@ -694,6 +685,10 @@ void NxConvertDialog::ShowResults()
         rml += std::string("<div class=\"nx-result") + (job.succeeded ? "" : " failed") + "\"><img src=\"images/" + (job.succeeded ? "check" : "alert") +
                ".png\" /><div class=\"nx-result-texts\"><div class=\"nx-result-name\">" + Escaped(job.name) + "</div><div class=\"nx-result-text\">" + Escaped(job.message) +
                "</div></div></div>";
+    }
+    if (std::any_of(m_jobs.begin(), m_jobs.end(), [](const Job & job) { return job.canRetry; }))
+    {
+        rml += "<button data-command=\"retry-without-recipe\">" + Escaped(Tr("Retry without rebuild data")) + "</button>";
     }
     SetText("results", rml);
     SetText("result-heading", Escaped(succeeded == m_jobs.size() ? (succeeded > 1 ? Tr("%1 games converted", {std::to_string(succeeded)}) : Tr("Game converted"))

@@ -13,6 +13,13 @@ public:
                  std::string_view host_path={}, std::optional<std::array<uint8_t,32>> snapshot={},
                  nx::SessionOptions options={}, std::optional<uint64_t> application_id={});
     ~AppLoader_NX() override;
+    struct CatalogMetadata {
+        uint64_t program = 0;
+        std::vector<uint64_t> programs;
+        std::string title, publisher, version;
+        std::vector<uint8_t> icon;
+    };
+    static std::optional<CatalogMetadata> ReadCatalogMetadata(const FileSys::VirtualFile& file);
     static LoaderFileType IdentifyType(const FileSys::VirtualFile& file);
     LoaderFileType GetFileType() const override { return LoaderFileType::NX; }
     LoaderResultStatus GetStatus() const;

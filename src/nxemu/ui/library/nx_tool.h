@@ -39,6 +39,7 @@ public:
     // The command and its arguments, as for nxconvert. Fails when busy.
     bool Start(std::vector<std::string> arguments);
     State Current() const;
+    State TakeState(); // take the newly published scan records
     bool Busy() const;
     void Cancel();
     void Reset();
@@ -57,6 +58,7 @@ private:
     std::thread m_thread;
 };
 
+bool CanRetryWithoutRecipe(const NxTool::State & state);
 std::vector<std::string> SplitFields(const std::string & line);
 // The progress of a running command: percent done and time elapsed, or what it is doing
 // before and after the bytes it counts.

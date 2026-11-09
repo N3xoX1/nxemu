@@ -149,6 +149,8 @@ void NxContentsDialog::OnOpen()
     ForgetPicture();
     m_size = 0;
     m_message.clear();
+    m_retryAdd = false;
+    m_addFiles.clear();
     m_changed = false;
     if (!m_tool.Busy())
     {
@@ -275,23 +277,34 @@ void NxContentsDialog::Finished(const NxTool::State & state)
         ShowList();
         return;
     }
-    if (state.succeeded)
+    if (task == Task::Add)
     {
-        m_changed = true;
-        size_t added = 0, skipped = 0;
-        for (const std::vector<std::string> & record : state.records)
+        const auto hasRecord = [&](const char * kind) {
+            return std::any_of(state.records.begin(), state.records.end(), [kind](const auto & record) { return record[0] == kind; });
+        };
+        const bool previouslyAdded = m_addCommitted;
+        m_addCommitted = m_addCommitted || hasRecord("ADDED");
+        m_changed = m_changed || m_addCommitted;
+        m_retryAdd = m_addRecipe && CanRetryWithoutRecipe(state);
+        if (state.succeeded)
         {
-            added += record[0] == "ADDED" ? 1 : 0;
-            skipped += record[0] == "SKIPPED" ? 1 : 0;
+            m_message = m_addCommitted && (previouslyAdded || !hasRecord("SKIPPED")) ? Tr("Added.") :
+                        m_addCommitted ? Tr("Added; the rest was already in the file.") : Tr("Already in the file: nothing changed.");
         }
-        if (task == Task::Add)
+        else if (m_addCommitted)
         {
-            m_message = added != 0 && skipped == 0 ? Tr("Added.") : added != 0 ? Tr("Added; the rest was already in the file.") : Tr("Already in the file: nothing changed.");
+            m_message = state.cancelled ? Tr("Cancelled: some content was already added.") : Tr("Some content was added before the error: %1", {state.error});
         }
         else
         {
-            m_message = Tr("Removed. The space it used is reclaimed by a later change or when it grows large.");
+            m_message = state.cancelled ? Tr("Cancelled: the file was left as it was.") : Tr("Nothing changed: %1", {state.error});
         }
+        m_messageFailed = !state.succeeded;
+    }
+    else if (state.succeeded)
+    {
+        m_changed = true;
+        m_message = Tr("Removed. The space it used is reclaimed by a later change or when it grows large.");
         m_messageFailed = false;
     }
     else
@@ -302,7 +315,7 @@ void NxContentsDialog::Finished(const NxTool::State & state)
     Run(Task::List, {"contents", m_archive}, Tr("Reading the file..."));
 }
 
-void NxContentsDialog::Add(const std::vector<std::string> & files)
+void NxContentsDialog::Add(std::vector<std::string> files, bool recipe)
 {
     if (files.empty() || !m_host.canWork())
     {
@@ -310,8 +323,11 @@ void NxContentsDialog::Add(const std::vector<std::string> & files)
     }
     std::vector<std::string> arguments{"add", m_archive};
     arguments.insert(arguments.end(), files.begin(), files.end());
-    // Keep what rebuilds each added file inside the NX, as the conversion does.
-    arguments.push_back("--recipe");
+    if (recipe) m_addCommitted = false;
+    m_addFiles = std::move(files);
+    m_addRecipe = recipe;
+    m_retryAdd = false;
+    arguments.push_back(recipe ? "--recipe" : "--no-recipe");
     Run(Task::Add, std::move(arguments), Tr("Adding to %1...", {FileName(m_archive)}));
 }
 
@@ -324,6 +340,11 @@ void NxContentsDialog::OnCommand(const std::string & command)
     }
     if (m_tool.Busy())
     {
+        return;
+    }
+    if (command == "retry-without-recipe" && m_retryAdd)
+    {
+        Add(m_addFiles, false);
         return;
     }
     if (command == "add-content")
@@ -485,7 +506,9 @@ void NxContentsDialog::ShowList()
     {
         message->SetClass("failed", m_messageFailed);
     }
-    SetText("contents-message", Escaped(m_message));
+    SetText("contents-message", Escaped(m_message) + (m_retryAdd ?
+        "<div><button data-command=\"retry-without-recipe\">" + Escaped(Tr("Retry without rebuild data")) + "</button></div>" : ""));
+
 }
 
 void NxContentsDialog::ShowEdit()
