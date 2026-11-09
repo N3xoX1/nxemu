@@ -632,7 +632,7 @@ void ShaderProfileDialog::OnUpdate()
             ShowStep(Step::Done);
             SetText("profile-detail", "");
             SetText("profile-status", "<div class=\"profile-error\"><div class=\"profile-error-title\">" +
-                Tr(m_importing ? "The profile could not be imported" : "The profile could not be exported") +
+                Tr(m_importing ? TrMark("The profile could not be imported") : TrMark("The profile could not be exported")) +
                 "</div><div class=\"profile-error-text\">" + Escaped(error) + "</div></div>");
             SetText("profile-start", Tr("Close"));
             return;
@@ -648,10 +648,10 @@ void ShaderProfileDialog::OnUpdate()
         if (SaveOutputs()) ShowStep(Step::Done);
         return;
     }
-    const char * status = m_phase == "identify-content" ? "Identifying the game version" : m_phase == "read-cache" ? "Reading your shader cache"
-        : m_phase == "assemble" ? "Preparing the recipes" : m_phase == "compress" ? "Compressing the profile"
-        : m_phase == "write-profile" ? "Saving the profile" : m_phase == "verify-index" ? "Checking earlier results"
-        : m_phase == "raw" ? "Searching the game files" : m_phase == "verify" ? "Checking the shaders" : "Searching the game resources";
+    const char * status = m_phase == "identify-content" ? TrMark("Identifying the game version") : m_phase == "read-cache" ? TrMark("Reading your shader cache")
+        : m_phase == "assemble" ? TrMark("Preparing the recipes") : m_phase == "compress" ? TrMark("Compressing the profile")
+        : m_phase == "write-profile" ? TrMark("Saving the profile") : m_phase == "verify-index" ? TrMark("Checking earlier results")
+        : m_phase == "raw" ? TrMark("Searching the game files") : m_phase == "verify" ? TrMark("Checking the shaders") : TrMark("Searching the game resources");
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - m_started).count();
     // Title and elapsed time, then what is measured, then the shaders found so far.
     const auto seconds = elapsed / 1000;
