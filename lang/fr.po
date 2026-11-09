@@ -4584,9 +4584,6 @@ msgstr "Mise à jour"
 msgid "Reading the file..."
 msgstr "Lecture du fichier..."
 
-msgid "%1 written"
-msgstr "%1 écrits"
-
 msgid "Added."
 msgstr "Ajouté."
 

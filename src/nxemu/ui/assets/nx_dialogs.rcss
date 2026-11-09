@@ -170,11 +170,6 @@ body.narrow .nx-body
     margin-right: 8dp;
 }
 
-.nx-spacer
-{
-    flex: 1;
-}
-
 .nx-list
 {
     flex: 1;
