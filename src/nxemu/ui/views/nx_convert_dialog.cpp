@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <map>
+#include <set>
 #include <nxemu/ui/host/ui_window.h>
 #include <nxemu/ui/i18n/translation.h>
 #include <nxemu/ui/platform/file_dialogs.h>
@@ -193,8 +194,8 @@ void NxConvertDialog::OnUpdate()
             job.canRetry = job.recipe && CanRetryWithoutRecipe(state);
             if (state.succeeded)
             {
-                std::error_code error;
-                const uint64_t size = std::filesystem::file_size(FsPath(job.output), error);
+                job.outputStamp = Stamp(job.output);
+                const uint64_t size = job.outputStamp ? job.outputStamp->size : 0;
                 job.message = Tr("Saved as %1 (%2, the files were %3)", {FileName(job.output), Bytes(size), Bytes(job.sourceBytes)});
                 m_changed = true;
             }
@@ -456,6 +457,20 @@ void NxConvertDialog::OnCommand(const std::string & command)
         ShowStep(Step::Work);
         NextJob();
     }
+    else if (m_step == Step::Done && command == "ask-trash")
+    {
+        m_confirmTrash = TrashCandidates();
+        ShowResults();
+    }
+    else if (m_step == Step::Done && command == "keep-originals")
+    {
+        m_confirmTrash.clear();
+        ShowResults();
+    }
+    else if (m_step == Step::Done && command == "confirm-trash")
+    {
+        TrashOriginals();
+    }
     else if (m_step == Step::Done && command == "again")
     {
         m_sources.clear();
@@ -599,6 +614,8 @@ void NxConvertDialog::StartConversion()
         return;
     }
     m_jobs.clear();
+    m_confirmTrash.clear();
+    m_trashResult.clear();
     for (const Game & game : Games())
     {
         if (game.output.empty())
@@ -613,7 +630,9 @@ void NxConvertDialog::StartConversion()
         {
             if (m_sources[index].selected)
             {
-                job.sources.push_back(m_sources[index].path);
+                const auto & path = m_sources[index].path;
+                job.sources.push_back(path);
+                if (const auto stamp = Stamp(path)) job.sourceStamps.emplace(path, *stamp);
                 job.sourceBytes += m_sources[index].size;
             }
         }
@@ -688,6 +707,60 @@ void NxConvertDialog::ShowWork(const NxTool::State & state)
     SetText("work-detail", Escaped(detail));
 }
 
+std::optional<NxConvertDialog::FileStamp> NxConvertDialog::Stamp(const std::string & path)
+{
+    const auto file = FsPath(path);
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(std::filesystem::symlink_status(file, error))) return std::nullopt;
+    const auto size = std::filesystem::file_size(file, error);
+    if (error) return std::nullopt;
+    const auto modified = std::filesystem::last_write_time(file, error);
+    if (error) return std::nullopt;
+    return FileStamp{size, modified};
+}
+
+std::vector<std::string> NxConvertDialog::TrashCandidates() const
+{
+    std::vector<std::string> candidates;
+    std::set<std::string> seen;
+    for (const Job & job : m_jobs)
+    {
+        if (!job.succeeded || !job.outputStamp || Stamp(job.output) != job.outputStamp) continue;
+        for (const auto & [path, stamp] : job.sourceStamps)
+        {
+            if (Stamp(path) == stamp && seen.insert(Key(path)).second) candidates.push_back(path);
+        }
+    }
+    return candidates;
+}
+
+void NxConvertDialog::TrashOriginals()
+{
+    if (m_confirmTrash.empty() || !m_host.canWork()) return;
+    const auto candidates = TrashCandidates();
+    size_t moved = 0;
+    std::string failures;
+    for (const auto & path : m_confirmTrash)
+    {
+        std::error_code error;
+        const auto absolute = std::filesystem::absolute(FsPath(path), error);
+        if (!error && std::find(candidates.begin(), candidates.end(), path) != candidates.end() &&
+            MoveFileToTrash(m_window.NativeHandle(), Utf8(absolute)))
+        {
+            ++moved;
+        }
+        else
+        {
+            if (!failures.empty()) failures += ", ";
+            failures += FileName(path);
+        }
+    }
+    m_confirmTrash.clear();
+    m_trashResult = TrCount("%n original file moved to the trash.", "%n original files moved to the trash.", moved);
+    if (!failures.empty()) m_trashResult += " " + Tr("Could not move to the trash: %1", {failures});
+    ShowResults();
+}
+
 void NxConvertDialog::ShowResults()
 {
     std::string rml;
@@ -703,9 +776,24 @@ void NxConvertDialog::ShowResults()
     {
         rml += "<button data-command=\"retry-without-recipe\">" + Escaped(Tr("Retry without rebuild data")) + "</button>";
     }
+    if (!m_confirmTrash.empty())
+    {
+        rml = "<div class=\"nx-text\">" + Escaped(Tr("Move these original files to the trash?")) + "</div>";
+        for (const auto & path : m_confirmTrash)
+        {
+            rml += "<div class=\"nx-note\">" + Escaped(path) + "</div>";
+        }
+        rml += "<button data-command=\"keep-originals\">" + Escaped(Tr("Keep originals")) + "</button> ";
+        rml += "<button data-command=\"confirm-trash\">" + Escaped(Tr("Move to trash")) + "</button>";
+    }
+    else if (!TrashCandidates().empty())
+    {
+        rml += "<button data-command=\"ask-trash\">" + Escaped(Tr("Move converted originals to trash…")) + "</button>";
+    }
     SetText("results", rml);
     SetText("result-heading", Escaped(succeeded == m_jobs.size() ? (succeeded > 1 ? Tr("%1 games converted", {std::to_string(succeeded)}) : Tr("Game converted"))
                                                                 : Tr("%1 of %2 games converted", {std::to_string(succeeded), std::to_string(m_jobs.size())})));
-    SetText("result-text", Escaped(succeeded != 0 ? Tr("The NX files appear in the game list once their folder is one of the game directories. The original files were left as they were.")
-                                                  : Tr("The original files were left as they were.")));
+    SetText("result-text", Escaped(!m_trashResult.empty() ? m_trashResult : succeeded != 0
+        ? Tr("The NX files appear in the game list once their folder is one of the game directories.")
+        : Tr("The original files were left as they were.")));
 }

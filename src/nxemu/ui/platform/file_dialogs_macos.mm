@@ -216,4 +216,13 @@ Path BrowseForDirectory(const char * title)
     }
 }
 
+bool MoveFileToTrash(const std::string & path)
+{
+    @autoreleasepool
+    {
+        NSString * name = ToNSString(path.c_str());
+        return name != nil && [[NSFileManager defaultManager] trashItemAtURL:[NSURL fileURLWithPath:name]
+                                                          resultingItemURL:nil error:nil];
+    }
+}
 } // namespace MacOSFileDialogs

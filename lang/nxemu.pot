@@ -3230,6 +3230,32 @@ msgid "Converting %1..."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "%n original file moved to the trash."
+msgid_plural "%n original files moved to the trash."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Could not move to the trash: %1"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Move these original files to the trash?"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Keep originals"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Move to trash"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
+msgid "Move converted originals to trash…"
+msgstr ""
+
+#: src/nxemu/ui/views/nx_convert_dialog.cpp
 msgid "%1 games converted"
 msgstr ""
 
@@ -3242,7 +3268,7 @@ msgid "%1 of %2 games converted"
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "The NX files appear in the game list once their folder is one of the game directories. The original files were left as they were."
+msgid "The NX files appear in the game list once their folder is one of the game directories."
 msgstr ""
 
 #: src/nxemu/ui/views/nx_convert_dialog.cpp

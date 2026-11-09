@@ -2,6 +2,8 @@
 #include "dialog.h"
 #include <cstdint>
 #include <functional>
+#include <map>
+#include <optional>
 #include <nxemu/ui/library/nx_tool.h>
 #include <string>
 #include <vector>
@@ -54,11 +56,19 @@ private:
         std::string output; // empty when it cannot be converted
         std::string problem;
     };
+    struct FileStamp
+    {
+        uintmax_t size;
+        std::filesystem::file_time_type modified;
+        bool operator==(const FileStamp &) const = default;
+    };
     struct Job
     {
         std::string name;
         std::string output;
         std::vector<std::string> sources;
+        std::map<std::string, FileStamp> sourceStamps;
+        std::optional<FileStamp> outputStamp;
         uint64_t sourceBytes = 0;
         bool done = false;
         bool succeeded = false;
@@ -88,6 +98,9 @@ private:
     void NextJob();
     void ShowWork(const NxTool::State & state);
     void ShowResults();
+    static std::optional<FileStamp> Stamp(const std::string & path);
+    std::vector<std::string> TrashCandidates() const;
+    void TrashOriginals();
 
     UiWindow & m_window;
     const Host m_host;
@@ -97,6 +110,8 @@ private:
     std::vector<std::string> m_pendingScan; // waiting for the tool
     std::vector<Source> m_sources;
     std::vector<Job> m_jobs;
+    std::vector<std::string> m_confirmTrash;
+    std::string m_trashResult;
     size_t m_job = 0;
     bool m_converting = false;
     bool m_cancelled = false;

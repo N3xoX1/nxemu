@@ -13,3 +13,4 @@ bool FileSelect(void * hwndOwner, const char * initialDir, const char * fileFilt
 bool FileSelectMany(void * hwndOwner, const char * initialDir, const char * fileFilter, std::vector<std::string> & selected);
 bool FileSave(void * hwndOwner,const char * initialDir,const char * fileFilter,const char * suggestedName,Path & selected);
 Path BrowseForDirectory(void * parentWindow, const char * title);
+bool MoveFileToTrash(void * parentWindow, const std::string & path);

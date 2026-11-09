@@ -6,10 +6,12 @@
 
 #include <CommDlg.h>
 #include <common/std_string.h>
-#include <shlobj_core.h>
+#include <shlobj.h>
 #include <vector>
 #elif defined(__linux__)
 #include <dbus/dbus.h>
+#include <cerrno>
+#include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -28,6 +30,7 @@ bool FileSave(const char * initialDir,const char * filter,const char * suggested
 bool FileSelect(const char * initialDir, const char * fileFilter, Path & selected);
 bool FileSelectMany(const char * initialDir, const char * fileFilter, std::vector<std::string> & selected);
 Path BrowseForDirectory(const char * title);
+bool MoveFileToTrash(const std::string & path);
 } // namespace MacOSFileDialogs
 #endif
 
@@ -740,4 +743,50 @@ Path BrowseForDirectory(void * parentWindow, const char * title)
     }
 #endif
     return selected;
+}
+
+
+bool MoveFileToTrash(void * parentWindow, const std::string & path)
+{
+#ifdef _WIN32
+    const HRESULT initialized = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(initialized) && initialized != RPC_E_CHANGED_MODE) return false;
+
+    IFileOperation * operation = nullptr;
+    IShellItem * item = nullptr;
+    BOOL aborted = TRUE;
+    const std::wstring wide = stdstr(path).ToUTF16();
+    const bool moved = SUCCEEDED(CoCreateInstance(CLSID_FileOperation, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&operation))) &&
+                       SUCCEEDED(SHCreateItemFromParsingName(wide.c_str(), nullptr, IID_PPV_ARGS(&item))) &&
+                       SUCCEEDED(operation->SetOwnerWindow(static_cast<HWND>(parentWindow))) &&
+                       SUCCEEDED(operation->SetOperationFlags(FOFX_RECYCLEONDELETE | FOFX_ADDUNDORECORD | FOF_NOERRORUI)) &&
+                       SUCCEEDED(operation->DeleteItem(item, nullptr)) &&
+                       SUCCEEDED(operation->PerformOperations()) &&
+                       SUCCEEDED(operation->GetAnyOperationsAborted(&aborted)) && !aborted;
+    if (item) item->Release();
+    if (operation) operation->Release();
+    if (SUCCEEDED(initialized)) CoUninitialize();
+    return moved;
+#elif defined(__APPLE__)
+    (void)parentWindow;
+    return MacOSFileDialogs::MoveFileToTrash(path);
+#elif defined(__linux__)
+    (void)parentWindow;
+    std::string name = path;
+    char program[] = "gio", command[] = "trash", optionsEnd[] = "--";
+    char * arguments[] = {program, command, optionsEnd, name.data(), nullptr};
+    pid_t pid;
+    if (posix_spawnp(&pid, program, nullptr, nullptr, arguments, environ) != 0) return false;
+    int status;
+    pid_t waited;
+    do
+    {
+        waited = waitpid(pid, &status, 0);
+    } while (waited < 0 && errno == EINTR);
+    return waited == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#else
+    (void)parentWindow;
+    (void)path;
+    return false;
+#endif
 }
