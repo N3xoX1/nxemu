@@ -80,6 +80,29 @@ std::vector<std::string> SplitFields(const std::string & line)
     }
 }
 
+namespace
+{
+// True when a file name carries a title ID of another game. The base, its update
+// and its DLC share the first 12 hex digits; names without an ID still get scanned.
+bool NamesOtherTitle(const std::string & name, const std::string & application)
+{
+    const unsigned long long id = std::strtoull(application.c_str(), nullptr, 16);
+    bool otherTitle = false;
+    for (size_t i = 0; i + 16 <= name.size(); ++i)
+    {
+        if (!std::all_of(name.begin() + i, name.begin() + i + 16, [](unsigned char c) { return std::isxdigit(c) != 0; }) ||
+            (i > 0 && std::isxdigit(static_cast<unsigned char>(name[i - 1]))) ||
+            (i + 16 < name.size() && std::isxdigit(static_cast<unsigned char>(name[i + 16]))))
+            continue;
+        const unsigned long long found = std::strtoull(name.substr(i, 16).c_str(), nullptr, 16);
+        if ((found >> 48) != 0x0100) continue; // not a Switch title ID
+        if ((found >> 16) == (id >> 16)) return false;
+        otherTitle = true;
+    }
+    return otherTitle;
+}
+}
+
 bool CanRetryWithoutRecipe(const NxTool::State & state)
 {
     if (state.succeeded || state.cancelled)
@@ -285,23 +308,29 @@ void NxTool::Run(std::vector<std::string> arguments, std::vector<ScanSource> kno
             std::lock_guard lock(m_mutex);
             return m_cancel;
         };
+        // Called only for files of the same size and the same contents. Sampled
+        // blocks across both files confirm the copy without reading gigabytes.
         const auto sameFile = [&](const std::string & a, const std::string & b) {
             const std::filesystem::path left{Common::FS::ToU8String(a)}, right{Common::FS::ToU8String(b)};
             std::error_code error;
             if (std::filesystem::equivalent(left, right, error)) return true;
+            const uint64_t size = std::filesystem::file_size(left, error);
+            if (error || std::filesystem::file_size(right, error) != size || error) return false;
             std::ifstream first(left, std::ios::binary), second(right, std::ios::binary);
             if (!first || !second) return false;
-            std::vector<char> x(1024 * 1024), y(x.size());
-            while (!cancelled())
+            constexpr uint64_t Block = 1024 * 1024, Samples = 16;
+            std::vector<char> x(Block), y(Block);
+            const uint64_t blocks = (size + Block - 1) / Block;
+            for (uint64_t sample = 0; sample < std::min(blocks, Samples) && !cancelled(); ++sample)
             {
-                first.read(x.data(), x.size());
-                second.read(y.data(), y.size());
-                const auto count = first.gcount();
-                if (count != second.gcount() || !std::equal(x.begin(), x.begin() + count, y.begin())) return false;
-                if (first.eof() || second.eof()) return first.eof() && second.eof() && !first.bad() && !second.bad();
-                if (!first || !second) return false;
+                const uint64_t block = blocks <= Samples ? sample : sample * (blocks - 1) / (Samples - 1);
+                const uint64_t offset = block * Block, count = std::min(Block, size - offset);
+                first.seekg(static_cast<std::streamoff>(offset));
+                second.seekg(static_cast<std::streamoff>(offset));
+                if (!first.read(x.data(), count) || !second.read(y.data(), count) || !std::equal(x.begin(), x.begin() + count, y.begin()))
+                    return false;
             }
-            return false;
+            return !cancelled();
         };
         const auto publish = [&](Records records) {
             auto source = std::find_if(records.begin(), records.end(), [](const auto & row) {
@@ -358,7 +387,7 @@ void NxTool::Run(std::vector<std::string> arguments, std::vector<ScanSource> kno
                 std::filesystem::directory_iterator it(folder, std::filesystem::directory_options::skip_permission_denied, ec), end;
                 for (; it != end && !ec && !cancelled(); it.increment(ec))
                 {
-                    if (!isPackage(*it)) continue;
+                    if (!isPackage(*it) || NamesOtherTitle(Common::FS::PathToUTF8String(it->path().filename()), application)) continue;
                     Records records = scan(it->path());
                     const bool supported = std::any_of(records.begin(), records.end(), [](const auto & row) {
                         return row.size() >= 5 && row[0] == "SOURCE" && row[4] == "Supported";
@@ -410,12 +439,14 @@ void NxTool::Run(std::vector<std::string> arguments, std::vector<ScanSource> kno
             if (source)
             {
                 const auto archive = nx::Archive::open(**source.value);
-                if (archive && !archive.value->applications().empty())
+                // The contents command reports each snapshot's original title. The
+                // library and metadata editor use the title of the Switch application.
+                for (uint32_t i = 0; archive && i < archive.value->applications().size(); ++i)
                 {
-                    // The contents command reports each snapshot's original title.
-                    // The library and metadata editor use the application title.
+                    if (archive.value->applications()[i].platform != 1) continue;
                     std::lock_guard lock(m_mutex);
-                    m_state.records.push_back({"APP_TITLE", std::string(archive.value->title(0))});
+                    m_state.records.push_back({"APP_TITLE", std::string(archive.value->title(i))});
+                    break;
                 }
             }
         }

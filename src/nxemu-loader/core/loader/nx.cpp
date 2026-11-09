@@ -502,10 +502,12 @@ AppLoader_NX::AppLoader_NX(FileSys::VirtualFile source,uint64_t program,size_t i
 AppLoader_NX::~AppLoader_NX()=default;
 LoaderFileType AppLoader_NX::IdentifyType(const FileSys::VirtualFile& source) {
     constexpr size_t PageSize = 4096;
-    if (!source || source->GetSize() < 2 * PageSize) return LoaderFileType::Error;
+    if (!source) return LoaderFileType::Error;
+    // The header is at the start, or one page in when it is being recovered.
     for (const size_t offset : {size_t{0}, PageSize}) {
         std::array<uint8_t,4> magic{};
-        if (source->Read(magic.data(), magic.size(), offset) == magic.size() &&
+        if (source->GetSize() >= offset + magic.size() &&
+            source->Read(magic.data(), magic.size(), offset) == magic.size() &&
             std::memcmp(magic.data(), "NXAR", magic.size()) == 0) return LoaderFileType::NX;
     }
     return LoaderFileType::Error;

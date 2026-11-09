@@ -1071,25 +1071,23 @@ void GameListCache::ParseGameFile(const std::string & path, GameFileRecord & rec
     if (IsGameExtension(ext) || (!IsAddOnExtension(ext) && Loader::LooseFS::IsExeFSMain(std::filesystem::path{Common::FS::ToU8String(path)})))
     {
         FileSys::VirtualFile file = m_systemloader.GetFilesystem()->OpenFile(path, VirtualFileOpenMode::Read);
-        if (ext == "nx")
+        // The catalog reads a one-game NX without opening a session. Other
+        // archives (several games, ambiguous snapshots) go through the loader.
+        if (auto catalog = ext == "nx" ? Loader::AppLoader_NX::ReadCatalogMetadata(file) : std::nullopt)
         {
-            auto catalog = Loader::AppLoader_NX::ReadCatalogMetadata(file);
-            if (catalog)
-            {
-                record.isGame = true;
-                auto & metadata = record.programs.emplace_back().base;
-                metadata.fileType = LoaderFileType::NX;
-                metadata.programId = catalog->program;
-                metadata.programIds = std::move(catalog->programs);
-                metadata.title = std::move(catalog->title);
-                metadata.icon = std::move(catalog->icon);
-                metadata.displayVersion = std::move(catalog->version);
-                metadata.developer = std::move(catalog->publisher);
-                metadata.programIdStatus = metadata.programIdsStatus = LoaderResultStatus::Success;
-                metadata.titleStatus = metadata.title.empty() ? LoaderResultStatus::ErrorNoControl : LoaderResultStatus::Success;
-                metadata.iconStatus = metadata.icon.empty() ? LoaderResultStatus::ErrorNoIcon : LoaderResultStatus::Success;
-                metadata.versionStatus = LoaderResultStatus::Success;
-            }
+            record.isGame = true;
+            auto & metadata = record.programs.emplace_back().base;
+            metadata.fileType = LoaderFileType::NX;
+            metadata.programId = catalog->program;
+            metadata.programIds = std::move(catalog->programs);
+            metadata.title = std::move(catalog->title);
+            metadata.icon = std::move(catalog->icon);
+            metadata.displayVersion = std::move(catalog->version);
+            metadata.developer = std::move(catalog->publisher);
+            metadata.programIdStatus = metadata.programIdsStatus = LoaderResultStatus::Success;
+            metadata.titleStatus = metadata.title.empty() ? LoaderResultStatus::ErrorNoControl : LoaderResultStatus::Success;
+            metadata.iconStatus = metadata.icon.empty() ? LoaderResultStatus::ErrorNoIcon : LoaderResultStatus::Success;
+            metadata.versionStatus = LoaderResultStatus::Success;
             return;
         }
         std::shared_ptr<Loader::AppLoader> loader = file ? Loader::GetLoader(m_systemloader, file, 0, 0) : nullptr;

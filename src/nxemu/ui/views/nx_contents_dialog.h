@@ -2,6 +2,7 @@
 #include "dialog.h"
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <nxemu/ui/library/nx_tool.h>
 #include <string>
 #include <vector>
@@ -74,6 +75,7 @@ private:
     void ChoosePicture();
     void StagePicture(const std::vector<uint8_t> & icon, const std::string & note);
     void ClearEditPictures();
+    void ShowPictures(Pictures pictures);
     void SaveMetadata();
     void ForgetPicture();
 
@@ -99,6 +101,7 @@ private:
     bool m_editOnOpen = false;
     std::string m_catalogTitle;
     std::string m_shownTitle; // the title the edit page started from
+    std::future<Pictures> m_reading; // the pictures read off the interface thread
     std::string m_currentPicture;
     std::vector<uint8_t> m_originalPicture;
     std::string m_picture; // staged image file, until it is saved

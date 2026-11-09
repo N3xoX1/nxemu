@@ -4,7 +4,9 @@
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
 #include <algorithm>
 #include <cstdlib>
+#include <chrono>
 #include <fstream>
+#include <future>
 #include <iterator>
 #include <nxemu/ui/host/ui_renderer.h>
 #include <nxemu/ui/host/ui_window.h>
@@ -179,6 +181,10 @@ void NxContentsDialog::Run(Task task, std::vector<std::string> arguments, std::s
 
 void NxContentsDialog::OnUpdate()
 {
+    if (m_reading.valid() && m_reading.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+    {
+        ShowPictures(m_reading.get());
+    }
     const NxTool::State state = m_tool.Current();
     if (state.phase == NxTool::Phase::Running)
     {
@@ -548,24 +554,39 @@ void NxContentsDialog::ShowEdit()
         field->SetValue(title);
     }
     ClearEditPictures();
-    auto pictures = m_host.readPictures(m_archive);
-    m_originalPicture = std::move(pictures.original);
-    if (!pictures.current.empty())
-        m_currentPicture = m_window.Renderer().AddMemoryImage(std::move(pictures.current));
-    SetText("edit-picture", m_currentPicture.empty() ? Escaped(Tr("No picture")) :
-        "<img src=\"" + Rml::StringUtilities::EncodeRml(m_currentPicture) + "\"/>");
-    if (auto * restore = Document()->GetElementById("restore-rom-picture"))
-    {
-        restore->SetClass("disabled", m_originalPicture.empty());
-        if (m_originalPicture.empty()) restore->RemoveAttribute("data-command");
-        else restore->SetAttribute("data-command", "restore-rom-picture");
-    }
-    SetText("edit-note", Escaped(m_originalPicture.empty() ? Tr("This archive has no recoverable ROM picture.") : Tr("Current picture")));
+    // Opening the archive and its control data can take a while on a slow disk.
+    SetText("edit-picture", "");
+    SetText("edit-note", Escaped(Tr("Reading the file...")));
     if (Rml::Element * note = Document()->GetElementById("edit-note"))
     {
         note->SetClass("failed", false);
     }
+    if (auto * restore = Document()->GetElementById("restore-rom-picture"))
+    {
+        restore->SetClass("disabled", true);
+        restore->RemoveAttribute("data-command");
+    }
+    m_reading = std::async(std::launch::async, m_host.readPictures, m_archive);
     ShowPage("edit");
+}
+
+void NxContentsDialog::ShowPictures(Pictures pictures)
+{
+    m_originalPicture = std::move(pictures.original);
+    if (!pictures.current.empty())
+        m_currentPicture = m_window.Renderer().AddMemoryImage(std::move(pictures.current));
+    if (auto * restore = Document()->GetElementById("restore-rom-picture"))
+    {
+        restore->SetClass("disabled", m_originalPicture.empty());
+        if (!m_originalPicture.empty()) restore->SetAttribute("data-command", "restore-rom-picture");
+    }
+    if (!m_picture.empty())
+    {
+        return; // a picture chosen meanwhile stays shown
+    }
+    SetText("edit-picture", m_currentPicture.empty() ? Escaped(Tr("No picture")) :
+        "<img src=\"" + Rml::StringUtilities::EncodeRml(m_currentPicture) + "\"/>");
+    SetText("edit-note", Escaped(m_originalPicture.empty() ? Tr("This archive has no recoverable ROM picture.") : Tr("Current picture")));
 }
 
 void NxContentsDialog::ChoosePicture()
@@ -653,11 +674,21 @@ void NxContentsDialog::SaveMetadata()
         return;
     }
     m_message.clear();
+    if (m_reading.valid())
+    {
+        m_reading.wait(); // the writer needs the archive closed by the reader
+        m_reading = {};
+    }
     Run(Task::Metadata, std::move(arguments), Tr("Saving the title and picture..."));
 }
 
 void NxContentsDialog::ClearEditPictures()
 {
+    if (m_reading.valid())
+    {
+        m_reading.wait(); // the reader holds the archive open
+        m_reading = {};
+    }
     ForgetPicture();
     if (!m_currentPicture.empty())
     {
