@@ -7,6 +7,7 @@
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/romfs.h"
 #include "core/file_sys/vfs/vfs.h"
+#include "core/loader/loader.h"
 #include "firmware_zip.h"
 #include <algorithm>
 #include <cctype>
@@ -141,36 +142,35 @@ FileSys::VirtualDir SourceFirmwarePartition(const FileSys::VirtualFile & file, s
 {
     if (file == nullptr) return nullptr;
     std::array<uint8_t, 4> magic{};
-    if (file->Read(magic.data(), magic.size(), 0) != magic.size()) return nullptr;
-    std::vector<FileSys::VirtualDir> candidates;
-    if (magic == std::array<uint8_t, 4>{'N','X','A','R'})
-    {
-        const auto opened = FileSys::OpenNxSession(file, host_path);
-        if (!opened) return nullptr;
-        const auto session = *opened.value;
-        const auto & resources = session->archive().source_resources();
-        for (uint32_t i = 0; i < resources.size(); ++i)
-        {
-            if (resources[i].kind != 1 || session->archive().applications()[resources[i].application_index].platform != 1) continue;
-            const auto source = FileSys::NxSourceResourceFile(session, i, "partition.hfs0");
-            if (source == nullptr) continue;
-            auto partition = OpenSourceHfs(source);
-            if (partition != nullptr) candidates.push_back(std::move(partition));
-        }
-    }
-    else
+    const bool nx_magic = file->Read(magic.data(), magic.size(), 0) == magic.size() &&
+                          magic == std::array<uint8_t, 4>{'N', 'X', 'A', 'R'};
+    if (!nx_magic && Loader::GuessFromFilename(file->GetName()) != LoaderFileType::NX)
     {
         FileSys::XCI card(file);
-        if (card.GetStatus() == LoaderResultStatus::Success && card.GetSystemUpdateVersion() != 0)
-        {
-            const auto update = card.GetUpdatePartition();
-            if (update != nullptr) candidates.push_back(update);
-        }
+        if (card.GetStatus() != LoaderResultStatus::Success || card.GetSystemUpdateVersion() == 0) return nullptr;
+        const auto partition = card.GetUpdatePartition();
+        if (partition == nullptr || version == nullptr) return partition;
+        Inspection inspection;
+        for (const auto & entry : partition->GetFiles()) inspection.Add(entry);
+        if (!inspection.IsFirmware()) return nullptr;
+        *version = inspection.version;
+        return partition;
     }
+
+    // An NX with a damaged primary header can still use its second header page.
+    const auto opened = FileSys::OpenNxSession(file, host_path);
+    if (!opened) return nullptr;
+    const auto & session = *opened.value;
+    const auto & resources = session->archive().source_resources();
     FileSys::VirtualDir selected;
     Version selected_version{};
-    for (const auto & partition : candidates)
+    for (uint32_t i = 0; i < resources.size(); ++i)
     {
+        const auto & resource = resources[i];
+        if (resource.kind != 1 || session->archive().applications()[resource.application_index].platform != 1) continue;
+        const auto source = FileSys::NxSourceResourceFile(session, i, "partition.hfs0");
+        const auto partition = OpenSourceHfs(source);
+        if (partition == nullptr) continue;
         Inspection inspection;
         for (const auto & entry : partition->GetFiles()) inspection.Add(entry);
         if (inspection.IsFirmware() && (selected == nullptr || FirmwareInstall::IsNewer(inspection.version, selected_version)))

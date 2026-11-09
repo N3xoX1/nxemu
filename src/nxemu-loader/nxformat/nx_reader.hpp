@@ -1688,14 +1688,12 @@ inline Status Archive::mount_impl() {
         return fail(ErrorCode::integrity,"Manifest SHA-256 mismatch");
     st=parse_manifest(); if (!st) return st;
     std::vector<std::uint32_t> roots;
+    roots.reserve(source_resources_.size());
     std::uint64_t resource_nodes=0, resource_paths=0;
     for (const auto& resource:source_resources_) {
-        if (resource.root_directory>=directories_.size() ||
-            std::find(roots.begin(),roots.end(),resource.root_directory)!=roots.end())
-            return fail(ErrorCode::format,"invalid or shared source resource root");
+        if (resource.root_directory>=directories_.size())
+            return fail(ErrorCode::format,"source resource root out of range");
         roots.push_back(resource.root_directory);
-        for (const auto& snapshot:snapshots_) if (snapshot.root_directory==resource.root_directory)
-            return fail(ErrorCode::format,"source resource root belongs to a snapshot");
         const auto& dir=directories_[resource.root_directory];
         if (!dir.count || (resource.kind==1 && dir.count!=1)) return fail(ErrorCode::format,"invalid source resource file set");
         std::vector<std::uint32_t> used;
@@ -1713,8 +1711,14 @@ inline Status Archive::mount_impl() {
         if (std::adjacent_find(used.begin(),used.end())!=used.end()) return fail(ErrorCode::format,"repeated source resource file");
     }
     std::sort(roots.begin(),roots.end());
-    for (const auto& entry:entries_) if (entry.kind==1 && std::binary_search(roots.begin(),roots.end(),entry.target))
-        return fail(ErrorCode::format,"source resource root is a child directory");
+    if (!roots.empty()) {
+        if (std::adjacent_find(roots.begin(),roots.end())!=roots.end())
+            return fail(ErrorCode::format,"shared source resource root");
+        for (const auto& snapshot:snapshots_) if (std::binary_search(roots.begin(),roots.end(),snapshot.root_directory))
+            return fail(ErrorCode::format,"source resource root belongs to a snapshot");
+        for (const auto& entry:entries_) if (entry.kind==1 && std::binary_search(roots.begin(),roots.end(),entry.target))
+            return fail(ErrorCode::format,"source resource root is a child directory");
+    }
     st=validate_media(); if (!st) return st;
     return validate_snapshot_identities();
 }
