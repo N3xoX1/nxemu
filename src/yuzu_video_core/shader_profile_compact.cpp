@@ -952,8 +952,8 @@ ContentProbes MakeContentProbes(const std::vector<Resource>& resources,
 bool MatchesContentProbe(const ContentLocation& content, const ContentProbe& probe,
                          Timing::Metrics* timings)
 {
-    std::ifstream input(content.path, std::ios::binary);
-    if (!input) return false;
+    ContentInput input;
+    input.Open(content);
     std::string bytes(static_cast<size_t>(probe.size), '\0');
     size_t destination{};
     for (const auto& span : probe.spans) {
