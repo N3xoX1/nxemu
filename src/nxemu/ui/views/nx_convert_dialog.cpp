@@ -120,7 +120,7 @@ void NxConvertDialog::Cancel()
     m_tool.Cancel();
 }
 
-void NxConvertDialog::Offer(std::vector<std::string> paths)
+void NxConvertDialog::Offer(std::string game)
 {
     if (m_converting)
     {
@@ -131,9 +131,14 @@ void NxConvertDialog::Offer(std::vector<std::string> paths)
     {
         m_sources.clear();
         m_pendingScan.clear();
+        m_pendingGame.clear();
         Show();
     }
-    Queue(paths);
+    if (!game.empty())
+    {
+        m_pendingGame = std::move(game);
+        ShowSources();
+    }
 }
 
 bool NxConvertDialog::OfferDrop(const std::string & utf8Path)
@@ -217,7 +222,15 @@ void NxConvertDialog::OnUpdate()
         m_discardScan = false;
         ShowSources();
     }
-    if (state.phase != NxTool::Phase::Running && !m_pendingScan.empty())
+    if (state.phase != NxTool::Phase::Running && !m_pendingGame.empty())
+    {
+        if (m_tool.Start({"scan-game", m_pendingGame}))
+        {
+            m_pendingGame.clear();
+        }
+        ShowSources();
+    }
+    else if (state.phase != NxTool::Phase::Running && !m_pendingScan.empty())
     {
         std::vector<std::string> arguments{"scan"};
         arguments.insert(arguments.end(), m_pendingScan.begin(), m_pendingScan.end());
@@ -510,7 +523,7 @@ void NxConvertDialog::ShowSources()
     {
         return;
     }
-    const bool scanning = m_tool.Busy() || !m_pendingScan.empty();
+    const bool scanning = m_tool.Busy() || !m_pendingGame.empty() || !m_pendingScan.empty();
     std::string rml;
     size_t ready = 0;
     for (const Game & game : Games())
@@ -581,7 +594,7 @@ void NxConvertDialog::ShowSources()
 
 void NxConvertDialog::StartConversion()
 {
-    if (m_tool.Busy() || !m_pendingScan.empty() || !m_host.canWork())
+    if (m_tool.Busy() || !m_pendingGame.empty() || !m_pendingScan.empty() || !m_host.canWork())
     {
         return;
     }

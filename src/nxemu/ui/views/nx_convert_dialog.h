@@ -23,8 +23,8 @@ public:
 
     bool Busy() const { return m_tool.Busy(); }
     void Cancel();
-    // Opens the dialog with these files or folders.
-    void Offer(std::vector<std::string> paths);
+    // With a game selected, also look for its add-ons in the same folder.
+    void Offer(std::string game = {});
     bool OfferDrop(const std::string & utf8Path);
 
 private:
@@ -93,6 +93,7 @@ private:
     const Host m_host;
     NxTool m_tool;
     Step m_step = Step::Pick;
+    std::string m_pendingGame;
     std::vector<std::string> m_pendingScan; // waiting for the tool
     std::vector<Source> m_sources;
     std::vector<Job> m_jobs;

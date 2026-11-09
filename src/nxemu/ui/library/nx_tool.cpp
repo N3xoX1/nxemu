@@ -183,7 +183,8 @@ void NxTool::Run(std::vector<std::string> arguments)
     };
     char error[1024] = {};
     int code;
-    if (arguments.front() == "scan")
+    const bool scanGame = arguments.front() == "scan-game";
+    if (scanGame || arguments.front() == "scan")
     {
         // Scan each package independently. A batch inventory can read entire
         // payloads to disambiguate duplicates, which is only needed at pack time.
@@ -195,10 +196,10 @@ void NxTool::Run(std::vector<std::string> arguments)
             }
         };
         std::set<std::filesystem::path> seen;
-        const auto scan = [&](const std::filesystem::path & path) {
+        const auto scan = [&](const std::filesystem::path & path) -> Records {
             if (!seen.insert(path.lexically_normal()).second)
             {
-                return;
+                return {};
             }
             const std::string name = Common::FS::PathToUTF8String(path);
             const char * input[] = {"scan", name.c_str(), "--frontend"};
@@ -207,7 +208,7 @@ void NxTool::Run(std::vector<std::string> arguments)
             const int result = nxformat_run(input, 3, collect, &records, handle, failure, sizeof(failure));
             if (result == NXFORMAT_CANCELLED)
             {
-                return;
+                return {};
             }
             if (records.empty())
             {
@@ -217,6 +218,9 @@ void NxTool::Run(std::vector<std::string> arguments)
             {
                 records.push_back({"ISSUE", name, failure});
             }
+            return records;
+        };
+        const auto publish = [&](Records records) {
             std::lock_guard lock(m_mutex);
             m_state.records.insert(m_state.records.end(), std::make_move_iterator(records.begin()), std::make_move_iterator(records.end()));
         };
@@ -224,13 +228,58 @@ void NxTool::Run(std::vector<std::string> arguments)
             std::lock_guard lock(m_mutex);
             return m_cancel;
         };
-        for (size_t i = 1; i + 1 < arguments.size() && !cancelled(); ++i)
+        const auto isPackage = [](const std::filesystem::directory_entry & entry) {
+            auto ext = Common::FS::PathToUTF8String(entry.path().extension());
+            std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            std::error_code ec;
+            return (ext == ".dxci" || ext == ".dnsp" || ext == ".xci" || ext == ".nsp") &&
+                   std::filesystem::is_regular_file(entry.symlink_status(ec));
+        };
+        size_t first = 1;
+        if (scanGame && arguments.size() > 2 && !cancelled())
+        {
+            const std::filesystem::path game{Common::FS::ToU8String(arguments[first++])};
+            Records base = scan(game);
+            const auto isContent = [](const auto & row) { return row.size() >= 8 && row[0] == "CONTENT"; };
+            const auto main = std::find_if(base.begin(), base.end(), [&](const auto & row) { return isContent(row) && row[2] == "base"; });
+            const std::string application = main != base.end() ? (*main)[4] : std::string{};
+            publish(std::move(base));
+            if (!application.empty())
+            {
+                // Only immediate neighbours, selected by CNMT application ID.
+                // A second base (including a combined base/update dump) must
+                // not replace or conflict with the explicitly selected game.
+                std::error_code ec;
+                const auto folder = game.has_parent_path() ? game.parent_path() : std::filesystem::path(".");
+                std::filesystem::directory_iterator it(folder, std::filesystem::directory_options::skip_permission_denied, ec), end;
+                for (; it != end && !ec && !cancelled(); it.increment(ec))
+                {
+                    if (!isPackage(*it)) continue;
+                    Records records = scan(it->path());
+                    const bool supported = std::any_of(records.begin(), records.end(), [](const auto & row) {
+                        return row.size() >= 5 && row[0] == "SOURCE" && row[4] == "Supported";
+                    });
+                    bool foundAddOn = false;
+                    bool otherContent = false;
+                    for (const auto & row : records)
+                    {
+                        if (!isContent(row)) continue;
+                        if (row[4] == application && (row[2] == "update" || row[2] == "dlc"))
+                            foundAddOn = true;
+                        else
+                            otherContent = true;
+                    }
+                    if (supported && foundAddOn && !otherContent) publish(std::move(records));
+                }
+            }
+        }
+        for (size_t i = first; i + 1 < arguments.size() && !cancelled(); ++i)
         {
             const std::filesystem::path path{Common::FS::ToU8String(arguments[i])};
             std::error_code ec;
             if (!std::filesystem::is_directory(std::filesystem::symlink_status(path, ec)))
             {
-                scan(path);
+                publish(scan(path));
                 continue;
             }
             std::filesystem::recursive_directory_iterator it(path, std::filesystem::directory_options::skip_permission_denied, ec), end;
@@ -240,13 +289,9 @@ void NxTool::Run(std::vector<std::string> arguments)
                 {
                     it.disable_recursion_pending();
                 }
-                auto ext = Common::FS::PathToUTF8String(it->path().extension());
-                std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-                std::error_code statusError;
-                if ((ext == ".dxci" || ext == ".dnsp" || ext == ".xci" || ext == ".nsp") &&
-                    std::filesystem::is_regular_file(it->symlink_status(statusError)))
+                if (isPackage(*it))
                 {
-                    scan(it->path());
+                    publish(scan(it->path()));
                 }
             }
         }

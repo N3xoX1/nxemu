@@ -830,14 +830,14 @@ void MainWindow::Run(Action action)
     case Action::ConvertToNx:
         if (!m_session.IsRunning() && m_pendingGame.empty())
         {
-            m_nxConvertDialog->Offer({});
+            m_nxConvertDialog->Offer();
         }
         break;
     case Action::ConvertMenuGame:
         if (!m_session.IsRunning() && m_pendingGame.empty())
         {
             // The whole folder is read; only the files of this game are kept.
-            m_nxConvertDialog->Offer({m_menuGame});
+            m_nxConvertDialog->Offer(m_menuGame);
         }
         break;
     case Action::ManageMenuGameNx:
