@@ -7,6 +7,9 @@
 #include <chrono>
 #include <source_location>
 #include <string>
+#ifdef _MSC_VER
+#include <share.h>
+#endif
 #include "yuzu_video_core/pipeline_cache_store.h"
 #include "yuzu_video_core/shader_profile_import_status.h"
 #include "yuzu_video_core/shader_profile_context.h"
@@ -272,6 +275,108 @@ int main(int argc,char** argv) try {
                     records[i].environments[0].String()==original[i].environments[0].String());
         require(records.back().key==sample.key && records.back().environments[0].String()==sample.environments[0].String());
         std::filesystem::remove(large);
+    }
+    {
+        // An append session holds the files open. What it writes is the same as without one, whichever versions
+        // the records alternate between, and is readable while it runs and appendable after it ends.
+        auto held=path;held+=".held";
+        const auto record=[&](unsigned i) {
+            auto copy=first;
+            for(size_t j=0;j<4;++j)copy.key[j]=static_cast<char>(i>>(8*j));
+            return copy;
+        };
+        const auto index_of=[&](std::string_view context) { return CacheStore::ContextIndexPath(held,context); };
+        const auto bytes_of=[](const std::filesystem::path& name) {
+            std::ifstream file(name,std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(file),{});
+        };
+        std::string held_id;
+        {
+            CacheStore::AppendSession session;
+            for(unsigned i=0;i<40;++i)CacheStore::Append(held,20,record(i),i==0?&held_id:nullptr,i%2?context_a:context_b);
+            require(CacheStore::Read(held,20).size()==40);
+            require(CacheStore::ReadContext(held,context_a).size()==20 && CacheStore::ReadContext(held,context_b).size()==20);
+            // Repeated records grow nothing, and associating is held like appending.
+            const auto store_size=std::filesystem::file_size(held);
+            CacheStore::Append(held,20,record(0),nullptr,context_b);
+            require(std::filesystem::file_size(held)==store_size && CacheStore::ReadContext(held,context_b).size()==20);
+            require(CacheStore::AssociateContext(held,20,held_id,context_a));
+            require(!CacheStore::AssociateContext(held,20,std::string(32,'?'),context_a));
+            require(CacheStore::ReadContext(held,context_a).size()==21);
+#ifdef _MSC_VER
+            // Nothing else can write them meanwhile: not another nxemu, nor this one.
+            {std::ofstream other(held,std::ios::binary|std::ios::app);require(!other);}
+            {std::ofstream other(index_of(context_a),std::ios::binary|std::ios::app);require(!other);}
+#endif
+        }
+        // Ended: the files are free, a plain writer continues, and it sees a later change to the store.
+        {std::ofstream other(held,std::ios::binary|std::ios::app);require(bool(other));}
+        CacheStore::Append(held,20,record(40),nullptr,context_a);
+        require(CacheStore::Read(held,20).size()==41 && CacheStore::ReadContext(held,context_a).size()==22);
+        {std::ofstream tail(held,std::ios::binary|std::ios::app);tail<<"torn";}
+        CacheStore::Append(held,20,record(41));
+        require(CacheStore::Read(held,20).size()==42);
+        // A session repairs a torn store and a torn index when it first uses them.
+        {std::ofstream tail(held,std::ios::binary|std::ios::app);tail<<"torn";}
+        {std::ofstream tail(index_of(context_a),std::ios::binary|std::ios::app);tail<<"torn";}
+        {
+            CacheStore::AppendSession session;
+            CacheStore::Append(held,20,record(42),nullptr,context_a);
+            require(CacheStore::Read(held,20).size()==43 && CacheStore::ReadContext(held,context_a).size()==23);
+        }
+        require(bytes_of(index_of(context_a)).size()==72+23*64);
+        // Threads share the held files.
+        {
+            CacheStore::AppendSession session;
+            std::vector<std::thread> threads;
+            for(unsigned t=0;t<4;++t)threads.emplace_back([&,t] {
+                for(unsigned i=0;i<50;++i)CacheStore::Append(held,20,record(1000*(t+1)+i),nullptr,t%2?context_a:context_b);
+            });
+            for(auto& thread:threads)thread.join();
+        }
+        require(CacheStore::Read(held,20).size()==243);
+        // Compact can run inside a session, which then opens the rewritten store.
+        {
+            CacheStore::AppendSession session;
+            CacheStore::Append(held,20,record(5000));
+            require(CacheStore::Compact(held,20,0));
+            CacheStore::Append(held,20,record(5001));
+            require(CacheStore::Read(held,20).size()==245);
+        }
+        require(CacheStore::Read(held,20).size()==245);
+#ifdef _MSC_VER
+        // A store something else is writing fails the append that opens it; the next one works once it is free.
+        {
+            CacheStore::AppendSession session;
+            {
+                std::ofstream other(held.c_str(),std::ios::binary|std::ios::app,_SH_DENYWR);
+                require(bool(other));
+                bool failed=false;
+                try{CacheStore::Append(held,20,record(6000));}catch(const std::exception&){failed=true;}
+                require(failed);
+            }
+            CacheStore::Append(held,20,record(6001),nullptr,context_a);
+            CacheStore::Append(held,20,record(6002),nullptr,std::string(64,'d'));
+            CacheStore::Append(held,20,record(6003));
+        }
+        require(CacheStore::Read(held,20).size()==248);
+        // So does an index. The record stays in the store, and a later append associates it.
+        {
+            const auto index=index_of(std::string(64,'d'));
+            CacheStore::AppendSession session;
+            std::ofstream other(index.c_str(),std::ios::binary|std::ios::app,_SH_DENYWR);
+            require(bool(other));
+            bool failed=false;
+            try{CacheStore::Append(held,20,record(6004),nullptr,std::string(64,'d'));}catch(const std::exception&){failed=true;}
+            require(failed && CacheStore::Read(held,20).size()==249);
+        }
+        CacheStore::Append(held,20,record(6004),nullptr,std::string(64,'d'));
+        require(CacheStore::Read(held,20).size()==249 && CacheStore::ReadContext(held,std::string(64,'d')).size()==2);
+        std::filesystem::remove(index_of(std::string(64,'d')));
+#endif
+        std::filesystem::remove(index_of(context_a));
+        std::filesystem::remove(index_of(context_b));
+        std::filesystem::remove(held);
     }
     std::filesystem::remove(dense);
     std::filesystem::remove(context_path);

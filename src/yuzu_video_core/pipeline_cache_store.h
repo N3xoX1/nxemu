@@ -24,6 +24,15 @@ std::vector<Record> Read(const std::filesystem::path& path, u32 shader_abi,
                           const ReadLimits& limits = {}, std::set<std::string>* record_ids = nullptr);
 void Append(const std::filesystem::path& path, u32 shader_abi, const Record& record,
             std::string* record_id = nullptr, std::string_view context = {});
+// For the length of an import on Windows: the store and the version indexes stay open between records, as a virus
+// scanner checks a file each time it closes. They deny writing to everyone else, so they need no check between
+// records either, and an append that cannot open them throws. Elsewhere this changes nothing.
+struct AppendSession {
+    AppendSession();
+    ~AppendSession();
+    AppendSession(const AppendSession&) = delete;
+    AppendSession& operator=(const AppendSession&) = delete;
+};
 // Associate an already verified record without retaining or rehashing its code.
 // Returns false if the record disappeared (for example after cache truncation).
 bool AssociateContext(const std::filesystem::path& path, u32 shader_abi,
