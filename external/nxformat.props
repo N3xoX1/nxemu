@@ -5,9 +5,9 @@
      unpacked archive instead. -->
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <NxformatVersion>1.0.0</NxformatVersion>
-    <NxformatTag>V1.0.0</NxformatTag>
-    <NxformatSha256>04da098da72d302816c1d8a39da926f1c5310505f9eda17fb557be44042cb173</NxformatSha256>
+    <NxformatVersion>1.0.1</NxformatVersion>
+    <NxformatTag>V1.0.1</NxformatTag>
+    <NxformatSha256>b49ca68fa313dcb977e542514314040334cabab92912394a84038b9eb1497e76</NxformatSha256>
     <NxformatName>nxformat-$(NxformatVersion)-windows-x64</NxformatName>
     <NxformatCache>$(MSBuildThisFileDirectory)..\build\external\</NxformatCache>
     <NxformatRoot Condition="'$(NxformatRoot)' == ''">$(NxformatCache)$(NxformatName)\</NxformatRoot>

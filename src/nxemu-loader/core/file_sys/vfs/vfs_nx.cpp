@@ -133,9 +133,13 @@ public:
         length=static_cast<size_t>(std::min<uint64_t>(length,info_.size-offset));
         size_t done=0;
         while (done<length) {
+            // read() commits each verified block straight into the output; on failure,
+            // bytes is the verified prefix, which is all this returns.
             const auto part=static_cast<size_t>(std::min<uint64_t>(length-done,session_->max_read_bytes()));
-            if (!part || !session_->read(info_.id,offset+done,part,output+done,part,cursor_)) break;
-            done+=part;
+            if (!part) break;
+            const auto result=session_->read(info_.id,offset+done,part,output+done,part,cursor_);
+            done+=result.bytes;
+            if (!result) break;
         }
         return done;
     }
@@ -150,27 +154,20 @@ public:
         :session_(std::move(session)),handle_(handle),name_(std::move(name)),parent_(std::move(parent)) {}
     std::string GetName() const override { return name_; }
     VirtualDir GetParentDirectory() const override { return parent_; }
+    // lookup() is a binary search over the directory's sorted entries.
     VirtualFile GetFile(std::string_view name) const override {
-        VirtualFile result;
-        session_->archive().enumerate(handle_,[&](const nx::DirectoryEntryView& entry) {
-            if (entry.type!=nx::EntryType::file || entry.name!=name) return true;
-            auto info=session_->archive().file_info(entry.file);
-            if (info && info.value->size<=std::numeric_limits<size_t>::max())
-                result=std::make_shared<NxFile>(session_,*info.value,std::string(entry.name),
-                    std::const_pointer_cast<NxDirectory>(shared_from_this()));
-            return false;
-        });
-        return result;
+        const auto entry=session_->archive().lookup(handle_,name);
+        if (!entry || entry.value->type!=nx::EntryType::file) return nullptr;
+        auto info=session_->archive().file_info(entry.value->file);
+        if (!info || info.value->size>std::numeric_limits<size_t>::max()) return nullptr;
+        return std::make_shared<NxFile>(session_,*info.value,std::string(entry.value->name),
+            std::const_pointer_cast<NxDirectory>(shared_from_this()));
     }
     VirtualDir GetSubdirectory(std::string_view name) const override {
-        VirtualDir result;
-        session_->archive().enumerate(handle_,[&](const nx::DirectoryEntryView& entry) {
-            if (entry.type!=nx::EntryType::directory || entry.name!=name) return true;
-            result=std::make_shared<NxDirectory>(session_,entry.directory,std::string(entry.name),
-                std::const_pointer_cast<NxDirectory>(shared_from_this()));
-            return false;
-        });
-        return result;
+        const auto entry=session_->archive().lookup(handle_,name);
+        if (!entry || entry.value->type!=nx::EntryType::directory) return nullptr;
+        return std::make_shared<NxDirectory>(session_,entry.value->directory,std::string(entry.value->name),
+            std::const_pointer_cast<NxDirectory>(shared_from_this()));
     }
     std::vector<VirtualFile> GetFiles() const override {
         std::vector<VirtualFile> result;
