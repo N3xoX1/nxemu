@@ -1,6 +1,6 @@
 #include "settings_bridge.h"
+#include "ui/ui_util.h"
 #include "ui_identifiers.h"
-#include "ui_settings.h"
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <yuzu_common/android/java_bridge.h>
@@ -102,8 +102,7 @@ extern "C" JNIEXPORT void JNICALL Java_org_nxemu_NativeLibrary_setSettingInt(JNI
 
 extern "C" JNIEXPORT void JNICALL Java_org_nxemu_NativeLibrary_saveSettings(JNIEnv * /*env*/, jclass /*clazz*/)
 {
-    SaveUISetting();
-    SettingsStore::GetInstance().Save();
+    UiUtil::SaveSettings();
 }
 
 void SettingsChange_Start(JavaVM * /*javaVm*/, JNIEnv * env)
