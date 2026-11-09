@@ -1,4 +1,5 @@
 #pragma once
+#include "loading_time_estimate.h"
 #include <nxemu-module-spec/base.h>
 #include <string>
 #include <vector>
@@ -37,4 +38,5 @@ private:
     std::string m_title;
     int m_announcedTick = 0;
     bool m_hasGame = false;
+    LoadingTimeEstimate m_timeEstimate;
 };

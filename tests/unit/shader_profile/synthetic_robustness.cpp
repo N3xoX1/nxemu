@@ -164,6 +164,18 @@ int main() try {
             Require(loaded[i].environments[0].ProgramBytes()==expected[i],"IO sorting changed recipe order or bytes");
         const auto io = static_cast<size_t>(Profile::Timing::Phase::ResourceIO);
         Require(metrics.calls[io]==2,"Nearby shaders were not coalesced into one resource read");
+        // Header rewrites and renamed NCAs must not hide identical shaders.
+        // An unrelated NCA of the same size is deliberately encountered first.
+        auto reheaded = nca;
+        reheaded[0] = 'H';
+        Write(scratch.root/"game.dnsp", ContainerFixture::Nsp({
+            {"decoy.nca", std::string(nca.size(), 'X')}, {"renamed.nca", reheaded}}));
+        Profile::Timing::Metrics fallback_metrics;
+        Require(Profile::ReadCompact(grouped_payload,scratch.root,title,nullptr,&fallback_metrics).size()==4,
+                "Rewritten NCA header prevented valid shader reuse");
+        Require(fallback_metrics.counts[static_cast<size_t>(Profile::Timing::Counter::ResourceReadBytes)] < 4096,
+                "Content lookup scanned unrelated NCA payloads");
+        Write(scratch.root/"game.dnsp", Game(nca));
         nca[5000]^=1; Write(scratch.root/"game.dnsp", Game(nca));
         Profile::ImportReport corrupt;
         Require(Profile::ReadCompact(grouped_payload,scratch.root,title,nullptr,nullptr,{},&corrupt).size()==3 &&
@@ -188,6 +200,10 @@ int main() try {
         const auto loaded = Profile::ReadCompact(span_payload,scratch.root,title,nullptr,&metrics);
         Require(loaded.size()==1 && loaded[0].environments[0].ProgramBytes()==code,"Physical span order corrupted logical resource");
         Require(metrics.calls[static_cast<size_t>(Profile::Timing::Phase::ResourceIO)]==2,"Nearby spans were not coalesced");
+        nca[0] = 'H';
+        Write(scratch.root/"game.dnsp",Game(nca));
+        Require(Profile::ReadCompact(span_payload,scratch.root,title,nullptr,nullptr).size()==1,
+                "Resource SHA-256 did not recover a reheaded NCA");
         nca[5080]^=1; Write(scratch.root/"game.dnsp",Game(nca));
         Reject([&]{Profile::ReadCompact(span_payload,scratch.root,title,nullptr,nullptr);});
         Write(scratch.root/"game.dnsp",Game(nca));

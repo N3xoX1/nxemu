@@ -1918,6 +1918,25 @@ img[data-icon]
     color: #b4bfce;
 }
 
+#loading-eta
+{
+    min-height: 18dp;
+    margin-top: 6dp;
+    font-size: 13dp;
+    line-height: 18dp;
+    color: #b4bfce;
+}
+
+#loading-hint
+{
+    min-height: 36dp;
+    margin-top: 8dp;
+    font-size: 13dp;
+    line-height: 18dp;
+    color: #8f9bb0;
+    white-space: normal;
+}
+
 .loading-track
 {
     height: 8dp;

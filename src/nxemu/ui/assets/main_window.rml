@@ -162,6 +162,8 @@
           <div id="loading-title">Loading</div>
           <div class="loading-track"><div id="loading-fill" class="indeterminate" /></div>
           <div class="loading-status"><div id="loading-text" /><div id="loading-count" /></div>
+          <div id="loading-eta" />
+          <div id="loading-hint" />
         </div>
         <img id="loading-banner" />
       </div>

@@ -4,17 +4,20 @@
 #include <array>
 #include <charconv>
 #include <cstddef>
+#include <limits>
 #include <span>
 #include <string_view>
 #include <unordered_set>
+#include "yuzu_video_core/shader_profile_limits.h"
 
 namespace VideoCommon::ShaderProfile {
-// Accounted inputs/proofs only; native Vulkan driver allocations are separate.
+// Bound temporary proof reservations, independently of the resident pipeline
+// cache. Completing a profile must not stop when retained candidates grow.
 class CandidateWarmupBudget {
 public:
     static constexpr size_t MaxBytes = 256 * 1024 * 1024ULL;
-    static constexpr size_t DefaultCandidates = 2048;
-    static constexpr size_t MaxCandidates = 16384;
+    static constexpr size_t MaxCandidates = MaxLocalCacheObjects;
+    static constexpr size_t DefaultCandidates = MaxCandidates;
     static constexpr size_t MaxReplacementQueries = 4096;
     static constexpr size_t BaseProofUnits = 20;
     static constexpr size_t MaxTextureProofQueries = 16;
@@ -32,11 +35,12 @@ public:
     explicit CandidateWarmupBudget(size_t limit=DefaultCandidates) noexcept :
         candidate_limit(std::min(limit,MaxCandidates)) {}
     size_t Reserve(size_t stages,bool hle,size_t retained) noexcept {
-        if(!stages || stages>6 || accepted>=candidate_limit || retained>MaxBytes) {
+        if(!stages || stages>6 || accepted>=candidate_limit) {
             ++skipped;return 0;
         }
         const auto requested=stages*(BaseProofUnits+MaxSemanticProofUnits+(hle?MaxReplacementQueries:0))*ProofUnitBytes;
-        if(requested>MaxBytes-retained || reserved>MaxBytes-retained-requested) {
+        if(requested>MaxBytes || reserved>MaxBytes-requested ||
+           retained>std::numeric_limits<size_t>::max()-requested) {
             ++skipped;return 0;
         }
         reserved+=requested;++accepted;return requested;
@@ -47,8 +51,8 @@ public:
     }
     // Caller holds the startup mutex, as for Reserve/Release.
     bool Commit(size_t reservation,size_t proof,size_t& retained) noexcept {
-        if(!reservation || reservation>reserved || proof>reservation || retained>MaxBytes ||
-           reserved>MaxBytes-retained)return false;
+        if(!reservation || reservation>reserved || proof>reservation ||
+           proof>std::numeric_limits<size_t>::max()-retained)return false;
         reserved-=reservation;retained+=proof;return true;
     }
     [[nodiscard]] size_t Accepted() const noexcept {return accepted;}
@@ -69,8 +73,8 @@ constexpr size_t MaxStartupInputs=12;
 // Unshared bytes are charged on every admission, for what the pipeline keeps alone.
 inline bool AccountStartupInputs(std::span<const StartupInput> inputs,
                                 std::unordered_set<const void*>& owners,size_t& retained,
-                                size_t unshared=0) {
-    constexpr auto limit=CandidateWarmupBudget::MaxBytes;
+                                size_t unshared=0,
+                                size_t limit=CandidateWarmupBudget::MaxBytes) {
     if(inputs.empty() || inputs.size()>MaxStartupInputs || retained>limit || unshared>limit)return false;
     std::array<const void*,MaxStartupInputs> added{};
     size_t count{},bytes{unshared};

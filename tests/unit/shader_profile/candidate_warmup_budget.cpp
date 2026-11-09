@@ -11,22 +11,28 @@ using namespace VideoCommon::ShaderProfile;
 void Check(bool ok) {if(!ok)throw std::runtime_error("Candidate admission regression");}
 int main() try {
     constexpr auto max=CandidateWarmupBudget::MaxBytes;
-    for(auto invalid:{"","-1","+0"," 128","16385","20x","999999999999999999999999"})
-        Check(CandidateWarmupBudget::ParseLimit(invalid)==2048);
+    for(auto invalid:{"","-1","+0"," 128","20x","999999999999999999999999"})
+        Check(CandidateWarmupBudget::ParseLimit(invalid)==CandidateWarmupBudget::DefaultCandidates);
+    Check(CandidateWarmupBudget::ParseLimit(std::to_string(CandidateWarmupBudget::MaxCandidates+1))==
+          CandidateWarmupBudget::DefaultCandidates);
     for(size_t limit:{0,128,512,2048,8192})
         Check(CandidateWarmupBudget::ParseLimit(std::to_string(limit))==limit);
     CandidateWarmupBudget budget;
     constexpr size_t proof=(CandidateWarmupBudget::BaseProofUnits+CandidateWarmupBudget::MaxSemanticProofUnits)*CandidateWarmupBudget::ProofUnitBytes;
     size_t retained=max-proof;
     auto ticket=budget.Reserve(1,false,retained);
-    Check(ticket==proof && !budget.Reserve(1,false,retained));
+    Check(ticket==proof);
+    const auto second=budget.Reserve(1,false,retained);
+    Check(second==proof && budget.Release(second));
     Check(!budget.Commit(ticket,ticket+1,retained));
     Check(budget.Reserved()==ticket && retained==max-proof);
     Check(budget.Commit(ticket,640,retained));
     Check(retained==max-proof+640 && budget.Reserved()==0);
     Check(!budget.Release(ticket));
     Check(!budget.Reserve(0,false,0) && !budget.Reserve(7,true,0));
-    Check(!budget.Reserve(1,false,max+1));
+    const auto large_cache=budget.Reserve(1,false,max+1);
+    Check(large_cache==proof && budget.Release(large_cache));
+    Check(!budget.Reserve(1,false,std::numeric_limits<size_t>::max()));
     ticket=budget.Reserve(6,true,0);
     Check(ticket==6*(CandidateWarmupBudget::MaxReplacementQueries*CandidateWarmupBudget::ProofUnitBytes+proof));
     Check(budget.Release(ticket) && budget.Reserved()==0);
@@ -67,6 +73,23 @@ int main() try {
     const StartupInput fresh[]{{&b,100,80}};
     retained=max-129;
     Check(!AccountStartupInputs(fresh,owners,retained,30) && !owners.contains(&b) && retained==max-129);
+    // A complete profile can exceed the old count and resident-byte limits.
+    // Only temporary proof reservations are constrained by the working budget.
+    CandidateWarmupBudget complete;
+    retained=max;
+    for(size_t i=0;i<27805;++i) {
+        const auto reservation=complete.Reserve(1,false,retained);
+        Check(reservation!=0 && complete.Commit(reservation,640,retained));
+    }
+    Check(complete.Accepted()==27805 && complete.Reserved()==0 && retained>max);
+    Check(AccountStartupInputs(first,owners,retained,30,std::numeric_limits<size_t>::max()));
+    // Concurrent reservations themselves still have a strict upper bound.
+    CandidateWarmupBudget working;
+    std::vector<size_t> reservations;
+    while(const auto reservation=working.Reserve(6,true,0)) reservations.push_back(reservation);
+    Check(working.Reserved()<=max && !reservations.empty());
+    for(const auto reservation:reservations)Check(working.Release(reservation));
+    Check(working.Reserved()==0);
     // Concurrent workers finish reservations under the renderer's startup mutex.
     CandidateWarmupBudget concurrent(8192);
     retained=0;std::mutex mutex;
