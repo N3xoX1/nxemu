@@ -1917,6 +1917,7 @@ void MainWindow::ShowGameMenu(Rml::Element * origin)
         return;
     }
     m_menuGame = m_games[index].path;
+    m_document->GetElementById("popup-menu")->SetClass("graphics-popup", false);
     const uint64_t id = m_games[index].programId;
     std::error_code error;
     const bool cacheExists = id != 0 && std::filesystem::is_directory(GameCache::Directory(Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir), id), error);
