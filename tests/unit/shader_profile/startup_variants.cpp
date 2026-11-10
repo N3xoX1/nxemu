@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <type_traits>
+#include <utility>
 
 struct CopyKey {
   inline static size_t copies{},moves{};
@@ -46,6 +47,28 @@ int main() try {
           });
       Check(built == 1 && rejected == 1);
     }
+  }
+  // Generated (synthetic) inputs rank below recorded ones, in either order: a
+  // recorded input replaces them, even conflicting ones, and only inputs of the
+  // key's highest rank can make it ambiguous.
+  for (bool recorded_first : {false, true}) {
+    Vulkan::StartupPipelineVariants<int, std::string> variants;
+    const auto equal = [](const auto &a, const auto &b) { return a == b; };
+    if (recorded_first) variants.Observe(1, "recorded", equal);
+    variants.Observe(1, "generated", equal, true);
+    variants.Observe(1, "other generated", equal, true);
+    if (!recorded_first) variants.Observe(1, "recorded", equal);
+    variants.Observe(2, "generated", equal, true);
+    variants.Observe(3, "generated", equal, true);
+    variants.Observe(3, "other generated", equal, true);
+    variants.Observe(4, "generated", equal, true);
+    variants.Observe(4, "recorded", equal);
+    variants.Observe(4, "other recorded", equal);
+    std::vector<std::pair<int, std::string>> built;
+    const auto rejected = variants.ConsumeSafe(
+        [&](int key, std::string input) { built.emplace_back(key, input); });
+    Check(rejected == 2 && built == std::vector<std::pair<int, std::string>>{
+                                       {1, "recorded"}, {2, "generated"}});
   }
   {
     Vulkan::StartupPipelineVariants<int, std::string> variants;

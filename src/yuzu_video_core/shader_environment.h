@@ -296,6 +296,21 @@ public:
     }
     [[nodiscard]] u32 CompilationDifferenceMask(const FileEnvironment& other) const noexcept;
 
+    // Records which questions the next translation asks (TakeQuestions). hle: translate as for an HLE macro
+    // draw, asking about every constant buffer replacement.
+    void TrackQuestions(bool hle = false) { asked.emplace(); asked->hle = hle; }
+    [[nodiscard]] std::optional<ShaderProfile::AskedQuestions> TakeQuestions() { return std::exchange(asked, std::nullopt); }
+    // A synthetic environment's questions answered by a live draw: the constant buffer reads its translation
+    // asked, the texture queries of the handles those reads return there, and the draw's own state. Empty,
+    // with the reason in mismatch, when an answer differs in a way the translated code depends on.
+    // relocatable: the program runs unchanged at the live start address. The answered environment holds the
+    // asked questions only, as a recorded one does.
+    [[nodiscard]] std::optional<FileEnvironment> AnswerLive(Shader::Environment& live, bool relocatable,
+                                                            const ShaderProfile::AskedQuestions& questions,
+                                                            const char*& mismatch) const;
+    // The stored form GenericEnvironment::Serialize writes, which Deserialize reads.
+    void Serialize(std::ostream& file) const;
+
     [[nodiscard]] u64 ReadInstruction(u32 address) override;
 
     [[nodiscard]] u32 ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) override;
@@ -328,7 +343,7 @@ public:
                                                                                u32 offset) override;
 
     [[nodiscard]] bool HasHLEMacroState() const override {
-        return reuse_hle.value_or(!cbuf_replacements.empty());
+        return reuse_hle.value_or((asked && asked->hle) || !cbuf_replacements.empty());
     }
 
     void Dump(u64 pipeline_hash, u64 shader_hash) override;
@@ -339,6 +354,8 @@ private:
     std::string compilation_identity,program_digest;
     size_t program_bytes{};
     std::optional<bool> reuse_hle;
+    std::optional<ShaderProfile::AskedQuestions> asked;
+    bool asking_texture{};
     bool reuse_proof_complete{},reuse_viewport_queried{},reuse_relative_safe{},reuse_missing_pool{};
     std::unordered_map<u64,std::optional<Shader::ReplaceConstant>> replacement_queries;
     ShaderProfile::SemanticTextureProof semantic_textures;

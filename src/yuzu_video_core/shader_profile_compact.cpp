@@ -417,8 +417,9 @@ SharedShaderBytes Environment(const Env & env, std::shared_ptr<const std::string
 }
 } // namespace
 
-std::string PackCompact(const JsonValue & profile, int compression_level)
+std::string PackCompact(const JsonValue & profile, int compression_level, unsigned format_revision)
 {
+    Check(format_revision == 1 || format_revision == 2, "Unknown compact revision");
     Allowed(profile, {"format", "version", "title_id", "guest_state_version", "content_label", "revision", "note", "full_game", "versions", "shaders", "environments", "recipes", "unresolved_recipes", "source_files", "source_context"});
     Check(profile["shaders"].isObject() && profile["shaders"].size() <= ProfileLimits{}.programs && profile["environments"].isObject() && profile["environments"].size() <= ProfileLimits{}.environments && profile["recipes"].isArray() && profile["recipes"].size() <= ProfileLimits{}.recipes && (profile["unresolved_recipes"].isNull() || (profile["unresolved_recipes"].isArray() && profile["unresolved_recipes"].size() <= ProfileLimits{}.unresolved)), "Compact table limit");
     const auto title = profile["title_id"].asString();
@@ -433,7 +434,8 @@ std::string PackCompact(const JsonValue & profile, int compression_level)
     Check(Number(profile["guest_state_version"]) == 1, "Compact guest state version");
     Check(profile["version"].asUInt64() == 2 && profile["format"].asString() == "nxshader", "Compact encoder requires v2 metadata");
     Writer out;
-    out.bytes = "NXSHBIN1";
+    // Revision 2 adds each recipe's origin; revision 1 profiles are read as recorded ones.
+    out.bytes = format_revision == 1 ? "NXSHBIN1" : "NXSHBIN2";
     out.Fixed(std::stoull(profile["title_id"].asString(), nullptr, 16), 8);
     out.Text(label);
     out.Text(revision);
@@ -779,16 +781,28 @@ std::string PackCompact(const JsonValue & profile, int compression_level)
         // One entry per distinct recipe, at its first position, with the game
         // versions of every copy: a pipeline the base and an update share is
         // stored, and compiled, once.
+        // A recipe's origin is not part of its body: copies of one body are synthetic only if every copy is,
+        // and played if any copy was.
+        struct Entry
+        {
+            std::string body;
+            std::vector<size_t> contexts;
+            bool synthetic{}, played{};
+        };
         std::map<std::string, size_t> seen;
-        std::vector<std::pair<std::string, std::vector<size_t>>> table; // body, contexts
+        std::vector<Entry> table;
         for (const auto & r : profile[field])
         {
             Writer recipe;
-            Allowed(r, {"kind", "guest_words", "shader_hashes", "cbuf_sizes", "texture_pool", "environments", "shader_hash", "shared_memory_size", "workgroup_size", "texture_table_size", "reason", "source_context", "source_contexts"});
+            Allowed(r, {"kind", "guest_words", "shader_hashes", "cbuf_sizes", "texture_pool", "environments", "shader_hash", "shared_memory_size", "workgroup_size", "texture_table_size", "reason", "source_context", "source_contexts", "synthetic", "played"});
+            Check((r["synthetic"].isNull() || r["synthetic"].isBool()) && (r["played"].isNull() || r["played"].isBool()), "Invalid recipe origin");
             Check(r["kind"].asString() == "compute" || r["kind"].asString() == "graphics", "Invalid recipe kind");
             const bool compute = r["kind"].asString() == "compute";
             const bool unresolved = std::string_view(field) == "unresolved_recipes";
             Check(!unresolved || (!compute && r["reason"].asString() == "no_serialized_environment_for_source_key"), "Invalid unresolved recipe");
+            const bool synthetic = r["synthetic"].asBool(), played = r["played"].asBool();
+            Check(!unresolved || (!synthetic && !played), "Invalid recipe origin");
+            Check(format_revision >= 2 || !synthetic, "Synthetic recipes need compact revision 2");
             Check(unresolved || r["environments"].isArray(), "Invalid recipe environments");
             recipe.Var(compute ? 1 : 0);
             if (compute)
@@ -825,19 +839,23 @@ std::string PackCompact(const JsonValue & profile, int compression_level)
             for (const auto & id : r["environments"])
                 recipe.Var(env_ids.at(id.asString()));
             const auto [found, inserted] = seen.emplace(recipe.bytes, table.size());
-            if (inserted) table.emplace_back(std::move(recipe.bytes), std::vector<size_t>{});
-            auto & indices = table[found->second].second;
+            if (inserted) table.push_back({std::move(recipe.bytes), {}, synthetic, played});
+            auto & entry = table[found->second];
+            entry.synthetic = entry.synthetic && synthetic;
+            entry.played = entry.played || played;
             for (const auto & context : recipe_contexts(r))
-                if (const auto index = context_index(context); std::find(indices.begin(), indices.end(), index) == indices.end())
-                    indices.push_back(index);
+                if (const auto index = context_index(context); std::find(entry.contexts.begin(), entry.contexts.end(), index) == entry.contexts.end())
+                    entry.contexts.push_back(index);
         }
         out.Var(table.size());
-        for (const auto & [body, indices] : table)
+        for (const auto & entry : table)
         {
-            out.Var(indices.size());
-            for (const auto index : indices)
+            out.Var(entry.contexts.size());
+            for (const auto index : entry.contexts)
                 out.Var(index);
-            out.bytes += body;
+            // Origin: bit 0 synthetic, bit 1 played. Recorded recipes are seen in play by definition.
+            if (format_revision >= 2) out.Var((entry.synthetic ? 1 : 0) | (entry.synthetic && entry.played ? 2 : 0));
+            out.bytes += entry.body;
         }
     }
     Check(out.bytes.size() <= MaxProfilePayloadBytes, "Compact profile size limit");
@@ -1037,7 +1055,8 @@ Parsed Parse(std::string_view payload, u64 title_id)
     Parsed parsed;
     Reader in{payload};
     const auto magic = in.Take(8);
-    Check(magic == "NXSHBIN1" && in.Fixed(8) == title_id, "Compact title/version mismatch");
+    const bool origins = magic == "NXSHBIN2";
+    Check((origins || magic == "NXSHBIN1") && in.Fixed(8) == title_id, "Compact title/version mismatch");
     parsed.label = in.Text();
     parsed.revision = in.Text(MaxRevision);
     parsed.note = in.Text(MaxNote);
@@ -1263,6 +1282,10 @@ Parsed Parse(std::string_view payload, u64 title_id)
                 // Until import chooses, the latest version recorded.
                 if (!r.source_contexts.empty()) r.source_context = r.source_contexts.back();
             }
+            const auto origin = origins ? in.Var() : 0;
+            Check(origin == 0 || (!table && (origin == 1 || origin == 3)), "Unknown recipe origin");
+            r.synthetic = origin & 1;
+            r.played = origin & 2;
             const auto kind = in.Word();
             Check(kind <= 1 && (!table || kind == 0), "Compact recipe kind");
             r.compute = kind == 1;
@@ -1724,7 +1747,10 @@ static std::vector<Recipe> ReadCompactImpl(std::string_view payload, const std::
             Check(total_environment_bytes <= 512 * 1024 * 1024, "Compact recipe memory budget");
             p.recipe.environments.push_back(assembled[id]);
         }
-        p.recipe.requires_validation=p.recipe.source_context!=target_context;
+        // A synthetic recipe's environments hold no answers a live draw could confirm, so the dependency proof
+        // of another context (another version, or ExeFS patches and cheats) cannot pass. They are trusted by
+        // their exact pipeline key, as recipes of the running context are.
+        p.recipe.requires_validation=!p.recipe.synthetic && p.recipe.source_context!=target_context;
         outcome.candidates+=p.recipe.requires_validation;
         result.push_back(std::move(p.recipe));
     }
@@ -1757,6 +1783,7 @@ ProfileInspection InspectCompact(std::string_view payload,u64 title_id) {
     result.programs=parsed.programs.size();result.environments=parsed.envs.size();
     result.label=parsed.label;result.revision=parsed.revision;result.note=parsed.note;
     result.full_game=parsed.full_game;
+    for(const auto& p:parsed.pending){result.synthetic+=p.recipe.synthetic;result.played+=p.recipe.synthetic && p.recipe.played;}
     // The versions recipes still use, the exported one last; the others follow
     // the recipe order, which keeps the previous profile's versions first.
     for(const auto& version:parsed.versions)
@@ -1892,6 +1919,8 @@ JsonValue DecodeCompact(std::string_view payload,u64 title_id) {
             result["environments"]=JsonValue(JsonValueType::Array);
             for(const auto id:*ids)result["environments"].Append(env_ids[id]);
         } else result["reason"]="no_serialized_environment_for_source_key";
+        if(r.synthetic)result["synthetic"]=true;
+        if(r.played)result["played"]=true;
         return result;
     };
     profile["recipes"]=JsonValue(JsonValueType::Array);

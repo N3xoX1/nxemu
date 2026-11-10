@@ -82,11 +82,15 @@ struct ContextIndex { std::set<std::string> ids; size_t valid_bytes{}; std::file
 // that version's folder next to its recording. NXCTX002 names its full context
 // so the folder can be identified from it alone.
 constexpr size_t ContextHeader = 8 + 64;
-std::filesystem::path ContextPath(const std::filesystem::path& cache, std::string_view context, bool create) {
+// A generated association ("vulkan.generated.idx") lists the records of synthetic recipes: the only way they
+// join a version, so losing it can never make them trusted as recorded ones. Builds that do not know it ignore it.
+std::filesystem::path ContextPath(const std::filesystem::path& cache, std::string_view context, bool create,
+                                  bool generated = false) {
     Check(ShaderProfile::ValidContext(context));
     const auto directory = create ? ShaderProfile::VersionDirectory(cache.parent_path(), context)
                                   : ShaderProfile::FindVersionDirectory(cache.parent_path(), context);
-    return directory.empty() ? std::filesystem::path{} : directory / (cache.stem().string() + ".idx");
+    return directory.empty() ? std::filesystem::path{}
+                             : directory / (cache.stem().string() + (generated ? ".generated.idx" : ".idx"));
 }
 // A torn header or a frame that fails its digest ends the valid prefix; the
 // writer truncates there instead of rejecting every later association.
@@ -141,8 +145,9 @@ void AppendHeldContext(const std::filesystem::path& path, std::string_view conte
         index.ids.insert(id);
     } catch(...) { held_contexts.erase(held);throw; }
 }
-void AppendContext(const std::filesystem::path& cache, std::string_view context, const std::string& id) {
-    const auto path=ContextPath(cache,context,true);
+void AppendContext(const std::filesystem::path& cache, std::string_view context, const std::string& id,
+                   bool generated = false) {
+    const auto path=ContextPath(cache,context,true,generated);
     if(session_open) return AppendHeldContext(path,context,id);
     static std::filesystem::path active;
     static ContextIndex index;
@@ -419,7 +424,7 @@ std::vector<Record> Read(const std::filesystem::path & path, u32 shader_abi, con
     return std::move(parsed.records);
 }
 void Append(const std::filesystem::path & path, u32 shader_abi, const Record & record,
-            std::string* record_id, std::string_view context)
+            std::string* record_id, std::string_view context, bool generated)
 {
     std::scoped_lock lock(writer_mutex);
     Check(!record.environments.empty() && record.environments.size() <= 6 &&
@@ -496,7 +501,7 @@ void Append(const std::filesystem::path & path, u32 shader_abi, const Record & r
         writer.index.valid_bytes += pending.size();
         writer.disk_size = writer.index.valid_bytes;
         KeepTail(writer.tail, pending);
-        if (!context.empty()) AppendContext(path,context,pipeline_id);
+        if (!context.empty()) AppendContext(path,context,pipeline_id,generated);
         if(record_id)*record_id=pipeline_id;
     }
     catch (...)
@@ -511,12 +516,12 @@ void Append(const std::filesystem::path & path, u32 shader_abi, const Record & r
 }
 
 bool AssociateContext(const std::filesystem::path& path,u32 shader_abi,
-                      const std::string& record_id,std::string_view context) {
+                      const std::string& record_id,std::string_view context,bool generated) {
     std::scoped_lock lock(writer_mutex);
     Check(record_id.size()==32 && ShaderProfile::ValidContext(context));
     SyncWriter(path,shader_abi);
     if(!writer.index.pipelines.contains(record_id))return false;
-    AppendContext(path,context,record_id);
+    AppendContext(path,context,record_id,generated);
     return true;
 }
 
@@ -649,8 +654,8 @@ std::filesystem::path ContextIndexPath(const std::filesystem::path& path, std::s
     return ContextPath(path,context,false);
 }
 
-std::set<std::string> ReadContext(const std::filesystem::path& path, std::string_view context) {
-    return ParseContext(ContextPath(path,context,false),context).ids;
+std::set<std::string> ReadContext(const std::filesystem::path& path, std::string_view context, bool generated) {
+    return ParseContext(ContextPath(path,context,false,generated),context).ids;
 }
 
 } // namespace VideoCommon::CacheStore

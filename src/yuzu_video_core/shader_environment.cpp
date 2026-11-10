@@ -754,12 +754,14 @@ u32 ComputeEnvironment::ReadTextureTableSize() {
 
 u32 FileEnvironment::ReadTextureTableSize() {
     const auto key=MakeCbufKey(UINT32_MAX, UINT32_MAX);
+    if(asked)asked->constants.insert(key);
     if(reuse_hle.has_value())return cbuf_values.try_emplace(key,0).first->second;
     const auto it = cbuf_values.find(key);
     return it != cbuf_values.end() ? it->second : 0;
 }
 
 std::optional<Shader::TexturePoolInfo> FileEnvironment::ReadTexturePoolInfo() {
+    if(asked)asked->constants.insert({POOL_TEXTURES_KEY,POOL_SAMPLERS_KEY});
     const auto textures = cbuf_values.find(POOL_TEXTURES_KEY);
     const auto samplers = cbuf_values.find(POOL_SAMPLERS_KEY);
     if (textures == cbuf_values.end() || samplers == cbuf_values.end()) {
@@ -973,6 +975,50 @@ size_t FileEnvironment::CompilationInputBytes() const noexcept {
          cbuf_replacements.size()) * 64;
 }
 
+std::optional<FileEnvironment> FileEnvironment::AnswerLive(Shader::Environment& live, bool relocatable,
+                                                          const ShaderProfile::AskedQuestions& questions,
+                                                          const char*& mismatch) const {
+    auto answers = ShaderProfile::AnswerSynthetic(ReuseProof(), questions, live, relocatable, mismatch);
+    if (!answers) return std::nullopt;
+    FileEnvironment answered(*this);
+    answered.cbuf_values = std::move(answers->constants);
+    answered.texture_types = std::move(answers->texture_types);
+    answered.texture_pixel_formats = std::move(answers->pixel_formats);
+    const u32 start = live.StartAddress();
+    answered.read_lowest = start + (read_lowest - start_address);
+    answered.read_highest = start + (read_highest - start_address);
+    answered.start_address = start;
+    return answered;
+}
+
+void FileEnvironment::Serialize(std::ostream& file) const {
+    const auto put = [&](const auto& value) { file.write(reinterpret_cast<const char*>(&value), sizeof(value)); };
+    put(static_cast<u64>(SharedCodeBytes()));
+    put(static_cast<u64>(texture_types.size()));
+    put(static_cast<u64>(texture_pixel_formats.size()));
+    put(static_cast<u64>(cbuf_values.size()));
+    put(static_cast<u64>(cbuf_replacements.size()));
+    put(local_memory_size);
+    put(texture_bound);
+    put(start_address);
+    put(read_lowest);
+    put(read_highest);
+    put(viewport_transform_state);
+    put(stage);
+    if (code) file.write(reinterpret_cast<const char*>(code->data()), static_cast<std::streamsize>(SharedCodeBytes()));
+    for (const auto& [key, type] : texture_types) { put(key); put(type); }
+    for (const auto& [key, format] : texture_pixel_formats) { put(key); put(format); }
+    for (const auto& [key, value] : cbuf_values) { put(key); put(value); }
+    for (const auto& [key, value] : cbuf_replacements) { put(key); put(value); }
+    if (stage == Shader::Stage::Compute) {
+        put(workgroup_size);
+        put(shared_memory_size);
+    } else {
+        put(sph);
+        if (stage == Shader::Stage::Geometry) put(gp_passthrough_mask);
+    }
+}
+
 StoredEnvironment StoredEnvironment::Decode(SharedShaderBytes bytes, std::string_view program_digest) {
     FileEnvironment env;
     std::istringstream stream(bytes.String(), std::ios::binary);
@@ -1016,6 +1062,7 @@ u64 FileEnvironment::ReadInstruction(u32 address) {
 
 u32 FileEnvironment::ReadCbufSize(u32 cbuf_index) {
     const auto key=MakeCbufKey(cbuf_index, UINT32_MAX);
+    if(asked)asked->constants.insert(key);
     if(reuse_hle.has_value()) {
         if(cbuf_index>=(stage==Shader::Stage::Compute?8U:18U))
             throw Shader::LogicError("Cross-version cbuf proof index out of range");
@@ -1027,6 +1074,20 @@ u32 FileEnvironment::ReadCbufSize(u32 cbuf_index) {
 
 u32 FileEnvironment::ReadTextureQuery(const Shader::TextureHandleSource& source,
                                     Shader::TextureQueryKind kind) {
+    if(asked && !reuse_hle.has_value() && !asking_texture) {
+        // The constant reads of a query only find its handle; the code itself does not use them.
+        asking_texture=true;
+        try {
+            const u32 handle=ResolveTextureHandle(source);
+            const u32 answer=QueryTextureHandle(handle,kind);
+            asking_texture=false;
+            asked->Texture({source,kind,handle,answer});
+            return answer;
+        } catch(...) {
+            asking_texture=false;
+            throw;
+        }
+    }
     if(!reuse_hle.has_value())return Shader::Environment::ReadTextureQuery(source,kind);
     const bool previous=semantic_textures.in_query;
     semantic_textures.in_query=true;
@@ -1043,6 +1104,7 @@ u32 FileEnvironment::ReadTextureQuery(const Shader::TextureHandleSource& source,
 }
 
 u32 FileEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
+    if(asked && !asking_texture)asked->constants.insert(MakeCbufKey(cbuf_index,cbuf_offset));
     if(reuse_hle.has_value())semantic_textures.Strict(0,MakeCbufKey(cbuf_index,cbuf_offset));
     const auto it{cbuf_values.find(MakeCbufKey(cbuf_index, cbuf_offset))};
     if (it == cbuf_values.end()) {
@@ -1052,6 +1114,7 @@ u32 FileEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
 }
 
 Shader::TextureType FileEnvironment::ReadTextureType(u32 handle) {
+    if(asked && !asking_texture)asked->texture_types.insert(handle);
     if(reuse_hle.has_value())semantic_textures.Strict(1,handle);
     const auto it{texture_types.find(handle)};
     if (it == texture_types.end()) {
@@ -1061,6 +1124,7 @@ Shader::TextureType FileEnvironment::ReadTextureType(u32 handle) {
 }
 
 Shader::TexturePixelFormat FileEnvironment::ReadTexturePixelFormat(u32 handle) {
+    if(asked && !asking_texture)asked->pixel_formats.insert(handle);
     if(reuse_hle.has_value())semantic_textures.Strict(2,handle);
     const auto it{texture_pixel_formats.find(handle)};
     if (it == texture_pixel_formats.end()) {
@@ -1075,6 +1139,7 @@ bool FileEnvironment::IsTexturePixelFormatInteger(u32 handle) {
 }
 
 u32 FileEnvironment::ReadViewportTransformState() {
+    if(asked)asked->viewport=true;
     if(reuse_hle.has_value())reuse_viewport_queried=true;
     return viewport_transform_state;
 }
@@ -1106,6 +1171,7 @@ std::optional<Shader::ReplaceConstant> FileEnvironment::GetReplaceConstBuffer(u3
             throw Shader::LogicError("Cross-version replacement proof budget exceeded");
         replacement_queries.try_emplace(key,result);
     }
+    if(asked && asked->hle)asked->replacements.try_emplace(key,result);
     return result;
 }
 

@@ -4,7 +4,7 @@
 #include <string>
 #include <string_view>
 namespace VideoCommon::ShaderProfile {
-// Bounded compression envelope; the runtime separately requires NXSHBIN1.
+// Bounded compression envelope; the runtime separately requires NXSHBIN1 or NXSHBIN2.
 // Unpack also accepts raw bytes for offline diagnostic tools.
 std::string Pack(std::string_view json, int level = 3);
 std::string Unpack(std::string_view bytes);

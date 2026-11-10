@@ -86,8 +86,7 @@ using VideoCommon::StoredEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-// Global-memory helper changes require a new shader ABI.
-constexpr u32 CACHE_VERSION = 28;
+constexpr u32 CACHE_VERSION = VideoCommon::CacheStore::VulkanShaderAbi;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
 
 // Startup/shutdown diagnostics only; no probe work is added to the draw path.
@@ -568,6 +567,10 @@ struct PipelineCache::ProgressiveWarmup {
         std::unique_ptr<ComputePipeline> compute;
         std::string record_id;
         std::vector<FileEnvironment> foreign_environments;
+        // A synthetic job's inputs and the questions its translation asked, for its first-draw check.
+        bool generated{};
+        std::vector<StoredEnvironment> synthetic_inputs;
+        std::vector<VideoCommon::ShaderProfile::AskedQuestions> questions;
         explicit Job(Graphics value) : input(std::move(value)) {}
         explicit Job(Compute value) : input(std::move(value)) {}
         Job(Job&&) = default;
@@ -628,7 +631,14 @@ struct PipelineCache::ProgressiveWarmup {
             }
             if (auto* g = std::get_if<Graphics>(&job.input)) {
                 if (job.graphics) {
-                    auto it = cache.graphics_cache.try_emplace(g->key, std::move(job.graphics)).first;
+                    const auto [it, inserted] = cache.graphics_cache.try_emplace(g->key, std::move(job.graphics));
+                    if (inserted && it->second && job.generated) {
+                        if (job.questions.size() == job.synthetic_inputs.size())
+                            cache.synthetic_graphics.insert_or_assign(it->second.get(),
+                                SyntheticGraphics{std::move(job.synthetic_inputs), std::move(job.questions)});
+                        if (g->key.state.app_stage != Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro)
+                            cache.hle_unproven.insert(it->second.get());
+                    }
                     if (it->second) {
                         if (auto found = aliases.find(g->key); found != aliases.end()) {
                             for (const auto& alias : found->second) {
@@ -640,7 +650,10 @@ struct PipelineCache::ProgressiveWarmup {
                 }
             } else {
                 const auto& c = std::get<Compute>(job.input);
-                if (job.compute) cache.compute_cache.try_emplace(c.key, std::move(job.compute));
+                if (job.compute && cache.compute_cache.try_emplace(c.key, std::move(job.compute)).second &&
+                    job.generated && job.questions.size() == 1 && job.synthetic_inputs.size() == 1)
+                    cache.synthetic_compute.insert_or_assign(c.key,
+                        SyntheticCompute{std::move(job.synthetic_inputs.front()), std::move(job.questions.front())});
             }
         });
     }
@@ -694,21 +707,34 @@ private:
                 if (!job.record_id.empty())
                     for (auto& env : envs)
                         env.BeginReuseProof(g->key.state.app_stage == Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro);
+                if (job.generated)
+                    for (auto& env : envs)
+                        env.TrackQuestions(g->key.state.app_stage == Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro);
                 boost::container::static_vector<Shader::Environment*, Maxwell::MaxShaderProgram> ptrs;
                 for (auto& env : envs) ptrs.push_back(&env);
                 auto result = cache.CreateGraphicsPipeline(pools, g->key, MakeSpan(ptrs), nullptr, false);
                 if (result && result->IsBuilt()) {
                     job.graphics = std::move(result);
                     if (!job.record_id.empty()) job.foreign_environments = std::move(envs);
+                    else if (job.generated) {
+                        job.synthetic_inputs = g->environments;
+                        for (auto& env : envs)
+                            if (auto questions = env.TakeQuestions()) job.questions.push_back(std::move(*questions));
+                    }
                 }
             } else {
                 auto& c = std::get<Compute>(job.input);
                 auto env = c.environment.Expand();
                 if (!job.record_id.empty()) env.BeginReuseProof(false);
+                if (job.generated) env.TrackQuestions();
                 auto result = cache.CreateComputePipeline(pools, c.key, env, nullptr, false);
                 if (result && !result->HasBuildFailed()) {
                     job.compute = std::move(result);
                     if (!job.record_id.empty()) job.foreign_environments.push_back(std::move(env));
+                    else if (job.generated) {
+                        job.synthetic_inputs.push_back(c.environment);
+                        if (auto questions = env.TakeQuestions()) job.questions.push_back(std::move(*questions));
+                    }
                 }
             }
         } catch (const std::exception& error) {
@@ -936,6 +962,13 @@ void PipelineCache::WaitForBuilds() {
 
 PipelineCache::~PipelineCache() {
     LOG_INFO(Render_Vulkan,"Cross-version recipes: validated={} rejected={}",cross_version_accepted,cross_version_rejected);
+    if (synthetic_confirmed || synthetic_replaced) {
+        std::string reasons;
+        for (const auto& [reason, count] : synthetic_mismatches)
+            reasons += fmt::format("{}{} {}", reasons.empty() ? "" : ", ", count, reason);
+        LOG_INFO(Render_Vulkan, "Synthetic pipelines drawn: confirmed={} replaced={}{}{}{}", synthetic_confirmed,
+                 synthetic_replaced, reasons.empty() ? "" : " (", reasons, reasons.empty() ? "" : ")");
+    }
     WaitForBuilds();
     if (guest_recipe_probe) guest_recipe_probe->Flush();
     if(runtime_report && !runtime_report->Flush(quarantined_graphics,quarantined_compute))
@@ -1032,10 +1065,11 @@ ComputePipeline* PipelineCache::CurrentComputePipeline() {
         }
         return pipeline;
     };
-    if(const auto found=compute_cache.find(key);found!=compute_cache.end())return recorded(found->second.get());
+    const auto checked = [&] { return synthetic_compute.empty() || CheckSyntheticCompute(key, shader); };
+    if(const auto found=compute_cache.find(key);found!=compute_cache.end() && checked())return recorded(found->second.get());
     if (progressive_warmup) {
         progressive_warmup->DemandCompute(key);
-        if (const auto found = compute_cache.find(key); found != compute_cache.end())
+        if (const auto found = compute_cache.find(key); found != compute_cache.end() && checked())
             return recorded(found->second.get());
     }
     if(auto* reused=TryReuseCompute(key,shader))return recorded(reused);
@@ -1221,11 +1255,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         }
         return false;
     };
-    const auto queue_compute = [&](const ComputePipelineCacheKey& key, StoredEnvironment env, bool candidate=false, std::string record_id={}) {
+    const auto queue_compute = [&](const ComputePipelineCacheKey& key, StoredEnvironment env, bool candidate=false, std::string record_id={}, bool generated=false) {
         const auto id=warmup_id('C',key,env.CompilationIdentity());
         if (defer_warmup(id)) return;
         { std::scoped_lock lock{state.mutex}; ++state.total; }
-        workers.QueueWork([this, key, id, candidate, stop_loading, record_id=std::move(record_id), stored = std::move(env), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
+        workers.QueueWork([this, key, id, candidate, generated, stop_loading, record_id=std::move(record_id), stored = std::move(env), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
             if(stop_loading.stop_requested()) {
                 std::scoped_lock lock{state.mutex};
                 ++state.deferred;++state.built;report_build();return;
@@ -1243,6 +1277,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             auto env_=stored.Expand();
             ShaderPools pools;
             if(candidate)env_.BeginReuseProof(false);
+            if(generated)env_.TrackQuestions();
             auto pipeline{CreateComputePipeline(pools, key, env_, state.statistics.get(), false)};
             // This build is synchronous. A non-null wrapper can still contain
             // a rejected native pipeline; retain it as a retryable failure.
@@ -1261,20 +1296,24 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     auto value=std::make_shared<ForeignCompute>();value->key=key;
                     value->environment=std::move(env_);value->record_id=std::move(record_id);value->pipeline=std::move(pipeline);
                     foreign_compute[WithoutSizes(key)].push_back(std::move(value));
-                } else compute_cache.emplace(key, std::move(pipeline));
+                } else {
+                    if(generated)if(auto questions=env_.TakeQuestions())
+                        synthetic_compute.insert_or_assign(key,SyntheticCompute{stored,std::move(*questions)});
+                    compute_cache.emplace(key, std::move(pipeline));
+                }
             } else ++state.failures;
             ++state.built;
             report_build();
         });
     };
     const auto queue_graphics{[&](const GraphicsPipelineCacheKey& key,
-                                  std::vector<StoredEnvironment> envs, bool candidate=false, std::string record_id={}) {
+                                  std::vector<StoredEnvironment> envs, bool candidate=false, std::string record_id={}, bool generated=false) {
         std::string inputs;
         for (const auto& env : envs) inputs += env.CompilationIdentity();
         const auto id=warmup_id('G',key,inputs);
         if (defer_warmup(id)) return;
         { std::scoped_lock lock{state.mutex}; ++state.total; }
-        workers.QueueWork([this, key, id, candidate, stop_loading, record_id=std::move(record_id), stored = std::move(envs), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
+        workers.QueueWork([this, key, id, candidate, generated, stop_loading, record_id=std::move(record_id), stored = std::move(envs), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
             if(stop_loading.stop_requested()) {
                 std::scoped_lock lock{state.mutex};
                 ++state.deferred;++state.built;report_build();return;
@@ -1294,6 +1333,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             for(const auto& env:stored)envs_.push_back(env.Expand());
             ShaderPools pools;
             if(candidate)for(auto& env:envs_)env.BeginReuseProof(key.state.app_stage==Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro);
+            if(generated)for(auto& env:envs_)env.TrackQuestions(key.state.app_stage==Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro);
             boost::container::static_vector<Shader::Environment*, Maxwell::MaxShaderProgram> env_ptrs;
             for (auto& env : envs_) {
                 env_ptrs.push_back(&env);
@@ -1313,7 +1353,15 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     auto value=std::make_shared<ForeignGraphics>();value->key=key;
                     value->environments=std::move(envs_);value->record_id=std::move(record_id);value->pipeline=std::move(pipeline);
                     foreign_graphics[WithoutSizes(key)].push_back(std::move(value));
-                } else graphics_cache.emplace(key, std::move(pipeline));
+                } else {
+                    const auto [built, inserted] = graphics_cache.emplace(key, std::move(pipeline));
+                    if(generated && inserted) {
+                        SyntheticGraphics check{stored,{}};
+                        for(auto& env:envs_)if(auto questions=env.TakeQuestions())check.questions.push_back(std::move(*questions));
+                        if(check.questions.size()==check.envs.size())synthetic_graphics.insert_or_assign(built->second.get(),std::move(check));
+                        if(key.state.app_stage!=Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro)hle_unproven.insert(built->second.get());
+                    }
+                }
             } else { ++state.failures; }
             ++state.built;
             report_build();
@@ -1324,6 +1372,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     struct DeferredPipeline {
         GraphicsPipelineCacheKey key;
         std::vector<StoredEnvironment> envs;
+        bool generated{};
     };
     std::vector<DeferredPipeline> hle_unreplaced;
     std::unordered_set<GraphicsPipelineCacheKey> plain_keys;
@@ -1528,6 +1577,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     size_t import_unresolved{},imported_records{};
     VideoCommon::ShaderProfile::ImportReport import_report;
     std::set<std::string> imported_record_ids,newly_loaded_ids;
+    // Records of synthetic recipes: they rank below recorded records of their key at startup, their first draw
+    // checks them, and export keeps them synthetic. A version knows them only from its generated association.
+    std::set<std::string> synthetic_ids,recorded_ids;
     auto profile_progress_stage=VideoCore::LoadCallbackStage::Prepare;
     size_t last_profile_done=SIZE_MAX,last_profile_total=SIZE_MAX;
     auto last_profile_progress=std::chrono::steady_clock::time_point{};
@@ -1632,11 +1684,17 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 projection_timer.Stop();
                 std::string id;
                 Timing::Measure(state.timings.get(), Timing::Phase::CacheAppend, [&] {
-                    VideoCommon::CacheStore::Append(pipeline_cache_filename, CACHE_VERSION, record, &id, recipe.requires_validation?recipe.source_context:cache_context);
+                    VideoCommon::CacheStore::Append(pipeline_cache_filename, CACHE_VERSION, record, &id,
+                        recipe.requires_validation ? recipe.source_context : cache_context,
+                        !recipe.requires_validation && recipe.synthetic);
                     newly_loaded_ids.insert(id);
                     recipe_records[recipe.identity]=id;
                     imported_record_ids.insert(id);
                 });
+                // One record from a synthetic and a recorded recipe holds the same environments: it is recorded.
+                if(!recipe.synthetic)recorded_ids.insert(id);
+                if(recipe.synthetic && !recorded_ids.contains(id))synthetic_ids.insert(id);
+                else synthetic_ids.erase(id);
                 if(recipe.requires_validation) {
                     record.id=id;stage_candidate(std::move(record));
                 } else {
@@ -1679,7 +1737,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     bool modern_loaded{import_records_ready};
     try {
         if (cached_store_valid) {
-            const auto contextual_ids = VideoCommon::CacheStore::ReadContext(pipeline_cache_filename,cache_context);
+            auto contextual_ids = VideoCommon::CacheStore::ReadContext(pipeline_cache_filename,cache_context);
+            // Records of synthetic recipes belong to the version too; recorded beats generated for one record.
+            for (auto& id : VideoCommon::CacheStore::ReadContext(pipeline_cache_filename,cache_context,true))
+                if (!contextual_ids.contains(id)) { synthetic_ids.insert(id); contextual_ids.insert(std::move(id)); }
             if (!progressive_mode && !capture_context.empty()) {
                 // A second start of an update must not hide the other local
                 // versions. Keep their entries as guarded candidates on every
@@ -1901,9 +1962,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     for (auto& input : compute_inputs) {
         if (input.candidate) { foreign_compute_inputs.push_back(std::move(input)); continue; }
         CbufSizeDependencies::Normalize(input.key.cbuf_sizes, cbuf_size_dependencies.Mask(input.key.unique_hash));
+        const bool generated = synthetic_ids.contains(input.record_id);
         compute_variants.Observe(input.key, std::move(input.env), [](const auto& a, const auto& b) {
             return a.HasSameCompilationInputs(b);
-        });
+        }, generated);
     }
     compute_inputs.clear();
     for (auto& input : graphics_inputs) {
@@ -1919,7 +1981,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 } else audit_truncated=true;
             }
             return equal;
-        });
+        }, synthetic_ids.contains(input.record_id));
     }
     graphics_inputs.clear();
     for (auto& key : skipped_compute_keys) {
@@ -2010,26 +2072,34 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         }
         return (progressive_mode && stop_loading.stop_requested()) || initial_budget.DeferNext();
     };
-    const auto schedule_compute = [&](const ComputePipelineCacheKey& key, StoredEnvironment env) {
-        if (defer_initial())
+    const auto schedule_compute = [&](const ComputePipelineCacheKey& key, StoredEnvironment env, bool generated = false) {
+        if (defer_initial()) {
             progressive_jobs.emplace_back(ProgressiveWarmup::Compute{key, std::move(env)});
-        else { queue_compute(key, std::move(env)); }
+            progressive_jobs.back().generated = generated;
+        } else { queue_compute(key, std::move(env), false, {}, generated); }
     };
-    const auto schedule_graphics = [&](const GraphicsPipelineCacheKey& key, std::vector<StoredEnvironment> envs) {
-        if (defer_initial())
+    const auto schedule_graphics = [&](const GraphicsPipelineCacheKey& key, std::vector<StoredEnvironment> envs, bool generated = false) {
+        if (defer_initial()) {
             progressive_jobs.emplace_back(ProgressiveWarmup::Graphics{key, std::move(envs)});
-        else { queue_graphics(key, std::move(envs)); }
+            progressive_jobs.back().generated = generated;
+        } else { queue_graphics(key, std::move(envs), false, {}, generated); }
     };
-    const auto ambiguous_compute = compute_variants.ConsumeSafe(schedule_compute,[&](const auto& key){if(runtime_report)quarantined_compute.Reject(key);});
-    const auto ambiguous_graphics = graphics_variants.ConsumeSafe([&](const auto& key, auto envs) {
+    // Synthetic pipelines keep their environments and the questions their translation asked until their first
+    // draw checks them (CheckSyntheticGraphics). Initial jobs register when built: the disk-loader workers drain
+    // before the game draws. Deferred progressive jobs register when published, on the drawing thread.
+    const auto ambiguous_compute = compute_variants.ConsumeSafe([&](const auto& key, auto env, bool generated) {
+        schedule_compute(key, std::move(env), generated);
+    },[&](const auto& key){if(runtime_report)quarantined_compute.Reject(key);});
+    const auto ambiguous_graphics = graphics_variants.ConsumeSafe([&](const auto& key, auto envs, bool generated) {
         using EngineHint = Tegra::Engines::Maxwell3D::EngineHint;
         if (key.state.app_stage != EngineHint::OnHLEMacro) plain_keys.insert(key);
-        else if (std::ranges::none_of(envs, [](const auto& env) { return env.HasHLEMacroState(); })) {
-            hle_unreplaced_keys.insert(key);
-            hle_unreplaced.push_back({key, std::move(envs)});
+        else if (generated || std::ranges::none_of(envs, [](const auto& env) { return env.HasHLEMacroState(); })) {
+            // A synthetic HLE key never asked about replacements, so it is not known replacement-free.
+            if (!generated) hle_unreplaced_keys.insert(key);
+            hle_unreplaced.push_back({key, std::move(envs), generated});
             return;
         }
-        schedule_graphics(key, std::move(envs));
+        schedule_graphics(key, std::move(envs), generated);
     },[&](const auto& key){if(runtime_report)quarantined_graphics.Reject(key);});
     if(ambiguous_compute || ambiguous_graphics)
         LOG_WARNING(Render_Vulkan, "Skipped ambiguous startup keys: graphics={} compute={}; keeping every disk variant for investigation and normal runtime compilation", ambiguous_graphics, ambiguous_compute);
@@ -2039,11 +2109,13 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         return key;
     }};
     std::vector<GraphicsPipelineCacheKey> hle_shared_keys;
-    for (auto& [key, envs] : hle_unreplaced) {
+    for (auto& [key, envs, generated] : hle_unreplaced) {
         if (plain_keys.contains(non_hle_twin(key))) {
-            hle_shared_keys.push_back(key);
+            // A synthetic one shares nothing yet: its first draw translates its shaders and uses the plain twin
+            // only if they replace no load (CreateGraphicsPipeline), which costs no native build.
+            if (!generated) hle_shared_keys.push_back(key);
         } else {
-            schedule_graphics(key, std::move(envs));
+            schedule_graphics(key, std::move(envs), generated);
         }
     }
     // Only after scheduling all current-context work, prepare eligible foreign
@@ -2426,6 +2498,100 @@ ComputePipeline* PipelineCache::TryReuseCompute(ComputePipelineCacheKey& key,con
     foreign_compute.erase(found);return nullptr;
 }
 
+void PipelineCache::CountSynthetic(const char* mismatch, u64 key_hash) {
+    if (!mismatch) {
+        ++synthetic_confirmed;
+        return;
+    }
+    ++synthetic_replaced;
+    ++synthetic_mismatches[mismatch];
+    LOG_DEBUG(Render_Vulkan, "Synthetic pipeline {:016x} replaced: {} differs in the live draw", key_hash, mismatch);
+}
+
+void PipelineCache::StoreObservedRecord(std::string key, std::vector<std::string> environments) {
+    if (cache_context.empty() || pipeline_cache_filename.empty()) return;
+    try {
+        serialization_thread.QueueWork([key = std::move(key), environments = std::move(environments),
+                                        path = pipeline_cache_filename, context = cache_context] {
+            VideoCommon::CacheStore::Record record;
+            record.key = key;
+            for (const auto& env : environments) record.environments.push_back(env);
+            try { VideoCommon::CacheStore::Append(path, CACHE_VERSION, record, nullptr, context); }
+            catch (const std::exception& error) { LOG_WARNING(Render_Vulkan, "Cannot store observed shader record: {}", error.what()); }
+        });
+    } catch (const std::exception& error) {
+        LOG_WARNING(Render_Vulkan, "Cannot queue observed shader record: {}", error.what());
+    }
+}
+
+bool PipelineCache::CheckSyntheticGraphics(std::shared_ptr<GraphicsPipeline> pipeline) {
+    const auto found = synthetic_graphics.find(pipeline.get());
+    if (found == synthetic_graphics.end()) return true;
+    const auto check = std::move(found->second);
+    synthetic_graphics.erase(found);
+    const auto& stored = check.envs;
+    GraphicsEnvironments live;
+    GetGraphicsEnvironments(live, graphics_key.unique_hashes);
+    const char* mismatch{};
+    std::vector<std::string> observed;
+    size_t index{};
+    for (size_t slot = 0; slot < graphics_key.unique_hashes.size() && !mismatch; ++slot) {
+        if (!graphics_key.unique_hashes[slot]) continue;
+        if (index >= stored.size()) { mismatch = "stage count"; break; }
+        const auto synthetic = stored[index++].Expand();
+        auto& target = live.envs[slot];
+        target.SetQueryRecording(false);
+        const bool relocatable = program_equivalence.CanRebase(synthetic.ProgramStorage(), synthetic.ShaderStage(),
+                                                               synthetic.StartAddress(), target.StartAddress());
+        const auto answered = synthetic.AnswerLive(target, relocatable, check.questions[index - 1], mismatch);
+        if (!answered) break;
+        std::ostringstream bytes(std::ios::binary);
+        answered->Serialize(bytes);
+        observed.push_back(bytes.str());
+    }
+    if (!mismatch && index != stored.size()) mismatch = "stage count";
+    CountSynthetic(mismatch, graphics_key.Hash());
+    if (!mismatch) {
+        // Every load it asked about, the live HLE draw replaces none: plain draws may share it, as after a
+        // translation without replacements.
+        if (!check.questions.empty() && check.questions.front().hle) hle_unreplaced_keys.insert(graphics_key);
+        StoreObservedRecord(std::string(reinterpret_cast<const char*>(&graphics_key), sizeof(graphics_key)), std::move(observed));
+        return true;
+    }
+    // Every key sharing the wrong pipeline builds its own from now on.
+    std::erase_if(graphics_cache, [&](const auto& entry) { return entry.second == pipeline; });
+    retired_graphics.push_back(std::move(pipeline));
+    return false;
+}
+
+bool PipelineCache::CheckSyntheticCompute(const ComputePipelineCacheKey& key, const ShaderInfo* shader) {
+    const auto found = synthetic_compute.find(key);
+    if (found == synthetic_compute.end()) return true;
+    const auto check = std::move(found->second);
+    synthetic_compute.erase(found);
+    const auto synthetic = check.env.Expand();
+    const auto& qmd = kepler_compute->launch_description;
+    ComputeEnvironment live{*kepler_compute, *gpu_memory, kepler_compute->regs.code_loc.Address(), qmd.program_start};
+    live.SetCachedCode(shader->code, shader->size_bytes);
+    live.SetQueryRecording(false);
+    const bool relocatable = program_equivalence.CanRebase(synthetic.ProgramStorage(), synthetic.ShaderStage(),
+                                                           synthetic.StartAddress(), live.StartAddress());
+    const char* mismatch{};
+    const auto answered = synthetic.AnswerLive(live, relocatable, check.questions, mismatch);
+    CountSynthetic(mismatch, key.Hash());
+    if (answered) {
+        std::ostringstream bytes(std::ios::binary);
+        answered->Serialize(bytes);
+        StoreObservedRecord(std::string(reinterpret_cast<const char*>(&key), sizeof(key)), {bytes.str()});
+        return true;
+    }
+    if (const auto cached = compute_cache.find(key); cached != compute_cache.end()) {
+        retired_compute.push_back(std::move(cached->second));
+        compute_cache.erase(cached);
+    }
+    return false;
+}
+
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
     if (const auto it = pending_graphics.find(graphics_key); it != pending_graphics.end()) {
         auto job = it->second;
@@ -2546,6 +2712,20 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipelineSlowPath() {
     }
     if (!pipeline) {
         return nullptr;
+    }
+    // An HLE draw reaching a plain synthetic pipeline, by any key or alias, translates its own shaders: it uses
+    // that pipeline only if they replace no constant buffer load (CreateGraphicsPipeline), else its own.
+    if (graphics_key.state.app_stage == Tegra::Engines::Maxwell3D::EngineHint::OnHLEMacro &&
+        hle_unproven.contains(pipeline.get())) {
+        pipeline = CreateGraphicsPipeline(use_asynchronous_shaders && ShouldWaitForAsyncPipeline());
+        if (!pipeline) {
+            return nullptr;
+        }
+    }
+    // Its own key or an alias (an HLE or topology twin, narrower sizes) can be the first to reach a synthetic
+    // pipeline. A retired one leaves no entry, so the draw builds its own.
+    if (!synthetic_graphics.empty() && !CheckSyntheticGraphics(pipeline)) {
+        return CurrentGraphicsPipelineSlowPath();
     }
     if (is_new) {
         // The key of shaders seen for the first time holds every constant buffer size, since only
@@ -3019,6 +3199,8 @@ std::shared_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(bool urg
                                       environments.envs[index].CbufSizeMask());
     }
     if (reuse_twin) {
+        // This HLE draw's translation replaced nothing: the twin serves it, synthetic or not.
+        hle_unproven.erase(twin.get());
         twin->SetSharedKey(graphics_key);
         pipeline = twin;
     } else if (pipeline && is_hle && !has_replacements()) {

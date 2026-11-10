@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <type_traits>
 #include <unordered_map>
@@ -162,6 +163,15 @@ private:
     };
     bool TryReuseGraphics();
     ComputePipeline* TryReuseCompute(ComputePipelineCacheKey& key,const ShaderInfo* shader);
+    // First draw of a synthetic pipeline, through whichever key reaches it: confirms it with the live answers to
+    // its environments' questions, storing them as a recorded record, or retires it. False when retired: the
+    // draw then builds its own pipeline.
+    // By value: retiring erases the cache entries that own it.
+    bool CheckSyntheticGraphics(std::shared_ptr<GraphicsPipeline> pipeline);
+    // False when the compute pipeline of key was retired.
+    bool CheckSyntheticCompute(const ComputePipelineCacheKey& key, const ShaderInfo* shader);
+    void StoreObservedRecord(std::string key, std::vector<std::string> environments);
+    void CountSynthetic(const char* mismatch, u64 key_hash);
     void AssociateForeignRecord(std::string record_id);
     static ComputePipelineCacheKey WithoutSizes(ComputePipelineCacheKey key);
 
@@ -248,6 +258,27 @@ private:
     std::unordered_map<ComputePipelineCacheKey,std::vector<std::shared_ptr<ForeignCompute>>> foreign_compute;
     VideoCommon::ShaderProfile::ProgramEquivalence program_equivalence;
     u64 cross_version_accepted{},cross_version_rejected{};
+    // Pipelines built from synthetic records keep their stored environments, with the questions their
+    // translation asked, until their first draw. Graphics pipelines are known by object: aliases of other keys
+    // (HLE and topology twins, narrower sizes) share them.
+    struct SyntheticGraphics {
+        std::vector<VideoCommon::StoredEnvironment> envs;
+        std::vector<VideoCommon::ShaderProfile::AskedQuestions> questions;
+    };
+    struct SyntheticCompute {
+        VideoCommon::StoredEnvironment env;
+        VideoCommon::ShaderProfile::AskedQuestions questions;
+    };
+    std::unordered_map<const GraphicsPipeline*, SyntheticGraphics> synthetic_graphics;
+    std::unordered_map<ComputePipelineCacheKey, SyntheticCompute> synthetic_compute;
+    // Synthetic pipelines of plain keys: their translation never asked about HLE replacements, so an HLE draw
+    // uses one only after its own translation finds none, whatever key or alias leads it there.
+    std::unordered_set<const GraphicsPipeline*> hle_unproven;
+    // Replaced synthetic pipelines stay alive: transitions of other pipelines may still point to them.
+    std::vector<std::shared_ptr<GraphicsPipeline>> retired_graphics;
+    std::vector<std::unique_ptr<ComputePipeline>> retired_compute;
+    u64 synthetic_confirmed{}, synthetic_replaced{};
+    std::map<std::string, u64> synthetic_mismatches;
 
     ShaderPools main_pools;
 

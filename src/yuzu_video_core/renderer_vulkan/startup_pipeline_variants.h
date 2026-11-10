@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -9,6 +10,8 @@ namespace Vulkan
 // Startup only. Retain the first value solely while all observed inputs agree.
 // Conflicts invalidate the whole key, independent of record order. Disk records
 // remain distinct; normal gameplay can compile the actual environment later.
+// Generated inputs (synthetic recipes) rank below recorded ones: a recorded input
+// replaces them, and only inputs of the key's highest rank can conflict.
 template <class Key, class Inputs>
 class StartupPipelineVariants
 {
@@ -25,20 +28,29 @@ public:
         Inputs inputs;
         bool ambiguous{};
         bool withheld{};
+        bool generated{};
     };
     template <class Equal>
-    void Observe(const Key & key, Inputs inputs, Equal equal)
+    void Observe(const Key & key, Inputs inputs, Equal equal, bool generated = false)
     {
         const auto it = entries.find(key);
         if (it == entries.end())
         {
-            const auto saved = entries.emplace(key, Candidate{std::move(inputs), false}).first;
+            const auto saved = entries.emplace(key, Candidate{std::move(inputs), false, false, generated}).first;
             // unordered_map may rehash, but references to node keys remain valid.
             try {order.push_back(&*saved);}
             catch(...) {entries.erase(saved);throw;}
+            return;
         }
-        else if (!it->second.ambiguous && !equal(it->second.inputs, inputs))
-            it->second.ambiguous = true;
+        auto & candidate = it->second;
+        if (candidate.generated && !generated)
+        {
+            candidate.inputs = std::move(inputs);
+            candidate.generated = false;
+            candidate.ambiguous = false;
+        }
+        else if (candidate.generated == generated && !candidate.ambiguous && !equal(candidate.inputs, inputs))
+            candidate.ambiguous = true;
     }
     void Withhold(const Key & key)
     {
@@ -66,7 +78,13 @@ public:
                 reject(key);
             }
             else if (!candidate.withheld)
-                consume(key, std::move(candidate.inputs));
+            {
+                // A consumer taking a third argument learns whether the inputs are generated.
+                if constexpr (std::is_invocable_v<F &, const Key &, Inputs &&, bool>)
+                    consume(key, std::move(candidate.inputs), candidate.generated);
+                else
+                    consume(key, std::move(candidate.inputs));
+            }
         }
         return rejected;
     }
