@@ -97,6 +97,7 @@ endif()
 if(NOT MSVC)
     # Instrument the production paths themselves, not just the test executable.
     add_executable(test_fast_copy_sanitized fast_copy/fast_copy.cpp
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/engine_upload.cpp"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/fermi_2d.cpp"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_dma.cpp"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/sw_blitter/blitter.cpp"

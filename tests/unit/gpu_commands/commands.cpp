@@ -54,7 +54,7 @@ struct Macro {
 };
 struct Upload {
   void ProcessExec(bool) {}
-  void ProcessData(u32, bool) {}
+  void ProcessData(u32) {}
 };
 struct Fixture : Engines::EngineInterface {
   using DirtyState = Maxwell3D::DirtyState;
@@ -87,7 +87,7 @@ struct Fixture : Engines::EngineInterface {
   bool IsMethodExecutable(u32);
   u32 ProcessShadowRam(u32, u32);
   void ProcessQueryCondition() { effects.push_back({1, 2, 3, 4}); }
-  void ProcessMethodCall(u32, u32, u32, bool);
+  void ProcessMethodCall(u32, u32, u32);
   void CallMethod(u32, u32, bool);
   void ProcessDirtyRegisters(u32, u32);
   void PushMethod(u32, u32) override;

@@ -1116,6 +1116,11 @@ u32 GraphicsPipeline::SelectAttachmentReads(std::span<VideoCommon::ImageViewInOu
     const u32 mask{stage_infos[NUM_STAGES - 1].input_attachment_mask};
     u32 reads{NO_ATTACHMENT_READS};
     for (size_t slot = 0; slot < attachment_read_kinds.size(); ++slot) {
+        if (regs.window_origin.mode == Maxwell::WindowOrigin::Mode::LowerLeft &&
+            attachment_read_kinds[slot] == Shader::PixelLocalRead::FragCoord) {
+            // The reflected coordinate may read a different row than the current fragment.
+            continue;
+        }
         VideoCommon::ImageViewInOut& view{views[attachment_read_views[slot]]};
         if (!view.id) {
             continue;
@@ -1961,6 +1966,14 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
         });
     }
     const bool is_rescaling{texture_cache.IsRescaling()};
+    auto render_area_data = render_area.words;
+    if (render_area.uses_render_area &&
+        maxwell3d->regs.window_origin.mode == Maxwell::WindowOrigin::Mode::LowerLeft) {
+        const u32 height = maxwell3d->regs.surface_clip.height;
+        render_area_data[2] = static_cast<f32>(
+            is_rescaling ? videoSettings.resolution_info.ScaleUp(height) : height);
+        render_area_data[3] = 1.0f;
+    }
     const bool update_rescaling{scheduler.UpdateRescaling(is_rescaling)};
     const bool bind_pipeline{scheduler.UpdateGraphicsPipeline(this)};
     if (ScaleTrace::Active()) {
@@ -1995,7 +2008,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                           rescaling_data = rescaling.Data(),
                           is_rescaling, update_rescaling, reads = attachment_reads,
                           uses_render_area = render_area.uses_render_area,
-                          render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
+                          render_area_data](vk::CommandBuffer cmdbuf) {
             if (!IsBuilt()) {
                 return;
             }
@@ -2032,7 +2045,7 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                           table_data = uses_texture_table ? texture_table_data : nullptr,
                           table_version = texture_table_version, reads = attachment_reads,
                           uses_render_area = render_area.uses_render_area,
-                          render_area_data = render_area.words](vk::CommandBuffer cmdbuf) {
+                          render_area_data](vk::CommandBuffer cmdbuf) {
             if (!IsBuilt()) {
                 return;
             }

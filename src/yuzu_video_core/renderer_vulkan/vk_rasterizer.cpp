@@ -112,10 +112,7 @@ VkViewport GetViewportState(const Device& device, const Maxwell& regs, size_t in
                           src.swizzle.y == Maxwell::ViewportSwizzle::NegativeY;
 
     if (lower_left) {
-        // Flip by surface clip height: the window row is clip_height - y, and the negative
-        // height keeps the viewport pointing up from there, whatever the sign of scale_y.
-        y = conv(static_cast<f32>(regs.surface_clip.height)) - y;
-        height = -height;
+        FlipLowerLeftViewportY(y, height, conv(static_cast<f32>(regs.surface_clip.height)));
     }
 
     if (y_negate) {
@@ -162,9 +159,11 @@ VkRect2D GetScissorState(const Maxwell& regs, size_t index, u32 up_scale = 1, u3
     const bool lower_left = regs.window_origin.mode != Maxwell::WindowOrigin::Mode::UpperLeft;
     const s32 clip_height = regs.surface_clip.height;
 
-    // Flip coordinates if lower left
-    s32 min_y = lower_left ? (clip_height - src.max_y) : src.min_y.Value();
-    s32 max_y = lower_left ? (clip_height - src.min_y) : src.max_y.Value();
+    s32 min_y = src.min_y.Value();
+    s32 max_y = src.max_y.Value();
+    if (lower_left) {
+        FlipLowerLeftScissorY(min_y, max_y, clip_height);
+    }
 
     // Bound to render area
     min_y = std::max(min_y, 0);

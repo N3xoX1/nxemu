@@ -30,7 +30,7 @@ void KeplerMemory::ConsumeSinkImpl() {
     method_sink.clear();
 }
 
-void KeplerMemory::CallMethod(u32 method, u32 method_argument, bool is_last_call) {
+void KeplerMemory::CallMethod(u32 method, u32 method_argument, bool) {
     ASSERT_MSG(method < Regs::NUM_REGS,
                "Invalid KeplerMemory register, increase the size of the Regs structure");
 
@@ -42,7 +42,7 @@ void KeplerMemory::CallMethod(u32 method, u32 method_argument, bool is_last_call
         break;
     }
     case KEPLERMEMORY_REG_INDEX(data): {
-        upload_state.ProcessData(method_argument, is_last_call);
+        upload_state.ProcessData(method_argument);
         break;
     }
     }

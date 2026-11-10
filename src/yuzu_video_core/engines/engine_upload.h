@@ -63,7 +63,7 @@ public:
     ~State();
 
     void ProcessExec(bool is_linear_);
-    void ProcessData(u32 data, bool is_last_call);
+    void ProcessData(u32 data);
     void ProcessData(const u32* data, size_t num_data);
 
     /// Binds a rasterizer to this engine.
