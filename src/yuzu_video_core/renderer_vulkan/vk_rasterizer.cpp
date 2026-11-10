@@ -904,10 +904,6 @@ void RasterizerVulkan::GpuWrittenResults(DAddr addr, u64 size,
     query_cache.HostSyncedResults(addr, size, ranges);
 }
 
-bool RasterizerVulkan::InPlaceReadsPending() const {
-    return buffer_cache_runtime.InPlaceReadsPending();
-}
-
 bool RasterizerVulkan::CommitReadbacksForEarlySignal() {
     // Without CPU faults on pending readbacks, fast readback accepts stale reads.
     if (!device_memory.ProtectsReadCachedPages()) {
@@ -1023,6 +1019,10 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
         query_cache.InvalidateRegion(addr, size);
     }
     pipeline_cache.InvalidateRegions(sequences);
+}
+
+void RasterizerVulkan::WaitInPlaceReads(DAddr addr, u64 size) {
+    buffer_cache.WaitInPlaceReads(addr, size);
 }
 
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {

@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <chrono>
-
 #include "yuzu_video_core/buffer_cache/buffer_cache_base.h"
 #include "yuzu_common/readback_reference.h"
 #include "yuzu_video_core/buffer_cache/memory_tracker_base.h"
@@ -138,9 +136,13 @@ public:
         return true;
     }
 
-    /// True while submitted or recorded work still reads guest RAM in place. Until then the
-    /// guest must not learn that this work is done, or it may rewrite the data first.
-    bool InPlaceReadsPending() const noexcept;
+    /// Scheduler tick of the last in-place bind
+    u64 InPlaceTick() const noexcept {
+        return in_place_tick;
+    }
+
+    /// Waits until the host GPU ran the work of `tick`. Safe from any thread.
+    void WaitInPlaceTick(u64 tick);
 
     bool HasHostMappedGuestMemory() const noexcept {
         return host_mapped_size != 0;
@@ -321,8 +323,6 @@ private:
     size_t host_mapped_ubo_alignment{256};
     /// Scheduler tick of the last in-place bind
     u64 in_place_tick{};
-    /// Last time nothing was presented for a while (see InPlaceReadsPending)
-    mutable std::chrono::steady_clock::time_point last_present_stall{};
     void MarkInPlaceBind() noexcept;
 
     std::array<u32, 32> vertex_binding_map = VertexInputMapping{}.bindings;

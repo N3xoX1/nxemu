@@ -377,9 +377,6 @@
     <ClInclude Include="pte_kind.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="presentation_clock.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="query_cache.h">
       <Filter>Header Files</Filter>
     </ClInclude>

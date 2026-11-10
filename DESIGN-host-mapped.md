@@ -59,3 +59,16 @@ TOTK, interleaved, same DLLs, mean from 75 s (the machine was slower than on 202
 **About +3.7 %.** The trees at 125 s are fine, and the window move no longer flickers.
 
 Still open: the hazards above on buffer downloads and on `MemoryManager::Write<T>`; other games.
+
+## Write protection instead of holding signals (2026-11-10)
+
+Holding syncpoints and payloads behind in-place reads cost about 20 % (120 fps against 145 without it) and gating the hold (window move, GPU lag, frames of lag, fence payloads only) always left a flicker, for example when pressing E in TOTK.
+
+Now the signals are not held. Instead:
+
+- Every in-place bind records the scheduler tick in `DeviceMemoryManager::HoldInPlaceRead` and write protects the pages once (a cached-page count, like the memory tracker).
+- A guest CPU write to such a page (`VideoManager::HandleRasterizerWrite`, before the write) calls `ReleaseInPlaceReads`: it waits for that tick on the host GPU (polling, at most 20 ms, since the tick may not be submitted yet), lifts the protection and marks the page as a timeline write, so it takes the copy path from then on.
+- Pages the guest rewrites (streamed per-frame data) pay one wait and then copy; pages it never rewrites stay in place.
+- Waiting on every write instead of switching the page to copies ran at 10 fps: games stream uniform data in the same pages that queued draws read.
+
+TOTK: about 139-145 fps, no flicker on window move or E (checked by the user).

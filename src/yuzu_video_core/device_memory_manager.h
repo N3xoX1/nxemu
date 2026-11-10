@@ -172,6 +172,61 @@ public:
         return false;
     }
 
+    /// The GPU reads [addr, addr + size) in place in the work of scheduler tick `tick`.
+    /// The pages stay write protected until then, so a guest CPU write waits for that work
+    /// (see ReleaseInPlaceReads).
+    void HoldInPlaceRead(DAddr addr, size_t size, u64 tick) {
+        if (size == 0 || addr >= device_as_size) return;
+        const size_t first = addr >> page_bits;
+        const size_t last = std::min<size_t>((addr + size - 1) >> page_bits, (device_as_size >> page_bits) - 1);
+        bool unprotected = false;
+        for (size_t page = first; page <= last; ++page) {
+            std::atomic_ref<u64>{in_place_ticks[page]}.store(tick, std::memory_order_release);
+            unprotected |= (std::atomic_ref<u64>{in_place_pages[page >> 6]}.load(std::memory_order_acquire) &
+                            (u64{1} << (page & 63))) == 0;
+        }
+        if (!unprotected) [[likely]] {
+            return;
+        }
+        std::scoped_lock lock{in_place_mutex};
+        for (size_t page = first; page <= last; ++page) {
+            std::atomic_ref<u64> word{in_place_pages[page >> 6]};
+            const u64 bit = u64{1} << (page & 63);
+            if ((word.load(std::memory_order_relaxed) & bit) == 0) {
+                word.fetch_or(bit, std::memory_order_release);
+                UpdatePagesCachedCount(page << page_bits, page_size, 1);
+            }
+        }
+    }
+
+    /// A guest CPU write to [addr, addr + size): waits with `wait(tick)` for the GPU work that
+    /// reads those pages in place, then lifts their protection.
+    template <typename Wait>
+    void ReleaseInPlaceReads(DAddr addr, size_t size, Wait&& wait) {
+        if (size == 0 || addr >= device_as_size) return;
+        const size_t first = addr >> page_bits;
+        const size_t last = std::min<size_t>((addr + size - 1) >> page_bits, (device_as_size >> page_bits) - 1);
+        for (size_t page = first; page <= last; ++page) {
+            std::atomic_ref<u64> word{in_place_pages[page >> 6]};
+            const u64 bit = u64{1} << (page & 63);
+            while ((word.load(std::memory_order_acquire) & bit) != 0) {
+                const u64 tick = std::atomic_ref<u64>{in_place_ticks[page]}.load(std::memory_order_acquire);
+                wait(tick);
+                std::scoped_lock lock{in_place_mutex};
+                if ((word.load(std::memory_order_relaxed) & bit) == 0 ||
+                    std::atomic_ref<u64>{in_place_ticks[page]}.load(std::memory_order_acquire) != tick) {
+                    // Released by another write, or bound again meanwhile: check again
+                    continue;
+                }
+                word.fetch_and(~bit, std::memory_order_release);
+                UpdatePagesCachedCount(page << page_bits, page_size, -1);
+                // The guest rewrites this page while the GPU reads it: from now on it takes
+                // the copy path, so this wait happens once per page
+                MarkTimelineWrite(page << page_bits, page_size);
+            }
+        }
+    }
+
 private:
     static constexpr size_t device_virtual_bits = Traits::device_virtual_bits;
     static constexpr size_t device_as_size = 1ULL << device_virtual_bits;
@@ -220,6 +275,11 @@ private:
     std::array<Common::VirtualBuffer<u64>, continuity_levels> continuity_boundaries;
     /// One bit per device page, see MarkTimelineWrite
     Common::VirtualBuffer<u64> timeline_pages{(device_as_size >> page_bits) / 64};
+    /// Per device page, see HoldInPlaceRead: tick of the last in-place read, and one bit per
+    /// page held write protected for it
+    Common::VirtualBuffer<u64> in_place_ticks{device_as_size >> page_bits};
+    Common::VirtualBuffer<u64> in_place_pages{(device_as_size >> page_bits) / 64};
+    std::mutex in_place_mutex;
 
     // Process memory interfaces
 

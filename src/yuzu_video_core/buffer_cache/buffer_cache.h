@@ -142,6 +142,14 @@ void BufferCache<P>::CachedWriteMemory(DAddr device_addr, u64 size) {
 }
 
 template <class P>
+void BufferCache<P>::WaitInPlaceReads(DAddr device_addr, u64 size) {
+    if constexpr (!IS_OPENGL) {
+        device_memory.ReleaseInPlaceReads(device_addr, size,
+                                          [this](u64 tick) { runtime.WaitInPlaceTick(tick); });
+    }
+}
+
+template <class P>
 bool BufferCache<P>::OnCPUWrite(DAddr device_addr, u64 size) {
     const bool is_dirty = IsRegionRegistered(device_addr, size);
     if (!is_dirty) {
@@ -1204,7 +1212,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
                 !memory_tracker.IsRegionGpuModified(device_addr, size)) {
                 if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
                     pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
-                    in_place_binds = true;
+                    device_memory.HoldInPlaceRead(device_addr, size, runtime.InPlaceTick());
                     return;
                 }
             }

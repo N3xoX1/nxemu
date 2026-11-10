@@ -558,6 +558,11 @@ struct GPU::Impl :
         return rasterizer->OnCPUWrite(addr, size);
     }
 
+    void WaitInPlaceReads(DAddr addr, uint64_t size)
+    {
+        rasterizer->WaitInPlaceReads(addr, size);
+    }
+
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(DAddr addr, uint64_t size)
     {
@@ -957,6 +962,11 @@ void GPU::InvalidateRegion(DAddr addr, uint64_t size)
 bool GPU::OnCPUWrite(DAddr addr, uint64_t size)
 {
     return impl->OnCPUWrite(addr, size);
+}
+
+void GPU::WaitInPlaceReads(DAddr addr, uint64_t size)
+{
+    impl->WaitInPlaceReads(addr, size);
 }
 
 void GPU::FlushAndInvalidateRegion(DAddr addr, uint64_t size)

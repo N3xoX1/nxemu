@@ -12,7 +12,6 @@
 #include <numeric>
 #include <span>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "yuzu_common/common_types.h"
@@ -222,6 +221,10 @@ public:
 
     bool OnCPUWrite(DAddr device_addr, u64 size);
 
+    /// Called on the guest CPU thread before it writes the range, without the cache lock:
+    /// waits for queued GPU work that reads it in place.
+    void WaitInPlaceReads(DAddr device_addr, u64 size);
+
     void DownloadMemory(DAddr device_addr, u64 size);
 
     std::optional<RasterizerDownloadArea> GetFlushArea(DAddr device_addr, u64 size);
@@ -364,13 +367,6 @@ public:
     /// The latest committed downloads stay unreadable by the CPU until they are published.
     [[nodiscard]] bool PendingDownloadsProtected() const noexcept {
         return pending_downloads_protected;
-    }
-
-    /// True when a uniform buffer was bound in place from guest RAM since the last call.
-    /// The GPU reads that memory when it runs the draw, so the next fence must wait for the
-    /// host GPU before the guest sees it, or the guest can rewrite the data too early.
-    [[nodiscard]] bool TakeInPlaceBinds() noexcept {
-        return std::exchange(in_place_binds, false);
     }
 
     /// Return true when a committed download the CPU can read before its publication is
@@ -708,8 +704,6 @@ private:
     /// Guest RAM imported as device memory (Vulkan): uniform buffers that only the CPU wrote bind in place
     bool host_mapped_tried = false;
     bool host_mapped_ready = false;
-    /// See TakeInPlaceBinds
-    bool in_place_binds = false;
     u64 total_used_memory = 0;
     u64 minimum_memory = 0;
     u64 critical_memory = 0;

@@ -133,7 +133,6 @@
     <ClInclude Include="precompiled_headers.h" />
     <ClInclude Include="present.h" />
     <ClInclude Include="pte_kind.h" />
-    <ClInclude Include="presentation_clock.h" />
     <ClInclude Include="query_cache.h" />
     <ClInclude Include="query_cache\bank_base.h" />
     <ClInclude Include="query_cache\query_bank_operations.h" />

@@ -119,7 +119,6 @@ public:
     VideoCore::SharedPageAccess ObserveSharedPage(DAddr addr, u64 size) override;
     bool AwaitsProtectedDownload(DAddr addr, u64 size) override;
     bool CommitReadbacksForEarlySignal() override;
-    bool InPlaceReadsPending() const override;
     bool HasPendingResult(DAddr addr, u64 size) override;
     void GpuWrittenResults(DAddr addr, u64 size,
                            std::vector<std::pair<DAddr, u64>>& ranges) override;
@@ -132,6 +131,7 @@ public:
     void InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) override;
     void OnCacheInvalidation(DAddr addr, u64 size) override;
     bool OnCPUWrite(DAddr addr, u64 size) override;
+    void WaitInPlaceReads(DAddr addr, u64 size) override;
     void InvalidateGPUCache() override;
     void UnmapMemory(DAddr addr, u64 size) override;
     void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size, bool preserve_contents = false) override;
