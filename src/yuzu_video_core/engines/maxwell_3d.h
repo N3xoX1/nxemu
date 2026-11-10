@@ -3110,9 +3110,14 @@ public:
         std::array<u64, ShaderProfileGroups> shader_profile_hashes{};
         u64 shader_profile_stale{0xffU};
         static u64 ShaderProfileMix(size_t method, u32 value) noexcept {
-            // One multiply: the value spreads over the high half, the fold brings it back down.
-            const u64 x = (static_cast<u64>(value) << 32 | method) * 0xd6e8feb86659fd93ULL;
-            return x ^ (x >> 29);
+            // Full avalanche (splitmix64 finalizer), so the XOR of several registers has no
+            // structured collisions: two different states only collide by 64-bit chance.
+            // A single multiply is not enough: the same value change on two registers
+            // could cancel out (vertex attributes 1 and 4, RGBA8 SNORM -> UNORM).
+            u64 x = static_cast<u64>(value) << 32 | method;
+            x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+            x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+            return x ^ (x >> 31);
         }
         // For writers that do not know the previous value: the group is rehashed.
         void MarkShaderProfileRegister(size_t method) noexcept {
