@@ -29,7 +29,7 @@ struct Raster {
  void WaitForIdle(){} void FragmentBarrier(){} void InvalidateGPUCache(){} void TiledCacheBarrier(){}
 };
 struct Macro { void ClearCode(u32){} void AddCode(u32,u32){} };
-struct Upload { void ProcessExec(bool){} void ProcessData(u32,bool){} };
+struct Upload { void ProcessExec(bool){} void ProcessData(u32){} };
 struct Fixture {
  using Regs=Maxwell3D::Regs;
  Regs regs{},shadow_state{};
@@ -47,7 +47,7 @@ struct Fixture {
  bool IsMethodExecutable(u32);
  u32 ProcessShadowRam(u32,u32);
  void ProcessQueryCondition();
- void ProcessMethodCall(u32,u32,u32,bool);
+ void ProcessMethodCall(u32,u32,u32);
  void CallMethod(u32,u32,bool);
  void PushMethod(u32 m,u32 a){method_sink.emplace_back(m,a);}
  void ProcessDirtyRegisters(u32 m,u32 a){regs.reg_array[m]=a;}
