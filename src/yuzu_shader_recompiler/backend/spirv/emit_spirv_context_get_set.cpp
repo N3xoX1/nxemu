@@ -354,13 +354,23 @@ Id EmitGetAttribute(EmitContext& ctx, IR::Attribute attr, Id vertex) {
     case IR::Attribute::PositionX:
     case IR::Attribute::PositionY:
     case IR::Attribute::PositionZ:
-    case IR::Attribute::PositionW:
-        return ctx.OpLoad(
+    case IR::Attribute::PositionW: {
+        const Id value{ctx.OpLoad(
             ctx.F32[1],
             ctx.need_input_position_indirect
                 ? AttrPointer(ctx, ctx.input_f32, vertex, ctx.input_position, ctx.u32_zero_value,
                               ctx.Const(element))
-                : AttrPointer(ctx, ctx.input_f32, vertex, ctx.input_position, ctx.Const(element)));
+                : AttrPointer(ctx, ctx.input_f32, vertex, ctx.input_position, ctx.Const(element)))};
+        if (attr == IR::Attribute::PositionY && ctx.stage == Stage::Fragment &&
+            Sirit::ValidId(ctx.render_area_push_constant)) {
+            const Id area{EmitRenderArea(ctx)};
+            const Id height{ctx.OpCompositeExtract(ctx.F32[1], area, 2u)};
+            const Id flip{ctx.OpCompositeExtract(ctx.F32[1], area, 3u)};
+            const Id flip_y{ctx.OpFOrdNotEqual(ctx.U1, flip, ctx.f32_zero_value)};
+            return ctx.OpSelect(ctx.F32[1], flip_y, ctx.OpFSub(ctx.F32[1], height, value), value);
+        }
+        return value;
+    }
     case IR::Attribute::InstanceId:
         if (ctx.profile.support_vertex_instance_id) {
             return ctx.OpBitcast(ctx.F32[1], ctx.OpLoad(ctx.U32[1], ctx.instance_id));

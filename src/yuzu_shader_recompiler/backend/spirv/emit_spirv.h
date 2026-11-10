@@ -27,6 +27,7 @@ struct RescalingLayout {
     u32 attachment_reads;
 };
 struct RenderAreaLayout {
+    // Guest width and height, scaled height for FragCoord, and the lower-left origin flag.
     std::array<f32, 4> render_area;
 };
 constexpr u32 RESCALING_LAYOUT_WORDS_OFFSET = offsetof(RescalingLayout, rescaling_textures);

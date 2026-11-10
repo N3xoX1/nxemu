@@ -2915,6 +2915,10 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                     Shader::Optimization::FindScreenPositionGenerics(program);
             }
         }
+        if (program.stage == Shader::Stage::Fragment &&
+            program.info.loads[Shader::IR::Attribute::PositionY]) {
+            program.info.uses_render_area = true;
+        }
         const std::vector<u32> code{Timing::Measure(Timing::current, Timing::Phase::SpirvEmission,
             [&] { return EmitSPIRV(profile, runtime_info, program, binding); })};
         VideoCommon::ShaderProfile::Audit::Record(code);
