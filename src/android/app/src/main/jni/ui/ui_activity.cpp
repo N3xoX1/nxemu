@@ -1195,7 +1195,7 @@ void UiActivity::RenderEmptyGames(const char * kind)
     }
     else if (which == "no-roms")
     {
-        m_gameList->SetInnerRML(state(Tr("No games found"), Tr("No .nx, .nro, .dxci, or .dnsp files were found in your folders."), "primary-btn",
+        m_gameList->SetInnerRML(state(Tr("No games found"), Tr("No .nro, .dxci, or .dnsp files were found in your folders."), "primary-btn",
                                       Tr("Manage folders"), "manageFolders"));
     }
     else

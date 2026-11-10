@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <array>
 #include <map>
 #include <memory>
 #include <optional>
@@ -49,9 +48,8 @@ public:
     [[nodiscard]] uint64_t GetTitleID() const;
 
     // Currently tracked ExeFS patches:
-    // - Game Updates (unless apply_update is false: an NX archive picks its own update)
-    // - LayeredExeFS
-    [[nodiscard]] VirtualDir PatchExeFS(VirtualDir exefs, bool apply_update = true) const;
+    // - Game Updates
+    [[nodiscard]] VirtualDir PatchExeFS(VirtualDir exefs) const;
 
     // Currently tracked NSO patches:
     // - IPS
@@ -76,8 +74,7 @@ public:
     [[nodiscard]] VirtualFile PatchRomFS(const NCA* base_nca, VirtualFile base_romfs,
                                          LoaderContentRecordType type = LoaderContentRecordType::Program,
                                          VirtualFile packed_update_raw = nullptr,
-                                         bool apply_layeredfs = true,
-                                         bool apply_update = true) const;
+                                         bool apply_layeredfs = true) const;
 
     // Returns a vector of patches
     [[nodiscard]] std::vector<Patch> GetPatches(VirtualFile update_raw = nullptr) const;
@@ -112,7 +109,5 @@ private:
 [[nodiscard]] bool IsAddOnDisabled(uint64_t title_id, const FileSystemController& fs_controller, const std::string& name);
 // Stores the add-ons that are off, as GetDisabledAddOns gives them
 void SetDisabledAddOns(uint64_t title_id, const FileSystemController& fs_controller, std::vector<std::string> names);
-/// Native NACP language names, ordered by the configured system language.
-[[nodiscard]] std::array<const char*, 16> GetApplicationLanguagePriorityNames();
 
 } // namespace FileSys

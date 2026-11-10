@@ -13,7 +13,6 @@
 #include "core/loader/nca.h"
 #include "core/loader/nro.h"
 #include "core/loader/nsp.h"
-#include "core/loader/nx.h"
 #include "core/loader/xci.h"
 #include "system_loader.h"
 
@@ -47,7 +46,6 @@ LoaderFileType IdentifyFile(FileSys::VirtualFile file)
             return LoaderFileType::DeconstructedRomDirectory;
         }
     }
-    if (AppLoader_NX::IdentifyType(file)==LoaderFileType::NX) return LoaderFileType::NX;
     if (const auto nro_type = IdentifyFileLoader<AppLoader_NRO>(file))
     {
         return *nro_type;
@@ -80,7 +78,6 @@ LoaderFileType GuessFromFilename(const std::string & name)
 {
     const std::string extension = Common::ToLower(std::string(Common::FS::GetExtensionFromFilename(name)));
 
-    if (extension == "nx") return LoaderFileType::NX;
     if (extension == "nro")
     {
         return LoaderFileType::NRO;
@@ -104,7 +101,6 @@ LoaderFileType GuessFromFilename(const std::string & name)
 std::string GetFileTypeString(LoaderFileType type)
 {
     switch (type) {
-    case LoaderFileType::NX: return "NX";
     case LoaderFileType::NRO:
         return "NRO";
     case LoaderFileType::NCA:
@@ -136,11 +132,9 @@ AppLoader::~AppLoader() = default;
  * @param program_index Specifies the index within the container of the program to launch.
  * @return std::shared_ptr<AppLoader> a pointer to a loader object;  nullptr for unsupported type
  */
-static std::shared_ptr<AppLoader> GetFileLoader(Systemloader & loader, FileSys::VirtualFile file, LoaderFileType type, uint64_t program_id, std::size_t program_index, std::string_view host_path)
+static std::shared_ptr<AppLoader> GetFileLoader(Systemloader & loader, FileSys::VirtualFile file, LoaderFileType type, uint64_t program_id, std::size_t program_index)
 {
     switch (type) {
-    case LoaderFileType::NX:
-        return std::make_shared<AppLoader_NX>(std::move(file),program_id,program_index,host_path);
     // NX NRO file format.
     case LoaderFileType::NRO:
         return std::make_shared<AppLoader_NRO>(std::move(file));
@@ -164,7 +158,7 @@ static std::shared_ptr<AppLoader> GetFileLoader(Systemloader & loader, FileSys::
     }
 }
 
-std::shared_ptr<AppLoader> GetLoader(Systemloader & loader, FileSys::VirtualFile file, uint64_t program_id, std::size_t program_index, std::string_view host_path)
+std::shared_ptr<AppLoader> GetLoader(Systemloader & loader, FileSys::VirtualFile file, uint64_t program_id, std::size_t program_index)
 {
     if (!file)
     {
@@ -175,7 +169,7 @@ std::shared_ptr<AppLoader> GetLoader(Systemloader & loader, FileSys::VirtualFile
 
     LOG_DEBUG(Loader, "Loading file {} as {}...", file->GetName(), GetFileTypeString(type));
 
-    return GetFileLoader(loader, std::move(file), type, program_id, program_index,host_path);
+    return GetFileLoader(loader, std::move(file), type, program_id, program_index);
 }
 
 } // namespace Loader

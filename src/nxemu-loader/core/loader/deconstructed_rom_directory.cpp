@@ -258,10 +258,10 @@ AppLoader_DeconstructedRomDirectory::LoadResult AppLoader_DeconstructedRomDirect
         return {result, {}};
     }
 
-    if (override_update || apply_exefs_mods)
+    if (override_update)
     {
         const FileSys::PatchManager patch_manager(metadata.GetTitleID(), loader.GetFileSystemController(), loader.GetContentProvider());
-        dir = patch_manager.PatchExeFS(dir, override_update);
+        dir = patch_manager.PatchExeFS(dir);
     }
 
     // Reread in case PatchExeFS affected the main.npdm

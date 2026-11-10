@@ -29,7 +29,6 @@ public:
     LoaderResultStatus ReadTitle(char * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadDisplayVersion(char * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadIcon(uint8_t * buffer, uint32_t * bufferSize) override;
-    LoaderResultStatus ReadOriginalIcon(uint8_t * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadBanner(uint8_t * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadLogo(uint8_t * buffer, uint32_t * bufferSize) override;
     LoaderResultStatus ReadProgramIds(uint64_t * buffer, uint32_t * count) override;

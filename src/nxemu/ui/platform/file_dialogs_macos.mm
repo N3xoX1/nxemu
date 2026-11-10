@@ -154,36 +154,6 @@ bool FileSelect(const char * initialDir, const char * fileFilter, Path & selecte
     }
 }
 
-bool FileSelectMany(const char * initialDir, const char * fileFilter, std::vector<std::string> & selected)
-{
-    @autoreleasepool
-    {
-        NSOpenPanel * panel = [NSOpenPanel openPanel];
-        panel.canChooseFiles = YES;
-        panel.canChooseDirectories = NO;
-        panel.allowsMultipleSelection = YES;
-        panel.resolvesAliases = YES;
-        SetInitialDirectory(panel, initialDir);
-        NSArray<UTType *> * contentTypes = ContentTypesFromFilter(fileFilter);
-        if (contentTypes != nil)
-        {
-            panel.allowedContentTypes = contentTypes;
-        }
-        if (RunPanel(panel) != NSModalResponseOK)
-        {
-            return false;
-        }
-        for (NSURL * url in panel.URLs)
-        {
-            if (url.fileURL)
-            {
-                selected.emplace_back(url.path.fileSystemRepresentation);
-            }
-        }
-        return !selected.empty();
-    }
-}
-
 Path BrowseForDirectory(const char * title)
 {
     @autoreleasepool
@@ -216,13 +186,4 @@ Path BrowseForDirectory(const char * title)
     }
 }
 
-bool MoveFileToTrash(const std::string & path)
-{
-    @autoreleasepool
-    {
-        NSString * name = ToNSString(path.c_str());
-        return name != nil && [[NSFileManager defaultManager] trashItemAtURL:[NSURL fileURLWithPath:name]
-                                                          resultingItemURL:nil error:nil];
-    }
-}
 } // namespace MacOSFileDialogs

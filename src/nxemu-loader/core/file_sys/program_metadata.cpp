@@ -3,7 +3,6 @@
 
 #include <cstddef>
 #include <vector>
-#include <cstring>
 
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
@@ -19,63 +18,25 @@ ProgramMetadata::~ProgramMetadata() = default;
 
 LoaderResultStatus ProgramMetadata::Load(VirtualFile file) {
     const std::size_t total_size = file->GetSize();
-    if (total_size < sizeof(Header) || total_size > 1024 * 1024) {
+    if (total_size < sizeof(Header)) {
         return LoaderResultStatus::ErrorBadNPDMHeader;
     }
 
     if (sizeof(Header) != file->ReadObject(&npdm_header)) {
         return LoaderResultStatus::ErrorBadNPDMHeader;
     }
-    const auto within=[](uint64_t at,uint64_t length,uint64_t size) {
-        return at<=size && length<=size-at;
-    };
-    const uint64_t aci=npdm_header.aci_offset, acid=npdm_header.acid_offset;
-    const uint64_t aci_size=npdm_header.aci_size, acid_size=npdm_header.acid_size;
-    if (std::memcmp(npdm_header.magic.data(),"META",4) || aci<sizeof(Header) || acid<sizeof(Header) ||
-        aci_size<sizeof(AciHeader) || acid_size<sizeof(AcidHeader) ||
-        !within(aci,aci_size,total_size) || !within(acid,acid_size,total_size) ||
-        (aci<acid+acid_size && acid<aci+aci_size)) {
-        return LoaderResultStatus::ErrorBadNPDMHeader;
-    }
 
-    // Switch 1 signs ACID with RSA-2048 (magic at 0x200). Switch 2 uses
-    // RSA-3072, so the signature and modulus grow to 0x180 each (magic at 0x300).
-    std::size_t acid_shift = 0;
-    for (const std::size_t shift : {std::size_t{0}, std::size_t{0x100}}) {
-        std::array<char, 4> magic{};
-        if (acid_size >= sizeof(AcidHeader) + shift &&
-            file->ReadBytes(magic.data(), magic.size(), acid + 0x200 + shift) == magic.size() &&
-            std::memcmp(magic.data(), "ACID", 4) == 0) {
-            acid_shift = shift;
-            break;
-        }
-    }
-    if (sizeof(AcidHeader) != file->ReadObject(&acid_header, acid + acid_shift)) {
+    if (sizeof(AcidHeader) != file->ReadObject(&acid_header, npdm_header.acid_offset)) {
         return LoaderResultStatus::ErrorBadACIDHeader;
     }
 
     if (sizeof(AciHeader) != file->ReadObject(&aci_header, npdm_header.aci_offset)) {
         return LoaderResultStatus::ErrorBadACIHeader;
     }
-    if (std::memcmp(acid_header.magic.data(),"ACID",4) ||
-        acid_header.fac_offset<sizeof(AcidHeader)+acid_shift || acid_header.fac_size<0x2c ||
-        !within(acid_header.fac_offset,acid_header.fac_size,acid_size) ||
-        !within(acid_header.sac_offset,acid_header.sac_size,acid_size) ||
-        !within(acid_header.kac_offset,acid_header.kac_size,acid_size) || acid_header.kac_size%4) {
-        return LoaderResultStatus::ErrorBadACIDHeader;
-    }
-    if (std::memcmp(aci_header.magic.data(),"ACI0",4) ||
-        aci_header.fah_offset<sizeof(AciHeader) || aci_header.fah_size<0x1c ||
-        !within(aci_header.fah_offset,aci_header.fah_size,aci_size) ||
-        !within(aci_header.sac_offset,aci_header.sac_size,aci_size) ||
-        !within(aci_header.kac_offset,aci_header.kac_size,aci_size) || aci_header.kac_size%4 ||
-        aci_header.title_id<acid_header.title_id_min || aci_header.title_id>acid_header.title_id_max) {
-        return LoaderResultStatus::ErrorBadACIHeader;
-    }
 
     // Load acid_file_access per-component instead of the entire struct, since this struct does not
     // reflect the layout of the real data.
-    std::size_t current_offset = npdm_header.acid_offset + acid_header.fac_offset;
+    std::size_t current_offset = acid_header.fac_offset;
     if (sizeof(FileAccessControl::version) != file->ReadBytes(&acid_file_access.version,
                                                               sizeof(FileAccessControl::version),
                                                               current_offset)) {
@@ -93,7 +54,7 @@ LoaderResultStatus ProgramMetadata::Load(VirtualFile file) {
     }
 
     // Load aci_file_access per-component instead of the entire struct, same as acid_file_access
-    current_offset = npdm_header.aci_offset + aci_header.fah_offset;
+    current_offset = aci_header.fah_offset;
     if (sizeof(FileAccessHeader::version) != file->ReadBytes(&aci_file_access.version,
                                                              sizeof(FileAccessHeader::version),
                                                              current_offset)) {

@@ -34,7 +34,6 @@ public:
     static std::string FileImageSource(const std::string & utf8Path);
     std::string AddMemoryImage(std::vector<uint8_t> encoded);
     void RemoveMemoryImage(const std::string & source);
-    bool SameMemoryImage(const std::string & left, const std::string & right) const;
 
     void BeginFrame(VkCommandBuffer commandBuffer, int width, int height);
     void EndFrame(VkImage output);
