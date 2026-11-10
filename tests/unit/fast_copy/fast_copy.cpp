@@ -16,6 +16,7 @@
 VideoSettings videoSettings{};
 #include "yuzu_video_core/engines/sw_blitter/blitter.h"
 #include "yuzu_video_core/engines/dma_remap.h"
+#include "yuzu_video_core/engines/engine_upload.h"
 #include "yuzu_video_core/textures/decoders.h"
 
 using Tegra::Engines::DmaImageCopySize;
@@ -883,6 +884,67 @@ void HeapMappingCopyTests() {
           "heap fast copy rejects an unmapped interior page");
 }
 
+void InlineUploadTests(CopyFixture& fixture) {
+    using namespace Tegra::Texture;
+    struct InlineRasterizer : TestRasterizer {
+        explicit InlineRasterizer(Tegra::MemoryManager& gpu_) : gpu{gpu_} {}
+
+        void AccelerateInlineToMemory(GPUVAddr address, size_t size,
+                                      std::span<const u8> data) override {
+            gpu.WriteBlock(address, data.data(), size);
+        }
+
+        Tegra::MemoryManager& gpu;
+    } rasterizer{fixture.gpu};
+    constexpr u32 width = 4;
+    constexpr u32 height = 3;
+    constexpr u8 untouched = 0xA5;
+    const auto words = std::bit_cast<std::array<u32, height>>(
+        std::array<u8, width * height>{1, 2, 3, 0, 4, 5, 6, 0, 7, 8, 9, 0});
+    const std::array<u8, width * height> expected{
+        1, 2, 3, untouched, 4, 5, 6, untouched, 7, 8, 9, untouched};
+    Tegra::Engines::Upload::Registers regs{};
+    regs.line_length_in = width - 1;
+    regs.line_count = height;
+    regs.dest.address_low = CopyFixture::Destination;
+    regs.dest.pitch = width;
+    regs.dest.width = width;
+    regs.dest.height = height;
+    regs.dest.depth = 1;
+    Tegra::Engines::Upload::State upload{fixture.gpu, regs};
+    upload.BindRasterizer(&rasterizer);
+    const auto size = CalculateSize(true, 1, width, height, 1, 0, 0);
+    auto* dest = fixture.physical.bytes.data() + CopyFixture::Destination;
+
+    const auto run = [&](bool linear, bool split) {
+        std::fill_n(dest, size, untouched);
+        upload.ProcessExec(linear);
+        Check(upload.GetUploadSize() == sizeof(words), "inline upload includes word padding");
+        if (split) {
+            upload.ProcessData(words[0]);
+            fixture.gpu.FlushCaching();
+            Check(std::all_of(dest, dest + size, [](u8 byte) { return byte == untouched; }),
+                  "incomplete inline upload leaves destination intact");
+            upload.ProcessData(words.data() + 1, words.size() - 1);
+        } else {
+            upload.ProcessData(words.data(), words.size());
+        }
+        fixture.gpu.FlushCaching();
+        std::array<u8, width * height> result{};
+        if (linear) {
+            std::copy_n(dest, result.size(), result.begin());
+        } else {
+            UnswizzleSubrect(result, std::span{dest, size}, 1, width, height, 1, 0, 0, width,
+                             height, 0, 0, width);
+        }
+        Check(result == expected, "inline upload skips padding at the end of each row");
+    };
+    for (bool linear : {false, true}) {
+        run(linear, false);
+        run(linear, true);
+    }
+}
+
 int main(int argc, char** argv) {
     std::fill(std::begin(Common::Log::g_classLevel), std::end(Common::Log::g_classLevel),
               LogLevel::Warning);
@@ -899,6 +961,7 @@ int main(int argc, char** argv) {
         GobEngineTests(fixture);
     else {
         HeapMappingCopyTests();
+        InlineUploadTests(fixture);
         LayoutTests(fixture);
         MappingTests(fixture);
         DmaTests();

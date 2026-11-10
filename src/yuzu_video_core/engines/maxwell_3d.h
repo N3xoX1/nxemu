@@ -3156,7 +3156,7 @@ private:
 
     void ConsumeSinkImpl() override;
 
-    void ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argument, bool is_last_call);
+    void ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argument);
 
     /// Retrieves information about a specific TIC entry from the TIC buffer.
     Texture::TICEntry GetTICEntry(u32 tic_index) const;

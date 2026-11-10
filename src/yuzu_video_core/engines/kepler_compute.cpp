@@ -34,7 +34,7 @@ void KeplerCompute::ConsumeSinkImpl() {
     method_sink.clear();
 }
 
-void KeplerCompute::CallMethod(u32 method, u32 method_argument, bool is_last_call) {
+void KeplerCompute::CallMethod(u32 method, u32 method_argument, bool) {
     ASSERT_MSG(method < Regs::NUM_REGS,
                "Invalid KeplerCompute register, increase the size of the Regs structure");
 
@@ -54,7 +54,7 @@ void KeplerCompute::CallMethod(u32 method, u32 method_argument, bool is_last_cal
         upload_address = current_dma_segment;
         upload_dirty = current_dirty;
         current_dirty = false;
-        upload_state.ProcessData(method_argument, is_last_call);
+        upload_state.ProcessData(method_argument);
         break;
     }
     case KEPLER_COMPUTE_REG_INDEX(launch): {

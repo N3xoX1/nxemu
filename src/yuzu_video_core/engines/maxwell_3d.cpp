@@ -433,8 +433,7 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
     }
 }
 
-void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argument,
-                                  bool is_last_call)
+void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argument)
 {
     switch (method)
     {
@@ -500,7 +499,7 @@ void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argume
         return upload_state.ProcessExec(regs.launch_dma.memory_layout.Value() ==
                                         Regs::LaunchDMA::Layout::Pitch);
     case MAXWELL3D_REG_INDEX(inline_data):
-        upload_state.ProcessData(argument, is_last_call);
+        upload_state.ProcessData(argument);
         return;
     case MAXWELL3D_REG_INDEX(fragment_barrier):
         return rasterizer->FragmentBarrier();
@@ -553,7 +552,7 @@ void Maxwell3D::CallMethod(u32 method, u32 method_argument, bool is_last_call)
 
     const u32 argument = ProcessShadowRam(method, method_argument);
     ProcessDirtyRegisters(method, argument);
-    ProcessMethodCall(method, argument, method_argument, is_last_call);
+    ProcessMethodCall(method, argument, method_argument);
 }
 
 void Maxwell3D::CallMultiMethod(u32 method, const u32 * base_start, u32 amount,
@@ -587,11 +586,8 @@ void Maxwell3D::CallMultiMethod(u32 method, const u32 * base_start, u32 amount,
         ProcessCBMultiData(base_start, amount);
         break;
     case MAXWELL3D_REG_INDEX(inline_data):
-    {
-        ASSERT(methods_pending == amount);
         upload_state.ProcessData(base_start, amount);
         return;
-    }
     default:
         for (u32 i = 0; i < amount; i++)
         {
