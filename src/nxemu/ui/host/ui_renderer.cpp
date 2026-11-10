@@ -685,14 +685,6 @@ void UiRenderer::RemoveMemoryImage(const std::string & source)
     }
 }
 
-bool UiRenderer::SameMemoryImage(const std::string & left, const std::string & right) const
-{
-    if (left == right) return true;
-    const auto a = m_memoryImages.find(left);
-    const auto b = m_memoryImages.find(right);
-    return a != m_memoryImages.end() && b != m_memoryImages.end() && a->second == b->second;
-}
-
 void UiRenderer::BeginFrame(VkCommandBuffer commandBuffer, int width, int height)
 {
     FlushRetired();

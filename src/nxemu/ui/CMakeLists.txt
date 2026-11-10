@@ -53,8 +53,6 @@ add_library(nxemu_ui STATIC
     library/firmware_avatars.h
     library/firmware_installer.cpp
     library/firmware_installer.h
-    library/nx_tool.cpp
-    library/nx_tool.h
     library/interface_language.cpp
     library/interface_language.h
     library/game_cache.cpp
@@ -113,10 +111,6 @@ add_library(nxemu_ui STATIC
     views/directories_dialog.h
     views/firmware_dialog.cpp
     views/firmware_dialog.h
-    views/nx_contents_dialog.cpp
-    views/nx_contents_dialog.h
-    views/nx_convert_dialog.cpp
-    views/nx_convert_dialog.h
     views/shader_profile_dialog.cpp
     views/shader_profile_dialog.h
     views/hotkeys.cpp
@@ -166,7 +160,7 @@ endif()
 target_link_libraries(nxemu_ui
     PUBLIC RmlUi::RmlUi SDL3::SDL3
     PRIVATE nxemu_core common yuzu_common discord-rpc fmt::fmt stb::headers Freetype::Freetype
-        Vulkan::Headers GPUOpen::VulkanMemoryAllocator nxformat::nxformat)
+        Vulkan::Headers GPUOpen::VulkanMemoryAllocator)
 
 if(APPLE)
     find_library(CORETEXT_FRAMEWORK CoreText REQUIRED)
