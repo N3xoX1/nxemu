@@ -153,6 +153,52 @@ int main() try {
         Require(info.full_game && info.targets.size()==2 && Profile::GameVersionText(info.targets[0])=="1.0.0" &&
                 Profile::GameVersionText(info.targets[1])=="1.0.0 + update 4.0.1", "Target versions");
         Require(!Profile::InspectCompact(base.Payload(),Title).full_game, "Whole game flag without the author");
+        {
+            // Origins are per recipe. A recording merged onto a synthetic profile keeps the synthetic recipes it
+            // does not hold; one both hold is recorded. Played survives on the synthetic one left.
+            auto generated=Profile::DecodeCompact(base.Payload(),Title);
+            for (unsigned i=0;i<generated["recipes"].size();++i) {
+                generated["recipes"][i]["synthetic"]=true;
+                generated["recipes"][i]["played"]=true;
+            }
+            const auto synthetic=Profile::Unpack(Profile::PackCompact(generated));
+            Require(Profile::Unpack(Profile::PackCompact(Profile::DecodeCompact(synthetic,Title)))==synthetic, "Origin round trip");
+            Require(Profile::InspectCompact(synthetic,Title).synthetic==2 && Profile::InspectCompact(synthetic,Title).played==2 &&
+                    Profile::InspectCompact(base.Payload(),Title).synthetic==0, "Recipe origin inspection");
+            auto recorded=update.Current();
+            Profile::MergeProfiles(generated, recorded);
+            const auto info=Profile::InspectCompact(Profile::Unpack(Profile::PackCompact(recorded)),Title);
+            Require(info.compute==4 && info.synthetic==1 && info.played==1, "Recipe origins after a recorded merge");
+            // Profiles of revision 1, which has no origins, are still read: their recipes are recorded ones.
+            const auto first=Profile::Unpack(Profile::PackCompact(base.Current(),19,1));
+            Require(first.substr(0,8)=="NXSHBIN1" && base.Payload().substr(0,8)=="NXSHBIN2", "Compact revisions");
+            Require(Profile::Canonical(Profile::DecodeCompact(first,Title))==Profile::Canonical(Profile::DecodeCompact(base.Payload(),Title)),
+                    "Revision 1 decodes as revision 2");
+            const auto old_info=Profile::InspectCompact(first,Title);
+            Require(old_info.compute==2 && old_info.synthetic==0, "Revision 1 inspection");
+            bool refused{};
+            try { Profile::PackCompact(generated,19,1); } catch (const std::exception&) { refused=true; }
+            Require(refused, "Revision 1 cannot hold synthetic recipes");
+        }
+        {
+            // A synthetic recipe of a recorded recipe's very pipeline, with other environments, gives way to it.
+            auto previous=base.profile;
+            auto env=previous["environments"][base.context+"-"+Profile::ResourceSha256(x)+"-"+std::to_string(Version::Workgroup(x))];
+            env["cbuf_values"]=Profile::ParseMetadata("[[8589934656,1]]");
+            previous["environments"]["generated"]=env;
+            JsonValue replaced(JsonValueType::Object);
+            for (const auto& r : std::as_const(previous)["recipes"])
+                if (Number(r["workgroup_size"][0u])==Version::Workgroup(x)) replaced=r;
+            replaced["environments"]=JsonValue(JsonValueType::Array);
+            replaced["environments"].Append("generated");
+            replaced["synthetic"]=true;
+            previous["recipes"]=JsonValue(JsonValueType::Array);
+            previous["recipes"].Append(replaced);
+            auto current=base.Current();
+            Profile::MergeProfiles(previous, current);
+            const auto info=Profile::InspectCompact(Profile::Unpack(Profile::PackCompact(current)),Title);
+            Require(info.compute==2 && info.synthetic==0, "Recorded recipe did not replace a synthetic one");
+        }
         const auto profiles=scratch.root/"profiles";
         std::filesystem::create_directory(profiles);
         const auto base_path=profiles/"Game - Base [0100152000022000].nxshader";
@@ -207,6 +253,29 @@ int main() try {
             Require(modded.size()==recipes.size() && from_modded.candidates==modded.size(), "Modded import counts");
             for (const auto& r : modded)
                 Require(r.requires_validation && r.source_context!=context, "Modded recipe skipped validation");
+            // Generated environments cannot pass a live proof: synthetic recipes are trusted by key in every
+            // context, the modded and the other version alike, while recorded ones in the same profile are not.
+            auto generated=Profile::DecodeCompact(payload,Title);
+            generated["recipes"][0u]["synthetic"]=true;
+            const auto mixed=Profile::Unpack(Profile::PackCompact(generated));
+            Require(Profile::InspectCompact(mixed,Title).synthetic==1, "Mixed profile origins");
+            for (const auto& target : {context, player->context}) {
+                Profile::ImportReport from_mixed;
+                const auto trusted=Import(mixed, root, target, from_mixed);
+                Require(trusted.size()==recipes.size(), "Mixed import counts");
+                size_t synthetic{};
+                for (const auto& r : trusted) {
+                    synthetic+=r.synthetic;
+                    Require(r.requires_validation==(!r.synthetic && r.source_context!=target), "Recipe origin and validation");
+                }
+                size_t validated{};
+                for (const auto& r : trusted) validated+=r.requires_validation;
+                Require(synthetic==1 && from_mixed.candidates==validated, "Mixed import candidates");
+            }
+            Profile::ImportReport from_first;
+            const auto first=Import(Profile::Unpack(Profile::PackCompact(merged,19,1)), root, context, from_first);
+            Require(first.size()==recipes.size() && from_first.candidates==first.size() &&
+                    std::none_of(first.begin(),first.end(),[](const auto& r){return r.synthetic;}), "Revision 1 import");
         }
         {
             // The same content dumped as an XCI loads the same programs.

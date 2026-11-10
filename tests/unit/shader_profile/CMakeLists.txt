@@ -57,6 +57,7 @@ nxemu_shader_profile_test(recorded_sources "${CMAKE_CURRENT_BINARY_DIR}/recorded
 nxemu_shader_profile_test(recorder_input_cache)
 nxemu_shader_profile_test(recorder_replay "${CMAKE_CURRENT_BINARY_DIR}/recorder-replay-")
 nxemu_shader_profile_test(startup_variants)
+nxemu_shader_profile_test(synthetic_check)
 nxemu_shader_profile_test(synthetic_robustness)
 # Builds zstd frames and dictionaries of its own.
 target_link_libraries(test_shader_profile_synthetic_robustness PRIVATE zstd::zstd)

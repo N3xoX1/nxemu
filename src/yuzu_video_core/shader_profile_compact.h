@@ -14,13 +14,15 @@ struct ProfileLimits
     size_t recipes = MaxRecipes, unresolved = 65536, programs = 65536, environments = 262144, map_entries = 8000000;
     u64 code_bytes = 512 * 1024 * 1024;
 };
-// NXSHBIN1 only. Bounded little-endian tables in the NXSHADR2 Zstd envelope.
+// NXSHBIN2, which adds each recipe's origin to NXSHBIN1; NXSHBIN1 is still read, its recipes recorded ones.
+// Bounded little-endian tables in the NXSHADR2 Zstd envelope.
 // Resources name NCAs and count from their start, so a profile works with an
 // NSP or an XCI of the same game version.
 // Programs carry their emulator hash; resolved recipes derive theirs from them.
-// No legacy payload readers, format migration or compatibility branches.
+// NXSHBIN1 is the only older payload read; no format migration otherwise.
 ProfileInspection InspectCompact(std::string_view payload, u64 title_id);
-std::string PackCompact(const JsonValue & profile, int compression_level = 19);
+// format_revision 1 writes NXSHBIN1 for older builds: recorded recipes only, since it has no origins.
+std::string PackCompact(const JsonValue & profile, int compression_level = 19, unsigned format_revision = 2);
 // The inverse of PackCompact on a checked payload, for merging profiles. Program
 // keys are ProgramKey(hash, size) since no instruction bytes are available.
 JsonValue DecodeCompact(std::string_view payload, u64 title_id);

@@ -84,6 +84,7 @@ struct Pipeline
     std::string key;
     std::vector<std::string> environments;
     bool compute{};
+    bool synthetic{}; // Its record came from a synthetic recipe.
 };
 struct Model
 {
@@ -167,12 +168,19 @@ Model ReadCache(const ExportOptions & options)
     Require(bool(source),"Truncated local cache header");
     if (magic == "NXSCACHE")
     {
-        const auto contextual = options.context.empty() ? std::set<std::string>{} : CacheStore::ReadContext(options.cache, options.context);
-        for (const auto & record : CacheStore::Read(options.cache, 20))
+        auto contextual = options.context.empty() ? std::set<std::string>{} : CacheStore::ReadContext(options.cache, options.context);
+        // A version's records of synthetic recipes are associated through its generated index only. Without a
+        // version none can be told recorded: every record exports as synthetic.
+        std::set<std::string> synthetic;
+        if (!options.context.empty())
+            for (auto & id : CacheStore::ReadContext(options.cache, options.context, true))
+                if (!contextual.contains(id)) { synthetic.insert(id); contextual.insert(std::move(id)); }
+        for (const auto & record : CacheStore::Read(options.cache, CacheStore::VulkanShaderAbi))
         {
             if (!options.context.empty() && !contextual.contains(record.id)) continue;
             Pipeline p;
             p.key = record.key;
+            p.synthetic = options.context.empty() || synthetic.contains(record.id);
             for (const auto & env : record.environments)
             {
                 const auto serialized=env.String();
@@ -314,9 +322,23 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
             }
         }
     std::map<std::string, std::vector<std::vector<std::string>>> source, compute_source;
+    // Variants a recorded (not synthetic) record holds, by normalized key, and the keys that have one.
+    std::set<std::pair<std::string, std::vector<std::string>>> recorded_variants;
+    std::set<std::string> recorded_keys;
     std::vector<std::string> compute_order;
     JsonValue graphics = Array(), unresolved = Array();
     std::set<std::string> seen;
+    // A synthetic variant stays synthetic, marked played when a draw used it, and gives way to a recorded
+    // variant of the same key: the recipe carries the draw's own guest state, so they are one pipeline everywhere.
+    const auto origin = [&](JsonValue & r, const std::string & key, const std::vector<std::string> & environments, bool played) {
+        r.removeMember("synthetic");
+        r.removeMember("played");
+        if (recorded_variants.contains({key, environments})) return true;
+        if (recorded_keys.contains(key)) return false;
+        r["synthetic"] = true;
+        if (played) r["played"] = true;
+        return true;
+    };
     for (const auto & p : model.pipelines)
     {
         bool located = true;
@@ -331,16 +353,22 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
         auto & variants = (p.compute ? compute_source : source)[key];
         if (p.compute && variants.empty()) compute_order.push_back(key);
         if (std::find(variants.begin(), variants.end(), p.environments) == variants.end()) variants.push_back(p.environments);
+        if (!p.synthetic)
+        {
+            recorded_variants.emplace(key, p.environments);
+            recorded_keys.insert(key);
+        }
     }
     std::set<std::string> emitted_compute;
     // Every environment variant recorded for a dispatched compute key, in first-use order.
-    const auto emit_compute = [&](const std::string & key) {
+    const auto emit_compute = [&](const std::string & key, bool played) {
         const auto found = compute_source.find(key);
         if (found == compute_source.end() || !emitted_compute.insert(key).second) return found != compute_source.end();
         for (const auto & environments : found->second)
         {
             Cursor fields{key};
             JsonValue r(JsonValueType::Object);
+            if (!origin(r, key, environments, played)) continue;
             r["kind"] = "compute";
             r["shader_hash"] = Num(fields.Get(8));
             r["shared_memory_size"] = Num(fields.Get(4));
@@ -373,7 +401,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
             for (unsigned i = 0; i < Journal::ComputeWords; ++i)
                 Put(key, i * 4, Number(w[i]), 4);
             // A dispatch whose pipeline was never stored has no environment to share.
-            if (!emit_compute(NormalizeCompute(std::move(key), dependencies))) ++report.unresolved;
+            if (!emit_compute(NormalizeCompute(std::move(key), dependencies), true)) ++report.unresolved;
             continue;
         }
         const auto source_bits = observation.isMember("source_feature_bits") ? Number(observation["source_feature_bits"]) : bits;
@@ -446,6 +474,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
                         return !model.profile["environments"][id]["cbuf_replacements"].empty();
                     }))
                     continue;
+                if (!origin(r, found->first, *it, true)) continue;
                 matched = true;
                 r["environments"] = Array();
                 for (const auto & id : *it)
@@ -470,7 +499,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
     // pipeline of this version, after the recorded ones.
     if (!recording["records_compute"].asBool())
         for (const auto & key : compute_order)
-            emit_compute(key);
+            emit_compute(key, false);
     JsonValue result(JsonValueType::Object);
     result["format"] = "nxshader";
     result["version"] = 2U;
@@ -682,8 +711,10 @@ u64 MergeProfiles(JsonValue previous, JsonValue & current)
         current["environments"][id] = std::as_const(previous)["environments"][id];
     // A recipe both profiles hold, for whichever versions, is kept once at its
     // first position with the versions of both: the previous profile's first.
+    // Its copies' origins combine: synthetic only if every copy is, played if any was.
     const auto content = [](JsonValue r) {
-        r.removeMember("source_contexts");
+        for (const auto field : {"source_contexts", "synthetic", "played"})
+            r.removeMember(field);
         return Canonical(r);
     };
     const auto append = [](JsonValue & table, std::map<std::string, unsigned> & index, const std::string & key, const JsonValue & r) {
@@ -693,7 +724,15 @@ u64 MergeProfiles(JsonValue previous, JsonValue & current)
             table.Append(r);
             return;
         }
-        auto & versions = table[found->second]["source_contexts"];
+        auto & kept = table[found->second];
+        if (!r["synthetic"].asBool())
+        {
+            kept.removeMember("synthetic");
+            kept.removeMember("played");
+        }
+        else if (std::as_const(kept)["synthetic"].asBool() && r["played"].asBool())
+            kept["played"] = true;
+        auto & versions = kept["source_contexts"];
         std::set<std::string> known;
         for (const auto & version : std::as_const(versions))
             known.insert(version.asString());
@@ -712,7 +751,20 @@ u64 MergeProfiles(JsonValue previous, JsonValue & current)
             inherited += table == &previous && !captured.contains(key) && !recipe_index.contains(key);
             append(recipes, recipe_index, key, r);
         }
-    current["recipes"] = std::move(recipes);
+    // A synthetic recipe with the very guest state, programs and sizes of a recorded one is the same pipeline
+    // on every host, and the recorded one replaces it. Others stay for a merging tool to compare.
+    const auto pipeline = [](JsonValue r) {
+        for (const auto field : {"source_contexts", "synthetic", "played", "environments"})
+            r.removeMember(field);
+        return Canonical(r);
+    };
+    std::set<std::string> recorded;
+    for (const auto & r : std::as_const(recipes))
+        if (!r["synthetic"].asBool()) recorded.insert(pipeline(r));
+    JsonValue kept_recipes = Array();
+    for (const auto & r : std::as_const(recipes))
+        if (!r["synthetic"].asBool() || !recorded.contains(pipeline(r))) kept_recipes.Append(r);
+    current["recipes"] = std::move(kept_recipes);
     // An observation stays unresolved only while no recipe resolves it.
     const auto observation = [](const JsonValue & r) {
         JsonValue key(JsonValueType::Object);
