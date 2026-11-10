@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <deque>
+#include <mutex>
 #include "yuzu_video_core/buffer_cache/buffer_cache_base.h"
 #include "yuzu_common/readback_reference.h"
 #include "yuzu_video_core/buffer_cache/memory_tracker_base.h"
@@ -275,6 +277,21 @@ public:
         BindBuffer(ref.buffer, ref.offset, size);
     }
 
+    /// Decode thread: `size` bytes of the prefetch ring. False when the ring is full.
+    bool AllocatePrefetch(u32 size, u32& offset, u8*& pointer);
+
+    /// Decode thread: position of the next allocation
+    u64 PrefetchPosition() const noexcept {
+        return prefetch_head;
+    }
+
+    /// GPU thread: the ring below `position` is free once the work recorded so far ran
+    void ReleasePrefetch(u64 position);
+
+    void BindPrefetchedUniform(u32 offset, u32 size) {
+        BindBuffer(*prefetch_buffer, offset, size);
+    }
+
     void BindUniformBuffer(VkBuffer buffer, u32 offset, u32 size) {
         BindBuffer(buffer, offset, size);
     }
@@ -306,6 +323,17 @@ private:
     StagingBufferPool& staging_pool;
     GuestDescriptorQueue& guest_descriptor_queue;
     StreamUniformRef last_stream_uniform{};
+
+    /// Uniform buffers copied by the decode thread (see BufferCache::PrefetchUniform).
+    /// Positions count bytes from the start and wrap at the ring size.
+    static constexpr u64 PrefetchRingSize = 32ULL << 20;
+    vk::Buffer prefetch_buffer;
+    std::span<u8> prefetch_span;
+    u64 prefetch_alignment{256};
+    u64 prefetch_head{}; ///< decode thread
+    u64 prefetch_tail{}; ///< decode thread: below it the ring is free
+    std::mutex prefetch_mutex;
+    std::deque<std::pair<u64, u64>> prefetch_releases; ///< position, tick
 
     std::shared_ptr<QuadArrayIndexBuffer> quad_array_index_buffer;
     std::shared_ptr<QuadStripIndexBuffer> quad_strip_index_buffer;

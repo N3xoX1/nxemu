@@ -386,6 +386,71 @@ void BufferCache<P>::DisableGraphicsUniformBuffer(size_t stage, u32 index) {
 }
 
 template <class P>
+bool BufferCache<P>::PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                     DAddr& out_addr, u32& out_size, u32& out_offset) {
+    if constexpr (IS_OPENGL || !UniformPrefetchable<Runtime>) {
+        return false;
+    } else {
+        if (stage >= NUM_STAGES || index >= NUM_GRAPHICS_UNIFORM_BUFFERS) {
+            return false;
+        }
+        const u32 size =
+            std::min(prefetch_hints[stage][index].load(std::memory_order_relaxed), max_size);
+        if (size == 0) {
+            return false;
+        }
+        // Ranges without a timeline mark are read in place. Engine written ranges change
+        // in the GPU timeline, after this point of the stream.
+        if (!device_memory.HasTimelineWrite(device_addr, size) ||
+            device_memory.HasEngineWrite(device_addr, size)) {
+            return false;
+        }
+        u8* pointer{};
+        u32 offset{};
+        if (!runtime.AllocatePrefetch(size, offset, pointer)) {
+            return false;
+        }
+        if (const u8* const guest = device_memory.GetSpan(device_addr, size)) {
+            std::memcpy(pointer, guest, size);
+        } else {
+            device_memory.ReadBlockUnsafe(device_addr, pointer, size);
+        }
+        out_addr = device_addr;
+        out_size = size;
+        out_offset = offset;
+        return true;
+    }
+}
+
+template <class P>
+void BufferCache<P>::ApplyUniformPrefetch(size_t stage, u32 index, DAddr device_addr, u32 size,
+                                          u32 offset) {
+    if (stage >= NUM_STAGES || index >= NUM_GRAPHICS_UNIFORM_BUFFERS) {
+        return;
+    }
+    if (prefetch_channel != channel_state) {
+        // Copies are per command list of one channel
+        ResetUniformPrefetch(0);
+        prefetch_channel = channel_state;
+    }
+    prefetch_slots[stage][index] = {device_addr, size, offset};
+    prefetch_live = true;
+}
+
+template <class P>
+void BufferCache<P>::ResetUniformPrefetch(u64 position) {
+    if (prefetch_live) {
+        prefetch_slots = {};
+        prefetch_live = false;
+    }
+    if constexpr (!IS_OPENGL && UniformPrefetchable<Runtime>) {
+        if (position != 0) {
+            runtime.ReleasePrefetch(position);
+        }
+    }
+}
+
+template <class P>
 void BufferCache<P>::UpdateGraphicsBuffers(bool is_indexed) {
     do {
         channel_state->has_deleted_buffers = false;
@@ -1199,6 +1264,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
+    const bool gpu_modified = memory_tracker.IsRegionGpuModified(device_addr, size);
     if constexpr (!IS_OPENGL) {
         // The guest RAM is device memory: a range that no GPU engine wrote (inline data,
         // I2M, DMA, shader writes) is read by the GPU in place, as on the console.
@@ -1208,8 +1274,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
                                                                   device_memory.PhysicalSize());
         }
         if (host_mapped_ready && binding.buffer_id != NULL_BUFFER_ID && size != 0) {
-            if (!device_memory.HasTimelineWrite(device_addr, size) &&
-                !memory_tracker.IsRegionGpuModified(device_addr, size)) {
+            if (!gpu_modified && !device_memory.HasTimelineWrite(device_addr, size)) {
                 if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
                     pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
                     device_memory.HoldInPlaceRead(device_addr, size, runtime.InPlaceTick());
@@ -1231,7 +1296,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
                                  (size <= channel_state->uniform_buffer_skip_cache_size ||
                                   stream_modified_uniform) &&
-                                 !memory_tracker.IsRegionGpuModified(device_addr, size);
+                                 !gpu_modified;
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {
             if (runtime.HasFastBufferSubData()) {
@@ -1253,6 +1318,19 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
         if constexpr (IS_OPENGL) {
             channel_state->fast_bound_uniform_buffers[stage] |= 1U << binding_index;
             channel_state->uniform_buffer_binding_sizes[stage][binding_index] = size;
+        }
+        if constexpr (!IS_OPENGL && UniformPrefetchable<Runtime>) {
+            if (prefetch_hints[stage][index].load(std::memory_order_relaxed) < size) {
+                prefetch_hints[stage][index].store(size, std::memory_order_relaxed);
+            }
+            // Copied by the decode thread for this command list, see PrefetchUniform
+            const PrefetchSlot& slot = prefetch_slots[stage][index];
+            if (slot.size != 0 && slot.size >= size && slot.device_addr == device_addr &&
+                prefetch_channel == channel_state &&
+                !device_memory.HasEngineWrite(device_addr, size)) {
+                runtime.BindPrefetchedUniform(slot.offset, size);
+                return;
+            }
         }
         // A same-tick allocation can serve repeated, byte-identical small uniforms. On
         // changing data the adaptive helper falls back to the normal streaming cost.

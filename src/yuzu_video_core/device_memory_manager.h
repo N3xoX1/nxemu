@@ -147,29 +147,20 @@ public:
     /// contents are ordered in the GPU timeline, so queued GPU work can't read them in place.
     /// Sticky: a page stays marked.
     void MarkTimelineWrite(DAddr addr, size_t size) noexcept {
-        if (size == 0 || addr >= device_as_size) return;
-        const size_t first = addr >> page_bits;
-        const size_t last = std::min<size_t>((addr + size - 1) >> page_bits, (device_as_size >> page_bits) - 1);
-        for (size_t page = first; page <= last; ++page) {
-            std::atomic_ref<u64> word{timeline_pages[page >> 6]};
-            const u64 bit = u64{1} << (page & 63);
-            if ((word.load(std::memory_order_relaxed) & bit) == 0) {
-                word.fetch_or(bit, std::memory_order_relaxed);
-            }
-        }
+        MarkPages(timeline_pages, addr, size);
+        MarkPages(engine_pages, addr, size);
     }
     bool HasTimelineWrite(DAddr addr, size_t size) const noexcept {
-        if (size == 0) return false;
-        if (addr >= device_as_size) return true;
-        const size_t first = addr >> page_bits;
-        const size_t last = std::min<size_t>((addr + size - 1) >> page_bits, (device_as_size >> page_bits) - 1);
-        for (size_t page = first; page <= last; ++page) {
-            if (std::atomic_ref<u64>{const_cast<u64&>(timeline_pages[page >> 6])}.load(std::memory_order_relaxed) &
-                (u64{1} << (page & 63))) {
-                return true;
-            }
-        }
-        return false;
+        return TestPages(timeline_pages, addr, size);
+    }
+
+    /// Marks pages that the GPU side writes in any way (engines, semaphores, downloads).
+    /// The decode thread can't copy them ahead of the GPU thread. Sticky.
+    void MarkEngineWrite(DAddr addr, size_t size) noexcept {
+        MarkPages(engine_pages, addr, size);
+    }
+    bool HasEngineWrite(DAddr addr, size_t size) const noexcept {
+        return TestPages(engine_pages, addr, size);
     }
 
     /// The GPU reads [addr, addr + size) in place in the work of scheduler tick `tick`.
@@ -222,13 +213,41 @@ public:
                 UpdatePagesCachedCount(page << page_bits, page_size, -1);
                 // The guest rewrites this page while the GPU reads it: from now on it takes
                 // the copy path, so this wait happens once per page
-                MarkTimelineWrite(page << page_bits, page_size);
+                MarkPages(timeline_pages, page << page_bits, page_size);
             }
         }
     }
 
 private:
     static constexpr size_t device_virtual_bits = Traits::device_virtual_bits;
+
+    static void MarkPages(Common::VirtualBuffer<u64>& bits, DAddr addr, size_t size) noexcept {
+        constexpr size_t as_size = 1ULL << Traits::device_virtual_bits;
+        if (size == 0 || addr >= as_size) return;
+        const size_t first = addr >> 12;
+        const size_t last = std::min<size_t>((addr + size - 1) >> 12, (as_size >> 12) - 1);
+        for (size_t page = first; page <= last; ++page) {
+            std::atomic_ref<u64> word{bits[page >> 6]};
+            const u64 bit = u64{1} << (page & 63);
+            if ((word.load(std::memory_order_relaxed) & bit) == 0) {
+                word.fetch_or(bit, std::memory_order_release);
+            }
+        }
+    }
+    static bool TestPages(const Common::VirtualBuffer<u64>& bits, DAddr addr, size_t size) noexcept {
+        constexpr size_t as_size = 1ULL << Traits::device_virtual_bits;
+        if (size == 0) return false;
+        if (addr >= as_size) return true;
+        const size_t first = addr >> 12;
+        const size_t last = std::min<size_t>((addr + size - 1) >> 12, (as_size >> 12) - 1);
+        for (size_t page = first; page <= last; ++page) {
+            if (std::atomic_ref<u64>{const_cast<u64&>(bits[page >> 6])}.load(std::memory_order_acquire) &
+                (u64{1} << (page & 63))) {
+                return true;
+            }
+        }
+        return false;
+    }
     static constexpr size_t device_as_size = 1ULL << device_virtual_bits;
     static constexpr size_t page_bits = 12;
     static constexpr size_t page_size = 1ULL << page_bits;
@@ -275,6 +294,8 @@ private:
     std::array<Common::VirtualBuffer<u64>, continuity_levels> continuity_boundaries;
     /// One bit per device page, see MarkTimelineWrite
     Common::VirtualBuffer<u64> timeline_pages{(device_as_size >> page_bits) / 64};
+    /// One bit per device page, see MarkEngineWrite
+    Common::VirtualBuffer<u64> engine_pages{(device_as_size >> page_bits) / 64};
     /// Per device page, see HoldInPlaceRead: tick of the last in-place read, and one bit per
     /// page held write protected for it
     Common::VirtualBuffer<u64> in_place_ticks{device_as_size >> page_bits};

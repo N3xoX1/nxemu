@@ -111,6 +111,11 @@ public:
                VideoCommon::QueryPropertiesFlags flags, u32 payload, u32 subreport) override;
     void BindGraphicsUniformBuffer(size_t stage, u32 index, GPUVAddr gpu_addr, u32 size) override;
     void DisableGraphicsUniformBuffer(size_t stage, u32 index) override;
+    bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                         UniformPrefetch& prefetch) override;
+    u64 UniformPrefetchPosition() override;
+    void ApplyUniformPrefetch(size_t stage, u32 index, const UniformPrefetch& prefetch) override;
+    void ResetUniformPrefetch(u64 position) override;
     void FlushAll() override;
     void FlushRegion(DAddr addr, u64 size,
                      VideoCommon::CacheType which = VideoCommon::CacheType::All) override;

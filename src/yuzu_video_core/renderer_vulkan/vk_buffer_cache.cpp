@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
+#include "yuzu_common/alignment.h"
 #include "yuzu_common/readback_reference.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 
@@ -413,6 +414,22 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
         uint8_pass = std::make_unique<Uint8Pass>(device, scheduler, descriptor_pool, staging_pool,
                                                  compute_pass_descriptor_queue);
     }
+    {
+        const VkBufferCreateInfo prefetch_ci{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .size = PrefetchRingSize,
+            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 0,
+            .pQueueFamilyIndices = nullptr,
+        };
+        prefetch_buffer = memory_allocator.CreateBuffer(prefetch_ci, MemoryUsage::Stream);
+        prefetch_span = prefetch_buffer.Mapped();
+        prefetch_alignment =
+            std::max<u64>(64, static_cast<u64>(device.GetUniformBufferAlignment()));
+    }
     quad_array_index_buffer = std::make_shared<QuadArrayIndexBuffer>(device_, memory_allocator_,
                                                                      scheduler_, staging_pool_);
     quad_strip_index_buffer = std::make_shared<QuadStripIndexBuffer>(device_, memory_allocator_,
@@ -519,6 +536,46 @@ BufferCacheRuntime::~BufferCacheRuntime() {
 
 void BufferCacheRuntime::MarkInPlaceBind() noexcept {
     in_place_tick = scheduler.CurrentTick();
+}
+
+bool BufferCacheRuntime::AllocatePrefetch(u32 size, u32& offset, u8*& pointer) {
+    if (prefetch_span.empty() || size == 0 || size > PrefetchRingSize / 8) {
+        return false;
+    }
+    const auto place = [&] {
+        u64 start = Common::AlignUp(prefetch_head, prefetch_alignment);
+        if ((start % PrefetchRingSize) + size > PrefetchRingSize) {
+            start = Common::AlignUp(start, PrefetchRingSize);
+        }
+        return start;
+    };
+    u64 start = place();
+    if (start + size - prefetch_tail > PrefetchRingSize) {
+        MasterSemaphore& master = scheduler.GetMasterSemaphore();
+        master.Refresh();
+        std::scoped_lock lock{prefetch_mutex};
+        while (!prefetch_releases.empty() && master.IsFree(prefetch_releases.front().second)) {
+            prefetch_tail = std::max(prefetch_tail, prefetch_releases.front().first);
+            prefetch_releases.pop_front();
+        }
+        if (start + size - prefetch_tail > PrefetchRingSize) {
+            return false;
+        }
+    }
+    prefetch_head = start + size;
+    offset = static_cast<u32>(start % PrefetchRingSize);
+    pointer = prefetch_span.data() + offset;
+    return true;
+}
+
+void BufferCacheRuntime::ReleasePrefetch(u64 position) {
+    const u64 tick = scheduler.CurrentTick();
+    std::scoped_lock lock{prefetch_mutex};
+    if (!prefetch_releases.empty() && prefetch_releases.back().second == tick) {
+        prefetch_releases.back().first = std::max(prefetch_releases.back().first, position);
+        return;
+    }
+    prefetch_releases.emplace_back(position, tick);
 }
 
 void BufferCacheRuntime::WaitInPlaceTick(u64 tick) {

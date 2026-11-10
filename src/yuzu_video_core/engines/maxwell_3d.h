@@ -63,6 +63,14 @@ public:
     /// Binds a rasterizer to this engine.
     void BindRasterizer(VideoCore::RasterizerInterface* rasterizer);
 
+    /// Decode side: a command list starts. The guest wrote the memory it reads before
+    /// submitting it, so uniform buffers can be copied ahead of the GPU thread.
+    void UniformPrefetchSubmission();
+
+    /// Decode side: a puller method that waits for the guest (semaphore or syncpoint
+    /// acquire). Stops the copies until the next command list.
+    void UniformPrefetchBarrier();
+
     /// Register structure of the Maxwell3D engine.
     struct Regs {
         static constexpr std::size_t NUM_REGS = 0xE00;
@@ -3353,7 +3361,23 @@ private:
         StreamInline = 3,   ///< `count` words of inline_data
         StreamHLE = 4,      ///< count is the index in hle_calls
         StreamDeferred = 5, ///< end of a macro, runs the deferred instanced draw
+        StreamPrefetch = 6, ///< count is stage | index << 3; device address (2 words), size, offset
+        StreamPrefetchReset = 7, ///< prefetch ring position (2 words)
     };
+
+    /// Decode side: uniform buffer bound per stage and index, see FrontBindUniform
+    struct FrontUniform {
+        GPUVAddr address;
+        u32 size;
+    };
+    void FrontBindUniform(size_t stage);
+    void FrontPrefetchUniform(size_t stage, u32 index);
+    void FrontPrefetchReset();
+    std::array<std::array<FrontUniform, 18>, 5> front_uniforms{};
+    /// This engine copies uniform buffers on the decode thread (one engine does)
+    bool prefetch_enabled{};
+    /// A puller acquire was seen: the guest may write memory that later draws read
+    bool prefetch_blocked{};
 
     /// Decode side: writes a plain register.
     void FrontWrite(u32 method, u32 value) {

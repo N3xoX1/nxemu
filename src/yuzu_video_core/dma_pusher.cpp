@@ -33,6 +33,11 @@ void DmaPusher::DispatchCalls()
 {
     dma_pushbuffer_subindex = 0;
 
+    if (maxwell3d_engine != nullptr)
+    {
+        static_cast<Engines::Maxwell3D *>(maxwell3d_engine)->UniformPrefetchSubmission();
+    }
+
     dma_state.is_last_call = true;
 
     while (gpu.IsPoweredOn())
@@ -463,6 +468,25 @@ bool IsPullerRegisterOnly(u32 method)
         return false;
     }
 }
+
+/// Puller methods that can make the GPU wait for the guest CPU: the guest may write memory
+/// that the next methods read after the wait. Everything but the release kinds.
+bool IsPullerWait(u32 method, u32 argument)
+{
+    switch (static_cast<BufferMethods>(method))
+    {
+    case BufferMethods::SemaphoreOperation:
+        return (argument & 0xF) != 2; // not WriteLong
+    case BufferMethods::SyncpointOperation:
+        return (argument & 1) == 0; // Acquire
+    case BufferMethods::SemaphoreRelease:
+    case BufferMethods::RefCnt:
+    case BufferMethods::NonStallInterrupt:
+        return false;
+    default:
+        return true;
+    }
+}
 } // namespace
 
 void DmaPusher::CallMethod(u32 argument) const
@@ -483,6 +507,10 @@ void DmaPusher::CallMethod(u32 argument) const
             // Order against Maxwell3D does not matter, only the puller triggers read these
             pending_puller.push_back(method_call);
             return;
+        }
+        if (maxwell3d_engine != nullptr && IsPullerWait(dma_state.method, argument))
+        {
+            static_cast<Engines::Maxwell3D *>(maxwell3d_engine)->UniformPrefetchBarrier();
         }
         PostBack([this, pending = std::move(pending_puller), method_call]() {
             for (const Engines::Puller::MethodCall & call : pending)

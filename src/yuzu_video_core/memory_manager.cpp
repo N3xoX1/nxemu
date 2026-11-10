@@ -435,6 +435,10 @@ T MemoryManager::Read(GPUVAddr addr) const
 template <typename T>
 void MemoryManager::Write(GPUVAddr addr, T data)
 {
+    if (const std::optional<DAddr> device_addr = GpuToCpuAddress(addr))
+    {
+        memory.MarkEngineWrite(*device_addr, sizeof(T));
+    }
     if (auto page_pointer{GetPointer(addr)}; page_pointer)
     {
         // NOTE: Avoid adding any extra logic to this fast-path block

@@ -88,6 +88,34 @@ public:
     /// Signal disabling of a uniform buffer
     virtual void DisableGraphicsUniformBuffer(size_t stage, u32 index) = 0;
 
+    /// Uniform buffer copied by the decode thread ahead of the GPU thread
+    struct UniformPrefetch {
+        DAddr device_addr;
+        u32 size;
+        u32 offset; ///< in the prefetch ring
+    };
+
+    /// Decode thread: copies up to `max_size` bytes of the uniform buffer bound at
+    /// `device_addr` to (stage, index), when the GPU thread would copy it. Returns false
+    /// when it doesn't.
+    virtual bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                 UniformPrefetch& prefetch) {
+        return false;
+    }
+
+    /// Decode thread: prefetch ring position, see ResetUniformPrefetch
+    virtual u64 UniformPrefetchPosition() {
+        return 0;
+    }
+
+    /// GPU thread: a draw of this submission that binds `prefetch.device_addr` to
+    /// (stage, index) can use the copy
+    virtual void ApplyUniformPrefetch(size_t stage, u32 index, const UniformPrefetch& prefetch) {}
+
+    /// GPU thread: drops the copies; the ring below `position` is free once the work
+    /// recorded so far ran
+    virtual void ResetUniformPrefetch(u64 position) {}
+
     /// Signal a GPU based semaphore as a fence
     virtual void SignalFence(std::function<void()>&& func) = 0;
 

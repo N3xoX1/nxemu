@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <tuple>
 #include <functional>
 #include <memory>
@@ -234,6 +235,19 @@ public:
     void BindGraphicsUniformBuffer(size_t stage, u32 index, GPUVAddr gpu_addr, u32 size);
 
     void DisableGraphicsUniformBuffer(size_t stage, u32 index);
+
+    /// Decode thread: copies the uniform buffer at `device_addr`, bound to (stage, index),
+    /// to the runtime's prefetch ring when the GPU thread would copy it (CPU written while
+    /// read in place, never written by the GPU side). Takes no lock: reads only the size
+    /// hints, the device memory marks and the guest memory.
+    bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                         DAddr& out_addr, u32& out_size, u32& out_offset);
+
+    /// GPU thread: the copy serves the draws of this command list, see PrefetchUniform
+    void ApplyUniformPrefetch(size_t stage, u32 index, DAddr device_addr, u32 size, u32 offset);
+
+    /// GPU thread: drops the copies at the end of a command list or at a puller wait
+    void ResetUniformPrefetch(u64 position);
 
     void UpdateGraphicsBuffers(bool is_indexed);
 
@@ -557,6 +571,20 @@ private:
 
     // Owned by this cache: a new renderer/scheduler must never reuse retired staging offsets.
     UniformStreamReuse<Runtime> uniform_stream_reuse;
+
+    /// Largest size the GPU thread copied per stage and index; the decode thread copies that
+    /// much ahead, see PrefetchUniform
+    std::array<std::array<std::atomic<u32>, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
+        prefetch_hints{};
+    struct PrefetchSlot {
+        DAddr device_addr;
+        u32 size; ///< 0 when empty
+        u32 offset;
+    };
+    std::array<std::array<PrefetchSlot, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
+        prefetch_slots{};
+    bool prefetch_live{};
+    const void* prefetch_channel{};
 
     Common::SlotVector<Buffer> slot_buffers;
     DelayedDestructionRing<Buffer, 8> delayed_destruction_ring;
