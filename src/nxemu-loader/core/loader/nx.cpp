@@ -242,6 +242,7 @@ struct AppLoader_NX::Impl {
         }
         tree_exefs=exefs;
         executable=std::make_unique<AppLoader_DeconstructedRomDirectory>(exefs,false);
+        executable->SetApplyExeFSMods(true);
         // Own the title so installed NAND/SD updates never replace this view.
         provider->owned.insert(owner.id);
         for (uint32_t p=owner.first_program;p<owner.first_program+owner.program_count;++p) {
@@ -467,6 +468,7 @@ struct AppLoader_NX::Impl {
             status=LoaderResultStatus::ErrorBadNPDMHeader; return;
         }
         executable=std::make_unique<AppLoader_DeconstructedRomDirectory>(active_nca->GetExeFS(),false);
+        executable->SetApplyExeFSMods(true);
         auto control_file=Find(selected_meta,LoaderContentRecordType::Control,program,nullptr,native_offset);
         if (!control_file && a.snapshots()[selected].nacp_index!=Absent) return;
         const bool own_control=control_file!=nullptr;
@@ -561,8 +563,9 @@ AppLoader::LoadResult AppLoader_NX::Load(Systemloader& loader,ISystemModules& mo
     if (impl_->status!=LoaderResultStatus::Success) return {impl_->status,{}};
     auto result=impl_->executable->Load(loader,modules);
     if (result.first!=LoaderResultStatus::Success) return result;
-    if (!loader.GetFileSystemController().RegisterProcess(result.second->process_id,impl_->program,
-        std::make_shared<FileSys::RomFSFactory>(impl_->tree ? impl_->tree_romfs : impl_->active_nca->RomFS(),false,loader.GetContentProvider(),loader.GetFileSystemController(),impl_->provider)))
+    auto romfs=std::make_shared<FileSys::RomFSFactory>(impl_->tree ? impl_->tree_romfs : impl_->active_nca->RomFS(),false,loader.GetContentProvider(),loader.GetFileSystemController(),impl_->provider);
+    romfs->SetApplyMods(true);
+    if (!loader.GetFileSystemController().RegisterProcess(result.second->process_id,impl_->program,std::move(romfs)))
         return {LoaderResultStatus::ErrorNotInitialized,{}};
     is_loaded=true; return result;
 }

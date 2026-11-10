@@ -156,8 +156,8 @@ struct NxView final : Storage
     std::string header;
     std::vector<NxGame::Nca> files;
     std::vector<u64> starts;
-    NxView(const std::filesystem::path & path, std::string name_, u64 title) :
-        name(std::move(name_)), game(std::make_shared<NxGame>(path)), files(game->PlayedContents(title))
+    NxView(const std::filesystem::path & path, std::string name_, u64 title, u32 update_version) :
+        name(std::move(name_)), game(std::make_shared<NxGame>(path)), files(game->PlayedContents(title, update_version))
     {
         Check(!files.empty(), "The NX file does not hold this game");
         std::string strings;
@@ -222,9 +222,9 @@ struct NxView final : Storage
         return result;
     }
 };
-Store OpenContainer(const std::filesystem::path & path, const std::string & name, u64 title)
+Store OpenContainer(const std::filesystem::path & path, const std::string & name, u64 title, u32 nx_update_version = 0)
 {
-    if (IsNxName(name)) return std::make_shared<NxView>(path, name, title);
+    if (IsNxName(name)) return std::make_shared<NxView>(path, name, title, nx_update_version);
     return std::make_shared<Physical>(path, name);
 }
 struct Slice final : Storage
@@ -557,13 +557,26 @@ void ResolveRecordedSources(ExportOptions & options)
     const auto base_part = ProgramPart(base, options.title_id);
     Check(!base_part.empty(), "Recorded base game is unavailable");
     options.update.clear();
+    options.nx_update_version = 0;
     if (ContentContext(options.title_id, base_part, {}) == options.context) return;
-    const auto embedded_update = ProgramPart(base, options.title_id | 0x800);
-    if (!embedded_update.empty() && ContentContext(options.title_id, base_part, embedded_update) == options.context)
-    {
-        options.update = options.base;
-        return;
-    }
+    // An .nx keeps several updates: the capture may have used an older one.
+    const auto matches_update = [&](const std::string & name) {
+        const auto path = Local(options.game_root, name);
+        std::vector<u32> versions{0};
+        if (IsNxName(name)) versions = NxGame(path).UpdateVersions(options.title_id);
+        for (const auto version : versions)
+        {
+            const auto part = ProgramPart(OpenContainer(path, name, options.title_id, version), options.title_id | 0x800);
+            if (!part.empty() && ContentContext(options.title_id, base_part, part) == options.context)
+            {
+                options.update = name;
+                options.nx_update_version = version;
+                return true;
+            }
+        }
+        return false;
+    };
+    if (matches_update(options.base)) return;
 
     std::vector<std::string> candidates;
     size_t entries{};
@@ -584,13 +597,7 @@ void ResolveRecordedSources(ExportOptions & options)
         if (options.progress) Check(options.progress("identify-content", i, candidates.size()), "Shader profile operation cancelled");
         try
         {
-            const auto source = OpenContainer(Local(options.game_root, candidates[i]), candidates[i], options.title_id);
-            const auto part = ProgramPart(source, options.title_id | 0x800);
-            if (!part.empty() && ContentContext(options.title_id, base_part, part) == options.context)
-            {
-                options.update = candidates[i];
-                return;
-            }
+            if (matches_update(candidates[i])) return;
         }
         catch (const std::exception &) { /* Unrelated/encrypted containers are not export sources. */ }
     }
@@ -611,7 +618,7 @@ void Discover(const ExportOptions & options, JsonValue & profile, const std::map
         if (!name.empty() && !containers.contains(name))
         {
             const auto path = Local(options.game_root, name);
-            const auto container = containers[name] = OpenContainer(path, name, options.title_id);
+            const auto container = containers[name] = OpenContainer(path, name, options.title_id, options.nx_update_version);
             JsonValue c;
             c["name"] = name;
             c["size"] = Jnum(container->size);

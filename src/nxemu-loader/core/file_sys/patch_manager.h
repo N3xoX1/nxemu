@@ -49,8 +49,9 @@ public:
     [[nodiscard]] uint64_t GetTitleID() const;
 
     // Currently tracked ExeFS patches:
-    // - Game Updates
-    [[nodiscard]] VirtualDir PatchExeFS(VirtualDir exefs) const;
+    // - Game Updates (unless apply_update is false: an NX archive picks its own update)
+    // - LayeredExeFS
+    [[nodiscard]] VirtualDir PatchExeFS(VirtualDir exefs, bool apply_update = true) const;
 
     // Currently tracked NSO patches:
     // - IPS
@@ -75,7 +76,8 @@ public:
     [[nodiscard]] VirtualFile PatchRomFS(const NCA* base_nca, VirtualFile base_romfs,
                                          LoaderContentRecordType type = LoaderContentRecordType::Program,
                                          VirtualFile packed_update_raw = nullptr,
-                                         bool apply_layeredfs = true) const;
+                                         bool apply_layeredfs = true,
+                                         bool apply_update = true) const;
 
     // Returns a vector of patches
     [[nodiscard]] std::vector<Patch> GetPatches(VirtualFile update_raw = nullptr) const;

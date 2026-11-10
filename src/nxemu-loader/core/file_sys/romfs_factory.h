@@ -31,6 +31,9 @@ public:
     ~RomFSFactory();
 
     void SetPackedUpdate(VirtualFile packed_update_raw);
+    // A RomFS that is not updatable still takes the user's LayeredFS mods (an NX archive
+    // has applied its own update already).
+    void SetApplyMods(bool apply) { apply_mods = apply; }
     [[nodiscard]] VirtualFile OpenCurrentProcess(uint64_t current_process_title_id) const;
     [[nodiscard]] VirtualFile OpenPatchedRomFS(uint64_t title_id, LoaderContentRecordType type) const;
     [[nodiscard]] VirtualFile OpenPatchedRomFSWithProgramIndex(uint64_t title_id, u8 program_index, LoaderContentRecordType type) const;
@@ -44,6 +47,7 @@ private:
     VirtualFile base;
 
     bool updatable;
+    bool apply_mods{false};
 
     ContentProvider& content_provider;
     std::shared_ptr<ContentProvider> provider_owner;

@@ -27,9 +27,12 @@ public:
 
     // The NCAs of every snapshot, each name once.
     std::vector<Nca> AllContents() const;
-    // The NCAs the game starts with, as the loader picks them: the base of
-    // `title_id` and its most recent update.
-    std::vector<Nca> PlayedContents(uint64_t title_id) const;
+    // The NCAs of the base of `title_id` and one of its updates: the update of
+    // `update_version`, or the most recent one when it is 0. Without that update,
+    // only the base.
+    std::vector<Nca> PlayedContents(uint64_t title_id, uint32_t update_version = 0) const;
+    // The versions of the updates of `title_id` kept in the archive, newest first.
+    std::vector<uint32_t> UpdateVersions(uint64_t title_id) const;
     // Thread-safe; throws on a range or read error.
     void Read(uint32_t file, uint64_t offset, std::span<char> bytes);
 

@@ -36,7 +36,13 @@ void RomFSFactory::SetPackedUpdate(VirtualFile update_raw_file) {
 
 VirtualFile RomFSFactory::OpenCurrentProcess(uint64_t current_process_title_id) const {
     if (!updatable) {
-        return file;
+        if (!apply_mods) {
+            return file;
+        }
+        const FileSys::PatchManager patch_manager{current_process_title_id, filesystem_controller,
+                                                  content_provider};
+        return patch_manager.PatchRomFS(nullptr, file, LoaderContentRecordType::Program, nullptr,
+                                        true, false);
     }
 
     const auto type = LoaderContentRecordType::Program;
@@ -112,7 +118,9 @@ IVirtualFile * RomFsControllerImpl::PatchBaseNca(uint64_t title_id, StorageId st
     std::shared_ptr<FileSys::NCA> base = m_factory->GetEntry(title_id, storage_id, type);
     if (m_loader.GetContentProvider().OwnsTitle(title_id)) {
         if (!base || !base->RomFS()) return nullptr;
-        auto resolved=base->RomFS();
+        // The owner (an NX archive) resolved the update; the user's LayeredFS mods still apply.
+        const FileSys::PatchManager pm(title_id, m_loader.GetFileSystemController(), m_loader.GetContentProvider());
+        auto resolved=pm.PatchRomFS(nullptr, base->RomFS(), type, nullptr, true, false);
         return std::make_unique<VirtualFileImpl>(resolved).release();
     }
     const FileSys::PatchManager pm(title_id, m_loader.GetFileSystemController(), m_loader.GetContentProvider());

@@ -2,7 +2,9 @@
 #include "yuzu_video_core/shader_profile_nx.h"
 #include "nxemu-loader/nxformat/nx_disk_source.hpp"
 #include <zstd.h>
+#include <algorithm>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -74,17 +76,34 @@ std::vector<NxGame::Nca> NxGame::AllContents() const {
     return result;
 }
 
-std::vector<NxGame::Nca> NxGame::PlayedContents(uint64_t title_id) const {
-    const auto& archive = *impl->archive;
+namespace {
+uint32_t ProgramIndex(const nx::Archive& archive, uint64_t title_id) {
     const auto& programs = archive.programs();
-    const auto& snapshots = archive.snapshots();
     const auto title = title_id & ~uint64_t{0x800};
-    uint32_t program = UINT32_MAX;
     for (uint32_t i = 0; i < programs.size(); ++i)
-        if ((programs[i].id & ~uint64_t{0x800}) == title && programs[i].kind == 0) {
-            program = i;
-            break;
-        }
+        if ((programs[i].id & ~uint64_t{0x800}) == title && programs[i].kind == 0) return i;
+    return UINT32_MAX;
+}
+// An update added from a bare folder is standalone (type 3).
+bool IsUpdate(uint8_t type) { return type == 1 || type == 3; }
+} // namespace
+
+std::vector<uint32_t> NxGame::UpdateVersions(uint64_t title_id) const {
+    const auto& archive = *impl->archive;
+    const auto program = ProgramIndex(archive, title_id);
+    std::vector<uint32_t> result;
+    if (program == UINT32_MAX) return result;
+    for (const auto& s : archive.snapshots())
+        if (s.program_index == program && IsUpdate(s.type)) result.push_back(s.numeric_version);
+    std::sort(result.begin(), result.end(), std::greater<>{});
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
+}
+
+std::vector<NxGame::Nca> NxGame::PlayedContents(uint64_t title_id, uint32_t update_version) const {
+    const auto& archive = *impl->archive;
+    const auto& snapshots = archive.snapshots();
+    const auto program = ProgramIndex(archive, title_id);
     std::vector<Nca> result;
     if (program == UINT32_MAX) return result; // Every program NCA is still checked against the title.
     uint32_t base = UINT32_MAX, update = UINT32_MAX;
@@ -92,7 +111,10 @@ std::vector<NxGame::Nca> NxGame::PlayedContents(uint64_t title_id) const {
         const auto& s = snapshots[i];
         if (s.program_index != program) continue;
         if (s.type == 0 && base == UINT32_MAX) base = i;
-        if (s.type == 1 && (update == UINT32_MAX || s.numeric_version > snapshots[update].numeric_version)) update = i;
+        if (!IsUpdate(s.type)) continue;
+        if (update_version ? s.numeric_version == update_version && update == UINT32_MAX
+                           : update == UINT32_MAX || s.numeric_version > snapshots[update].numeric_version)
+            update = i;
     }
     std::set<std::string> seen;
     for (const auto snapshot : {base, update})

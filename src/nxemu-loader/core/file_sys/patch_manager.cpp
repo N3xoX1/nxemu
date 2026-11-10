@@ -391,7 +391,7 @@ uint64_t PatchManager::GetTitleID() const
     return title_id;
 }
 
-VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
+VirtualDir PatchManager::PatchExeFS(VirtualDir exefs, bool apply_update) const
 {
     LOG_INFO(Loader, "Patching ExeFS for title_id={:016X}", title_id);
 
@@ -429,6 +429,11 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
     if (!checked_manual)
     {
         update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
+    }
+    if (!apply_update)
+    {
+        update_disabled = true;
+        enabled_version.reset();
     }
 
     std::unique_ptr<NCA> update;
@@ -769,7 +774,7 @@ static void ApplyLayeredFS(VirtualFile & romfs, uint64_t title_id, LoaderContent
     romfs = std::move(packed);
 }
 
-VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romfs, LoaderContentRecordType type, VirtualFile packed_update_raw, bool apply_layeredfs) const
+VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romfs, LoaderContentRecordType type, VirtualFile packed_update_raw, bool apply_layeredfs, bool apply_update) const
 {
     const auto log_string = fmt::format("Patching RomFS for title_id={:016X}, type={:02X}", title_id, static_cast<u8>(type));
     if (type == LoaderContentRecordType::Program || type == LoaderContentRecordType::Data)
@@ -820,6 +825,10 @@ VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romf
     else if (update_raw == nullptr && !update_disabled)
     {
         update_raw = content_provider.GetEntryRaw(update_tid, type);
+    }
+    if (!apply_update)
+    {
+        update_disabled = true;
     }
 
     if (!update_disabled && update_raw != nullptr && base_nca != nullptr)
