@@ -413,12 +413,13 @@ void Maxwell3D::ConsumeSinkImpl()
 
 void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
 {
-    if (regs.reg_array[method] == argument)
+    const u32 old_value = regs.reg_array[method];
+    if (old_value == argument)
     {
         return;
     }
     regs.reg_array[method] = argument;
-    dirty.MarkShaderProfileRegister(method);
+    dirty.MarkShaderProfileRegister(method, old_value, argument);
 
     static_assert(std::tuple_size_v<DirtyState::Tables> == 2);
     const auto first = dirty.tables[0][method];

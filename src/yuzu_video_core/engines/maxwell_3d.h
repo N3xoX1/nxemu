@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <bit>
 #include <bitset>
 #include <cmath>
 #include <limits>
@@ -3101,10 +3102,45 @@ public:
         // invalidate a recipe; only changes to its canonical graphics inputs do.
         Table shader_profile_registers{};
         u64 shader_profile_changes{};
+        // One hash per tracked register group: the XOR of ShaderProfileMix(method, value)
+        // over the group's registers, updated on each value change so the recorder can
+        // identify a draw's inputs without reading the registers again. Groups marked
+        // stale are recomputed from the registers by the recorder.
+        static constexpr size_t ShaderProfileGroups = 7;
+        std::array<u64, ShaderProfileGroups> shader_profile_hashes{};
+        u64 shader_profile_stale{0xffU};
+        static u64 ShaderProfileMix(size_t method, u32 value) noexcept {
+            // Full avalanche (splitmix64 finalizer), so the XOR of several registers has no
+            // structured collisions: two different states only collide by 64-bit chance.
+            // A single multiply is not enough: the same value change on two registers
+            // could cancel out (vertex attributes 1 and 4, RGBA8 SNORM -> UNORM).
+            u64 x = static_cast<u64>(value) << 32 | method;
+            x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+            x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+            return x ^ (x >> 31);
+        }
+        // For writers that do not know the previous value: the group is rehashed.
         void MarkShaderProfileRegister(size_t method) noexcept {
             shader_profile_changes |= shader_profile_registers[method];
+            shader_profile_stale |= shader_profile_registers[method];
         }
-        void InvalidateShaderProfile() noexcept { shader_profile_changes |= 0xffU; }
+        void MarkShaderProfileRegister(size_t method, u32 old_value, u32 new_value) noexcept {
+            const u8 group = shader_profile_registers[method];
+            if (group == 0) {
+                return;
+            }
+            shader_profile_changes |= group;
+            // A stale group is rehashed from the registers before use.
+            if (shader_profile_stale & group) {
+                return;
+            }
+            shader_profile_hashes[std::countr_zero(group)] ^=
+                ShaderProfileMix(method, old_value) ^ ShaderProfileMix(method, new_value);
+        }
+        void InvalidateShaderProfile() noexcept {
+            shader_profile_changes |= 0xffU;
+            shader_profile_stale |= 0xffU;
+        }
     } dirty;
 
     std::unique_ptr<DrawManager> draw_manager;

@@ -520,8 +520,7 @@ bool BufferCacheRuntime::ShouldStreamUniformBuffer(const Buffer& buffer, u32 off
     // for an ordered upload. Stream a snapshot on drivers that benefit from it.
     // The caller requires CPU-modified data and excludes GPU-modified ranges.
     const auto driver = device.GetDriverID();
-    return (driver == VK_DRIVER_ID_MOLTENVK || driver == VK_DRIVER_ID_NVIDIA_PROPRIETARY) &&
-           buffer.IsRegionUsed(offset, size);
+    return driver == VK_DRIVER_ID_MOLTENVK && buffer.IsRegionUsed(offset, size);
 }
 
 u32 BufferCacheRuntime::GetStorageBufferAlignment() const {

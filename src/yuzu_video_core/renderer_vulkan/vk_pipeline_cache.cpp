@@ -981,7 +981,7 @@ PipelineCache::~PipelineCache() {
 
 void PipelineCache::RecordDiagnosticFrame() {
     if (progressive_warmup) progressive_warmup->RecordFrame();
-    if (guest_recipe_recorder) guest_recipe_recorder->Flush();
+    if (guest_recipe_recorder) guest_recipe_recorder->EndFrame();
     if(runtime_report && runtime_report->active)runtime_report->Frame();
 }
 
