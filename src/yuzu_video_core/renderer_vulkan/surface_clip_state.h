@@ -5,6 +5,17 @@
 #include "yuzu_common/common_types.h"
 
 namespace Vulkan {
+// A lower-left window counts rows up from the bottom of the surface clip. Viewports, scissors
+// and the fragment Y coordinate are all mirrored around that height so they stay aligned.
+inline void FlipLowerLeftViewportY(float& y, float& height, float clip_height) {
+    y = clip_height - y;
+    height = -height;
+}
+inline void FlipLowerLeftScissorY(s32& min_y, s32& max_y, s32 clip_height) {
+    const s32 flipped_min = clip_height - max_y;
+    max_y = clip_height - min_y;
+    min_y = flipped_min;
+}
 // Pixel-space vertices are normalized against the guest's logical surface clip.
 // The corresponding host viewport/scissor must still cover the scaled target.
 inline VkViewport SurfaceClipViewport(u32 x, u32 y, u32 width, u32 height,

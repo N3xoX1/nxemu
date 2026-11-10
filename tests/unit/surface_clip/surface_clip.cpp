@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include "yuzu_video_core/renderer_vulkan/surface_clip_state.h"
@@ -62,6 +63,31 @@ int main() {
     s = Vulkan::SurfaceClipScissor(0, 0, 0, 0, 2, 0);
     check(v.width == 1 && v.height == 1 && s.extent.width == 1 && s.extent.height == 1,
           "zero extents preserve Vulkan's nonzero viewport requirement");
+
+    // Lower-left origin: a viewport and the scissor around it must land on the same host rows,
+    // and each host row r must be guest window row clip_height - r, the value FragCoord.y gets.
+    struct LowerLeftCase { float translate_y; float scale_y; s32 min_y; s32 max_y; };
+    constexpr s32 clip_height = 720;
+    for (const LowerLeftCase c : {LowerLeftCase{100.f, 100.f, 0, 200},     // bottom band
+                                  LowerLeftCase{500.f, 120.f, 380, 620},   // off-center band
+                                  LowerLeftCase{360.f, 360.f, 0, 720},     // full surface
+                                  LowerLeftCase{360.f, -360.f, 0, 720}}) { // negative scale
+        float y = c.translate_y - c.scale_y;
+        float height = c.scale_y * 2.f;
+        Vulkan::FlipLowerLeftViewportY(y, height, float(clip_height));
+        const auto host_row = [&](float ndc) { return y + (ndc + 1.f) * .5f * height; };
+        for (float ndc : {-1.f, -.5f, 0.f, .5f, 1.f}) {
+            check(float(clip_height) - host_row(ndc) == c.translate_y + c.scale_y * ndc,
+                  "lower-left viewport row mirrors the guest window row");
+        }
+        s32 min_y = c.min_y;
+        s32 max_y = c.max_y;
+        Vulkan::FlipLowerLeftScissorY(min_y, max_y, clip_height);
+        const float top = std::min(host_row(-1.f), host_row(1.f));
+        const float bottom = std::max(host_row(-1.f), host_row(1.f));
+        check(float(min_y) == top && float(max_y) == bottom,
+              "lower-left scissor covers the same host rows as its viewport");
+    }
     std::printf("Surface clip scaling: %u failures\n", failures);
     return failures ? EXIT_FAILURE : EXIT_SUCCESS;
 }
