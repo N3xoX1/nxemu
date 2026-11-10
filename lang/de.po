@@ -2449,29 +2449,6 @@ msgid "Opening the game..."
 msgstr "Spiel wird geöffnet..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "Das kann einige Minuten dauern. Kompilierte Shader werden zwischengespeichert, damit spätere Starts schneller gehen."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 s remaining"
-msgstr "Noch etwa %1 s"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 min remaining"
-msgstr "Noch etwa %1 min"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Estimating time remaining..."
-msgstr "Verbleibende Zeit wird geschätzt..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr "Shader-Vorbereitung wird abgeschlossen..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "Shader werden vorbereitet"
 
@@ -2693,20 +2670,6 @@ msgstr "Das Profil, mit dem Spiele starten und dessen Speicherstände verwendet 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "Spiel starten"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr "Details ausblenden"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
-msgstr "Details anzeigen"
-
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "Spieleinstellungen"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2936,6 +2899,11 @@ msgstr "Info"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "Spieleinstellungen"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "Erweiterungen"
 
@@ -3059,7 +3027,7 @@ msgstr "Keine Spiele gefunden"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
-msgstr "In deinen Ordnern wurden keine .nx-, .nro-, .dxci- oder .dnsp-Dateien gefunden."
+msgstr "In deinen Ordnern wurden keine .nro-, .dxci- oder .dnsp-Dateien gefunden."
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Manage folders"
@@ -3674,7 +3642,7 @@ msgstr "Noch keine Ordner"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
-msgstr "Wähle einen Ordner mit .nx-, .nro-, .dxci- oder .dnsp-Dateien."
+msgstr "Wähle einen Ordner mit .nro-, .dxci- oder .dnsp-Dateien."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Remove this folder from the library? The files will not be deleted."
@@ -4494,6 +4462,8 @@ msgstr "Intel CMAA2-Kantenglättung per Compute-Shader. Nur Vulkan."
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "Morphologische Kantenglättung mit drei Grafikdurchläufen."
+
+
 
 #: src/nxemu/ui/views/main_window.cpp
 

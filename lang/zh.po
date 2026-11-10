@@ -2441,29 +2441,6 @@ msgid "Opening the game..."
 msgstr "正在打开游戏..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "这可能需要几分钟。编译好的着色器会被缓存，以加快之后的启动。"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 s remaining"
-msgstr "大约还剩 %1 秒"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 min remaining"
-msgstr "大约还剩 %1 分钟"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Estimating time remaining..."
-msgstr "正在估算剩余时间..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr "正在完成着色器准备..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "准备着色器"
 
@@ -2684,20 +2661,6 @@ msgstr "启动游戏所用的用户档案及其存档"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "开始游戏"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr "隐藏详情"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
-msgstr "显示详情"
-
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "游戏设置"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2926,6 +2889,11 @@ msgstr "信息"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "游戏设置"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "附加内容"
 
@@ -3049,7 +3017,7 @@ msgstr "未找到游戏"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
-msgstr "你的文件夹中没有找到 .nx、.nro、.dxci 或 .dnsp 文件。"
+msgstr "你的文件夹中没有找到 .nro、.dxci 或 .dnsp 文件。"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Manage folders"
@@ -3659,7 +3627,7 @@ msgstr "暂无文件夹"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
-msgstr "选择包含 .nx、.nro、.dxci 或 .dnsp 文件的文件夹。"
+msgstr "选择包含 .nro、.dxci 或 .dnsp 文件的文件夹。"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Remove this folder from the library? The files will not be deleted."
@@ -3687,7 +3655,7 @@ msgstr "添加其他文件夹"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Games in .nx, .nro, .dxci or .dnsp format"
-msgstr ".nx、.nro、.dxci 或 .dnsp 格式的游戏"
+msgstr ".nro、.dxci 或 .dnsp 格式的游戏"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Skip"
@@ -4477,6 +4445,8 @@ msgstr "使用 GPU 计算的 Intel CMAA2 抗锯齿。仅限 Vulkan。"
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "使用三个图形通道的形态抗锯齿。"
+
+
 
 #: src/nxemu/ui/views/main_window.cpp
 

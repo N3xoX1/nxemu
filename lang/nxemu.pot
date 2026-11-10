@@ -1133,7 +1133,6 @@ msgid "Reading game information"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Configure"
 msgstr ""
 
@@ -2494,26 +2493,6 @@ msgid "Opening the game..."
 msgstr ""
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "About %1 s remaining"
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "About %1 min remaining"
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Estimating time remaining..."
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Reading and verifying NXShader"
 msgstr ""
 
@@ -2771,14 +2750,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp

@@ -2441,29 +2441,6 @@ msgid "Opening the game..."
 msgstr "게임을 여는 중..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "몇 분 정도 걸릴 수 있습니다. 컴파일된 셰이더는 캐시에 저장되어 다음 실행이 빨라집니다."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 s remaining"
-msgstr "약 %1초 남음"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 min remaining"
-msgstr "약 %1분 남음"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Estimating time remaining..."
-msgstr "남은 시간 계산 중..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr "셰이더 준비를 마무리하는 중..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "셰이더 준비 중"
 
@@ -2684,20 +2661,6 @@ msgstr "게임 시작에 사용할 프로필과 저장 데이터"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "게임 시작"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr "세부 정보 숨기기"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
-msgstr "세부 정보 표시"
-
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "게임 설정"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2923,6 +2886,11 @@ msgstr "게임 목록"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Info"
 msgstr "정보"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "게임 설정"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -4477,6 +4445,8 @@ msgstr "GPU 연산을 사용하는 Intel CMAA2 안티앨리어싱. Vulkan 전용
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "세 번의 그래픽 패스를 사용하는 형태학적 안티앨리어싱."
+
+
 
 #: src/nxemu/ui/views/main_window.cpp
 

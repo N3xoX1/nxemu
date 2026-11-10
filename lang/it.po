@@ -2449,29 +2449,6 @@ msgid "Opening the game..."
 msgstr "Apertura del gioco..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "Potrebbe richiedere alcuni minuti. Gli shader compilati vengono messi in cache per velocizzare gli avvii successivi."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 s remaining"
-msgstr "Circa %1 s rimanenti"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 min remaining"
-msgstr "Circa %1 min rimanenti"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Estimating time remaining..."
-msgstr "Stima del tempo rimanente..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr "Completamento della preparazione degli shader..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "Preparazione degli shader"
 
@@ -2693,20 +2670,6 @@ msgstr "Il profilo con cui si avviano i giochi e di cui vengono usati i salvatag
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "Avvia gioco"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr "Nascondi dettagli"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
-msgstr "Mostra dettagli"
-
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "Impostazioni del gioco"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2933,6 +2896,11 @@ msgstr "Elenco giochi"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Info"
 msgstr "Info"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "Impostazioni del gioco"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -4494,6 +4462,8 @@ msgstr "Antialiasing Intel CMAA2 tramite calcolo GPU. Solo Vulkan."
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "Antialiasing morfologico con tre passaggi grafici."
+
+
 
 #: src/nxemu/ui/views/main_window.cpp
 

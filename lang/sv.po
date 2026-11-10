@@ -2577,29 +2577,6 @@ msgid "Opening the game..."
 msgstr "Öppnar spelet…"
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "Det kan ta några minuter. Kompilerade shaders cachelagras så att senare starter går fortare."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 s remaining"
-msgstr "Cirka %1 s kvar"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 min remaining"
-msgstr "Cirka %1 min kvar"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Estimating time remaining..."
-msgstr "Uppskattar återstående tid…"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr "Slutför shaderförberedelsen…"
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Reading and verifying NXShader"
 msgstr "Läser och verifierar NXShader"
 
@@ -2837,20 +2814,6 @@ msgstr "Spel startas med den här profilen och dess sparfiler används"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "Starta spel"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr "Dölj detaljer"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
-msgstr "Visa detaljer"
-
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "Spelinställningar"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open NXShader folder"
@@ -3092,6 +3055,11 @@ msgstr "Information"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "Spelinställningar"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "Tillägg"
 
@@ -3218,7 +3186,7 @@ msgstr "Inga spel hittades"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
-msgstr "Inga .nx-, .nro-, .dxci- eller .dnsp-filer hittades i dina mappar."
+msgstr "Inga .nro-, .dxci- eller .dnsp-filer hittades i dina mappar."
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Manage folders"
@@ -3852,7 +3820,7 @@ msgstr "Inga mappar har lagts till ännu"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
-msgstr "Välj en mapp som innehåller .nx-, .nro-, .dxci- eller .dnsp-filer."
+msgstr "Välj en mapp som innehåller .nro-, .dxci- eller .dnsp-filer."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Remove this folder from the library? The files will not be deleted."

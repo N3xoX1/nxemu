@@ -2449,29 +2449,6 @@ msgid "Opening the game..."
 msgstr "A abrir o jogo..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "Isto pode demorar alguns minutos. Os shaders compilados ficam em cache para acelerar os próximos arranques."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 s remaining"
-msgstr "Faltam cerca de %1 s"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 min remaining"
-msgstr "Faltam cerca de %1 min"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Estimating time remaining..."
-msgstr "A estimar o tempo restante..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr "A concluir a preparação dos shaders..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "Preparação de sombreadores"
 
@@ -2693,20 +2670,6 @@ msgstr "O perfil com que os jogos iniciam e cujos dados de gravação são utili
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "Iniciar jogo"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr "Ocultar detalhes"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
-msgstr "Mostrar detalhes"
-
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "Definições do jogo"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2933,6 +2896,11 @@ msgstr "Lista de jogos"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Info"
 msgstr "Informações"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "Definições do jogo"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -4494,6 +4462,8 @@ msgstr "Antisserrilhamento Intel CMAA2 por computação na GPU. Apenas Vulkan."
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "Antisserrilhamento morfológico com três passes gráficos."
+
+
 
 #: src/nxemu/ui/views/main_window.cpp
 

@@ -2457,29 +2457,6 @@ msgid "Opening the game..."
 msgstr "Открываю игру..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "Это может занять несколько минут. Скомпилированные шейдеры кэшируются, чтобы ускорить следующие запуски."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 s remaining"
-msgstr "Осталось около %1 с"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 min remaining"
-msgstr "Осталось около %1 мин"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Estimating time remaining..."
-msgstr "Оценка оставшегося времени..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr "Завершение подготовки шейдеров..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "Подготовка шейдеров"
 
@@ -2702,20 +2679,6 @@ msgstr "Профиль для запуска игр и использовани�
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "Запустить игру"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr "Скрыть подробности"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
-msgstr "Показать подробности"
-
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "Настройки игры"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2943,6 +2906,11 @@ msgstr "Список игр"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Info"
 msgstr "Сведения"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "Настройки игры"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -4511,6 +4479,8 @@ msgstr "Сглаживание Intel CMAA2 вычислительными шей
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "Морфологическое сглаживание в три графических прохода."
+
+
 
 #: src/nxemu/ui/views/main_window.cpp
 

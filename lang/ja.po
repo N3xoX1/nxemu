@@ -2441,29 +2441,6 @@ msgid "Opening the game..."
 msgstr "ゲームを開いています..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "数分かかることがあります。コンパイル済みのシェーダーはキャッシュされ、次回以降の起動が速くなります。"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 s remaining"
-msgstr "残り約 %1 秒"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "About %1 min remaining"
-msgstr "残り約 %1 分"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/nx_convert_dialog.cpp
-msgid "Estimating time remaining..."
-msgstr "残り時間を計算中..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Finishing shader preparation..."
-msgstr "シェーダーの準備を仕上げています..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "シェーダの準備"
 
@@ -2684,20 +2661,6 @@ msgstr "ゲーム起動時に使用するプロフィールとセーブデータ
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Start Game"
 msgstr "ゲームを開始"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Hide details"
-msgstr "詳細を隠す"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Show details"
-msgstr "詳細を表示"
-
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Game settings"
-msgstr "ゲーム設定"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
@@ -2926,6 +2889,11 @@ msgstr "情報"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "ゲーム設定"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "追加コンテンツ"
 
@@ -3049,7 +3017,7 @@ msgstr "ゲームが見つかりません"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
-msgstr "フォルダー内に .nx、.nro、.dxci、.dnsp ファイルが見つかりませんでした。"
+msgstr "フォルダー内に .nro、.dxci、.dnsp ファイルが見つかりませんでした。"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Manage folders"
@@ -3659,7 +3627,7 @@ msgstr "フォルダーがありません"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
-msgstr ".nx、.nro、.dxci、.dnsp ファイルを含むフォルダーを選んでください。"
+msgstr ".nro、.dxci、.dnsp ファイルを含むフォルダーを選んでください。"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Remove this folder from the library? The files will not be deleted."
@@ -3687,7 +3655,7 @@ msgstr "別のフォルダーを追加"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Games in .nx, .nro, .dxci or .dnsp format"
-msgstr ".nx、.nro、.dxci、.dnsp 形式のゲーム"
+msgstr ".nro、.dxci、.dnsp 形式のゲーム"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Skip"
@@ -4477,6 +4445,8 @@ msgstr "GPU演算によるIntel CMAA2アンチエイリアス。Vulkan専用。"
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Morphological anti-aliasing with three graphics passes."
 msgstr "3回の描画パスによる形態学的アンチエイリアス。"
+
+
 
 #: src/nxemu/ui/views/main_window.cpp
 
