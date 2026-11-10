@@ -265,6 +265,12 @@
     <ClCompile Include="ui\views\firmware_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\nx_contents_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\views\nx_convert_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\hotkeys.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -337,6 +343,9 @@
     <ClCompile Include="ui\library\firmware_installer.cpp">
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
+    <ClCompile Include="ui\library\nx_tool.cpp">
+      <Filter>Source Files\ui\library</Filter>
+    </ClCompile>
     <ClCompile Include="ui\library\game_cache.cpp">
       <Filter>Source Files\ui\library</Filter>
     </ClCompile>
@@ -353,6 +362,9 @@
       <Filter>Header Files\ui\library</Filter>
     </ClInclude>
     <ClInclude Include="ui\library\firmware_installer.h">
+      <Filter>Header Files\ui\library</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\library\nx_tool.h">
       <Filter>Header Files\ui\library</Filter>
     </ClInclude>
     <ClInclude Include="ui\library\game_cache.h">
@@ -398,6 +410,12 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\firmware_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\nx_contents_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\nx_convert_dialog.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\hotkeys.h">

@@ -9,6 +9,7 @@
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/nca_metadata.h"
 #include "core/loader/loader.h"
+#include "core/loader/nx.h"
 #include <set>
 #include <algorithm>
 #include <cstring>
@@ -251,6 +252,8 @@ LoaderResultStatus RomInfo::ReadDisplayVersion(char * buffer, uint32_t * bufferS
     {
         return LoaderResultStatus::ErrorNotInitialized;
     }
+    if (m_loader->GetFileType()==LoaderFileType::NX)
+        return static_cast<Loader::AppLoader_NX*>(m_loader.get())->ReadDisplayVersion(buffer,bufferSize);
     FileSys::NACP nacp;
     const LoaderResultStatus st = m_loader->ReadControlData(nacp);
     if (st != LoaderResultStatus::Success)
@@ -282,6 +285,12 @@ LoaderResultStatus RomInfo::ReadIcon(uint8_t * buffer, uint32_t * bufferSize)
         return m_loader->ReadIcon(buffer, bufferSize);
     }
     return LoaderResultStatus::ErrorNotInitialized;
+}
+
+LoaderResultStatus RomInfo::ReadOriginalIcon(uint8_t * buffer, uint32_t * bufferSize)
+{
+    if (GetFileType() != LoaderFileType::NX) return LoaderResultStatus::ErrorNoIcon;
+    return static_cast<Loader::AppLoader_NX *>(m_loader.get())->ReadOriginalIcon(buffer, bufferSize);
 }
 
 LoaderResultStatus RomInfo::ReadBanner(uint8_t * buffer, uint32_t * bufferSize)
@@ -370,6 +379,10 @@ LoaderResultStatus RomInfo::Load(ISystemModules & modules, GuestProcessLoadParam
 void RomInfo::AddToManualContentProvider(IManualContentProvider & provider)
 {
     const LoaderFileType file_type = GetFileType();
+    if (file_type == LoaderFileType::NX) {
+        static_cast<Loader::AppLoader_NX*>(m_loader.get())->AddToManualContentProvider(provider);
+        return;
+    }
     if (file_type == LoaderFileType::NCA)
     {
         u64 program_id = 0;
@@ -415,6 +428,9 @@ void RomInfo::PrepareManualContent()
 {
     IManualContentProvider & provider = m_systemloader.ManualContentProvider();
     AddToManualContentProvider(provider);
+    // An NX snapshot is an exact complete version. External discovery must not
+    // silently replace its executable/data with another installed update.
+    if (GetFileType()==LoaderFileType::NX) return;
 
     uint64_t program_id = 0;
     ReadProgramId(program_id);
@@ -437,7 +453,25 @@ uint32_t RomInfo::GetGamePatches(GamePatchInfo * patches, uint32_t maxCount)
     }
 
     const FileSys::PatchManager pm(program_id, m_systemloader.GetFileSystemController(), m_systemloader.GetContentProvider());
-    const std::vector<FileSys::Patch> list = pm.GetPatches();
+    std::vector<FileSys::Patch> list = pm.GetPatches();
+    if (GetFileType() == LoaderFileType::NX)
+    {
+        // The updates live inside the NX, not in the content provider: list
+        // each one, with the one the game starts with enabled.
+        std::erase_if(list, [](const FileSys::Patch & patch) { return patch.type == FileSys::PatchType::Update; });
+        std::vector<FileSys::Patch> updates;
+        for (const Loader::AppLoader_NX::Update & update : static_cast<Loader::AppLoader_NX *>(m_loader.get())->Updates())
+        {
+            updates.push_back({.enabled = update.used,
+                               .name = "Update",
+                               .version = update.display,
+                               .type = FileSys::PatchType::Update,
+                               .program_id = program_id,
+                               .title_id = FileSys::GetUpdateTitleID(program_id),
+                               .numeric_version = update.version});
+        }
+        list.insert(list.begin(), updates.begin(), updates.end());
+    }
     if (patches == nullptr || maxCount == 0)
     {
         return (uint32_t)list.size();

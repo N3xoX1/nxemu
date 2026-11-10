@@ -119,6 +119,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DOS=$<TARGET_FILE:nxemu-os>"
         "-DMOLTENVK=${NXEMU_MOLTENVK_RUNTIME}"
         "-DSDL=$<TARGET_FILE:SDL3-shared>"
+        "-DNXFORMAT=${NXEMU_NXFORMAT_RUNTIME}"
         "-DASSETS=${_nxemu_ui_assets}"
         "-DLANG_DIR=${_nxemu_lang_dir}"
         "-DUI_PACK=${_nxemu_ui_pack}"
@@ -137,7 +138,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
     set_property(TARGET nxemu APPEND PROPERTY LINK_DEPENDS
         "$<TARGET_FILE:nxemu-loader>" "$<TARGET_FILE:nxemu-cpu>"
         "$<TARGET_FILE:nxemu-video>" "$<TARGET_FILE:nxemu-os>"
-        "${NXEMU_MOLTENVK_RUNTIME}" "${_nxemu_bundle_script}"
+        "${NXEMU_MOLTENVK_RUNTIME}" "${NXEMU_NXFORMAT_RUNTIME}" "${_nxemu_bundle_script}"
         "${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in" "${_nxemu_icon}")
     add_custom_command(TARGET nxemu POST_BUILD
         COMMAND ${_nxemu_bundle_command} VERBATIM
@@ -150,7 +151,12 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
 else()
     add_custom_command(TARGET nxemu POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_nxemu_ui_pack}" "$<TARGET_FILE_DIR:nxemu>/nxemu.lang"
+        # The nxformat library the NX dialogs run.
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${NXEMU_NXFORMAT_RUNTIME}" "$<TARGET_FILE_DIR:nxemu>"
         VERBATIM)
+    if(APPLE)
+        set_property(TARGET nxemu APPEND PROPERTY BUILD_RPATH "@executable_path")
+    endif()
     include(nxemu_setup_environment)
     nxemu_setup_environment(nxemu)
     foreach(_module nxemu-loader nxemu-cpu nxemu-video nxemu-os)

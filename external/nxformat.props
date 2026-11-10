@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- nxformat (https://github.com/fab918/nxformat), the library the NX dialogs
+     use. The pinned release is downloaded and checked on the first build, as
+     external/nxformat.cmake does for CMake. Set NxformatRoot to use an
+     unpacked archive instead. -->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <NxformatVersion>1.0.1</NxformatVersion>
+    <NxformatTag>V1.0.1</NxformatTag>
+    <NxformatSha256>b49ca68fa313dcb977e542514314040334cabab92912394a84038b9eb1497e76</NxformatSha256>
+    <NxformatName>nxformat-$(NxformatVersion)-windows-x64</NxformatName>
+    <NxformatCache>$(MSBuildThisFileDirectory)..\build\external\</NxformatCache>
+    <NxformatRoot Condition="'$(NxformatRoot)' == ''">$(NxformatCache)$(NxformatName)\</NxformatRoot>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(NxformatRoot)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>$(NxformatRoot)lib\nxformat.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Target Name="NxformatFetch" BeforeTargets="PrepareForBuild" Condition="!Exists('$(NxformatRoot)include\nxformat.h')">
+    <DownloadFile SourceUrl="https://github.com/fab918/nxformat/releases/download/$(NxformatTag)/$(NxformatName).zip" DestinationFolder="$(NxformatCache)" />
+    <VerifyFileHash File="$(NxformatCache)$(NxformatName).zip" Hash="$(NxformatSha256)" Algorithm="SHA256" />
+    <Unzip SourceFiles="$(NxformatCache)$(NxformatName).zip" DestinationFolder="$(NxformatRoot)" />
+  </Target>
+  <Target Name="NxformatDeploy" AfterTargets="Build">
+    <Copy SourceFiles="$(NxformatRoot)bin\nxformat.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

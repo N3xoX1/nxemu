@@ -11,7 +11,7 @@ import java.io.File
 
 object GameLibraryScanner {
     private val FILE_EXTENSIONS =
-        setOf("nro", "dxci", "dnsp", "nca")
+        setOf("nro", "dxci", "dnsp", "nx", "nca")
 
     fun scanRomUris(context: Context): String {
         val dirsJson = NativeLibrary.getSettingString(NXUISetting.GameDirectories)

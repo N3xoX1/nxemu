@@ -6,6 +6,8 @@
 #include "firmware_dialog.h"
 #include "shader_profile_dialog.h"
 #include "general_dialog.h"
+#include "nx_contents_dialog.h"
+#include "nx_convert_dialog.h"
 #include "game_details_panel.h"
 #include "hotkeys.h"
 #include "loading_screen.h"
@@ -105,6 +107,10 @@ private:
         OpenShaderProfileDirectory,
         OpenMenuGameDirectory,
         CopyMenuGamePath,
+        ConvertToNx,
+        ConvertMenuGame,
+        ManageMenuGameNx,
+        EditMenuGameNx,
         ConfigureMenuGame,
         OpenMenuGameSaves,
         OpenMenuGameCache,
@@ -253,6 +259,8 @@ private:
     std::unique_ptr<ControllerDialog> m_controllerDialog;
     std::unique_ptr<DirectoriesDialog> m_directoriesDialog;
     std::unique_ptr<ProfilesDialog> m_profilesDialog;
+    std::unique_ptr<NxConvertDialog> m_nxConvertDialog;
+    std::unique_ptr<NxContentsDialog> m_nxContentsDialog;
     std::vector<Action> m_pendingActions;
     std::vector<GameEntry> m_games;
     std::string m_gameSearch;
