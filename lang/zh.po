@@ -2663,10 +2663,6 @@ msgid "Start Game"
 msgstr "开始游戏"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Game settings"
-msgstr "游戏设置"
-
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr "打开存档"
 
@@ -2893,6 +2889,11 @@ msgstr "信息"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "游戏设置"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "附加内容"
 
@@ -3046,6 +3047,10 @@ msgstr "左 Joy-Con"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Right Joycon"
 msgstr "右 Joy-Con"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Overrides the system setting"
+msgstr "覆盖系统设置"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Follow system"
@@ -3283,6 +3288,10 @@ msgid "Fills the whole screen"
 msgstr "填满整个屏幕"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Only for the game that is running"
+msgstr "仅限正在运行的游戏"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None connected"
 msgstr "未连接"
 
@@ -3413,6 +3422,10 @@ msgid "This game's details could not be read."
 msgstr "无法读取此游戏的详情。"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console and graphics settings for this game"
+msgstr "此游戏的主机和图形设置"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%n update"
 msgid_plural "%n updates"
 msgstr[0] "%n 个更新"
@@ -3461,6 +3474,23 @@ msgstr "清除 %1 的游戏时间？"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Close the game to delete its save data or clear its shader cache."
 msgstr "关闭游戏后才能删除其存档或清除其着色器缓存。"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "These apply only to this game. Settings you do not change here follow the system settings."
+msgstr "这些设置仅适用于此游戏。未在此处更改的设置将跟随系统设置。"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Use system settings"
+msgstr "使用系统设置"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n setting overridden"
+msgid_plural "%n settings overridden"
+msgstr[0] "已覆盖 %n 项设置"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove this game's own settings and use the system settings?"
+msgstr "删除此游戏自己的设置并使用系统设置吗？"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Developer"

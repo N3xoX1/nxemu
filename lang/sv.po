@@ -2816,10 +2816,6 @@ msgid "Start Game"
 msgstr "Starta spel"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Game settings"
-msgstr "Spelinställningar"
-
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Open NXShader folder"
 msgstr "Öppna NXShader-mappen"
 
@@ -3059,6 +3055,11 @@ msgstr "Information"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "Spelinställningar"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "Tillägg"
 
@@ -3219,6 +3220,10 @@ msgstr "Vänster Joy-Con"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Right Joycon"
 msgstr "Höger Joy-Con"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Overrides the system setting"
+msgstr "Åsidosätter systeminställningen"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Follow system"
@@ -3459,6 +3464,10 @@ msgid "Fills the whole screen"
 msgstr "Fyller hela skärmen"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Only for the game that is running"
+msgstr "Endast för spelet som körs"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None connected"
 msgstr "Ingen ansluten"
 
@@ -3591,6 +3600,10 @@ msgid "This game's details could not be read."
 msgstr "Det gick inte att läsa spelets uppgifter."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console and graphics settings for this game"
+msgstr "Konsol- och grafikinställningar för det här spelet"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%n update"
 msgid_plural "%n updates"
 msgstr[0] "%n uppdatering"
@@ -3645,6 +3658,24 @@ msgstr "Rensa speltiden för %1?"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Close the game to delete its save data or clear its shader cache."
 msgstr "Stäng spelet för att ta bort sparade data eller rensa shadercachen."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "These apply only to this game. Settings you do not change here follow the system settings."
+msgstr "De gäller bara det här spelet. Inställningar som du inte ändrar här följer systeminställningarna."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Use system settings"
+msgstr "Använd systeminställningarna"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n setting overridden"
+msgid_plural "%n settings overridden"
+msgstr[0] "%n inställning åsidosatt"
+msgstr[1] "%n inställningar åsidosatta"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove this game's own settings and use the system settings?"
+msgstr "Ta bort spelets egna inställningar och använda systeminställningarna?"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Developer"

@@ -138,6 +138,8 @@ private:
     void ReloadGameProperties();
     void RenderGameProperties();
     void RenderGameInfo();
+    void RenderGameSettings();
+    void OpenGameSettings(uint64_t programId);
     void RenderGameAddOns();
     void RenderGameSaveData();
     void ToggleAddOn(size_t index);
@@ -243,6 +245,7 @@ private:
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
 
     std::vector<std::string> m_navStack;
+    bool m_editingGameSettings = false;
     std::vector<std::function<void()>> m_actions;
     std::vector<std::function<std::string(float)>> m_sliders;
     std::string m_body;

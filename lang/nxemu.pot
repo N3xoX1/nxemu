@@ -2753,10 +2753,6 @@ msgid "Start Game"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Game settings"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Open NXShader folder"
 msgstr ""
 
@@ -3259,6 +3255,11 @@ msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr ""
 
@@ -3411,6 +3412,10 @@ msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Right Joycon"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Overrides the system setting"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -3649,6 +3654,10 @@ msgid "Fills the whole screen"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Only for the game that is running"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None connected"
 msgstr ""
 
@@ -3781,6 +3790,10 @@ msgid "This game's details could not be read."
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console and graphics settings for this game"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%n update"
 msgid_plural "%n updates"
 msgstr[0] ""
@@ -3830,6 +3843,24 @@ msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Close the game to delete its save data or clear its shader cache."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "These apply only to this game. Settings you do not change here follow the system settings."
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Use system settings"
+msgstr ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n setting overridden"
+msgid_plural "%n settings overridden"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove this game's own settings and use the system settings?"
 msgstr ""
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp

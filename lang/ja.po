@@ -2663,10 +2663,6 @@ msgid "Start Game"
 msgstr "ゲームを開始"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Game settings"
-msgstr "ゲーム設定"
-
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr "セーブデータを開く"
 
@@ -2893,6 +2889,11 @@ msgstr "情報"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "ゲーム設定"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "追加コンテンツ"
 
@@ -3046,6 +3047,10 @@ msgstr "Joy-Con (L)"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Right Joycon"
 msgstr "Joy-Con (R)"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Overrides the system setting"
+msgstr "システム設定を上書き"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Follow system"
@@ -3283,6 +3288,10 @@ msgid "Fills the whole screen"
 msgstr "画面全体に表示します"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Only for the game that is running"
+msgstr "実行中のゲームのみ"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None connected"
 msgstr "接続なし"
 
@@ -3413,6 +3422,10 @@ msgid "This game's details could not be read."
 msgstr "このゲームの詳細を読み込めませんでした。"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console and graphics settings for this game"
+msgstr "このゲームの本体とグラフィックスの設定"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%n update"
 msgid_plural "%n updates"
 msgstr[0] "アップデート %n 件"
@@ -3461,6 +3474,23 @@ msgstr "%1 のプレイ時間を消去しますか?"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Close the game to delete its save data or clear its shader cache."
 msgstr "セーブデータの削除やシェーダーキャッシュの消去を行うには、ゲームを終了してください。"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "These apply only to this game. Settings you do not change here follow the system settings."
+msgstr "これらはこのゲームにのみ適用されます。ここで変更しない設定はシステム設定に従います。"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Use system settings"
+msgstr "システム設定を使用"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n setting overridden"
+msgid_plural "%n settings overridden"
+msgstr[0] "%n 件の設定を上書き"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove this game's own settings and use the system settings?"
+msgstr "このゲーム独自の設定を削除して、システム設定を使用しますか?"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Developer"

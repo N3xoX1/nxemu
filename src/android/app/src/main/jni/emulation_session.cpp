@@ -206,6 +206,7 @@ void EmulationSession::ShutdownSystem()
     std::lock_guard lock(m_mutex);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
     UnloadModules();
+    ReleaseGameTitle();
     m_render_window.ClearSurface();
     m_native_window = nullptr;
     m_pixel_ratio = 1.0f;
@@ -216,6 +217,7 @@ void EmulationSession::RestoreStubModulesLocked()
     m_playing_program = 0;
     CountPlayTime(0);
     UnloadModules();
+    ReleaseGameTitle();
     {
         std::lock_guard events_lock(m_program_events_mutex);
         m_program_events.clear();
@@ -240,6 +242,12 @@ void EmulationSession::UnloadModules()
     m_system_modules.reset();
 }
 
+void EmulationSession::ReleaseGameTitle()
+{
+    SettingsStore::GetInstance().SetString(NXCoreSetting::GameTitleId, "");
+    m_owns_game_title = false;
+}
+
 void EmulationSession::FlushSettings()
 {
     std::lock_guard lock(m_modules_mutex);
@@ -258,6 +266,18 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
     std::lock_guard lock(m_mutex);
     m_render_window.SetPaused(false);
     SettingsStore::GetInstance().SetBool(NXCoreSetting::EmulationRunning, false);
+    uint64_t title_id = 0;
+    if (m_system_modules && m_system_modules->IsValid())
+    {
+        if (IRomInfo * rom = m_system_modules->Modules().Systemloader().RomInfo(rom_path.c_str(), program_id, 0))
+        {
+            if (rom->ReadProgramId(title_id) != LoaderResultStatus::Success)
+            {
+                title_id = 0;
+            }
+            rom->Release();
+        }
+    }
     UnloadModules();
 
     if (native_window == nullptr)
@@ -269,6 +289,13 @@ bool EmulationSession::Run(ANativeWindow * native_window, float pixel_ratio, con
     m_native_window = native_window;
     m_pixel_ratio = pixel_ratio > 0.f ? pixel_ratio : 1.0f;
     m_render_window.AttachSurface(native_window, m_pixel_ratio);
+    m_owns_game_title = true;
+    char title_text[17] = "";
+    if (title_id != 0)
+    {
+        std::snprintf(title_text, sizeof(title_text), "%016llX", static_cast<unsigned long long>(title_id));
+    }
+    SettingsStore::GetInstance().SetString(NXCoreSetting::GameTitleId, title_text);
     LoadModules();
 
     if (!m_system_modules->IsValid())

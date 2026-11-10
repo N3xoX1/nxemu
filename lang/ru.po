@@ -2681,10 +2681,6 @@ msgid "Start Game"
 msgstr "Запустить игру"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Game settings"
-msgstr "Настройки игры"
-
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr "Открыть сохранения"
 
@@ -2913,6 +2909,11 @@ msgstr "Сведения"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "Настройки игры"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "Дополнения"
 
@@ -3066,6 +3067,10 @@ msgstr "Левый Joy-Con"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Right Joycon"
 msgstr "Правый Joy-Con"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Overrides the system setting"
+msgstr "Заменяет системную настройку"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Follow system"
@@ -3303,6 +3308,10 @@ msgid "Fills the whole screen"
 msgstr "Заполняет весь экран"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Only for the game that is running"
+msgstr "Только для запущенной игры"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None connected"
 msgstr "Не подключено"
 
@@ -3437,6 +3446,10 @@ msgid "This game's details could not be read."
 msgstr "Не удалось прочитать сведения об этой игре."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console and graphics settings for this game"
+msgstr "Настройки консоли и графики для этой игры"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%n update"
 msgid_plural "%n updates"
 msgstr[0] "%n обновление"
@@ -3489,6 +3502,25 @@ msgstr "Сбросить время игры для %1?"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Close the game to delete its save data or clear its shader cache."
 msgstr "Закройте игру, чтобы удалить её сохранения или очистить кэш шейдеров."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "These apply only to this game. Settings you do not change here follow the system settings."
+msgstr "Они действуют только для этой игры. Настройки, которые вы здесь не меняете, следуют системным."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Use system settings"
+msgstr "Использовать системные настройки"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n setting overridden"
+msgid_plural "%n settings overridden"
+msgstr[0] "%n настройка заменена"
+msgstr[1] "%n настройки заменены"
+msgstr[2] "%n настроек заменено"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove this game's own settings and use the system settings?"
+msgstr "Удалить собственные настройки этой игры и использовать системные?"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Developer"

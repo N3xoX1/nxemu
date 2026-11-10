@@ -2663,10 +2663,6 @@ msgid "Start Game"
 msgstr "게임 시작"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Game settings"
-msgstr "게임 설정"
-
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr "저장 데이터 열기"
 
@@ -2893,6 +2889,11 @@ msgstr "정보"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Game settings"
+msgstr "게임 설정"
+
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Add-ons"
 msgstr "추가 콘텐츠"
 
@@ -3046,6 +3047,10 @@ msgstr "Joy-Con (L)"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Right Joycon"
 msgstr "Joy-Con (R)"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Overrides the system setting"
+msgstr "시스템 설정을 덮어씀"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Follow system"
@@ -3283,6 +3288,10 @@ msgid "Fills the whole screen"
 msgstr "화면 전체를 채웁니다"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Only for the game that is running"
+msgstr "실행 중인 게임에만 적용"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "None connected"
 msgstr "연결 없음"
 
@@ -3413,6 +3422,10 @@ msgid "This game's details could not be read."
 msgstr "이 게임의 정보를 읽을 수 없습니다."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Console and graphics settings for this game"
+msgstr "이 게임의 본체 및 그래픽 설정"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "%n update"
 msgid_plural "%n updates"
 msgstr[0] "업데이트 %n개"
@@ -3461,6 +3474,23 @@ msgstr "%1의 플레이 시간을 지울까요?"
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Close the game to delete its save data or clear its shader cache."
 msgstr "저장 데이터를 삭제하거나 셰이더 캐시를 지우려면 게임을 종료하세요."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "These apply only to this game. Settings you do not change here follow the system settings."
+msgstr "이 게임에만 적용됩니다. 여기서 변경하지 않은 설정은 시스템 설정을 따릅니다."
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Use system settings"
+msgstr "시스템 설정 사용"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "%n setting overridden"
+msgid_plural "%n settings overridden"
+msgstr[0] "%n개 설정 덮어씀"
+
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Remove this game's own settings and use the system settings?"
+msgstr "이 게임의 자체 설정을 제거하고 시스템 설정을 사용할까요?"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Developer"

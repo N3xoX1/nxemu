@@ -29,6 +29,7 @@ public:
     void InitializeSystem();
     void ShutdownSystem();
     void FlushSettings();
+    bool OwnsGameTitle() const { return m_owns_game_title; }
 
     std::string QueryRomMetadata(const std::string & path);
     bool ScanGameFiles(const std::vector<GameFileEntry> & files, IGameListScanCallback & callback);
@@ -133,6 +134,7 @@ private:
     void RestoreStubModulesLocked();
     void LoadModules();
     void UnloadModules();
+    void ReleaseGameTitle();
     bool StartProgramLocked(uint64_t program_id, int32_t program_index, int32_t previous_program_index, ApplicationLaunchType launch_type,
                             const UserChannel & user_channel);
     void QueueProgramEvent(ProgramEvent event);
@@ -144,6 +146,7 @@ private:
     mutable std::mutex m_mutex;
     // m_mutex can be held for a whole library scan, so saving settings only waits on module load and unload.
     std::mutex m_modules_mutex;
+    std::atomic<bool> m_owns_game_title = false;
     AndroidRenderWindow m_render_window;
     std::unique_ptr<SystemModules> m_system_modules;
     ANativeWindow * m_native_window = nullptr;

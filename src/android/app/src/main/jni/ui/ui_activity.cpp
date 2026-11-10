@@ -1,6 +1,7 @@
 #include "ui_activity.h"
 #include "settings/ui_identifiers.h"
 #include "ui_files.h"
+#include "ui_game_settings.h"
 #include "ui_host.h"
 #include "ui_language.h"
 #include "ui_renderer.h"
@@ -14,6 +15,7 @@
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
 #include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Factory.h>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <set>
@@ -26,7 +28,7 @@ namespace
     constexpr float kCardGapY = 14.0f;
 
     const std::set<std::string> kSettingsPages = {
-        "hubPage", "about", "interfaceSettings", "interfaceLanguage", "gameListSettings", "gameProperties", "gameInfo", "gameAddOns", "gameSaveData", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
+        "hubPage", "about", "interfaceSettings", "interfaceLanguage", "gameListSettings", "gameProperties", "gameInfo", "gameSettings", "gameAddOns", "gameSaveData", "settingsPage", "overlaySettings", "systemSettings", "graphicsSettings", "themeSettings", "setup",
         "gpuDrivers", "gpuDriverAdd", "gpuDriverDownload", "gpuDriverGroup", "gpuDriverRelease", "gameFolders",
         "controllerSettings", "controllerPlayer", "controllerChoices", "settingChoices",
     };
@@ -63,6 +65,10 @@ UiActivity::UiActivity(Rml::Context & context, const UiHost & host, UiRenderer &
 
 UiActivity::~UiActivity()
 {
+    if (m_editingGameSettings)
+    {
+        UiGameSettings::Close();
+    }
     m_library.Cancel();
     ClearCards();
     if (m_document != nullptr)
@@ -330,6 +336,11 @@ bool UiActivity::HandleBack()
 
 void UiActivity::ShowPage(const std::string & page)
 {
+    if (m_editingGameSettings && std::find(m_navStack.begin(), m_navStack.end(), "gameSettings") == m_navStack.end())
+    {
+        m_editingGameSettings = false;
+        UiGameSettings::Close();
+    }
     const bool settings = IsSettingsPage(page);
     m_gamesPage->SetClass("hidden", settings);
     m_settingsShell->SetClass("hidden", !settings);
@@ -360,6 +371,7 @@ std::string UiActivity::SettingsTitle(const std::string & id)
     if (id == "gameListSettings") return Tr("Game list");
     if (id == "gameProperties") return m_propertiesGame.title;
     if (id == "gameInfo") return Tr("Info");
+    if (id == "gameSettings") return Tr("Game settings");
     if (id == "gameAddOns") return Tr("Add-ons");
     if (id == "gameSaveData") return Tr("Save data");
     if (id == "themeSettings") return Tr("Theme");
@@ -442,6 +454,10 @@ void UiActivity::RenderCurrentSettings()
     else if (id == "gameInfo")
     {
         RenderGameInfo();
+    }
+    else if (id == "gameSettings")
+    {
+        RenderGameSettings();
     }
     else if (id == "gameAddOns")
     {
