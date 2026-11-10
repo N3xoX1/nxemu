@@ -1,5 +1,6 @@
 #include "settings/ui_identifiers.h"
 #include "ui_activity.h"
+#include "ui_game_settings.h"
 #include "ui_host.h"
 #include "ui_language.h"
 #include "ui_util.h"
@@ -67,7 +68,17 @@ namespace
 
     bool Docked()
     {
-        return UiUtil::ReadInt(NXOsSetting::SystemDockedMode) == 1;
+        return UiGameSettings::ReadInt(NXOsSetting::SystemDockedMode) == 1;
+    }
+
+    std::string WithOverrideNote(const std::string & text, const char * key)
+    {
+        if (!UiGameSettings::Overridden(key))
+        {
+            return text;
+        }
+        const std::string note = Tr("Overrides the system setting");
+        return text.empty() ? note : text + kDot + note;
     }
 
     int ThemeMode()
@@ -89,7 +100,7 @@ namespace
 
     bool ResolutionKnown()
     {
-        const int value = UiUtil::ReadInt(NXVideoSetting::SystemResolutionSetup);
+        const int value = UiGameSettings::ReadInt(NXVideoSetting::SystemResolutionSetup);
         return value >= 0 && value < static_cast<int>(std::size(kResolutionScales));
     }
 
@@ -100,7 +111,7 @@ namespace
         {
             return docked + kDot + Tr("Unlimited speed");
         }
-        const int limit = UiUtil::ReadInt(NXOsSetting::SystemSpeedLimit);
+        const int limit = UiGameSettings::ReadInt(NXOsSetting::SystemSpeedLimit);
         return limit == 100 ? docked : docked + kDot + Tr("Speed limit %1%", {std::to_string(limit)});
     }
 
@@ -260,15 +271,15 @@ void UiActivity::AppendEmptyHint(const std::string & text)
 
 void UiActivity::AppendBoolSetting(const std::string & label, const char * key, const std::string & detail, bool intBool, bool save)
 {
-    const bool on = intBool ? UiUtil::ReadInt(key) == 1 : UiUtil::ReadBool(key);
-    AppendBool(label, detail, on, [this, key, intBool, save] {
+    const bool on = intBool ? UiGameSettings::ReadInt(key) == 1 : UiGameSettings::ReadBool(key);
+    AppendBool(label, WithOverrideNote(detail, key), on, [this, key, intBool, save] {
         if (intBool)
         {
-            UiUtil::SetInt(key, UiUtil::ReadInt(key) == 1 ? 0 : 1);
+            UiGameSettings::SetInt(key, UiGameSettings::ReadInt(key) == 1 ? 0 : 1);
         }
         else
         {
-            UiUtil::SetBool(key, !UiUtil::ReadBool(key));
+            UiGameSettings::SetBool(key, !UiGameSettings::ReadBool(key));
         }
         if (save)
         {
@@ -280,11 +291,11 @@ void UiActivity::AppendBoolSetting(const std::string & label, const char * key, 
 
 void UiActivity::AppendIntSetting(const std::string & label, const char * key, int min, int max, const char * suffix)
 {
-    const int value = UiUtil::ReadInt(key);
-    AppendSlider(label, std::to_string(value) + suffix, static_cast<float>(min), static_cast<float>(max), 1, static_cast<float>(value),
+    const int value = UiGameSettings::ReadInt(key);
+    AppendSlider(WithOverrideNote(label, key), std::to_string(value) + suffix, static_cast<float>(min), static_cast<float>(max), 1, static_cast<float>(value),
                  [key, suffix](float changed) {
                      const int next = static_cast<int>(std::lround(changed));
-                     UiUtil::SetInt(key, next);
+                     UiGameSettings::SetInt(key, next);
                      UiUtil::SaveSettings();
                      return std::to_string(next) + suffix;
                  });
@@ -299,7 +310,7 @@ void UiActivity::AppendSelectSetting(const Select & select)
     }
     else
     {
-        const int value = UiUtil::ReadInt(select.key);
+        const int value = UiGameSettings::ReadInt(select.key);
         detail = std::to_string(value);
         for (const Option & option : select.options)
         {
@@ -309,7 +320,7 @@ void UiActivity::AppendSelectSetting(const Select & select)
             }
         }
     }
-    AppendLink(Tr(select.label), detail, [this, &select] {
+    AppendLink(Tr(select.label), WithOverrideNote(detail, select.key), [this, &select] {
         m_settingChoice = &select;
         Navigate("settingChoices");
     });
@@ -321,7 +332,7 @@ void UiActivity::BuildSelects()
         {TrMark("Speed limit"), NXOsSetting::SystemSpeedLimit,
          {{"25%", 25, ""}, {"50%", 50, TrMark("Half speed")}, {"75%", 75, ""}, {"100%", 100, TrMark("Normal speed")}, {"125%", 125, ""}, {"150%", 150, ""},
           {"200%", 200, TrMark("Double speed")}, {"300%", 300, ""}, {"400%", 400, ""}},
-         [] { return std::to_string(UiUtil::ReadInt(NXOsSetting::SystemSpeedLimit)) + "%"; },
+         [] { return std::to_string(UiGameSettings::ReadInt(NXOsSetting::SystemSpeedLimit)) + "%"; },
          nullptr},
         {TrMark("Accuracy"), NXVideoSetting::SystemAccuracyLevel,
          {{TrMark("Normal"), 0, TrMark("Fastest. Works well for most games")},
@@ -336,7 +347,7 @@ void UiActivity::BuildSelects()
              {
                  return std::string();
              }
-             const int value = UiUtil::ReadInt(NXVideoSetting::SystemResolutionSetup);
+             const int value = UiGameSettings::ReadInt(NXVideoSetting::SystemResolutionSetup);
              const bool docked = Docked();
              return std::string(SelectFor(NXVideoSetting::SystemResolutionSetup).options[value].label) + kDot +
                     (docked ? Tr("%1 docked", {ResolutionHeight(value, true)}) : Tr("%1 handheld", {ResolutionHeight(value, false)}));
@@ -408,6 +419,10 @@ void UiActivity::RenderSettingsHome()
     {
         connected += m_host.RequestBool("isControllerConnected", {std::to_string(player)}) ? 1 : 0;
     }
+    if (const uint64_t running = UiGameSettings::RunningProgramId(); GameIsRunning() && running != 0)
+    {
+        AppendLink(Tr("Game settings"), Tr("Only for the game that is running"), [this, running] { OpenGameSettings(running); });
+    }
     AppendLink(Tr("Controllers"), connected == 0 ? Tr("None connected") : TrCount("%n connected", "%n connected", connected),
                [this] { Navigate("controllerSettings"); });
     AppendLink(Tr("On screen controller"), UiUtil::ReadBool(NXUISetting::ShowInputOverlay) ? Tr("Shown") : Tr("Hidden"), [this] { Navigate("overlaySettings"); });
@@ -415,7 +430,7 @@ void UiActivity::RenderSettingsHome()
     std::string graphics;
     if (ResolutionKnown())
     {
-        const int value = UiUtil::ReadInt(NXVideoSetting::SystemResolutionSetup);
+        const int value = UiGameSettings::ReadInt(NXVideoSetting::SystemResolutionSetup);
         graphics = Tr("Resolution %1 (%2)", {SelectFor(NXVideoSetting::SystemResolutionSetup).options[value].label, ResolutionHeight(value, Docked())});
     }
     AppendLink(Tr("Graphics"), graphics, [this] { Navigate("graphicsSettings"); });
@@ -635,6 +650,10 @@ void UiActivity::RenderGameProperties()
     }
 
     AppendLink(Tr("Info"), m_properties.developer, [this] { Navigate("gameInfo"); });
+    if (UiGameSettings::CanEdit(m_properties.programId))
+    {
+        AppendLink(Tr("Game settings"), Tr("Console and graphics settings for this game"), [this] { OpenGameSettings(m_properties.programId); });
+    }
 
     using Kind = UiLibrary::AddOn::Kind;
     size_t updates = 0, dlc = 0, mods = 0;
@@ -676,6 +695,34 @@ void UiActivity::RenderGameProperties()
     if (running)
     {
         AppendHeader(Tr("Close the game to delete its save data or clear its shader cache."));
+    }
+    CommitBody();
+}
+
+void UiActivity::OpenGameSettings(uint64_t programId)
+{
+    if (UiGameSettings::Open(programId))
+    {
+        m_editingGameSettings = true;
+        Navigate("gameSettings");
+    }
+}
+
+void UiActivity::RenderGameSettings()
+{
+    BeginBody();
+    AppendHeader(Tr("These apply only to this game. Settings you do not change here follow the system settings."));
+    AppendLink(Tr("Console"), ConsoleSummary(), [this] { Navigate("systemSettings"); });
+    AppendLink(Tr("Graphics"), "", [this] { Navigate("graphicsSettings"); });
+    if (const int overridden = UiGameSettings::OverriddenCount(); overridden != 0 && !GameIsRunning())
+    {
+        AppendLink(Tr("Use system settings"), TrCount("%n setting overridden", "%n settings overridden", overridden), [this] {
+            Confirm(Tr("Remove this game's own settings and use the system settings?"), [this] {
+                UiGameSettings::InheritAll();
+                UiUtil::SaveSettings();
+                RenderCurrentSettings();
+            });
+        });
     }
     CommitBody();
 }
@@ -836,7 +883,7 @@ void UiActivity::RenderOverlaySettings()
 void UiActivity::RenderSystemSettings()
 {
     BeginBody();
-    if (GameIsRunning())
+    if (GameIsRunning() && !UiGameSettings::Editing())
     {
         AppendBoolSetting(Tr("Limit speed"), NXOsSetting::UseSpeedLimit, Tr("Off runs as fast as possible. This session only"), false, false);
     }
@@ -854,7 +901,8 @@ void UiActivity::RenderGraphicsSettings()
     {
         AppendHeader(Tr("Close the game to change resolution, the GPU driver and other options that apply when a game starts."));
     }
-    if (!running && GpuDriverSupported())
+    const bool editingGame = UiGameSettings::Editing();
+    if (!running && !editingGame && GpuDriverSupported())
     {
         AppendLink(Tr("GPU driver"), GpuDriverLabel(), [this] { Navigate("gpuDrivers"); });
     }
@@ -865,7 +913,7 @@ void UiActivity::RenderGraphicsSettings()
     }
     AppendSelectSetting(SelectFor(NXVideoSetting::SystemVSyncMode));
     AppendSelectSetting(SelectFor(NXVideoSetting::SystemScalingFilter));
-    if (UiUtil::ReadInt(NXVideoSetting::SystemScalingFilter) == 5)
+    if (UiGameSettings::ReadInt(NXVideoSetting::SystemScalingFilter) == 5)
     {
         AppendIntSetting(Tr("FSR sharpness"), NXVideoSetting::SystemFSPSharpness, 0, 200, "%");
     }
@@ -878,7 +926,10 @@ void UiActivity::RenderGraphicsSettings()
         AppendBoolSetting(Tr("Asynchronous shaders"), NXVideoSetting::SystemUseAsynchronousShaderBuilding, Tr("Reduces stutter, but can glitch"));
         AppendBoolSetting(Tr("Reactive flushing"), NXVideoSetting::SystemEnableReactiveFlushing, Tr("More accurate, costs performance"));
         AppendBoolSetting(Tr("Disk shader cache"), NXVideoSetting::SystemUseDiskPipelineCache, Tr("Games load faster after the first run"));
-        AppendBoolSetting(Tr("Record shader recipes"), NXVideoSetting::RecordShaderRecipes, Tr("Needed to export a shader profile of what you played"));
+        if (!editingGame)
+        {
+            AppendBoolSetting(Tr("Record shader recipes"), NXVideoSetting::RecordShaderRecipes, Tr("Needed to export a shader profile of what you played"));
+        }
     }
     CommitBody();
 }
@@ -904,12 +955,12 @@ void UiActivity::RenderSettingChoices()
     if (m_settingChoice != nullptr)
     {
         const Select & select = *m_settingChoice;
-        const int current = UiUtil::ReadInt(select.key);
+        const int current = UiGameSettings::ReadInt(select.key);
         for (const Option & option : select.options)
         {
             const std::string detail = select.optionDetail ? select.optionDetail(option) : Tr(option.detail);
             AppendCheck(Tr(option.label), detail, current == option.value, [this, key = select.key, value = option.value] {
-                UiUtil::SetInt(key, value);
+                UiGameSettings::SetInt(key, value);
                 UiUtil::SaveSettings();
                 UiLanguage::Apply();
                 GoBack();

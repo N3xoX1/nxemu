@@ -12,6 +12,8 @@ add_library(nxemu-android SHARED
     ui/ui_activity.h
     ui/ui_files.cpp
     ui/ui_files.h
+    ui/ui_game_settings.cpp
+    ui/ui_game_settings.h
     ui/ui_host.cpp
     ui/ui_host.h
     ui/ui_jni.cpp
