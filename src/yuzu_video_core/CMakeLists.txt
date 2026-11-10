@@ -191,6 +191,7 @@ add_library(video_core STATIC
     present_sharpening.h
     area_sampling.h
     pte_kind.h
+    presentation_clock.h
     query_cache/bank_base.h
     query_cache/query_bank_operations.h
     query_cache/query_base.h

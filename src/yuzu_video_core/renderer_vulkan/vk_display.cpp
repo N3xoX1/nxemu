@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "video_settings.h"
+#include "yuzu_video_core/presentation_clock.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_video_core/host_shaders/blit_color_float_frag_spv.h"
 #include "yuzu_video_core/host_shaders/full_screen_triangle_vert_spv.h"
@@ -448,6 +449,9 @@ bool Display::PresentImage(Frame* frame, bool fresh, bool* submitted) {
         }
     }
     const bool presented = swapchain.Present(render_semaphore);
+    if (presented) {
+        VideoCore::PresentationClock::MarkPresented();
+    }
 
     presented_serial = interface_serial;
     interface_presented.notify_all();

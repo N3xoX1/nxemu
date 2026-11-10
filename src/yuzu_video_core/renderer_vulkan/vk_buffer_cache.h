@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <chrono>
+
 #include "yuzu_video_core/buffer_cache/buffer_cache_base.h"
 #include "yuzu_common/readback_reference.h"
 #include "yuzu_video_core/buffer_cache/memory_tracker_base.h"
@@ -319,6 +321,8 @@ private:
     size_t host_mapped_ubo_alignment{256};
     /// Scheduler tick of the last in-place bind
     u64 in_place_tick{};
+    /// Last time nothing was presented for a while (see InPlaceReadsPending)
+    mutable std::chrono::steady_clock::time_point last_present_stall{};
     void MarkInPlaceBind() noexcept;
 
     std::array<u32, 32> vertex_binding_map = VertexInputMapping{}.bindings;

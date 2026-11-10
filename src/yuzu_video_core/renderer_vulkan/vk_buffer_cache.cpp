@@ -5,12 +5,14 @@
 #include <array>
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <span>
 #include <vector>
 
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
+#include "yuzu_video_core/presentation_clock.h"
 #include "yuzu_common/readback_reference.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 
@@ -520,7 +522,29 @@ void BufferCacheRuntime::MarkInPlaceBind() noexcept {
 }
 
 bool BufferCacheRuntime::InPlaceReadsPending() const noexcept {
-    return in_place_tick != 0 && !scheduler.IsFree(in_place_tick);
+    // While the window is moved or resized, its loop is blocked on most systems and nothing is
+    // presented, but the guest keeps running far ahead of the host GPU and can rewrite data that
+    // queued draws still read in place. Only then hold the payloads. In normal play this never
+    // triggers, so the guest keeps its lead over the host GPU.
+    // Once presentation resumes the host GPU still has the backlog of the stall: keep holding
+    // for a while so it can catch up.
+    constexpr auto PresentStall = std::chrono::milliseconds{50};
+    constexpr auto CatchUp = std::chrono::milliseconds{250};
+    if (in_place_tick == 0) {
+        return false;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (VideoCore::PresentationClock::Stalled(now, PresentStall)) {
+        last_present_stall = now;
+    } else if (now - last_present_stall > CatchUp) {
+        return false;
+    }
+    MasterSemaphore& master = scheduler.GetMasterSemaphore();
+    if (!master.IsFree(in_place_tick)) {
+        // The known GPU tick is only refreshed on waits: read the timeline value
+        master.Refresh();
+    }
+    return !master.IsFree(in_place_tick);
 }
 
 bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, size_t size) {
