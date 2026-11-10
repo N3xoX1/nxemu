@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "core/file_sys/control_metadata.h"
 #include "core/file_sys/vfs/vfs_vector.h"
+#include "loader_settings.h"
 #include "yuzu_common/string_util.h"
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iterator>
 #include "nxemu-module-spec/base.h"
-#include "loader_settings.h"
 
-// The parsing tests never query the language setting.
-IModuleSettings* g_settings = nullptr;
+// Keep the standalone test independent of the loader module.
 LoaderSettings loaderSettings{};
+IModuleSettings* g_settings = nullptr;
 
 void Check(bool value, const char* message) {
     if (!value) { std::fprintf(stderr, "FAIL: %s\n", message); std::abort(); }
@@ -29,7 +30,12 @@ int main(int argc, char** argv) {
         Check(!Common::IsValidUTF8(text), "malformed UTF-8 rejected");
     std::vector<u8> bytes(sizeof(FileSys::RawNACP));
     std::memcpy(bytes.data(), "Édition française", sizeof("Édition française"));
+    std::memcpy(bytes.data() + offsetof(FileSys::LanguageEntry, developer_name),
+                "Synthetic developer", sizeof("Synthetic developer"));
     Check(Valid(bytes), "localized NACP accepted");
+    const FileSys::NACP localized(std::make_shared<FileSys::VectorVfsFile>(bytes));
+    Check(std::strcmp(localized.GetDeveloperName(), "Synthetic developer") == 0,
+          "localized developer name is read through the loader settings");
     auto malformed = bytes;
     malformed[0] = 0xff;
     Check(!Valid(malformed), "malformed NACP rejected");

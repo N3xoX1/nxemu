@@ -976,7 +976,7 @@ void UiActivity::RenderGameFolders()
     const std::vector<std::string> folders = UiUtil::ConfiguredFolders();
     if (folders.empty())
     {
-        AppendEmptyState(Tr("No folders yet"), Tr("Choose a folder that contains .nro, .dxci, or .dnsp files."), Tr("Add game folder"),
+        AppendEmptyState(Tr("No folders yet"), Tr("Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."), Tr("Add game folder"),
                          [this] { m_host.Request("addGameDirectory"); });
     }
     for (const std::string & uri : folders)
@@ -1061,7 +1061,7 @@ void UiActivity::RenderSetup()
         {
             m_body += "<div class=\"setup-folder\">" + UiUtil::Escape(UiUtil::FormatGameFolder(uri)) + "</div>";
         }
-        AppendLink(folders.empty() ? Tr("Add game folder") : Tr("Add another folder"), Tr("Games in .nro, .dxci or .dnsp format"),
+        AppendLink(folders.empty() ? Tr("Add game folder") : Tr("Add another folder"), Tr("Games in .nx, .nro, .dxci or .dnsp format"),
                    [this] { m_host.Request("addGameDirectory"); });
         if (folders.empty())
         {
