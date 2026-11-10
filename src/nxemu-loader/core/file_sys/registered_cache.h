@@ -91,9 +91,6 @@ public:
         std::optional<uint64_t> title_id = {}) const = 0;
 
     virtual const ManualContentProvider * GetManualContentProvider() const;
-    // A selected archive may own a title even when a particular version/DLC
-    // is unavailable. Storage routing must not substitute installed content.
-    virtual bool OwnsTitle(uint64_t) const { return false; }
 };
 
 class PlaceholderCache

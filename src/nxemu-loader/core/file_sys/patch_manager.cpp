@@ -391,7 +391,7 @@ uint64_t PatchManager::GetTitleID() const
     return title_id;
 }
 
-VirtualDir PatchManager::PatchExeFS(VirtualDir exefs, bool apply_update) const
+VirtualDir PatchManager::PatchExeFS(VirtualDir exefs) const
 {
     LOG_INFO(Loader, "Patching ExeFS for title_id={:016X}", title_id);
 
@@ -429,11 +429,6 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs, bool apply_update) const
     if (!checked_manual)
     {
         update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
-    }
-    if (!apply_update)
-    {
-        update_disabled = true;
-        enabled_version.reset();
     }
 
     std::unique_ptr<NCA> update;
@@ -774,7 +769,7 @@ static void ApplyLayeredFS(VirtualFile & romfs, uint64_t title_id, LoaderContent
     romfs = std::move(packed);
 }
 
-VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romfs, LoaderContentRecordType type, VirtualFile packed_update_raw, bool apply_layeredfs, bool apply_update) const
+VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romfs, LoaderContentRecordType type, VirtualFile packed_update_raw, bool apply_layeredfs) const
 {
     const auto log_string = fmt::format("Patching RomFS for title_id={:016X}, type={:02X}", title_id, static_cast<u8>(type));
     if (type == LoaderContentRecordType::Program || type == LoaderContentRecordType::Data)
@@ -825,10 +820,6 @@ VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romf
     else if (update_raw == nullptr && !update_disabled)
     {
         update_raw = content_provider.GetEntryRaw(update_tid, type);
-    }
-    if (!apply_update)
-    {
-        update_disabled = true;
     }
 
     if (!update_disabled && update_raw != nullptr && base_nca != nullptr)
@@ -1156,8 +1147,32 @@ PatchManager::Metadata PatchManager::ParseControlNCA(const NCA & nca) const
     return metadata;
 }
 
-std::array<const char *, 16> GetApplicationLanguagePriorityNames()
+PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
 {
+    if (romfs == nullptr)
+    {
+        return {};
+    }
+
+    const auto extracted = ExtractRomFS(romfs);
+    if (extracted == nullptr)
+    {
+        return {};
+    }
+
+    auto nacp_file = extracted->GetFile("control.nacp");
+    if (nacp_file == nullptr)
+    {
+        nacp_file = extracted->GetFile("Control.nacp");
+    }
+
+    auto nacp = nacp_file == nullptr ? nullptr : std::make_unique<NACP>(nacp_file);
+    if (nacp && !nacp->IsValid())
+    {
+        LOG_ERROR(Loader, "Invalid control.nacp: truncated file, unterminated string or invalid UTF-8");
+        return {};
+    }
+
     // Get language code from settings
     const auto language_code = Service::Set::GetLanguageCodeFromIndex((uint32_t)loaderSettings.languageIndex);
 
@@ -1186,36 +1201,6 @@ std::array<const char *, 16> GetApplicationLanguagePriorityNames()
             }
         }
     }
-    return priority_language_names;
-}
-
-PatchManager::Metadata ParseControlRomFS(VirtualFile romfs)
-{
-    if (romfs == nullptr)
-    {
-        return {};
-    }
-
-    const auto extracted = ExtractRomFS(romfs);
-    if (extracted == nullptr)
-    {
-        return {};
-    }
-
-    auto nacp_file = extracted->GetFile("control.nacp");
-    if (nacp_file == nullptr)
-    {
-        nacp_file = extracted->GetFile("Control.nacp");
-    }
-
-    auto nacp = nacp_file == nullptr ? nullptr : std::make_unique<NACP>(nacp_file);
-    if (nacp && !nacp->IsValid())
-    {
-        LOG_ERROR(Loader, "Invalid control.nacp: truncated file, unterminated string or invalid UTF-8");
-        return {};
-    }
-
-    const auto priority_language_names = GetApplicationLanguagePriorityNames();
 
     // Get first matching icon
     VirtualFile icon_file;

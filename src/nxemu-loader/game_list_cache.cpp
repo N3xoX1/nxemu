@@ -11,7 +11,6 @@
 #include "core/file_sys/submission_package.h"
 #include "core/loader/loose_romfs_paths.h"
 #include "core/loader/loader.h"
-#include "core/loader/nx.h"
 #include "nxemu-os/os_settings_identifiers.h"
 #include <nxemu-core/settings/identifiers.h>
 #include <algorithm>
@@ -43,7 +42,7 @@ std::string GetLowerExtension(const std::string & path)
 
 bool IsGameExtension(const std::string & ext)
 {
-    return ext == "dxci" || ext == "dnsp" || ext == "nx" || ext == "nro";
+    return ext == "dxci" || ext == "dnsp" || ext == "nro";
 }
 
 bool IsAddOnExtension(const std::string & ext)
@@ -403,12 +402,6 @@ public:
             std::memcpy(buffer, m_metadata->programIds.data(), required * sizeof(uint64_t));
         }
         return LoaderResultStatus::Success;
-    }
-
-    LoaderResultStatus ReadOriginalIcon(uint8_t * buffer, uint32_t * bufferSize) override
-    {
-        IRomInfo * romInfo = RealRomInfo();
-        return romInfo != nullptr ? romInfo->ReadOriginalIcon(buffer, bufferSize) : LoaderResultStatus::ErrorNoIcon;
     }
 
     LoaderResultStatus ReadBanner(uint8_t * buffer, uint32_t * bufferSize) override
@@ -1071,25 +1064,6 @@ void GameListCache::ParseGameFile(const std::string & path, GameFileRecord & rec
     if (IsGameExtension(ext) || (!IsAddOnExtension(ext) && Loader::LooseFS::IsExeFSMain(std::filesystem::path{Common::FS::ToU8String(path)})))
     {
         FileSys::VirtualFile file = m_systemloader.GetFilesystem()->OpenFile(path, VirtualFileOpenMode::Read);
-        // The catalog reads a one-game NX without opening a session. Other
-        // archives (several games, ambiguous snapshots) go through the loader.
-        if (auto catalog = ext == "nx" ? Loader::AppLoader_NX::ReadCatalogMetadata(file) : std::nullopt)
-        {
-            record.isGame = true;
-            auto & metadata = record.programs.emplace_back().base;
-            metadata.fileType = LoaderFileType::NX;
-            metadata.programId = catalog->program;
-            metadata.programIds = std::move(catalog->programs);
-            metadata.title = std::move(catalog->title);
-            metadata.icon = std::move(catalog->icon);
-            metadata.displayVersion = std::move(catalog->version);
-            metadata.developer = std::move(catalog->publisher);
-            metadata.programIdStatus = metadata.programIdsStatus = LoaderResultStatus::Success;
-            metadata.titleStatus = metadata.title.empty() ? LoaderResultStatus::ErrorNoControl : LoaderResultStatus::Success;
-            metadata.iconStatus = metadata.icon.empty() ? LoaderResultStatus::ErrorNoIcon : LoaderResultStatus::Success;
-            metadata.versionStatus = LoaderResultStatus::Success;
-            return;
-        }
         std::shared_ptr<Loader::AppLoader> loader = file ? Loader::GetLoader(m_systemloader, file, 0, 0) : nullptr;
         const LoaderFileType fileType = loader ? loader->GetFileType() : LoaderFileType::Error;
         if (fileType != LoaderFileType::Unknown && fileType != LoaderFileType::Error)
@@ -1218,8 +1192,7 @@ bool GameListCache::RefreshUpdate(ProgramRecord & program, const UpdateIndex & u
     const std::vector<std::string> & disabled = disabledItr != m_disabledAddOns.end() ? disabledItr->second : noneDisabled;
 
     const UpdateCandidate * best = nullptr;
-    // An NX already carries its own display metadata and update selection.
-    if (program.base.fileType != LoaderFileType::NX && programId != 0)
+    if (programId != 0)
     {
         const auto range = updateIndex.equal_range(updateTitleId);
         for (UpdateIndex::const_iterator itr = range.first; itr != range.second; ++itr)

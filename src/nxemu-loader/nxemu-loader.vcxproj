@@ -26,8 +26,6 @@
     <TargetName>nxemu-loader</TargetName>
     <TargetName Condition="'$(Configuration)'=='Debug'">nxemu-loader_d</TargetName>
     <OutDir>$(SolutionDir)modules\$(Platform)\loader\</OutDir>
-    <OutDir Condition="'$(NxLoaderOutputDir)'!=''">$(NxLoaderOutputDir)</OutDir>
-    <IntDir Condition="'$(NxLoaderIntDir)'!=''">$(NxLoaderIntDir)</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -39,7 +37,7 @@
       <Command>"$(SolutionDir)src\script\update_version.cmd" "$(Configuration)" "$(Platform)" "$(SolutionDir)src\nxemu-loader\version.h.in" "$(SolutionDir)src\nxemu-loader\version.h"</Command>
     </PreBuildEvent>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)external\zstd\lib;$(SolutionDir)external\boost;$(SolutionDir)external\fmt\include;$(SolutionDir)src\3rd_party\nx_tzdb\include;$(SolutionDir)external\zlib;$(SolutionDir)external\zlib\contrib\minizip;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\boost;$(SolutionDir)external\fmt\include;$(SolutionDir)src\3rd_party\nx_tzdb\include;$(SolutionDir)external\zlib;$(SolutionDir)external\zlib\contrib\minizip;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -206,8 +204,6 @@
     <ClCompile Include="core\hle\service\set\settings_server.cpp" />
     <ClCompile Include="core\loader\deconstructed_rom_directory.cpp" />
     <ClCompile Include="core\loader\loader.cpp" />
-    <ClCompile Include="core\loader\nx.cpp" />
-    <ClCompile Include="core\file_sys\vfs\vfs_nx.cpp" />
     <ClCompile Include="core\loader\nca.cpp" />
     <ClCompile Include="core\loader\nro.cpp" />
     <ClCompile Include="core\loader\nso.cpp" />
@@ -222,9 +218,6 @@
     <ClCompile Include="system_loader.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\external\zstd.vcxproj">
-      <Project>{808d773c-086c-4e17-a195-b4af30eee86e}</Project>
-    </ProjectReference>
     <ProjectReference Include="..\..\external\zlib.vcxproj">
       <Project>{7a8b5c3d-4e5f-4012-9a3b-8c7d6e5f4a3b}</Project>
     </ProjectReference>

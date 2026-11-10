@@ -1,5 +1,5 @@
 # Packages the RmlUi frontend as a self-contained application bundle.
-foreach(required BUNDLE EXECUTABLE LOADER CPU VIDEO OS MOLTENVK SDL NXFORMAT ASSETS LANG_DIR UI_PACK CODESIGN INSTALL_NAME_TOOL OTOOL INFO_PLIST ICON SHORT_VERSION BUILD_VERSION MINIMUM_MACOS)
+foreach(required BUNDLE EXECUTABLE LOADER CPU VIDEO OS MOLTENVK SDL ASSETS LANG_DIR UI_PACK CODESIGN INSTALL_NAME_TOOL OTOOL INFO_PLIST ICON SHORT_VERSION BUILD_VERSION MINIMUM_MACOS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
         message(FATAL_ERROR "Missing bundle input: ${required}")
     endif()
@@ -48,7 +48,6 @@ endforeach()
 file(COPY_FILE "${MOLTENVK}" "${frameworks}/libMoltenVK.dylib" ONLY_IF_DIFFERENT)
 get_filename_component(sdl_filename "${SDL}" NAME)
 file(COPY_FILE "${SDL}" "${frameworks}/${sdl_filename}" ONLY_IF_DIFFERENT)
-file(COPY_FILE "${NXFORMAT}" "${frameworks}/libnxformat.dylib" ONLY_IF_DIFFERENT)
 
 function(run)
     execute_process(COMMAND ${ARGN} RESULT_VARIABLE result OUTPUT_QUIET ERROR_VARIABLE error)

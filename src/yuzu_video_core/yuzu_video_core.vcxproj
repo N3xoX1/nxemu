@@ -35,7 +35,6 @@
     <ClInclude Include="buffer_cache\buffer_base.h" />
     <ClInclude Include="shader_profile_export.h" />
     <ClInclude Include="shader_profile_discovery.h" />
-    <ClInclude Include="shader_profile_nx.h" />
     <ClInclude Include="shader_profile_compact.h" />
     <ClInclude Include="shader_profile_journal.h" />
     <ClInclude Include="renderer_vulkan\guest_pipeline_recorder.h" />
@@ -410,9 +409,6 @@
     <ClCompile Include="shader_profile.cpp" />
     <ClCompile Include="shader_profile_export.cpp" />
     <ClCompile Include="shader_profile_discovery.cpp" />
-    <ClCompile Include="shader_profile_nx.cpp">
-      <AdditionalIncludeDirectories>$(SolutionDir)external\zstd\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
     <ClCompile Include="shader_profile_compact.cpp" />
     <ClCompile Include="shader_profile_codec.cpp">
       <AdditionalIncludeDirectories>$(SolutionDir)external\zstd\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

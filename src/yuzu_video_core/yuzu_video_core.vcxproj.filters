@@ -5,8 +5,6 @@
     <ClCompile Include="shader_profile_export.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="shader_profile_discovery.h"><Filter>Header Files</Filter></ClInclude>
     <ClCompile Include="shader_profile_discovery.cpp"><Filter>Source Files</Filter></ClCompile>
-    <ClInclude Include="shader_profile_nx.h"><Filter>Header Files</Filter></ClInclude>
-    <ClCompile Include="shader_profile_nx.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="shader_profile_compact.h"><Filter>Header Files</Filter></ClInclude>
     <ClCompile Include="shader_profile_compact.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="shader_profile_journal.h"><Filter>Header Files</Filter></ClInclude>
