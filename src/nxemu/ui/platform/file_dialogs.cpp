@@ -6,6 +6,7 @@
 
 #include <CommDlg.h>
 #include <common/std_string.h>
+#include <shellapi.h>
 #include <shlobj.h>
 #include <vector>
 #elif defined(__linux__)
