@@ -51,7 +51,7 @@ IHidSystemServer::IHidSystemServer(Core::System& system_, std::shared_ptr<Resour
         {311, nullptr, "SetNpadPlayerLedBlinkingDevice"},
         {312, &IHidSystemServer::SetSupportedNpadStyleSetAll, "SetSupportedNpadStyleSetAll"},
         {313, &IHidSystemServer::GetNpadCaptureButtonAssignment, "GetNpadCaptureButtonAssignment"},
-        {314, nullptr, "GetAppletFooterUiType"},
+        {314, &IHidSystemServer::GetAppletFooterUiType, "GetAppletFooterUiType"},
         {315, &IHidSystemServer::GetAppletDetailedUiType, "GetAppletDetailedUiType"},
         {316, &IHidSystemServer::GetNpadInterfaceType, "GetNpadInterfaceType"},
         {317, &IHidSystemServer::GetNpadLeftRightInterfaceType, "GetNpadLeftRightInterfaceType"},
@@ -393,6 +393,20 @@ void IHidSystemServer::GetNpadCaptureButtonAssignment(HLERequestContext& ctx) {
     IPC::ResponseBuilder rb{ctx, 4};
     rb.Push(ResultSuccess);
     rb.Push(list_size);
+}
+
+void IHidSystemServer::GetAppletFooterUiType(HLERequestContext& ctx) {
+    IPC::RequestParser rp{ctx};
+    const auto npad_id_type{rp.PopEnum<NpadIdType>()};
+
+    LOG_DEBUG(Service_HID, "called, npad_id_type={}", npad_id_type);
+
+    const AppletDetailedUiType detailed_ui_type =
+        GetResourceManager()->GetNpad()->GetAppletDetailedUiType(npad_id_type);
+
+    IPC::ResponseBuilder rb{ctx, 3};
+    rb.Push(ResultSuccess);
+    rb.PushEnum(detailed_ui_type.footer);
 }
 
 void IHidSystemServer::GetAppletDetailedUiType(HLERequestContext& ctx) {
