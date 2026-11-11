@@ -19,6 +19,7 @@
 #include "dynarmic/backend/x64/block_of_code.h"
 #include "dynarmic/backend/x64/callback.h"
 #include "dynarmic/backend/x64/devirtualize.h"
+#include "dynarmic/backend/x64/exclusive_monitor_friend.h"
 #include "dynarmic/backend/x64/jitstate_info.h"
 #include "dynarmic/common/atomic.h"
 #include "dynarmic/common/x64_disassemble.h"
@@ -65,7 +66,9 @@ struct Jit::Impl {
             , emitter(block_of_code, conf, jit)
             , polyfill_options(GenPolyfillOptions(block_of_code))
             , conf(std::move(conf))
-            , jit_interface(jit) {}
+            , jit_interface(jit) {
+        SetCoreContext();
+    }
 
     ~Impl() = default;
 
@@ -127,6 +130,7 @@ struct Jit::Impl {
     void Reset() {
         ASSERT(!jit_interface->is_executing);
         jit_state = {};
+        SetCoreContext();
     }
 
     void HaltExecution(HaltReason hr) {
@@ -184,6 +188,17 @@ struct Jit::Impl {
     }
 
 private:
+    // The shared memory emitters read the core's callbacks and monitor slots from the JIT state.
+    void SetCoreContext() {
+        jit_state.core_callbacks = reinterpret_cast<u64>(conf.callbacks);
+        jit_state.core_monitor = reinterpret_cast<u64>(conf.global_monitor);
+        if (conf.global_monitor) {
+            jit_state.core_excl_addr_ptr = reinterpret_cast<u64>(GetExclusiveMonitorAddressPointer(conf.global_monitor, conf.processor_id));
+            jit_state.core_excl_value_ptr = reinterpret_cast<u64>(GetExclusiveMonitorValuePointer(conf.global_monitor, conf.processor_id));
+        }
+        jit_state.core_processor_id = conf.processor_id;
+    }
+
     static CodePtr GetCurrentBlockThunk(void* this_voidptr) {
         Jit::Impl& this_ = *static_cast<Jit::Impl*>(this_voidptr);
         return this_.GetCurrentBlock();

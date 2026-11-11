@@ -422,12 +422,11 @@ void EmitExclusiveTestAndClear(BlockOfCode& code, const UserConfig& conf, Xbyak:
         return;
     }
 
+    // Every slot is tested, the running core's included: the emitted code does not depend on the
+    // core. The running core's own reservation ends with this store anyway.
     code.mov(tmp, 0xDEAD'DEAD'DEAD'DEAD);
     const size_t processor_count = GetExclusiveMonitorProcessorCount(conf.global_monitor);
     for (size_t processor_index = 0; processor_index < processor_count; processor_index++) {
-        if (processor_index == conf.processor_id) {
-            continue;
-        }
         Xbyak::Label ok;
         code.mov(pointer, mcl::bit_cast<u64>(GetExclusiveMonitorAddressPointer(conf.global_monitor, processor_index)));
         code.cmp(qword[pointer], vaddr);

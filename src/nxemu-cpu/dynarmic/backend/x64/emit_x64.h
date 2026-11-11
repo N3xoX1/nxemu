@@ -10,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <shared_mutex>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -156,6 +157,10 @@ public:
     /// Invalidates a selection of basic blocks.
     void InvalidateBasicBlocks(const tsl::robin_set<IR::LocationDescriptor>& locations);
 
+    /// Guards the block maps when several cores share this code: held shared for lookups and
+    /// exclusive to compile, link, invalidate or handle a fastmem fault.
+    std::shared_mutex cache_mutex;
+
 protected:
     // Microinstruction emitters
 #define OPCODE(name, type, ...) void Emit##name(EmitContext& ctx, IR::Inst* inst);
@@ -194,7 +199,7 @@ protected:
         std::vector<CodePtr> jmp;
         std::vector<CodePtr> mov_rcx;
     };
-    void Patch(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr);
+    virtual void Patch(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr);
     virtual void Unpatch(const IR::LocationDescriptor& target_desc);
     virtual void EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr = nullptr) = 0;
     virtual void EmitPatchJz(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr = nullptr) = 0;
