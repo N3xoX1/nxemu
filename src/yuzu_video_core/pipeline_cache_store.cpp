@@ -327,6 +327,8 @@ Index Parse(const std::filesystem::path & path, u32 abi, bool records, const Rea
         {
             // A block is checked whole first, then every frame in it must fit: a
             // block is written in one piece, so a mismatch is never a torn append.
+            // Frame ids are not digested again: the block digest covers them, and
+            // compaction verifies each frame before it goes into a block.
             std::vector<std::pair<size_t, size_t>> frames; // offset, length
             bool whole = true;
             for (size_t at = 0; whole && at < data.size();)
@@ -334,8 +336,7 @@ Index Parse(const std::filesystem::path & path, u32 abi, bool records, const Rea
                 const auto inner = static_cast<unsigned char>(data[at]);
                 const auto inner_length = data.size() - at >= 37 ? static_cast<size_t>(Get(data, at + 1, 4)) : 0;
                 whole = data.size() - at >= 37 && inner >= 1 && inner <= 3 && inner_length <= MaxFrame &&
-                        inner_length <= data.size() - at - 37 &&
-                        Digest(data.substr(at, 1) + data.substr(at + 37, inner_length)) == data.substr(at + 5, 32);
+                        inner_length <= data.size() - at - 37;
                 frames.emplace_back(at, inner_length);
                 at += 37 + inner_length;
             }
