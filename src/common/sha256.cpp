@@ -38,6 +38,44 @@
 #include <cstring>
 #include <fstream>
 
+// The CPU's own SHA-256 instructions (x86 SHA-NI, ARMv8 SHA2) when the host has
+// them. They are plain instructions in this file: no system or crypto library.
+#if defined(_M_X64) || defined(__x86_64__)
+#define SHA256_X86
+#include <immintrin.h>
+#ifdef _MSC_VER
+#include <intrin.h>
+#else
+#include <cpuid.h>
+#endif
+#if defined(__GNUC__) || defined(__clang__)
+#define SHA256_X86_TARGET __attribute__((target("sha,sse4.1,ssse3")))
+#else
+#define SHA256_X86_TARGET
+#endif
+#elif defined(__aarch64__) && (defined(__APPLE__) || defined(__linux__))
+#if defined(__ARM_FEATURE_SHA2) || defined(__ARM_FEATURE_CRYPTO)
+#define SHA256_ARM64
+#define SHA256_ARM64_TARGET
+#elif defined(__clang__) && __clang_major__ >= 18
+// Older clang only declares the SHA2 intrinsics when the whole file is built for them.
+#define SHA256_ARM64
+#define SHA256_ARM64_TARGET __attribute__((target("sha2")))
+#elif defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 10
+#define SHA256_ARM64
+#define SHA256_ARM64_TARGET __attribute__((target("+crypto")))
+#endif
+#ifdef SHA256_ARM64
+#include <arm_neon.h>
+#ifdef __linux__
+#include <sys/auxv.h>
+#ifndef HWCAP_SHA2
+#define HWCAP_SHA2 (1 << 6)
+#endif
+#endif
+#endif
+#endif
+
 #define SHA2_SHFR(x, n) (x >> n)
 #define SHA2_ROTR(x, n) ((x >> n) | (x << ((sizeof(x) << 3) - n)))
 #define SHA2_ROTL(x, n) ((x << n) | (x >> ((sizeof(x) << 3) - n)))
@@ -77,8 +115,137 @@ const unsigned int SHA256::sha256_k[64] = //UL = uint32
      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
      0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
 
+#if defined(SHA256_X86)
+static bool HasShaInstructions()
+{
+#ifdef _MSC_VER
+    int info[4];
+    __cpuid(info, 0);
+    if (info[0] < 7)
+    {
+        return false;
+    }
+    __cpuid(info, 1);
+    const bool ssse3_sse41 = (info[2] & (1 << 9)) != 0 && (info[2] & (1 << 19)) != 0;
+    __cpuidex(info, 7, 0);
+    return ssse3_sse41 && (info[1] & (1 << 29)) != 0;
+#else
+    unsigned int eax, ebx, ecx, edx;
+    if (__get_cpuid_max(0, nullptr) < 7 || !__get_cpuid(1, &eax, &ebx, &ecx, &edx))
+    {
+        return false;
+    }
+    const bool ssse3_sse41 = (ecx & (1u << 9)) != 0 && (ecx & (1u << 19)) != 0;
+    __cpuid_count(7, 0, eax, ebx, ecx, edx);
+    return ssse3_sse41 && (ebx & (1u << 29)) != 0;
+#endif
+}
+
+// State is kept as ABEF/CDGH, the order SHA256RNDS2 works on.
+SHA256_X86_TARGET static void TransformSha(uint32_t * state, const uint32_t * k, const unsigned char * message, size_t block_nb)
+{
+    const __m128i mask = _mm_set_epi64x(0x0c0d0e0f08090a0bULL, 0x0405060700010203ULL);
+    __m128i tmp = _mm_shuffle_epi32(_mm_loadu_si128((const __m128i *)&state[0]), 0xB1);
+    __m128i state1 = _mm_shuffle_epi32(_mm_loadu_si128((const __m128i *)&state[4]), 0x1B);
+    __m128i state0 = _mm_alignr_epi8(tmp, state1, 8);
+    state1 = _mm_blend_epi16(state1, tmp, 0xF0);
+    // Four rounds per step. msg0-3 hold the last four schedule words, and a step
+    // finishes the next words and starts those three steps ahead. Written out in
+    // full: MSVC keeps a loop's message words in memory, about 30% slower.
+#define SHA256_ROUNDS(i, words)                                                    \
+    wk = _mm_add_epi32(words, _mm_loadu_si128((const __m128i *)&k[4 * (i)]));      \
+    state1 = _mm_sha256rnds2_epu32(state1, state0, wk);                            \
+    state0 = _mm_sha256rnds2_epu32(state0, state1, _mm_shuffle_epi32(wk, 0x0E))
+#define SHA256_FINISH(next, words, previous) \
+    next = _mm_sha256msg2_epu32(_mm_add_epi32(next, _mm_alignr_epi8(words, previous, 4)), words)
+#define SHA256_START(previous, words) previous = _mm_sha256msg1_epu32(previous, words)
+    for (size_t block = 0; block < block_nb; block++, message += 64)
+    {
+        const __m128i abef = state0, cdgh = state1;
+        __m128i wk;
+        __m128i msg0 = _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(message + 0)), mask);
+        __m128i msg1 = _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(message + 16)), mask);
+        __m128i msg2 = _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(message + 32)), mask);
+        __m128i msg3 = _mm_shuffle_epi8(_mm_loadu_si128((const __m128i *)(message + 48)), mask);
+        SHA256_ROUNDS(0, msg0);
+        SHA256_ROUNDS(1, msg1); SHA256_START(msg0, msg1);
+        SHA256_ROUNDS(2, msg2); SHA256_START(msg1, msg2);
+        SHA256_ROUNDS(3, msg3); SHA256_FINISH(msg0, msg3, msg2); SHA256_START(msg2, msg3);
+        SHA256_ROUNDS(4, msg0); SHA256_FINISH(msg1, msg0, msg3); SHA256_START(msg3, msg0);
+        SHA256_ROUNDS(5, msg1); SHA256_FINISH(msg2, msg1, msg0); SHA256_START(msg0, msg1);
+        SHA256_ROUNDS(6, msg2); SHA256_FINISH(msg3, msg2, msg1); SHA256_START(msg1, msg2);
+        SHA256_ROUNDS(7, msg3); SHA256_FINISH(msg0, msg3, msg2); SHA256_START(msg2, msg3);
+        SHA256_ROUNDS(8, msg0); SHA256_FINISH(msg1, msg0, msg3); SHA256_START(msg3, msg0);
+        SHA256_ROUNDS(9, msg1); SHA256_FINISH(msg2, msg1, msg0); SHA256_START(msg0, msg1);
+        SHA256_ROUNDS(10, msg2); SHA256_FINISH(msg3, msg2, msg1); SHA256_START(msg1, msg2);
+        SHA256_ROUNDS(11, msg3); SHA256_FINISH(msg0, msg3, msg2); SHA256_START(msg2, msg3);
+        SHA256_ROUNDS(12, msg0); SHA256_FINISH(msg1, msg0, msg3); SHA256_START(msg3, msg0);
+        SHA256_ROUNDS(13, msg1); SHA256_FINISH(msg2, msg1, msg0);
+        SHA256_ROUNDS(14, msg2); SHA256_FINISH(msg3, msg2, msg1);
+        SHA256_ROUNDS(15, msg3);
+        state0 = _mm_add_epi32(state0, abef);
+        state1 = _mm_add_epi32(state1, cdgh);
+    }
+#undef SHA256_ROUNDS
+#undef SHA256_FINISH
+#undef SHA256_START
+    tmp = _mm_shuffle_epi32(state0, 0x1B);
+    state1 = _mm_shuffle_epi32(state1, 0xB1);
+    _mm_storeu_si128((__m128i *)&state[0], _mm_blend_epi16(tmp, state1, 0xF0));
+    _mm_storeu_si128((__m128i *)&state[4], _mm_alignr_epi8(state1, tmp, 8));
+}
+#elif defined(SHA256_ARM64)
+static bool HasShaInstructions()
+{
+#ifdef __APPLE__
+    return true; // Every Apple ARM64 CPU has them.
+#else
+    return (getauxval(AT_HWCAP) & HWCAP_SHA2) != 0;
+#endif
+}
+
+SHA256_ARM64_TARGET static void TransformSha(uint32_t * state, const uint32_t * k, const unsigned char * message, size_t block_nb)
+{
+    uint32x4_t state0 = vld1q_u32(&state[0]);
+    uint32x4_t state1 = vld1q_u32(&state[4]);
+    for (size_t block = 0; block < block_nb; block++, message += 64)
+    {
+        const uint32x4_t abcd = state0, efgh = state1;
+        uint32x4_t msg[4];
+        for (int i = 0; i < 4; i++)
+        {
+            msg[i] = vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(message + 16 * i)));
+        }
+        for (int i = 0; i < 16; i++)
+        {
+            const uint32x4_t words = msg[i & 3];
+            const uint32x4_t wk = vaddq_u32(words, vld1q_u32(&k[4 * i]));
+            if (i < 12)
+            {
+                msg[i & 3] = vsha256su1q_u32(vsha256su0q_u32(words, msg[(i + 1) & 3]), msg[(i + 2) & 3], msg[(i + 3) & 3]);
+            }
+            const uint32x4_t previous = state0;
+            state0 = vsha256hq_u32(state0, state1, wk);
+            state1 = vsha256h2q_u32(state1, previous, wk);
+        }
+        state0 = vaddq_u32(state0, abcd);
+        state1 = vaddq_u32(state1, efgh);
+    }
+    vst1q_u32(&state[0], state0);
+    vst1q_u32(&state[4], state1);
+}
+#endif
+
 void SHA256::transform(const unsigned char * message, size_t block_nb)
 {
+#if defined(SHA256_X86) || defined(SHA256_ARM64)
+    static const bool sha_instructions = HasShaInstructions();
+    if (sha_instructions)
+    {
+        TransformSha(m_h, sha256_k, message, block_nb);
+        return;
+    }
+#endif
     uint32_t w[64];
     uint32_t wv[8];
     uint32_t t1, t2;
@@ -145,7 +312,7 @@ void SHA256::update(const unsigned char * message, size_t len)
     memcpy(&m_block[m_len], message, rem_len);
     if (m_len + len < SHA224_256_BLOCK_SIZE)
     {
-        m_len += len;
+        m_len += (unsigned int)len;
         return;
     }
     new_len = len - rem_len;
@@ -155,13 +322,13 @@ void SHA256::update(const unsigned char * message, size_t len)
     transform(shifted_message, block_nb);
     rem_len = new_len % SHA224_256_BLOCK_SIZE;
     memcpy(m_block, &shifted_message[block_nb << 6], rem_len);
-    m_len = rem_len;
-    m_tot_len += (block_nb + 1) << 6;
+    m_len = (unsigned int)rem_len;
+    m_tot_len += (uint64_t)(block_nb + 1) << 6;
 }
 
 void SHA256::final(unsigned char * digest)
 {
-    size_t block_nb;
+    unsigned int block_nb;
     unsigned int pm_len;
     uint64_t len_b;
     int i;
@@ -170,8 +337,8 @@ void SHA256::final(unsigned char * digest)
     pm_len = block_nb << 6;
     memset(m_block + m_len, 0, pm_len - m_len);
     m_block[m_len] = 0x80;
-    SHA2_UNPACK32(len_b >> 32, m_block + pm_len - 8);
-    SHA2_UNPACK32(len_b, m_block + pm_len - 4);
+    SHA2_UNPACK32((uint32_t)(len_b >> 32), m_block + pm_len - 8);
+    SHA2_UNPACK32((uint32_t)len_b, m_block + pm_len - 4);
     transform(m_block, block_nb);
     for (i = 0; i < 8; i++)
     {

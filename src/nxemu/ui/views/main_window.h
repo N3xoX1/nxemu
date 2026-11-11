@@ -4,6 +4,7 @@
 #include "controller_dialog.h"
 #include "directories_dialog.h"
 #include "firmware_dialog.h"
+#include "shader_import_dialog.h"
 #include "shader_profile_dialog.h"
 #include "general_dialog.h"
 #include "game_details_panel.h"
@@ -102,12 +103,10 @@ private:
         StartMenuGame,
         ExportMenuGameShaders,
         ImportMenuGameShaders,
-        OpenShaderProfileDirectory,
         OpenMenuGameDirectory,
         CopyMenuGamePath,
         ConfigureMenuGame,
         OpenMenuGameSaves,
-        OpenMenuGameCache,
         ClearMenuGameCache,
         ResetVolumeOverrides,
         SetDockedMode,
@@ -152,6 +151,7 @@ private:
     void OnModulesReady(bool gameStarting) override;
     void OnGameStarted(const std::string & path) override;
     void OnSessionError(const std::string & message) override;
+    void OnShaderImportFinished(const std::string & error) override;
 
     void Post(Action action);
     void RunPendingWork();
@@ -245,6 +245,7 @@ private:
     SettingsContext m_settingsContext;
     std::unique_ptr<AboutDialog> m_aboutDialog;
     std::unique_ptr<FirmwareDialog> m_firmwareDialog;
+    std::unique_ptr<ShaderImportDialog> m_shaderImportDialog;
     std::unique_ptr<ShaderProfileDialog> m_shaderProfileDialog;
     std::string m_firmwareVersion;
     std::string m_firmwareOfferedFor;

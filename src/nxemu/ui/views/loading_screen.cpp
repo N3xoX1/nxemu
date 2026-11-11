@@ -1,4 +1,5 @@
 #include "loading_screen.h"
+#include "load_stage.h"
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/StringUtilities.h>
 #include <algorithm>
@@ -10,16 +11,6 @@
 
 namespace
 {
-enum class LoadStage
-{
-    Game = 0,
-    Shaders = 1,
-    Launch = 2,
-    ReadProfile = 3,
-    ImportProfile = 4,
-    BuildProfile = 5,
-};
-
 constexpr int kIndeterminate = -1;
 constexpr const char * kUnnamed = TrMark("Loading");
 constexpr const char * kOpening = TrMark("Opening the game...");
@@ -98,8 +89,10 @@ void LoadingScreen::Update()
     const int current = settings.GetInt(NXCoreSetting::DiskCacheLoadCurrent);
     const int total = settings.GetInt(NXCoreSetting::DiskCacheLoadTotal);
     const bool compiling = stage == LoadStage::Shaders || stage == LoadStage::BuildProfile;
-    SetText("loading-hint", compiling ?
-        Tr("This may take a few minutes. Compiled shaders are cached to speed up future launches.") : "");
+    std::string hint = compiling ? Tr("This may take a few minutes. Compiled shaders are cached to speed up future launches.") : "";
+    if (settings.GetBool(NXCoreSetting::ShaderRecordingOff))
+        hint += (hint.empty() ? "" : " ") + Tr("Shaders are not recorded while mods or cheats are active.");
+    SetText("loading-hint", hint);
     std::string remaining;
     if (compiling)
     {
@@ -122,9 +115,9 @@ void LoadingScreen::Update()
     if (stage == LoadStage::Shaders || stage == LoadStage::ReadProfile ||
         stage == LoadStage::ImportProfile || stage == LoadStage::BuildProfile)
     {
-        const char* label = stage == LoadStage::ReadProfile ? TrMark("Reading and verifying NXShader") :
-                            stage == LoadStage::ImportProfile ? TrMark("Importing NXShader") :
-                            stage == LoadStage::BuildProfile ? TrMark("Compiling NXShader") : TrMark("Preparing shaders");
+        const char* label = stage == LoadStage::ReadProfile ? TrMark("Reading and verifying shaders") :
+                            stage == LoadStage::ImportProfile ? TrMark("Importing shaders") :
+                            stage == LoadStage::BuildProfile ? TrMark("Compiling imported shaders") : TrMark("Preparing shaders");
         SetStatus(Tr(label), total > 0 ? std::to_string(std::clamp(current, 0, total)) + " / " + std::to_string(total) : "");
         SetProgress(total > 0 ? static_cast<int>(100.0 * std::clamp(current, 0, total) / total) : kIndeterminate);
     }

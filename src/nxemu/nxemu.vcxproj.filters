@@ -259,6 +259,9 @@
     <ClCompile Include="ui\views\directories_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
+    <ClCompile Include="ui\views\shader_import_dialog.cpp">
+      <Filter>Source Files\ui\views</Filter>
+    </ClCompile>
     <ClCompile Include="ui\views\shader_profile_dialog.cpp">
       <Filter>Source Files\ui\views</Filter>
     </ClCompile>
@@ -394,6 +397,9 @@
     <ClInclude Include="ui\views\directories_dialog.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
+    <ClInclude Include="ui\views\shader_import_dialog.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
     <ClInclude Include="ui\views\shader_profile_dialog.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
@@ -401,6 +407,9 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\hotkeys.h">
+      <Filter>Header Files\ui\views</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\views\load_stage.h">
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\views\loading_screen.h">

@@ -42,8 +42,24 @@ static void RaiseOpenFileLimit()
 }
 #endif
 
+#ifdef _WIN32
+// SDL tags each window with a "SDL_WindowData" property, whose global atom is
+// deleted again when the last window closes. Windows hands a freed atom slot
+// to the free list of whichever CPU freed it, so every start and exit moves a
+// slot between CPUs; after enough runs some CPUs have none left and SetProp,
+// and with it window creation, fails on them until the next logon. Holding a
+// reference that is never released keeps the atom alive across runs.
+static void PinSdlWindowAtom()
+{
+    GlobalAddAtomW(L"SDL_WindowData");
+}
+#endif
+
 static int RunApplication(int argc, char ** argv)
 {
+#ifdef _WIN32
+    PinSdlWindowAtom();
+#endif
 #ifdef __APPLE__
     RaiseOpenFileLimit();
 #endif

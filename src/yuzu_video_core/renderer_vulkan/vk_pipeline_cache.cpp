@@ -59,6 +59,9 @@
 #include "yuzu_video_core/shader_profile_metrics.h"
 #include "yuzu_video_core/shader_profile_candidate_budget.h"
 #include "yuzu_video_core/shader_profile_export.h"
+#include "yuzu_video_core/shader_profile_compact.h"
+#include "yuzu_video_core/shader_profile_codec.h"
+#include "yuzu_video_core/shader_profile_discovery.h"
 #include "yuzu_video_core/shader_profile_hash.h"
 #include "yuzu_video_core/shader_profile_validation.h"
 #include "yuzu_video_core/shader_profile_identity.h"
@@ -1083,11 +1086,13 @@ ComputePipeline* PipelineCache::CurrentComputePipeline() {
 }
 
 void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
-                                      const VideoCore::DiskResourceLoadCallback& callback, std::string_view content_identity, [[maybe_unused]] std::string_view game_path, std::string_view game_context) {
+                                      const VideoCore::DiskResourceLoadCallback& callback, std::string_view content_identity, [[maybe_unused]] std::string_view game_path, std::string_view game_context, VideoCore::ShaderImportRequest* import) {
     namespace Timing = VideoCommon::ShaderProfile::Timing;
     // The default retains the existing complete, blocking prewarm on every OS.
+    // An import session builds everything before it stops: the game never runs.
+    const bool importing = import && !import->file.empty();
     const char* progressive_opt = std::getenv("NXEMU_NXSHADER_PROGRESSIVE");
-    const bool progressive_mode = progressive_opt ? ProgressiveWarmupEnabled(progressive_opt) : videoSettings.nxshader_warmup_mode == 1;
+    const bool progressive_mode = !importing && (progressive_opt ? ProgressiveWarmupEnabled(progressive_opt) : videoSettings.nxshader_warmup_mode == 1);
     InitialWarmupBudget initial_budget(progressive_mode,
         InitialWarmupBudget::ParseOption(std::getenv("NXEMU_NXSHADER_INITIAL_MIN"),
             std::clamp(videoSettings.nxshader_initial_minimum,0,8192),8192),
@@ -1465,20 +1470,24 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         std::filesystem::rename(temporary,target);
 #endif
     };
-    const auto profile_directory=VideoCommon::ShaderProfile::ProfileDirectory(
-        Common::FS::GetYuzuPath(Common::FS::YuzuPath::YuzuDir));
-    // A failure to create the drop folder must not prevent normal startup.
-    if(!Common::FS::CreateDir(profile_directory))
-        LOG_WARNING(Render_Vulkan,"Cannot create NXShader profile directory");
-    // Profiles are verified/projected only during startup. Explicit CLI input wins.
+    // Shader files enter the cache only through an import session (or the CLI):
+    // a normal start loads the cache and reads no shader file.
     std::string import_path,import_root,import_stamp,integration_stamp,selection_request,recipe_scope;
     JsonValue integrated;
     std::map<std::string,std::string> reusable_recipes;
-    const bool explicit_profile_request=[] {const char* p=std::getenv("NXEMU_IMPORT_NXSHADER");return p && *p;}();
-    if(const char* option=std::getenv("NXEMU_IMPORT_NXSHADER");option && *option)import_path=option;
+    const bool explicit_profile_request=importing || [] {const char* p=std::getenv("NXEMU_IMPORT_NXSHADER");return p && *p;}();
+    if(importing)import_path=import->file;
+    else if(const char* option=std::getenv("NXEMU_IMPORT_NXSHADER");option && *option)import_path=option;
     if(const char* option=std::getenv("NXEMU_SHADER_GAME_ROOT");option && *option)import_root=option;
     try {
-
+#ifdef ANDROID
+        // Android has no import yet: it still finds profiles dropped in the profile
+        // folder or next to the game, and the one an import selected.
+        const auto profile_directory=VideoCommon::ShaderProfile::ProfileDirectory(
+            Common::FS::GetYuzuPath(Common::FS::YuzuPath::YuzuDir));
+        // A failure to create the drop folder must not prevent normal startup.
+        if(!Common::FS::CreateDir(profile_directory))
+            LOG_WARNING(Render_Vulkan,"Cannot create NXShader profile directory");
         if(import_path.empty() && !game_path.empty() && !capture_context.empty()) {
             // A dropped title-named profile takes precedence over an older GUI selection.
             const auto dropped=VideoCommon::ShaderProfile::FindProfileForContext(
@@ -1502,6 +1511,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 {std::filesystem::u8path(game_path).parent_path()},title_id,game_context);
             if(!profile.empty())import_path=Common::FS::PathToUTF8String(profile);
         }
+#endif
         // Always resolve automatic profiles against the currently launched local game.
         if(import_root.empty() && !game_path.empty())
             import_root=Common::FS::PathToUTF8String(std::filesystem::u8path(game_path).parent_path());
@@ -1511,7 +1521,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             dynamic_features.has_extended_dynamic_state_2_extra,dynamic_features.has_extended_dynamic_state_3_blend,
             dynamic_features.has_extended_dynamic_state_3_enables,dynamic_features.has_dynamic_vertex_input,
             dynamic_features.has_vertex_stride_workaround})flags|=u32(feature)<<bit++;
-        const auto profile_hash=VideoCommon::ShaderProfile::ResourceSha256(read_small(std::filesystem::u8path(import_path),VideoCommon::ShaderProfile::MaxProfileFileBytes));
+        const auto profile_bytes=read_small(std::filesystem::u8path(import_path),VideoCommon::ShaderProfile::MaxProfileFileBytes);
+        // A file people chose is refused by name when it is not a shader file.
+        if(importing && !profile_bytes.starts_with("NXSHADR2"))throw std::runtime_error("Expected a compressed NXShader profile");
+        const auto profile_hash=VideoCommon::ShaderProfile::ResourceSha256(profile_bytes);
         import_stamp=VideoCommon::ShaderProfile::ImportIdentity(profile_hash,content_identity,title_id,flags,CACHE_VERSION);
         integration_stamp=import_stamp.empty()?VideoCommon::ShaderProfile::ResourceSha256(
             "local-unidentified-integration-1:"+profile_hash+":"+std::to_string(title_id)+":"+std::to_string(flags)+":"+std::to_string(CACHE_VERSION)):import_stamp;
@@ -1520,7 +1533,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             if(std::filesystem::exists(VideoCommon::ShaderProfile::ImportIntegratedPath(base_dir)))
                 integrated=VideoCommon::ShaderProfile::ParseMetadata(read_small(VideoCommon::ShaderProfile::ImportIntegratedPath(base_dir),16*1024*1024),16*1024*1024);
         } catch(const std::exception&) { /* No trusted receipt; known content can be revalidated. */ }
-        if(cached_store_valid) reusable_recipes=VideoCommon::ShaderProfile::ReusableRecipeRecords(integrated,recipe_scope,cached_record_ids);
+        // An import reads every recipe, so each one also reaches the version's imported
+        // journal; the store keeps one copy of a record it already has.
+        if(cached_store_valid && !importing) reusable_recipes=VideoCommon::ShaderProfile::ReusableRecipeRecords(integrated,recipe_scope,cached_record_ids);
         const bool present=cached_store_valid && VideoCommon::ShaderProfile::IntegratedRecordsPresent(
             integrated,integration_stamp,selection_request,cached_record_ids);
         std::string applied_selection=integrated["selection"].asString();
@@ -1532,7 +1547,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     applied_selection=attempted["selection"].asString();
             }
         } catch(const std::exception&) { /* An invalid attempt receipt never proves integration. */ }
-        if(!VideoCommon::ShaderProfile::ShouldReconstructProfile(!content_identity.empty(),explicit_profile_request,present,
+        if(!importing && !VideoCommon::ShaderProfile::ShouldReconstructProfile(!content_identity.empty(),explicit_profile_request,present,
             selection_request,applied_selection)) {
             if(!present && content_identity.empty())
                 LOG_WARNING(Render_Vulkan,"Content identity unknown: retaining local cache without automatic profile reconstruction; explicitly select the profile to retry");
@@ -1544,7 +1559,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             publish_metadata(VideoCommon::ShaderProfile::ImportAttemptedPath(base_dir),attempted);
         }
         }
-    } catch(const std::exception& error){LOG_WARNING(Render_Vulkan,"Community profile selection rejected: {}",error.what());import_path.clear();}
+    } catch(const std::exception& error){
+        LOG_WARNING(Render_Vulkan,"Community profile selection rejected: {}",error.what());import_path.clear();
+        if(importing)import->error=error.what();
+    }
     // Cache records and imported recipes share immutable byte strings. Validate
     // each distinct environment once; pipelines keep the bytes until they are built.
     std::unordered_map<const void*, StoredEnvironment> decoded_environments;
@@ -1644,6 +1662,15 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 publish_metadata(VideoCommon::ShaderProfile::ImportIntegratedPath(base_dir),receipt);
             };
             size_t imported{};
+            // The guest state of each imported recipe, by version: the cache keeps only keys projected for
+            // this GPU, and export rebuilds recipes from guest state. Only identified versions export.
+            using JournalEntry = VideoCommon::ShaderProfile::Journal::Entry;
+            std::map<std::string,std::vector<JournalEntry>> imported_entries;
+            const auto feature_bits=GuestPipelineRecorder::FeatureBits(dynamic_features);
+            // Imports describe the game's own files: with ExeFS patches or cheats, recipes trusted by
+            // their key belong to the game's version, so they export and load without the mods too.
+            const std::string import_context=!capture_context.empty() && VideoCommon::ShaderProfile::ValidContext(game_context)
+                ? std::string(game_context) : cache_context;
             VideoCommon::CacheStore::AppendSession append_session;
             // Each receipt lists every record so far, so writing one per fixed number of recipes grows with the
             // square of the import. It only saves an interrupted import from repeating work: a few seconds is fine.
@@ -1660,6 +1687,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 environment_timer.Stop();
                 VideoCommon::CacheStore::Record record;
                 record.environments = recipe.environments;
+                JournalEntry entry{};
                 Timing::Timer projection_timer(state.timings.get(), Timing::Phase::GuestProjection);
                 if (recipe.compute) {
                     ComputePipelineCacheKey key{};
@@ -1669,7 +1697,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     key.cbuf_sizes = recipe.compute_cbuf_sizes;
                     key.texture_table_size = recipe.texture_table_size;
                     record.key.assign(reinterpret_cast<const char*>(&key), sizeof(key));
-
+                    static_assert(sizeof(key) == VideoCommon::ShaderProfile::Journal::ComputeWords * sizeof(u32));
+                    entry[0] = VideoCommon::ShaderProfile::Journal::ComputeFlag;
+                    std::memcpy(entry.data() + 1, &key, sizeof(key));
                 } else {
                     const auto guest = GuestPipelineState::FromWords(recipe.guest_words);
                     if (!guest) throw std::runtime_error("Unsupported nxshader guest pipeline state");
@@ -1679,18 +1709,25 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     key.texture_pool = recipe.texture_pool;
                     key.state = guest->Project(dynamic_features);
                     record.key.assign(reinterpret_cast<const char*>(&key), sizeof(key));
-
+                    // Feature bits, the guest words, then the key up to its projected state.
+                    const auto words = guest->Words();
+                    entry[0] = feature_bits;
+                    std::copy_n(words.begin(), GuestPipelineState::WordCount, entry.begin() + 1);
+                    std::memcpy(entry.data() + 1 + GuestPipelineState::WordCount, &key,
+                                (entry.size() - 1 - GuestPipelineState::WordCount) * sizeof(u32));
                 }
                 projection_timer.Stop();
                 std::string id;
                 Timing::Measure(state.timings.get(), Timing::Phase::CacheAppend, [&] {
                     VideoCommon::CacheStore::Append(pipeline_cache_filename, CACHE_VERSION, record, &id,
-                        recipe.requires_validation ? recipe.source_context : cache_context,
+                        recipe.requires_validation ? recipe.source_context : import_context,
                         !recipe.requires_validation && recipe.synthetic);
                     newly_loaded_ids.insert(id);
                     recipe_records[recipe.identity]=id;
                     imported_record_ids.insert(id);
                 });
+                if (!capture_context.empty())
+                    imported_entries[recipe.requires_validation ? recipe.source_context : import_context].push_back(entry);
                 // One record from a synthetic and a recorded recipe holds the same environments: it is recorded.
                 if(!recipe.synthetic)recorded_ids.insert(id);
                 if(recipe.synthetic && !recorded_ids.contains(id))synthetic_ids.insert(id);
@@ -1709,9 +1746,63 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     last_receipt=std::chrono::steady_clock::now();
                 }
             }
+            for (const auto& [context, entries] : imported_entries) {
+                try {
+                    // Each entry once, within the recipe limit of a version.
+                    const auto path = VideoCommon::ShaderProfile::ImportedRecordingPath(
+                        VideoCommon::ShaderProfile::VersionDirectory(base_dir, context));
+                    auto saved = VideoCommon::ShaderProfile::Journal::Read(path);
+                    if (saved.incomplete_tail) std::filesystem::resize_file(path, saved.valid_bytes);
+                    std::unordered_set<JournalEntry, VideoCommon::ShaderProfile::Journal::EntryHash> known(saved.entries.begin(), saved.entries.end());
+                    std::vector<JournalEntry> added;
+                    for (const auto& entry : entries)
+                        if (known.size() < VideoCommon::ShaderProfile::Journal::MaxEntries && known.insert(entry).second) added.push_back(entry);
+                    VideoCommon::ShaderProfile::Journal::AppendBatch(path, added);
+                } catch (const std::exception& error) {
+                    LOG_WARNING(Render_Vulkan, "Imported recipes cannot be exported again: {}", error.what());
+                }
+            }
+            if (!imported_entries.empty()) {
+                // Where the file found each program, so exporting does not search the game again.
+                try {
+                    const auto decoded = VideoCommon::ShaderProfile::DecodeCompact(VideoCommon::ShaderProfile::Unpack(
+                        read_small(std::filesystem::u8path(import_path), VideoCommon::ShaderProfile::MaxProfileFileBytes)), title_id);
+                    // Other versions get only the numbers the file gives: they name the version and its exports.
+                    for (const auto& [context, entries] : imported_entries) {
+                        if (context == game_context || !decoded["versions"].isMember(context)) continue;
+                        const auto& numbers = decoded["versions"][context];
+                        try {
+                            if (const auto version = VideoCommon::ShaderProfile::ImportedVersion(title_id, context,
+                                    numbers["base"].asString(), numbers["update"].asString()); !version.isNull())
+                                VideoCommon::ShaderProfile::SaveImportedVersion(base_dir, version);
+                        } catch (const std::exception& error) {
+                            LOG_WARNING(Render_Vulkan, "Imported version not named: {}", error.what());
+                        }
+                    }
+                    const auto& shaders = decoded["shaders"];
+                    std::map<std::string, JsonValue> references;
+                    std::unordered_set<const void*> seen_programs;
+                    for (const auto& recipe : recipes) for (const auto& env : recipe.environments) {
+                        if (!env.ProgramIdentity() || !seen_programs.insert(env.ProgramIdentity()).second) continue;
+                        const auto& code = env.ProgramBytes();
+                        for (const auto hash : VideoCommon::ShaderProfile::ProgramHashCandidates(code)) {
+                            const auto key = VideoCommon::ShaderProfile::ProgramKey(hash, code.size());
+                            if (!hash || !shaders.isMember(key) || shaders[key]["references"].empty()) continue;
+                            references.emplace(VideoCommon::ShaderProfile::ResourceSha256(code), shaders[key]["references"][int32_t{0}]);
+                            break;
+                        }
+                    }
+                    for (const auto& [context, entries] : imported_entries)
+                        VideoCommon::ShaderProfile::SeedDiscoveryIndex(
+                            VideoCommon::ShaderProfile::VersionDirectory(base_dir, context) / "export-index.json", references);
+                } catch (const std::exception& error) {
+                    LOG_WARNING(Render_Vulkan, "Shader locations of the import not kept; export will search the game: {}", error.what());
+                }
+            }
             if (imported==recipes.size() && !stop_loading.stop_requested()) {
                 publish_integration(true);
                 import_records_ready=true;
+                if (importing) import->imported = true;
             } else if (!recipe_records.empty()) publish_integration(false);
             import_unresolved=unresolved_count;imported_records=imported;
             LOG_INFO(Render_Vulkan, "NXShader imported {} recipes; reused={} skipped={} missing_resources={} incompatible_resources={} incompatible_contexts={}",
@@ -1721,6 +1812,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         } catch (const std::exception& error) {
             state.build_stage=VideoCore::LoadCallbackStage::Build;
             LOG_ERROR(Render_Vulkan, "NXShader import failed: {}", error.what());
+            if (importing) import->error = error.what();
             callback(VideoCore::LoadCallbackStage::Prepare,0,0);
         }
     }
@@ -1741,6 +1833,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             // Records of synthetic recipes belong to the version too; recorded beats generated for one record.
             for (auto& id : VideoCommon::CacheStore::ReadContext(pipeline_cache_filename,cache_context,true))
                 if (!contextual_ids.contains(id)) { synthetic_ids.insert(id); contextual_ids.insert(std::move(id)); }
+            // With ExeFS patches or cheats, the game's synthetic records too: they are trusted by
+            // their key in any context, and their first draw checks them.
+            if (!capture_context.empty() && cache_context != game_context && VideoCommon::ShaderProfile::ValidContext(game_context))
+                for (auto& id : VideoCommon::CacheStore::ReadContext(pipeline_cache_filename,std::string(game_context),true))
+                    if (!contextual_ids.contains(id)) { synthetic_ids.insert(id); contextual_ids.insert(std::move(id)); }
             if (!progressive_mode && !capture_context.empty()) {
                 // A second start of an update must not hide the other local
                 // versions. Keep their entries as guarded candidates on every

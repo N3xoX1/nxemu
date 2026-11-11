@@ -36,6 +36,7 @@ private:
     void GetMaskedSupportedNpadStyleSet(HLERequestContext& ctx);
     void SetSupportedNpadStyleSetAll(HLERequestContext& ctx);
     void GetNpadCaptureButtonAssignment(HLERequestContext& ctx);
+    void GetAppletFooterUiType(HLERequestContext& ctx);
     void GetAppletDetailedUiType(HLERequestContext& ctx);
     void GetNpadInterfaceType(HLERequestContext& ctx);
     void GetNpadLeftRightInterfaceType(HLERequestContext& ctx);

@@ -1114,7 +1114,8 @@ Parsed Parse(std::string_view payload, u64 title_id)
     Reader in{payload};
     const auto magic = in.Take(8);
     const bool origins = magic == "NXSHBIN2";
-    Check((origins || magic == "NXSHBIN1") && in.Fixed(8) == title_id, "Compact title/version mismatch");
+    Check(origins || magic == "NXSHBIN1", "Shader file made by a newer version");
+    Check(in.Fixed(8) == title_id, "Shader file for a different game");
     parsed.label = in.Text();
     parsed.revision = in.Text(MaxRevision);
     parsed.note = in.Text(MaxNote);

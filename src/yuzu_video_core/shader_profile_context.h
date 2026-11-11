@@ -48,7 +48,7 @@ inline std::string FilenamePart(std::string name) {
 // Local cache layout of one title:
 //   vulkan.nxc                    pipelines shared by every version
 //   versions/<label> (<id>)/      one recorded game version, <id> = 12 hex of its context
-//     version.json  recipes.nxr  vulkan.idx  export-index.json
+//     version.json  recipes.nxr  imported.nxr  vulkan.idx  export-index.json
 //   imported/                     state of the selected shared profile
 //   warmup.json                   startup warmup failure backoff
 // The folder name is for people only. Each file inside carries or is bound to
@@ -116,7 +116,8 @@ inline std::filesystem::path VersionDirectory(const std::filesystem::path& cache
     return existing;
 }
 // The full context of a version folder, from its own files: version.json
-// (identified versions) or the pipeline index header (every version).
+// (identified versions), imported-version.json (versions of an import) or
+// the pipeline index header (every version).
 inline std::string VersionContext(const std::filesystem::path& directory) {
     const auto id = VersionId(directory);
     if (id.empty()) return {};
@@ -128,9 +129,12 @@ inline std::string VersionContext(const std::filesystem::path& directory) {
         return std::string((std::istreambuf_iterator<char>(in)), {});
     };
     std::string context;
-    const auto json = read(directory / "version.json", 16384);
     constexpr std::string_view field = "\"context\":\"";
-    if (const auto at = json.find(field); at != std::string::npos) context = json.substr(at + field.size(), 64);
+    for (const auto* name : {"version.json", "imported-version.json"}) {
+        const auto json = read(directory / name, 16384);
+        if (const auto at = json.find(field); at != std::string::npos) context = json.substr(at + field.size(), 64);
+        if (ValidContext(context)) break;
+    }
     std::error_code error;
     for (auto it = std::filesystem::directory_iterator(directory, error);
          !ValidContext(context) && !error && it != std::filesystem::directory_iterator{}; it.increment(error)) {
@@ -145,6 +149,11 @@ inline std::string VersionContext(const std::filesystem::path& directory) {
 inline std::filesystem::path RecordingPath(const std::filesystem::path& cache, std::string_view context) {
     if (!ValidContext(context)) return cache / "guest-recipes.nxr";
     return VersionDirectory(cache, context) / "recipes.nxr";
+}
+// Recipes imported for a version, in the recording's journal format. They were not played:
+// export keeps them after the recorded ones, without marking them played.
+inline std::filesystem::path ImportedRecordingPath(const std::filesystem::path& directory) {
+    return directory / "imported.nxr";
 }
 // Context of a recording, from its version folder.
 inline std::string RecordingContext(const std::filesystem::path& recording) {

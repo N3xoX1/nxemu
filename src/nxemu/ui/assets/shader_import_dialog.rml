@@ -1,0 +1,17 @@
+<rml>
+ <head><title>Import shaders</title><link type="text/rcss" href="base.rcss" /><link type="text/rcss" href="shader_profile_dialog.rcss" /></head>
+ <body class="dialog-backdrop">
+  <div class="dialog" style="width: 560dp; max-width: 90vw;">
+   <div class="dialog-header"><div class="dialog-title">Import shaders</div><div class="dialog-close" data-command="close">&#xD7;</div></div>
+   <div style="padding: 24dp;">
+    <div id="import-game" style="font-size: 18dp; margin-bottom: 16dp;" />
+    <div id="import-detail" class="profile-intro" style="margin-bottom: 12dp;" />
+    <div class="profile-progress">
+     <div id="profile-progress-fill" />
+    </div>
+    <div id="import-status" />
+   </div>
+   <div class="dialog-footer"><button id="import-close" data-command="close">Cancel</button></div>
+  </div>
+ </body>
+</rml>

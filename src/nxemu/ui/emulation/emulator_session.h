@@ -31,6 +31,8 @@ public:
         virtual void OnModulesReady(bool gameStarting) = 0;
         virtual void OnGameStarted(const std::string & path) = 0;
         virtual void OnSessionError(const std::string & message) = 0;
+        // An import session stopped; error is empty when the shaders were imported.
+        virtual void OnShaderImportFinished(const std::string & error) = 0;
 
     protected:
         ~Listener() = default;
@@ -47,6 +49,9 @@ public:
     void FlushSettings();
 
     bool LoadGame(const std::string & path);
+    // Loads the game only to import a shader file into its cache and build it, then stops.
+    bool ImportShaders(const std::string & path, const std::string & file);
+    bool ImportingShaders() const { return m_importingShaders; }
     void Stop();
     void TogglePause();
     bool IsRunning() const;
@@ -102,6 +107,7 @@ private:
     void AbortLaunch(const std::string & message);
     std::string LoadFailureMessage(const std::string & path) const;
     void ReleaseModules();
+    void EndShaderImport();
     bool ResetModules();
     void RegisterSystemCallbacks();
     void ProcessProgramEvents();
@@ -129,6 +135,7 @@ private:
     uint32_t m_viewportHeight = 0;
     bool m_releasePending = false;
     bool m_ownsGameTitle = false;
+    bool m_importingShaders = false;
 #ifdef __APPLE__
     uint64_t m_idleTrimAt = 0;
 #endif

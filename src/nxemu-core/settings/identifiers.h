@@ -17,6 +17,8 @@ enum class GpuInitializationState : int32_t
     Preparing,
     Ready,
     Failed,
+    // A shader import session: shaders are imported and built, the game never runs.
+    Finished,
 };
 
 namespace NXCoreSetting
@@ -49,6 +51,12 @@ constexpr const char * DiskCacheLoadStage = "nxcore:DiskCacheLoadStage";
 constexpr const char * DiskCacheLoadCurrent = "nxcore:DiskCacheLoadCurrent";
 constexpr const char * DiskCacheLoadTotal = "nxcore:DiskCacheLoadTotal";
 constexpr const char * DiskCacheLoadTick = "nxcore:DiskCacheLoadTick";
+// Runtime-only: a .nxshader file to import while the game loads, then stop before it runs,
+// and the reason the import failed (empty when it succeeded).
+constexpr const char * ShaderImportFile = "nxcore:ShaderImportFile";
+constexpr const char * ShaderImportError = "nxcore:ShaderImportError";
+// Runtime-only: true while ExeFS patches or cheats keep this run from recording shaders.
+constexpr const char * ShaderRecordingOff = "nxcore:ShaderRecordingOff";
 constexpr const char * GpuHookLibDir = "nxcore:GpuHookLibDir";
 constexpr const char * GpuCustomDriverDir = "nxcore:GpuCustomDriverDir";
 constexpr const char * GpuCustomDriverName = "nxcore:GpuCustomDriverName";

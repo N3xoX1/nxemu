@@ -63,6 +63,23 @@ bool EmulatorSession::LoadGame(const std::string & path)
     return LoadProgram(path, 0, -1, ApplicationLaunchType::FrontendInitiated, {});
 }
 
+bool EmulatorSession::ImportShaders(const std::string & path, const std::string & file)
+{
+    if (IsRunning())
+    {
+        ReportError(Tr("Stop the current game before importing shaders."));
+        return false;
+    }
+    if (!LoadGame(path))
+    {
+        return false;
+    }
+    // Read by the video module when emulation starts, after the launch above prepared the game.
+    m_importingShaders = true;
+    SettingsStore::GetInstance().SetString(NXCoreSetting::ShaderImportFile, file.c_str());
+    return true;
+}
+
 void EmulatorSession::Stop()
 {
     if (m_modules.IsLaunching())
@@ -139,6 +156,17 @@ void EmulatorSession::Update(bool releaseStoppedResources)
         return;
     }
     ProcessProgramEvents();
+    if (m_importingShaders && IsRunning() &&
+        SettingsStore::GetInstance().GetInt(NXCoreSetting::GpuInitializationState) == static_cast<int32_t>(GpuInitializationState::Finished))
+    {
+        const std::string error = SettingsStore::GetInstance().GetString(NXCoreSetting::ShaderImportError);
+        EndShaderImport();
+        Stop();
+        if (m_listener != nullptr)
+        {
+            m_listener->OnShaderImportFinished(error);
+        }
+    }
     if (IsRunning() && SettingsStore::GetInstance().GetInt(NXCoreSetting::GpuInitializationState) == static_cast<int32_t>(GpuInitializationState::Failed))
     {
         Stop();
@@ -314,8 +342,16 @@ std::string EmulatorSession::LoadFailureMessage(const std::string & path) const
     return Tr("Could not load the game:\n%1", {path});
 }
 
+void EmulatorSession::EndShaderImport()
+{
+    m_importingShaders = false;
+    SettingsStore::GetInstance().SetString(NXCoreSetting::ShaderImportFile, "");
+}
+
 void EmulatorSession::ReleaseModules()
 {
+    // Stopping or failing a launch ends an import session too.
+    EndShaderImport();
     m_releasePending = false;
 #ifdef __APPLE__
     m_idleTrimAt = 0;

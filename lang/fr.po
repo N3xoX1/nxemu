@@ -195,6 +195,7 @@ msgid "How much of it games may take."
 msgstr "La quantité que les jeux peuvent utiliser."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Shaders"
 msgstr "Shaders"
 
@@ -664,7 +665,7 @@ msgstr "Rétablir"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Close"
 msgstr "Fermer"
 
@@ -734,7 +735,9 @@ msgstr "Assigne les commandes de ce joueur selon les suggestions du périphériq
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/shader_import_dialog.rml
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
 #: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
@@ -742,6 +745,8 @@ msgid "Cancel"
 msgstr "Annuler"
 
 #: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Save"
 msgstr "Enregistrer"
 
@@ -1074,6 +1079,7 @@ msgid "Reading game information"
 msgstr "Lecture des informations du jeu"
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Configure"
 msgstr "Configurer"
 
@@ -1089,7 +1095,6 @@ msgid "Saves"
 msgstr "Sauvegardes"
 
 #: src/nxemu/ui/assets/main_window.rml
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Cache"
 msgstr "Cache"
 
@@ -1210,43 +1215,17 @@ msgid "Delete"
 msgstr "Supprimer"
 
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Shader profile"
-msgstr "Profil de shaders"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game versions"
-msgstr "Versions du jeu"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "About this profile"
-msgstr "À propos de ce profil"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game completed"
-msgstr "Jeu terminé"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Profile version"
-msgstr "Version du profil"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Description"
-msgstr "Description"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-msgid "Choose file"
-msgstr "Choisir un fichier"
+msgid "Export shaders"
+msgstr "Exporter les shaders"
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
 msgstr "Arrêtez le jeu en cours avant d'en ouvrir un autre."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Stop the current game before importing shaders."
+msgstr "Arrêtez le jeu en cours avant d'importer des shaders."
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Required modules failed to reload after stopping the game."
@@ -2120,6 +2099,7 @@ msgstr "Copie du firmware..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
@@ -2407,6 +2387,48 @@ msgid "Opening the game..."
 msgstr "Ouverture du jeu..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "Cela peut prendre quelques minutes. Les shaders compilés sont mis en cache pour accélérer les prochains lancements."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Shaders are not recorded while mods or cheats are active."
+msgstr "Les shaders ne sont pas enregistrés quand des mods ou des codes de triche sont actifs."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "About %1 s remaining"
+msgstr "Environ %1 s restantes"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "About %1 min remaining"
+msgstr "Environ %1 min restantes"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Estimating time remaining..."
+msgstr "Estimation du temps restant..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Finishing shader preparation..."
+msgstr "Finalisation de la préparation des shaders..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Reading and verifying shaders"
+msgstr "Lecture et vérification des shaders"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Importing shaders"
+msgstr "Importation des shaders"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Compiling imported shaders"
+msgstr "Compilation des shaders importés"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Preparing shaders"
 msgstr "Préparation des shaders"
 
@@ -2428,23 +2450,61 @@ msgstr "%1 Go"
 msgid "NXEmu - Exit"
 msgstr "NXEmu - Quitter"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "These shaders are for a different game."
+msgstr "Ces shaders sont destinés à un autre jeu."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "This shader file was made by a newer version of NXEmu."
+msgstr "Ce fichier de shaders a été créé par une version plus récente de NXEmu."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "This is not an NXEmu shader file."
+msgstr "Ce n'est pas un fichier de shaders NXEmu."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "None of these shaders match your copy of the game."
+msgstr "Aucun de ces shaders ne correspond à votre copie du jeu."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The import window could not be opened, so the shaders were not imported."
+msgstr "La fenêtre d'importation n'a pas pu s'ouvrir : les shaders n'ont pas été importés."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders are checked against your copy of the game, then built. The game does not start."
+msgstr "Les shaders sont vérifiés avec votre copie du jeu, puis compilés. Le jeu ne démarre pas."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders could not be imported."
+msgstr "Impossible d'importer les shaders."
+
+#: src/nxemu/ui/assets/shader_import_dialog.rml
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Import shaders"
+msgstr "Importer des shaders"
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "NXEmu shaders"
+msgstr "Shaders NXEmu"
+
 #: src/nxemu/ui/views/main_window.cpp
 msgid ""
-"Clear the shader cache for %1?\n"
+"Delete all shaders for %1, including the ones you recorded and imported?\n"
 "\n"
-"Shaders will be rebuilt the next time you play."
+"The game will stutter while its shaders are built again. Export them first to keep them."
 msgstr ""
-"Vider le cache des shaders de %1 ?\n"
+"Supprimer tous les shaders de %1, y compris ceux que vous avez enregistrés et importés ?\n"
 "\n"
-"Les shaders seront reconstruits lors de la prochaine partie."
+"Le jeu saccadera pendant la reconstruction de ses shaders. Exportez-les d'abord pour les conserver."
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Clear cache"
-msgstr "Vider le cache"
+msgid "Reset shaders"
+msgstr "Réinitialiser les shaders"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Could not clear the cache: %1"
-msgstr "Impossible de vider le cache : %1"
+msgid "Could not delete the shaders: %1"
+msgstr "Impossible de supprimer les shaders : %1"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "&Load File"
@@ -2625,12 +2685,28 @@ msgid "Start Game"
 msgstr "Démarrer le jeu"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Open saves"
-msgstr "Ouvrir les sauvegardes"
+msgid "Hide details"
+msgstr "Masquer les détails"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Open cache"
-msgstr "Ouvrir le cache"
+msgid "Show details"
+msgstr "Afficher les détails"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Import..."
+msgstr "Importer..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Export..."
+msgstr "Exporter..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Reset..."
+msgstr "Réinitialiser..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open saves"
+msgstr "Ouvrir les sauvegardes"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open Containing Folder"
@@ -4062,30 +4138,6 @@ msgstr "GitHub a renvoyé %1"
 msgid "Couldn't reach GitHub"
 msgstr "Impossible de joindre GitHub"
 
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Reading and verifying NXShader"
-msgstr "Lecture et vérification NXShader"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Importing NXShader"
-msgstr "Importation NXShader"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Compiling NXShader"
-msgstr "Compilation NXShader"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Open NXShader folder"
-msgstr "Ouvrir le dossier NXShader"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Export shader profile"
-msgstr "Exporter un profil de shaders"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Import shader profile"
-msgstr "Importer un profil de shaders"
-
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Shader warmup mode"
 msgstr "Mode de préchauffage des shaders"
@@ -4152,6 +4204,7 @@ msgstr "Équilibré"
 
 #: src/nxemu/ui/views/main_window.cpp
 
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Custom"
 msgstr "Personnalisé"
 
@@ -4240,184 +4293,48 @@ msgid "Inherit"
 msgstr "Hériter"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Recorded with %1 game versions."
-msgstr "Enregistré avec %1 versions du jeu."
+msgid "These shaders cannot be exported: the game version they belong to is unknown."
+msgstr "Ces shaders ne peuvent pas être exportés : la version du jeu à laquelle ils appartiennent est inconnue."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Made for: %1."
-msgstr "Créé pour : %1."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 — %2 recipes."
-msgstr "%1 — %2 recettes."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Share my recordings"
-msgstr "Partager mes enregistrements"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "You played the game yourself. Export what you recorded."
-msgstr "Vous avez joué vous-même. Exportez ce que vous avez enregistré."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Complete the installed profile"
-msgstr "Compléter le profil installé"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Add what you recorded to the profile you imported, then share the result."
-msgstr "Ajoutez ce que vous avez enregistré au profil importé, puis partagez le résultat."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Turn on if you played the whole game while recording, not just a part of it."
-msgstr "À activer si vous avez joué à tout le jeu pendant l’enregistrement, et pas seulement à une partie."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your own number, to tell updates of this profile apart. It is not the game version."
-msgstr "Votre propre numéro, pour distinguer les mises à jour de ce profil. Ce n’est pas la version du jeu."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "(optional)"
-msgstr "(facultatif)"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Players see it when they import the profile."
-msgstr "Les joueurs la voient lorsqu’ils importent le profil."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "For example: 1.0"
-msgstr "Par exemple : 1.0"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "For example: all tracks, 200cc included"
-msgstr "Par exemple : tous les circuits, 200cc inclus"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "All recorded versions"
-msgstr "Toutes les versions enregistrées"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "What do you want to share?"
-msgstr "Que voulez-vous partager ?"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Select a profile. NXEmu verifies it against your local game before prewarming at game startup."
-msgstr "Sélectionnez un profil. NXEmu le vérifie avec votre jeu local avant le préchauffage au démarrage du jeu."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Choose profile"
-msgstr "Choisir un profil"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your recordings become a small file you can share. It lists the shaders to prepare; their code is read from each player's own copy of the game."
-msgstr "Vos enregistrements deviennent un petit fichier à partager. Il liste les shaders à préparer ; leur code est lu depuis la copie du jeu de chaque joueur."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "No identified recording is available. Play with collection enabled, stop the game, then export."
-msgstr "Aucun enregistrement identifié n’est disponible. Jouez avec la collecte activée, arrêtez le jeu, puis exportez."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Recorded version: %1"
-msgstr "Version enregistrée : %1"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 recordings have missing or invalid version metadata and cannot be exported."
-msgstr "%1 enregistrements ont des métadonnées de version manquantes ou non valides et ne peuvent pas être exportés."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Export"
-msgstr "Exporter"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Profile selected. Local shaders will be verified when the game starts."
-msgstr "Profil sélectionné. Les shaders locaux seront vérifiés au démarrage du jeu."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game completed: recorded over the whole game."
-msgstr "Jeu terminé : enregistré sur l’ensemble du jeu."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 graphics recipes, %2 compute recipes."
-msgstr "%1 recettes graphiques, %2 recettes de calcul."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Start game"
-msgstr "Démarrer le jeu"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "One shader profile is ready."
-msgstr "Un profil de shaders est prêt."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 shader profiles are ready."
-msgstr "%1 profils de shaders sont prêts."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "installed profile"
-msgstr "profil installé"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 graphics, %2 compute recipes, %3"
-msgstr "%1 recettes graphiques, %2 de calcul, %3"
+msgid "Nothing has been recorded for this game yet. Shaders are not recorded while mods or cheats are active."
+msgstr "Rien n'a encore été enregistré pour ce jeu. Les shaders ne sont pas enregistrés quand des mods ou des codes de triche sont actifs."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Saved in %1"
 msgstr "Enregistré dans %1"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 and %2 share %3 % of their shaders."
-msgstr "%1 et %2 partagent %3 % de leurs shaders."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "They are saved in one file. A version only gets its own file if the file would become too large."
-msgstr "Elles sont enregistrées dans un seul fichier. Une version n’a son propre fichier que si le fichier devenait trop volumineux."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Only this version is exported."
-msgstr "Seule cette version est exportée."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your recordings are added to the installed profile."
-msgstr "Vos enregistrements sont ajoutés au profil installé."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile version (32 characters) or the description (1024 characters) is too long, or has a line break."
-msgstr "La version du profil (32 caractères) ou la description (1024 caractères) est trop longue ou contient un saut de ligne."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Identifying recorded game version"
 msgstr "Identification de la version enregistrée du jeu"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The installed profile cannot be read and was not included."
-msgstr "Le profil installé ne peut pas être lu et n’a pas été inclus."
+msgid "%1 starts a new file: combined with the previous versions, the file would be too large."
+msgstr "%1 commence un nouveau fichier : avec les versions précédentes, le fichier serait trop volumineux."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The installed profile is too large to be completed; your recordings were exported in a new file."
-msgstr "Le profil installé est trop volumineux pour être complété ; vos enregistrements ont été exportés dans un nouveau fichier."
+msgid "%1 was not included: %2"
+msgstr "%1 n'a pas été inclus : %2"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 starts a new file: combined with the previous versions, the profile would exceed its limits."
-msgstr "%1 commence un nouveau fichier : avec les versions précédentes, le profil dépasserait ses limites."
+msgid "Some shaders were not included: the game version they belong to is unknown."
+msgstr "Certains shaders n'ont pas été inclus : la version du jeu à laquelle ils appartiennent est inconnue."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Choose the folder for the %1 shader profiles"
-msgstr "Choisissez le dossier des %1 profils de shaders"
+msgid "Choose the folder for the %1 shader files"
+msgstr "Choisissez le dossier des %1 fichiers de shaders"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Replace these existing shader profiles?"
-msgstr "Remplacer ces profils de shaders existants ?"
+msgid "Replace these existing shader files?"
+msgstr "Remplacer ces fichiers de shaders existants ?"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Replace shader profiles"
-msgstr "Remplacer les profils de shaders"
+msgid "Replace shader files"
+msgstr "Remplacer les fichiers de shaders"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile could not be imported"
-msgstr "Impossible d’importer le profil"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile could not be exported"
-msgstr "Impossible d’exporter le profil"
+msgid "The shaders could not be exported"
+msgstr "Impossible d'exporter les shaders"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Identifying the game version"
@@ -4432,12 +4349,12 @@ msgid "Preparing the recipes"
 msgstr "Préparation des recettes"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Compressing the profile"
-msgstr "Compression du profil"
+msgid "Compressing the shaders"
+msgstr "Compression des shaders"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Saving the profile"
-msgstr "Enregistrement du profil"
+msgid "Saving the shaders"
+msgstr "Enregistrement des shaders"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Checking earlier results"
@@ -4463,17 +4380,31 @@ msgstr "%1 sur %2 Mio lus"
 msgid "%1 resources examined"
 msgstr "%1 ressources examinées"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "This can take a few minutes."
 msgstr "Cela peut prendre quelques minutes."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders were imported and built. The game uses them the next time it starts."
+msgstr "Les shaders ont été importés et compilés. Le jeu les utilisera à son prochain lancement."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "%1 of %2 shaders found (%3 %)"
 msgstr "%1 shaders sur %2 trouvés (%3 %)"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Cancelling"
 msgstr "Annulation"
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Finishing..."
+msgstr "Finalisation..."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Reading the game files"
+msgstr "Lecture des fichiers du jeu"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Makes details stand out. Set to 0% to turn it off."

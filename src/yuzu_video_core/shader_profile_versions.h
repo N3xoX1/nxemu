@@ -79,17 +79,19 @@ inline RecordingVersions ListRecordedVersions(const std::filesystem::path& cache
     std::error_code error;
     for(auto it=std::filesystem::directory_iterator(VersionsDirectory(cache),error);
         !error && it!=std::filesystem::directory_iterator{};it.increment(error)) {
-        const auto recording=it->path()/"recipes.nxr";
+        // A version exports what was played or imported for it.
+        const auto recording=it->path()/"recipes.nxr",imported=ImportedRecordingPath(it->path());
         std::error_code missing;
-        if(!it->is_directory(missing) || !std::filesystem::is_regular_file(recording,missing))continue;
+        const bool played=std::filesystem::is_regular_file(recording,missing);
+        if(!it->is_directory(missing) || (!played && !std::filesystem::is_regular_file(imported,missing)))continue;
         if(result.entries.size()>=64){++result.unavailable;continue;}
         try {
             const auto context=VersionContext(it->path());
-            const auto provenance=RecordedProvenance(cache,context,title);
+            const auto provenance=VersionProvenance(cache,context,title);
             if(provenance.isNull()){++result.unavailable;continue;}
             result.entries.push_back({context,RecordedVersionLabel(provenance),ShortVersionLabel(provenance),
                 ReadableProfileFilename(game,provenance,title),it->path(),recording,
-                std::filesystem::last_write_time(recording)});
+                std::filesystem::last_write_time(played?recording:imported)});
         } catch(const std::exception&) {++result.unavailable;}
     }
     // Base-only recordings first, then updates; numeric version order inside each.
