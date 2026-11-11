@@ -289,6 +289,8 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
     MarkBufferContentChanged(dest_buffer, *cpu_dest_address, amount);
     if (has_new_downloads) {
+        // The tracker marks the whole copy, so the history must cover it too
+        gpu_write_history.Mark(*cpu_dest_address, amount);
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
 
@@ -1264,7 +1266,9 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
-    const bool gpu_modified = memory_tracker.IsRegionGpuModified(device_addr, size);
+    // Every GPU modified mark is recorded in the history first, which is cheaper to test
+    const bool gpu_modified = gpu_write_history.MayHaveWrites(device_addr, size) &&
+                              memory_tracker.IsRegionGpuModified(device_addr, size);
     if constexpr (!IS_OPENGL) {
         // The guest RAM is device memory: a range that no GPU engine wrote (inline data,
         // I2M, DMA, shader writes) is read by the GPU in place, as on the console.

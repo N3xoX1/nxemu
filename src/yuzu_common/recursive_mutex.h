@@ -6,6 +6,8 @@
 #include <atomic>
 #include <shared_mutex>
 
+#include <immintrin.h>
+
 #include "yuzu_common/common_types.h"
 
 namespace Common {
@@ -42,6 +44,21 @@ public:
         owner.store(self, std::memory_order_relaxed);
         depth = 1;
         return true;
+    }
+
+    /// For a thread that checks state the lock holder changes often: waits by reading the
+    /// owner instead of queueing on the inner lock, so the holder's unlock never has to wake
+    /// it. Falls back to lock() after a while.
+    void lock_spin() {
+        const u32 self = ThisThread();
+        for (u32 spins = 0; spins < 4096; ++spins) {
+            const u32 current = owner.load(std::memory_order_relaxed);
+            if ((current == 0 || current == self) && try_lock()) {
+                return;
+            }
+            _mm_pause();
+        }
+        lock();
     }
 
     void unlock() {

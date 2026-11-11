@@ -966,7 +966,10 @@ bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
     which = device_memory.FilterFlushCaches(addr, size, which);
     if ((True(which & VideoCommon::CacheType::BufferCache))) {
         if (buffer_cache.MayHaveGpuWrites(addr, size)) {
-            std::scoped_lock lock{buffer_cache.mutex};
+            // The decode thread asks this for every macro and command list while the GPU
+            // thread holds the lock for each draw: wait without making its unlock wake us
+            buffer_cache.mutex.lock_spin();
+            std::scoped_lock lock{std::adopt_lock, buffer_cache.mutex};
             if (buffer_cache.IsRegionGpuModified(addr, size)) {
                 return true;
             }
@@ -981,7 +984,8 @@ bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
         return false;
     }
     if (True(which & VideoCommon::CacheType::TextureCache)) {
-        std::scoped_lock lock{texture_cache.mutex};
+        texture_cache.mutex.lock_spin();
+        std::scoped_lock lock{std::adopt_lock, texture_cache.mutex};
         return texture_cache.IsRegionGpuModified(addr, size);
     }
     return false;
@@ -1024,7 +1028,14 @@ void RasterizerVulkan::InvalidateRegion(DAddr addr, u64 size, VideoCommon::Cache
 }
 
 void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) {
-    {
+    // Most of these are constant buffer data written before a draw. Skip the caches that never
+    // registered anything in the written pages.
+    auto caches = VideoCommon::CacheType::None;
+    for (const auto& [addr, size] : sequences) {
+        caches |= device_memory.FilterFlushCaches(
+            addr, size, VideoCommon::CacheType::TextureCache | VideoCommon::CacheType::QueryCache);
+    }
+    if (True(caches & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         for (const auto& [addr, size] : sequences) {
             texture_cache.WriteMemory(addr, size);
@@ -1036,8 +1047,10 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
             buffer_cache.WriteMemory(addr, size);
         }
     }
-    for (const auto& [addr, size] : sequences) {
-        query_cache.InvalidateRegion(addr, size);
+    if (True(caches & VideoCommon::CacheType::QueryCache)) {
+        for (const auto& [addr, size] : sequences) {
+            query_cache.InvalidateRegion(addr, size);
+        }
     }
     pipeline_cache.InvalidateRegions(sequences);
 }
