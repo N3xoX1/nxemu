@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <utility>
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -682,6 +683,13 @@ void MemoryManager::WriteBlockCached(GPUVAddr gpu_dest_addr, const void * src_bu
 {
     WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
     accumulator->Add(gpu_dest_addr, size);
+    accumulated_other_writes = true;
+}
+
+void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
+{
+    WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
+    accumulator->Add(gpu_dest_addr, size);
 }
 
 void MemoryManager::FlushRegion(GPUVAddr gpu_addr, size_t size, VideoCommon::CacheType which) const
@@ -1029,7 +1037,14 @@ void MemoryManager::FlushCaching()
     accumulator->Callback([this](GPUVAddr addr, size_t size) {
         GetSubmappedRangeImpl<false>(addr, size, page_stash2);
     });
-    rasterizer->InnerInvalidation(page_stash2);
+    if (std::exchange(accumulated_other_writes, false))
+    {
+        rasterizer->InnerInvalidation(page_stash2);
+    }
+    else
+    {
+        rasterizer->InnerConstBufferInvalidation(page_stash2);
+    }
     page_stash2.clear();
     accumulator->Clear();
 }

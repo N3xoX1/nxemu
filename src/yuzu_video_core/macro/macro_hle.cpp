@@ -65,6 +65,10 @@ public:
         return false;
     }
 
+    bool OnlyDraws() const override {
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool params_dirty) override {
         // Only the fallback leaves a register changed
         const auto topology = static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[0]);
@@ -161,6 +165,10 @@ public:
 
     bool FrontEffectsUseParameters() const override {
         return false;
+    }
+
+    bool OnlyDraws() const override {
+        return true;
     }
 
     void FrontEffects(const std::vector<u32>&, bool) override {
@@ -485,6 +493,10 @@ class HLE_C713C83D8F63CCF3 final : public HLEMacroImpl {
 public:
     explicit HLE_C713C83D8F63CCF3(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool OnlyDraws() const override {
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         auto& regs = maxwell3d.front_regs;
         const u32 address = regs.shadow_scratch[24];
@@ -509,6 +521,10 @@ public:
 class HLE_D7333D26E0A93EDE final : public HLEMacroImpl {
 public:
     explicit HLE_D7333D26E0A93EDE(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool OnlyDraws() const override {
+        return true;
+    }
 
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         auto& regs = maxwell3d.front_regs;

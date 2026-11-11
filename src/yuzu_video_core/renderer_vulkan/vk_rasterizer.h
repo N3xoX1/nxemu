@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 
 #include <boost/container/static_vector.hpp>
 
@@ -134,6 +135,8 @@ public:
     void InvalidateRegion(DAddr addr, u64 size,
                           VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) override;
+    void InnerConstBufferInvalidation(
+        std::span<const std::pair<DAddr, std::size_t>> sequences) override;
     void OnCacheInvalidation(DAddr addr, u64 size) override;
     bool OnCPUWrite(DAddr addr, u64 size) override;
     void WaitInPlaceReads(DAddr addr, u64 size) override;
@@ -255,6 +258,35 @@ private:
     boost::container::static_vector<u32, MAX_IMAGE_VIEWS> image_view_indices;
     std::array<VideoCommon::ImageViewId, MAX_IMAGE_VIEWS> image_view_ids;
     boost::container::static_vector<VkSampler, MAX_TEXTURES> sampler_handles;
+
+    /// What the bindings of the last direct draw were resolved from. A draw that matches all of
+    /// it reads the same state and data, and keeps those bindings: see HasLastDrawState.
+    struct DrawBindings {
+        const GraphicsPipeline* pipeline{};
+        const Tegra::Engines::Maxwell3D* maxwell3d{};
+        u64 state_generation{};
+        u64 buffer_generation{};
+        u64 record_epoch{};
+        u64 descriptor_epoch{};
+        u64 deleted_buffers_epoch{};
+        u64 gpu_write_epoch{};
+        u64 memory_epoch{};
+        Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology topology{};
+        bool is_indexed{};
+    };
+    [[nodiscard]] DrawBindings CurrentDrawBindings(const GraphicsPipeline* pipeline,
+                                                   bool is_indexed) const;
+    /// True when the draw reads the same state as the last direct draw, with the same
+    /// pipeline and nothing recorded in between. Its buffers may differ.
+    [[nodiscard]] bool HasLastDrawState(const DrawBindings& current) const;
+    void InnerInvalidationImpl(std::span<const std::pair<DAddr, std::size_t>> sequences,
+                               bool const_buffers_only);
+    DrawBindings last_draw_bindings{};
+    /// Set by Draw for PrepareDraw: only direct draws keep earlier bindings
+    bool preparing_direct_draw{};
+    /// Changes each time guest memory is written, invalidated or unmapped. Constant buffer
+    /// uploads leave it when only buffers held their pages: Maxwell3D::BufferChanges has them.
+    std::atomic<u64> memory_epoch{};
 
     VkPipelineStageFlags image_write_stages{};
     u32 draw_counter = 0;

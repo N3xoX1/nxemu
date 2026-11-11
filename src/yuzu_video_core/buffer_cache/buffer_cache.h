@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <memory>
 #include <numeric>
 
@@ -270,7 +271,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         const u64 size = base_address_end - base_address;
         const DAddr diff = base_address - *cpu_src_address;
         const DAddr new_base_address = *cpu_dest_address + diff;
-        gpu_write_history.Mark(new_base_address, size);
+        MarkGpuWriteHistory(new_base_address, size);
         tmp_intervals.push_back({new_base_address, size});
         uncommitted_gpu_modified_ranges.Add(new_base_address, size);
         untracked_gpu_writes.Add(new_base_address, size);
@@ -290,7 +291,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     MarkBufferContentChanged(dest_buffer, *cpu_dest_address, amount);
     if (has_new_downloads) {
         // The tracker marks the whole copy, so the history must cover it too
-        gpu_write_history.Mark(*cpu_dest_address, amount);
+        MarkGpuWriteHistory(*cpu_dest_address, amount);
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
 
@@ -485,6 +486,46 @@ void BufferCache<P>::BindHostGeometryBuffers(bool is_indexed) {
     if (current_draw_indirect) {
         BindHostDrawIndirectBuffers();
     }
+}
+
+template <class P>
+bool BufferCache<P>::RebindIndexBuffer() {
+    const u64 epoch = deleted_buffers_epoch;
+    maxwell3d->dirty.flags[Dirty::IndexBuffer] = true;
+    BufferOperations([&] { UpdateIndexBuffer(); });
+    if (deleted_buffers_epoch != epoch || channel_state->is_index_buffer_sparse) {
+        return false;
+    }
+    BindHostIndexBuffer();
+    return true;
+}
+
+template <class P>
+bool BufferCache<P>::UpdateKeptDrawBuffers(bool is_indexed) {
+    const u64 epoch = deleted_buffers_epoch;
+    if (is_indexed) {
+        maxwell3d->dirty.flags[Dirty::IndexBuffer] = true;
+    }
+    BufferOperations([&] {
+        if (is_indexed) {
+            UpdateIndexBuffer();
+        }
+        UpdateVertexBuffers();
+        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+            UpdateUniformBuffers(stage);
+        }
+    });
+    return deleted_buffers_epoch == epoch && !(is_indexed && channel_state->is_index_buffer_sparse);
+}
+
+template <class P>
+void BufferCache<P>::BindKeptUniformBuffer(size_t stage, u32 index) {
+    u32 binding_index = 0;
+    if constexpr (NEEDS_BIND_UNIFORM_INDEX) {
+        binding_index = static_cast<u32>(
+            std::popcount(channel_state->enabled_uniform_buffer_masks[stage] & ((1U << index) - 1)));
+    }
+    BindHostGraphicsUniformBuffer(stage, index, binding_index, true);
 }
 
 template <class P>
@@ -1903,7 +1944,7 @@ void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u3
         untracked_gpu_writes.Add(device_addr, size);
     }
     device_memory.InvalidateNativeReadRegion(device_addr, size);
-    gpu_write_history.Mark(device_addr, size);
+    MarkGpuWriteHistory(device_addr, size);
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
@@ -2464,6 +2505,7 @@ void BufferCache<P>::DeleteBuffer(BufferId buffer_id, bool do_not_mark) {
         }
     }
     channel_state->has_deleted_buffers = true;
+    ++deleted_buffers_epoch;
 }
 
 template <class P>
@@ -2822,7 +2864,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
         device_memory.InvalidateNativeReadRegion(device_addr, write_size);
-        gpu_write_history.Mark(device_addr, write_size);
+        MarkGpuWriteHistory(device_addr, write_size);
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);
         uncommitted_gpu_modified_ranges.Add(device_addr, write_size);

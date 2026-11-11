@@ -285,7 +285,23 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // Host queries begin/end within that pass and accumulate across pass boundaries.
     query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
                               maxwell3d->regs.zpass_pixel_count_enable);
-    pipeline->Configure(is_indexed);
+    // Most draws only change the draw range or some buffers: their textures, samplers and render
+    // targets are the ones of the draw before
+    const bool direct_draw = std::exchange(preparing_direct_draw, false);
+    bool reused = false;
+    if (direct_draw) {
+        const DrawBindings current = CurrentDrawBindings(pipeline, is_indexed);
+        if (HasLastDrawState(current)) {
+            if (current.buffer_generation == last_draw_bindings.buffer_generation) {
+                reused = pipeline->ConfigureReused(is_indexed);
+            } else {
+                reused = pipeline->ConfigureKeptBuffers(is_indexed);
+            }
+        }
+    }
+    if (!reused) {
+        pipeline->Configure(is_indexed);
+    }
     image_write_stages |= pipeline->ImageWriteStages();
 
     UpdateDynamicStates();
@@ -293,6 +309,13 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     HandleTransformFeedback();
     draw_func(pipeline);
     buffer_cache.CopySparseWrites();
+    // Taken before the render targets are marked written: marking an aliased one changes the
+    // descriptor epoch, and the next draw then prepares its textures again
+    last_draw_bindings = direct_draw && pipeline->HasReusableBindings() &&
+                                 !buffer_cache.HasSparseBindings()
+                             ? CurrentDrawBindings(pipeline, is_indexed)
+                             : DrawBindings{};
+    maxwell3d->ClearBufferChanges();
 
     const auto& regs = maxwell3d->regs;
     u32 color_mask = 0;
@@ -378,8 +401,48 @@ void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
     });
 }
 
+RasterizerVulkan::DrawBindings RasterizerVulkan::CurrentDrawBindings(
+    const GraphicsPipeline* pipeline, bool is_indexed) const {
+    return DrawBindings{
+        .pipeline = pipeline,
+        .maxwell3d = maxwell3d,
+        .state_generation = maxwell3d->DrawStateGeneration(),
+        .buffer_generation = maxwell3d->BufferGeneration(),
+        .record_epoch = scheduler.RecordEpoch(),
+        .descriptor_epoch = texture_cache.GraphicsDescriptorEpoch(),
+        .deleted_buffers_epoch = buffer_cache.DeletedBuffersEpoch(),
+        .gpu_write_epoch = buffer_cache.GpuWriteEpoch(),
+        .memory_epoch = memory_epoch.load(std::memory_order_relaxed),
+        .topology = maxwell3d->draw_manager->GetDrawState().topology,
+        .is_indexed = is_indexed,
+    };
+}
+
+bool RasterizerVulkan::HasLastDrawState(const DrawBindings& current) const {
+    const DrawBindings& last = last_draw_bindings;
+    if (last.pipeline == nullptr || current.descriptor_epoch == 0) {
+        return false;
+    }
+    // Quads draw through an index buffer made from the draw range, inline indices are data
+    const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
+    if (current.topology == Maxwell::PrimitiveTopology::Quads ||
+        current.topology == Maxwell::PrimitiveTopology::QuadStrip ||
+        !draw_state.inline_index_draw_indexes.empty()) {
+        return false;
+    }
+    return current.pipeline == last.pipeline && current.maxwell3d == last.maxwell3d &&
+           current.state_generation == last.state_generation &&
+           current.record_epoch == last.record_epoch &&
+           current.descriptor_epoch == last.descriptor_epoch &&
+           current.deleted_buffers_epoch == last.deleted_buffers_epoch &&
+           current.gpu_write_epoch == last.gpu_write_epoch &&
+           current.memory_epoch == last.memory_epoch && current.topology == last.topology &&
+           current.is_indexed == last.is_indexed;
+}
+
 void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
     vtg_instance_count = instance_count;
+    preparing_direct_draw = true;
     PrepareDraw(is_indexed, [this, is_indexed, instance_count](const GraphicsPipeline* pipeline) {
         if (pipeline->IsVtgAsCompute()) {
             DrawVtgAsCompute(pipeline);
@@ -1011,6 +1074,7 @@ void RasterizerVulkan::InvalidateRegion(DAddr addr, u64 size, VideoCommon::Cache
     if (addr == 0 || size == 0) {
         return;
     }
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
     if (True(which & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.WriteMemory(addr, size);
@@ -1028,12 +1092,27 @@ void RasterizerVulkan::InvalidateRegion(DAddr addr, u64 size, VideoCommon::Cache
 }
 
 void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) {
+    InnerInvalidationImpl(sequences, false);
+}
+
+void RasterizerVulkan::InnerConstBufferInvalidation(
+    std::span<const std::pair<DAddr, std::size_t>> sequences) {
+    InnerInvalidationImpl(sequences, true);
+}
+
+void RasterizerVulkan::InnerInvalidationImpl(
+    std::span<const std::pair<DAddr, std::size_t>> sequences, bool const_buffers_only) {
     // Most of these are constant buffer data written before a draw. Skip the caches that never
     // registered anything in the written pages.
     auto caches = VideoCommon::CacheType::None;
     for (const auto& [addr, size] : sequences) {
         caches |= device_memory.FilterFlushCaches(
             addr, size, VideoCommon::CacheType::TextureCache | VideoCommon::CacheType::QueryCache);
+    }
+    // The 3D engine notes its constant buffer writes for the draws that keep their bindings:
+    // the buffers they bind are synchronized again, the other caches are not
+    if (!const_buffers_only || caches != VideoCommon::CacheType::None) {
+        memory_epoch.fetch_add(1, std::memory_order_relaxed);
     }
     if (True(caches & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
@@ -1063,6 +1142,7 @@ bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
     if (addr == 0 || size == 0) {
         return false;
     }
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
 
     const auto requested = VideoCommon::CacheType::BufferCache | VideoCommon::CacheType::TextureCache;
     const auto caches = device_memory.FilterFlushCaches(addr, size, requested);
@@ -1087,6 +1167,7 @@ void RasterizerVulkan::OnCacheInvalidation(DAddr addr, u64 size) {
     if (addr == 0 || size == 0) {
         return;
     }
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
 
     {
         std::scoped_lock lock{texture_cache.mutex};
@@ -1104,6 +1185,7 @@ void RasterizerVulkan::InvalidateGPUCache() {
 }
 
 void RasterizerVulkan::UnmapMemory(DAddr addr, u64 size) {
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
     {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.UnmapMemory(addr, size);
@@ -1116,6 +1198,7 @@ void RasterizerVulkan::UnmapMemory(DAddr addr, u64 size) {
 }
 
 void RasterizerVulkan::ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size, bool preserve_contents) {
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
     {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.UnmapGPUMemory(as_id, addr, size, preserve_contents);
