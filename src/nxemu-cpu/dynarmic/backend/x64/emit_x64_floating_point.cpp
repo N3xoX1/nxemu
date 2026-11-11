@@ -943,11 +943,70 @@ static void EmitFPRecipEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* i
         }
     }
 
-    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    ctx.reg_alloc.HostCall(inst, args[0]);
-    code.mov(code.ABI_PARAM2.cvt32(), ctx.FPCR().Value());
-    code.lea(code.ABI_PARAM3, code.ptr[code.r15 + code.GetJitStateInfo().offsetof_fpsr_exc]);
-    code.CallFunction(&FP::FPRecipEstimate<FPT>);
+    if constexpr (fsize != 16) {
+        // Exact inline estimate when the input and the result are normal numbers. ARM takes the
+        // middle of the input's 8-bit mantissa interval, divides 1 by it and rounds the result
+        // half up to 8 mantissa bits. 2^19 / odd is never an integer and is far enough from
+        // one that the rounding of the host division, in any mode, gives the same 8 bits.
+        // Such inputs raise no exception and FZ does not apply to them. The others call FP code.
+        constexpr u64 mask = fsize == 32 ? 0xFFFF8000 : 0xFFFF'F000'0000'0000;
+        constexpr u64 half = fsize == 32 ? 0x00004000 : 0x0000'0800'0000'0000;
+
+        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+        const Xbyak::Xmm operand = ctx.reg_alloc.UseXmm(args[0]);
+        const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
+        const Xbyak::Xmm value = ctx.reg_alloc.ScratchXmm();
+        const Xbyak::Reg64 tmp = ctx.reg_alloc.ScratchGpr();
+
+        SharedLabel bad_values = GenSharedLabel(), end = GenSharedLabel();
+
+        // Biased exponent in [1, 2 * bias - 2]: normal input, normal result
+        if constexpr (fsize == 32) {
+            code.movd(tmp.cvt32(), operand);
+            code.and_(tmp.cvt32(), 0x7F800000);
+            code.sub(tmp.cvt32(), 0x00800000);
+            code.cmp(tmp.cvt32(), 0x7E000000 - 0x00800000);
+        } else {
+            code.movq(tmp, operand);
+            code.shr(tmp, 52);
+            code.and_(tmp.cvt32(), 0x7FF);
+            code.sub(tmp.cvt32(), 1);
+            code.cmp(tmp.cvt32(), 2044 - 1);
+        }
+        code.ja(*bad_values, code.T_NEAR);
+
+        code.movaps(value, operand);
+        code.pand(value, code.Const(xword, mask));
+        code.por(value, code.Const(xword, half));
+        ICODE(mov)(result, code.Const(xword, FP::FPValue<FPT, false, 0, 1>()));
+        FCODE(divs)(result, value);
+        ICODE(padd)(result, code.Const(xword, half));
+        code.pand(result, code.Const(xword, mask));
+
+        code.L(*end);
+
+        ctx.deferred_emits.emplace_back([=, &code, &ctx] {
+            code.L(*bad_values);
+            code.sub(rsp, 8);
+            ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
+            code.movq(code.ABI_PARAM1, operand);
+            code.mov(code.ABI_PARAM2.cvt32(), ctx.FPCR().Value());
+            code.lea(code.ABI_PARAM3, code.ptr[code.r15 + code.GetJitStateInfo().offsetof_fpsr_exc]);
+            code.CallFunction(&FP::FPRecipEstimate<FPT>);
+            code.movq(result, rax);
+            ABI_PopCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
+            code.add(rsp, 8);
+            code.jmp(*end, code.T_NEAR);
+        });
+
+        ctx.reg_alloc.DefineValue(inst, result);
+    } else {
+        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+        ctx.reg_alloc.HostCall(inst, args[0]);
+        code.mov(code.ABI_PARAM2.cvt32(), ctx.FPCR().Value());
+        code.lea(code.ABI_PARAM3, code.ptr[code.r15 + code.GetJitStateInfo().offsetof_fpsr_exc]);
+        code.CallFunction(&FP::FPRecipEstimate<FPT>);
+    }
 }
 
 void EmitX64::EmitFPRecipEstimate16(EmitContext& ctx, IR::Inst* inst) {

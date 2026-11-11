@@ -12,6 +12,7 @@
 
 #include "dynarmic/backend/block_range_information.h"
 #include "dynarmic/backend/x64/a64_jitstate.h"
+#include "dynarmic/backend/x64/devirtualize.h"
 #include "dynarmic/backend/x64/emit_x64.h"
 #include "dynarmic/frontend/A64/a64_location_descriptor.h"
 #include "dynarmic/interface/A64/a64.h"
@@ -51,11 +52,6 @@ public:
 
     void InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges);
 
-protected:
-    const A64::UserConfig conf;
-    A64::Jit* jit_interface;
-    BlockRangeInformation<u64> block_ranges;
-
     struct FastDispatchEntry {
         u64 location_descriptor = 0xFFFF'FFFF'FFFF'FFFFull;
         const void* code_ptr = nullptr;
@@ -63,7 +59,43 @@ protected:
     static_assert(sizeof(FastDispatchEntry) == 0x10);
     static constexpr u64 fast_dispatch_table_mask = 0xFFFFF0;
     static constexpr size_t fast_dispatch_table_size = 0x100000;
-    std::array<FastDispatchEntry, fast_dispatch_table_size> fast_dispatch_table;
+    using FastDispatchTable = std::array<FastDispatchEntry, fast_dispatch_table_size>;
+
+    /// Each core that runs this code has its own fast dispatch table (its address is in the
+    /// core's JIT state). Invalidation clears the entries of every registered table.
+    void AddFastDispatchTable(FastDispatchTable* table);
+    void RemoveFastDispatchTable(FastDispatchTable* table);
+
+    /// Code of `location` in a core's table, or null. Called by that core only.
+    const void* LookupFastDispatch(FastDispatchTable* table, u64 location) const {
+        if (!fast_dispatch_table_lookup) {
+            return nullptr;
+        }
+        const FastDispatchEntry& entry = fast_dispatch_table_lookup(location, table->data());
+        return entry.location_descriptor == location ? entry.code_ptr : nullptr;
+    }
+    /// Called by the table's core while it holds cache_mutex, so no invalidation runs meanwhile.
+    void InsertFastDispatch(FastDispatchTable* table, u64 location, const void* code_ptr) const {
+        if (!fast_dispatch_table_lookup) {
+            return;
+        }
+        FastDispatchEntry& entry = fast_dispatch_table_lookup(location, table->data());
+        entry.code_ptr = code_ptr;
+        entry.location_descriptor = location;
+    }
+
+protected:
+    /// A user callback whose object comes from the running core's JIT state.
+    template<auto mfp>
+    ArgCallback CoreCallback() const {
+        return DevirtualizeFromState<mfp>(conf.callbacks, offsetof(A64JitState, core_callbacks));
+    }
+
+    const A64::UserConfig conf;
+    A64::Jit* jit_interface;
+    BlockRangeInformation<u64> block_ranges;
+
+    std::vector<FastDispatchTable*> fast_dispatch_tables;
     void ClearFastDispatchTable();
 
     void (*memory_read_128)();
@@ -81,7 +113,7 @@ protected:
     const void* terminal_handler_rsb_miss = nullptr;            // expects the location descriptor in rbx
     const void* terminal_handler_fast_dispatch_miss = nullptr;  // expects rbx and the table entry in rbp
     void EmitInlineLocationDescriptor();
-    FastDispatchEntry& (*fast_dispatch_table_lookup)(u64) = nullptr;
+    FastDispatchEntry& (*fast_dispatch_table_lookup)(u64, FastDispatchEntry*) = nullptr;
     void GenTerminalHandlers();
 
     // Microinstruction emitters
@@ -138,6 +170,26 @@ protected:
     void EmitTerminalImpl(IR::Term::CheckHalt terminal, IR::LocationDescriptor initial_location, bool is_single_step) override;
 
     // Patching
+    // Block links are changed while the code may run (on another core once the cache is
+    // shared). A link site is one jg/jz/jmp rel32 whose rel32 is 4-byte aligned, so linking and
+    // unlinking is one aligned store. Unlinked, it goes to a stub after the block that stores the
+    // target PC and returns to the dispatcher. The RSB `mov rcx, imm64` has its imm64 8-byte aligned.
+    struct PendingLinkStub {
+        CodePtr site;
+        u8* rel32;
+        u64 target_pc;
+        bool unlinked;
+    };
+    struct LinkSite {
+        u8* rel32;
+        CodePtr stub;
+    };
+    std::vector<PendingLinkStub> pending_link_stubs;
+    tsl::robin_map<CodePtr, LinkSite> link_sites;
+    void EmitLinkSite(u8 condition_opcode, const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr);
+    void EmitLinkStubs();
+
+    void Patch(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) override;
     void Unpatch(const IR::LocationDescriptor& target_desc) override;
     void EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr = nullptr) override;
     void EmitPatchJz(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr = nullptr) override;

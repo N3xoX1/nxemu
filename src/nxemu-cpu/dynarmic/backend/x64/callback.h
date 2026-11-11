@@ -55,9 +55,23 @@ public:
     void EmitCall(BlockOfCode& code, std::function<void(RegList)> fn) const override;
     void EmitCallWithReturnPointer(BlockOfCode& code, std::function<void(Xbyak::Reg64, RegList)> fn) const override;
 
+    u64 Arg() const { return arg; }
+
+    /// The same function, with its first argument loaded from the JIT state (r15) at the given
+    /// offset when the call runs. The emitted code then does not depend on one core's objects.
+    ArgCallback WithArgFromState(size_t state_offset) const {
+        ArgCallback result = *this;
+        result.arg = state_offset;
+        result.arg_in_state = true;
+        return result;
+    }
+
 private:
+    void LoadArg(BlockOfCode& code, Xbyak::Reg64 reg) const;
+
     void (*fn)();
     u64 arg;
+    bool arg_in_state = false;
 };
 
 }  // namespace Dynarmic::Backend::X64

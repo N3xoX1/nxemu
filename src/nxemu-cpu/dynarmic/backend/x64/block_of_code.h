@@ -55,6 +55,14 @@ public:
     /// Ensure at least codesize bytes of code cache memory are committed at the current code_ptr.
     void EnsureMemoryCommitted(size_t codesize);
 
+    /// Keeps the last `size` bytes of the cache for cold code (fallback paths, link stubs), so
+    /// the hot code of consecutive blocks stays dense. Call before PreludeComplete.
+    void ReserveFarCode(size_t size);
+    /// Emission continues in the cold area. Labels and rel32 jumps work across both areas.
+    void SwitchToFarCode();
+    /// Emission continues in the hot area where SwitchToFarCode left it.
+    void SwitchToNearCode();
+
     /// Runs emulated code from code_ptr.
     HaltReason RunCode(void* jit_state, CodePtr code_ptr) const;
     /// Runs emulated code from code_ptr for a single cycle.
@@ -187,7 +195,13 @@ private:
 
 #ifdef _WIN32
     size_t committed_size = 0;
+    size_t far_committed_size = 0;  // committed bytes from far_begin
 #endif
+    size_t far_size = 0;
+    u8* far_begin = nullptr;      // start of the cold area, null without one
+    u8* far_current = nullptr;    // where the next cold code goes
+    u8* near_saved = nullptr;     // hot area position while emitting cold code
+    void EnsureFarMemoryCommitted(size_t codesize);
 
     ConstantPool constant_pool;
 

@@ -1565,11 +1565,67 @@ static void EmitRecipEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
         }
     }
 
-    EmitTwoOpFallback(code, ctx, inst, [](VectorArray<FPT>& result, const VectorArray<FPT>& operand, FP::FPCR fpcr, FP::FPSR& fpsr) {
+    const auto fallback_fn = [](VectorArray<FPT>& result, const VectorArray<FPT>& operand, FP::FPCR fpcr, FP::FPSR& fpsr) {
         for (size_t i = 0; i < result.size(); i++) {
             result[i] = FP::FPRecipEstimate<FPT>(operand[i], fpcr, fpsr);
         }
-    });
+    };
+
+    if constexpr (fsize != 16) {
+        if (code.HasHostFeature(HostFeature::SSE42)) {
+            // Exact inline estimate when every lane is a normal number with a normal result
+            // (see EmitFPRecipEstimate in emit_x64_floating_point.cpp). Other lanes: FP code.
+            constexpr FPT mask = fsize == 32 ? 0xFFFF8000 : 0xFFFF'F000'0000'0000;
+            constexpr FPT half = fsize == 32 ? 0x00004000 : 0x0000'0800'0000'0000;
+            constexpr FPT exponent_mask = fsize == 32 ? 0x7F800000 : 0x7FF0'0000'0000'0000;
+            constexpr FPT exponent_min = fsize == 32 ? 0x00800000 : 0x0010'0000'0000'0000;
+            constexpr FPT exponent_max = fsize == 32 ? 0x7E000000 : 0x7FC0'0000'0000'0000;
+
+            auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+            const bool fpcr_controlled = args[1].GetImmediateU1();
+
+            const Xbyak::Xmm operand = ctx.reg_alloc.UseXmm(args[0]);
+            const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
+            const Xbyak::Xmm value = ctx.reg_alloc.ScratchXmm();
+
+            SharedLabel bad_values = GenSharedLabel(), end = GenSharedLabel();
+
+            // The exponent field is positive, so signed compares work
+            code.movaps(value, operand);
+            code.pand(value, GetVectorOf<fsize, exponent_mask>(code));
+            code.movaps(result, GetVectorOf<fsize, exponent_min>(code));
+            ICODE(pcmpgt)(result, value);
+            ICODE(pcmpgt)(value, GetVectorOf<fsize, exponent_max>(code));
+            code.por(value, result);
+            code.ptest(value, value);
+            code.jnz(*bad_values, code.T_NEAR);
+
+            code.movaps(value, operand);
+            code.pand(value, GetVectorOf<fsize, mask>(code));
+            code.por(value, GetVectorOf<fsize, half>(code));
+            code.movaps(result, GetVectorOf<fsize, FP::FPValue<FPT, false, 0, 1>()>(code));
+            FCODE(divp)(result, value);
+            ICODE(padd)(result, GetVectorOf<fsize, half>(code));
+            code.pand(result, GetVectorOf<fsize, mask>(code));
+
+            code.L(*end);
+
+            ctx.deferred_emits.emplace_back([=, &code, &ctx] {
+                code.L(*bad_values);
+                code.sub(rsp, 8);
+                ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
+                EmitTwoOpFallbackWithoutRegAlloc(code, ctx, result, operand, fallback_fn, fpcr_controlled);
+                ABI_PopCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
+                code.add(rsp, 8);
+                code.jmp(*end, code.T_NEAR);
+            });
+
+            ctx.reg_alloc.DefineValue(inst, result);
+            return;
+        }
+    }
+
+    EmitTwoOpFallback(code, ctx, inst, fallback_fn);
 }
 
 void EmitX64::EmitFPVectorRecipEstimate16(EmitContext& ctx, IR::Inst* inst) {

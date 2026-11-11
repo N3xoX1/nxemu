@@ -237,8 +237,56 @@ BlockOfCode::BlockOfCode(RunCodeCallbacks cb, JitStateInfo jsi, size_t total_cod
 void BlockOfCode::PreludeComplete() {
     prelude_complete = true;
     code_begin = getCurr();
+    if (far_size != 0) {
+        far_begin = top_ + maxSize_ - far_size;
+        ASSERT(far_begin > code_begin);
+    }
     ClearCache();
     DisableWriting();
+}
+
+void BlockOfCode::ReserveFarCode(size_t size) {
+    ASSERT(!prelude_complete);
+    far_size = size & ~size_t{0xFFFF};
+}
+
+void BlockOfCode::SwitchToFarCode() {
+    ASSERT(far_begin != nullptr && near_saved == nullptr);
+    near_saved = getCurr<u8*>();
+    SetCodePtr(far_current);
+    EnsureFarMemoryCommitted(1 * 1024 * 1024);
+}
+
+void BlockOfCode::SwitchToNearCode() {
+    ASSERT(near_saved != nullptr);
+    far_current = getCurr<u8*>();
+    ASSERT(far_current < top_ + maxSize_);
+    SetCodePtr(near_saved);
+    near_saved = nullptr;
+}
+
+void BlockOfCode::EnsureFarMemoryCommitted([[maybe_unused]] size_t codesize) {
+#ifdef _WIN32
+    const size_t offset = static_cast<size_t>(far_current - far_begin);
+    if (offset > far_size || codesize > far_size - offset) {
+        throw Xbyak::Error(Xbyak::ERR_CODE_IS_TOO_BIG);
+    }
+    const size_t required_size = offset + codesize;
+    if (far_committed_size < required_size) {
+        const size_t padding = (COMMIT_STEP - required_size % COMMIT_STEP) % COMMIT_STEP;
+        const size_t new_size = required_size + std::min(padding, far_size - required_size);
+#    ifdef DYNARMIC_ENABLE_NO_EXECUTE_SUPPORT
+        constexpr DWORD protection = PAGE_READWRITE;
+#    else
+        constexpr DWORD protection = PAGE_EXECUTE_READWRITE;
+#    endif
+        if (!VirtualAlloc(far_begin + far_committed_size, new_size - far_committed_size, MEM_COMMIT,
+                          protection)) {
+            throw Xbyak::Error(Xbyak::ERR_CANT_ALLOC);
+        }
+        far_committed_size = new_size;
+    }
+#endif
 }
 
 void BlockOfCode::EnableWriting() {
@@ -263,15 +311,24 @@ void BlockOfCode::DisableWriting() {
 
 void BlockOfCode::ClearCache() {
     ASSERT(prelude_complete);
+    ASSERT(near_saved == nullptr);
     SetCodePtr(code_begin);
+    far_current = far_begin;
 }
 
 size_t BlockOfCode::SpaceRemaining() const {
     ASSERT(prelude_complete);
-    const u8* current_ptr = getCurr<const u8*>();
-    if (current_ptr >= &top_[maxSize_])
+    const u8* current_ptr = near_saved ? near_saved : getCurr<const u8*>();
+    const u8* const near_end = far_begin ? far_begin : &top_[maxSize_];
+    if (current_ptr >= near_end)
         return 0;
-    return &top_[maxSize_] - current_ptr;
+    const size_t near_remaining = static_cast<size_t>(near_end - current_ptr);
+    if (!far_begin) {
+        return near_remaining;
+    }
+    const u8* const far_ptr = near_saved ? getCurr<const u8*>() : far_current;
+    const size_t far_remaining = far_ptr >= &top_[maxSize_] ? 0 : static_cast<size_t>(&top_[maxSize_] - far_ptr);
+    return std::min(near_remaining, far_remaining);
 }
 
 void BlockOfCode::EnsureMemoryCommitted([[maybe_unused]] size_t codesize) {

@@ -6,6 +6,7 @@
 #include "dynarmic/backend/x64/a64_emit_x64.h"
 
 #include <algorithm>
+#include <atomic>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -56,6 +57,8 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
     GenMemory128Accessors();
     GenFastmemFallbacks();
     GenTerminalHandlers();
+    // A quarter of the cache for the cold code of the blocks (fallbacks and link stubs)
+    code.ReserveFarCode(conf.code_cache_size / 4);
     code.PreludeComplete();
     ClearFastDispatchTable();
 
@@ -298,13 +301,16 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     }
     EmitX64::EmitTerminal(block.GetTerminal(), ctx.Location().SetSingleStepping(false), ctx.IsSingleStep());
     code.int3();
+    const size_t size = static_cast<size_t>(code.getCurr() - entrypoint);
 
+    // The cold code goes to the far area, so the hot code of consecutive blocks stays dense
+    code.SwitchToFarCode();
     for (auto& deferred_emit : ctx.deferred_emits) {
         deferred_emit();
     }
+    EmitLinkStubs();
     code.int3();
-
-    const size_t size = static_cast<size_t>(code.getCurr() - entrypoint);
+    code.SwitchToNearCode();
 
     const A64::LocationDescriptor descriptor{block.Location()};
     const A64::LocationDescriptor end_location{block.EndLocation()};
@@ -317,6 +323,8 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
 void A64EmitX64::ClearCache() {
     EmitX64::ClearCache();
+    link_sites.clear();
+    pending_link_stubs.clear();
     block_ranges.ClearCache();
     ClearFastDispatchTable();
     fastmem_patch_info.clear();
@@ -328,8 +336,19 @@ void A64EmitX64::InvalidateCacheRanges(const boost::icl::interval_set<u64>& rang
 
 void A64EmitX64::ClearFastDispatchTable() {
     if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
-        fast_dispatch_table.fill({});
+        for (FastDispatchTable* table : fast_dispatch_tables) {
+            table->fill({});
+        }
     }
+}
+
+void A64EmitX64::AddFastDispatchTable(FastDispatchTable* table) {
+    table->fill({});
+    fast_dispatch_tables.push_back(table);
+}
+
+void A64EmitX64::RemoveFastDispatchTable(FastDispatchTable* table) {
+    std::erase(fast_dispatch_tables, table);
 }
 
 // PC ends up in rbp, location_descriptor ends up in rbx
@@ -373,7 +392,7 @@ void A64EmitX64::GenTerminalHandlers() {
         calculate_location_descriptor();
         code.L(rsb_cache_miss);
         terminal_handler_rsb_miss = code.getCurr<const void*>();
-        code.mov(r12, reinterpret_cast<u64>(fast_dispatch_table.data()));
+        code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
         code.mov(rbp, rbx);
         if (code.HasHostFeature(HostFeature::SSE42)) {
             code.crc32(rbp, r12);
@@ -392,8 +411,7 @@ void A64EmitX64::GenTerminalHandlers() {
         PerfMapRegister(terminal_handler_fast_dispatch_hint, code.getCurr(), "a64_terminal_handler_fast_dispatch_hint");
 
         code.align();
-        fast_dispatch_table_lookup = code.getCurr<FastDispatchEntry& (*)(u64)>();
-        code.mov(code.ABI_PARAM2, reinterpret_cast<u64>(fast_dispatch_table.data()));
+        fast_dispatch_table_lookup = code.getCurr<FastDispatchEntry& (*)(u64, FastDispatchEntry*)>();
         if (code.HasHostFeature(HostFeature::SSE42)) {
             code.crc32(code.ABI_PARAM1, code.ABI_PARAM2);
         }
@@ -736,7 +754,7 @@ void A64EmitX64::EmitA64CallSupervisor(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ASSERT(args[0].IsImmediate());
     const u32 imm = args[0].GetImmediateU32();
-    Devirtualize<&A64::UserCallbacks::CallSVC>(conf.callbacks).EmitCall(code, [&](RegList param) {
+    CoreCallback<&A64::UserCallbacks::CallSVC>().EmitCall(code, [&](RegList param) {
         code.mov(param[0], imm);
     });
     // The kernel would have to execute ERET to get here, which would clear exclusive state.
@@ -749,7 +767,7 @@ void A64EmitX64::EmitA64ExceptionRaised(A64EmitContext& ctx, IR::Inst* inst) {
     ASSERT(args[0].IsImmediate() && args[1].IsImmediate());
     const u64 pc = args[0].GetImmediateU64();
     const u64 exception = args[1].GetImmediateU64();
-    Devirtualize<&A64::UserCallbacks::ExceptionRaised>(conf.callbacks).EmitCall(code, [&](RegList param) {
+    CoreCallback<&A64::UserCallbacks::ExceptionRaised>().EmitCall(code, [&](RegList param) {
         code.mov(param[0], pc);
         code.mov(param[1], exception);
     });
@@ -758,13 +776,13 @@ void A64EmitX64::EmitA64ExceptionRaised(A64EmitContext& ctx, IR::Inst* inst) {
 void A64EmitX64::EmitA64DataCacheOperationRaised(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(nullptr, {}, args[1], args[2]);
-    Devirtualize<&A64::UserCallbacks::DataCacheOperationRaised>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::DataCacheOperationRaised>().EmitCall(code);
 }
 
 void A64EmitX64::EmitA64InstructionCacheOperationRaised(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(nullptr, {}, args[0], args[1]);
-    Devirtualize<&A64::UserCallbacks::InstructionCacheOperationRaised>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::InstructionCacheOperationRaised>().EmitCall(code);
 }
 
 void A64EmitX64::EmitA64DataSynchronizationBarrier(A64EmitContext&, IR::Inst*) {
@@ -782,7 +800,7 @@ void A64EmitX64::EmitA64InstructionSynchronizationBarrier(A64EmitContext& ctx, I
     }
 
     ctx.reg_alloc.HostCall(nullptr);
-    Devirtualize<&A64::UserCallbacks::InstructionSynchronizationBarrierRaised>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::InstructionSynchronizationBarrierRaised>().EmitCall(code);
 }
 
 void A64EmitX64::EmitA64GetCNTFRQ(A64EmitContext& ctx, IR::Inst* inst) {
@@ -796,7 +814,7 @@ void A64EmitX64::EmitA64GetCNTPCT(A64EmitContext& ctx, IR::Inst* inst) {
     if (!conf.wall_clock_cntpct) {
         code.UpdateTicks();
     }
-    Devirtualize<&A64::UserCallbacks::GetCNTPCT>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::GetCNTPCT>().EmitCall(code);
 }
 
 void A64EmitX64::EmitA64GetCTR(A64EmitContext& ctx, IR::Inst* inst) {
@@ -814,7 +832,7 @@ void A64EmitX64::EmitA64GetDCZID(A64EmitContext& ctx, IR::Inst* inst) {
 void A64EmitX64::EmitA64GetTPIDR(A64EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg64 result = ctx.reg_alloc.ScratchGpr();
     if (conf.tpidr_el0) {
-        code.mov(result, u64(conf.tpidr_el0));
+        code.mov(result, qword[r15 + offsetof(A64JitState, core_tpidr_el0_ptr)]);
         code.mov(result, qword[result]);
     } else {
         code.xor_(result.cvt32(), result.cvt32());
@@ -825,7 +843,7 @@ void A64EmitX64::EmitA64GetTPIDR(A64EmitContext& ctx, IR::Inst* inst) {
 void A64EmitX64::EmitA64GetTPIDRRO(A64EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg64 result = ctx.reg_alloc.ScratchGpr();
     if (conf.tpidrro_el0) {
-        code.mov(result, u64(conf.tpidrro_el0));
+        code.mov(result, qword[r15 + offsetof(A64JitState, core_tpidrro_el0_ptr)]);
         code.mov(result, qword[result]);
     } else {
         code.xor_(result.cvt32(), result.cvt32());
@@ -838,7 +856,7 @@ void A64EmitX64::EmitA64SetTPIDR(A64EmitContext& ctx, IR::Inst* inst) {
     const Xbyak::Reg64 value = ctx.reg_alloc.UseGpr(args[0]);
     const Xbyak::Reg64 addr = ctx.reg_alloc.ScratchGpr();
     if (conf.tpidr_el0) {
-        code.mov(addr, u64(conf.tpidr_el0));
+        code.mov(addr, qword[r15 + offsetof(A64JitState, core_tpidr_el0_ptr)]);
         code.mov(qword[addr], value);
     }
 }
@@ -852,7 +870,7 @@ std::string A64EmitX64::LocationDescriptorToFriendlyName(const IR::LocationDescr
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::Interpret terminal, IR::LocationDescriptor, bool) {
     code.SwitchMxcsrOnExit();
-    Devirtualize<&A64::UserCallbacks::InterpreterFallback>(conf.callbacks).EmitCall(code, [&](RegList param) {
+    CoreCallback<&A64::UserCallbacks::InterpreterFallback>().EmitCall(code, [&](RegList param) {
         code.mov(param[0], A64::LocationDescriptor{terminal.next}.PC());
         code.mov(qword[r15 + offsetof(A64JitState, pc)], param[0]);
         code.mov(param[1].cvt32(), terminal.num_instructions);
@@ -946,7 +964,7 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::FastDispatchHint, IR::LocationDescri
         return;
     }
     EmitInlineLocationDescriptor();
-    code.mov(r12, reinterpret_cast<u64>(fast_dispatch_table.data()));
+    code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
     code.mov(rbp, rbx);
     if (code.HasHostFeature(HostFeature::SSE42)) {
         code.crc32(rbp, r12);
@@ -988,57 +1006,114 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::CheckHalt terminal, IR::LocationDesc
     EmitTerminal(terminal.else_, initial_location, is_single_step);
 }
 
-void A64EmitX64::EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
-    const CodePtr patch_location = code.getCurr();
-    if (target_code_ptr) {
-        code.jg(target_code_ptr);
+namespace {
+// Bytes of padding before an instruction of opcode_size bytes so that the field after the opcode
+// is aligned on `alignment`.
+size_t LinkPadding(const void* site, size_t opcode_size, size_t alignment) {
+    const auto field = reinterpret_cast<uintptr_t>(site) + opcode_size;
+    return (alignment - field % alignment) % alignment;
+}
+
+void StoreRel32(u8* rel32, CodePtr target) {
+    const s64 displacement = reinterpret_cast<const u8*>(target) - (rel32 + 4);
+    ASSERT(displacement == static_cast<s32>(displacement));
+    ASSERT(reinterpret_cast<uintptr_t>(rel32) % 4 == 0);
+    std::atomic_ref<u32>{*reinterpret_cast<u32*>(rel32)}.store(static_cast<u32>(static_cast<s32>(displacement)), std::memory_order_release);
+}
+}  // namespace
+
+void A64EmitX64::EmitLinkSite(u8 condition_opcode, const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    const CodePtr site = code.getCurr();
+    const size_t opcode_size = condition_opcode ? 2 : 1;
+    code.nop(LinkPadding(site, opcode_size, 4));
+    if (condition_opcode) {
+        code.db(0x0F);
+        code.db(condition_opcode);
     } else {
-        code.mov(rax, A64::LocationDescriptor{target_desc}.PC());
-        code.mov(qword[r15 + offsetof(A64JitState, pc)], rax);
-        code.jg(code.GetReturnFromRunCodeAddress());
+        code.db(0xE9);
     }
-    code.EnsurePatchLocationSize(patch_location, 23);
+    u8* const rel32 = code.getCurr<u8*>();
+    code.dd(0);
+    if (target_code_ptr) {
+        StoreRel32(rel32, target_code_ptr);
+    }
+    pending_link_stubs.push_back({site, rel32, A64::LocationDescriptor{target_desc}.PC(), target_code_ptr == nullptr});
+}
+
+void A64EmitX64::EmitLinkStubs() {
+    for (const PendingLinkStub& pending : pending_link_stubs) {
+        const CodePtr stub = code.getCurr();
+        code.mov(rax, pending.target_pc);
+        code.mov(qword[r15 + offsetof(A64JitState, pc)], rax);
+        code.jmp(code.GetReturnFromRunCodeAddress(), code.T_NEAR);
+        link_sites[pending.site] = LinkSite{pending.rel32, stub};
+        if (pending.unlinked) {
+            StoreRel32(pending.rel32, stub);
+        }
+    }
+    pending_link_stubs.clear();
+}
+
+void A64EmitX64::EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    EmitLinkSite(0x8F, target_desc, target_code_ptr);
 }
 
 void A64EmitX64::EmitPatchJz(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
-    const CodePtr patch_location = code.getCurr();
-    if (target_code_ptr) {
-        code.jz(target_code_ptr);
-    } else {
-        code.mov(rax, A64::LocationDescriptor{target_desc}.PC());
-        code.mov(qword[r15 + offsetof(A64JitState, pc)], rax);
-        code.jz(code.GetReturnFromRunCodeAddress());
-    }
-    code.EnsurePatchLocationSize(patch_location, 23);
+    EmitLinkSite(0x84, target_desc, target_code_ptr);
 }
 
 void A64EmitX64::EmitPatchJmp(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
-    const CodePtr patch_location = code.getCurr();
-    if (target_code_ptr) {
-        code.jmp(target_code_ptr);
-    } else {
-        code.mov(rax, A64::LocationDescriptor{target_desc}.PC());
-        code.mov(qword[r15 + offsetof(A64JitState, pc)], rax);
-        code.jmp(code.GetReturnFromRunCodeAddress());
-    }
-    code.EnsurePatchLocationSize(patch_location, 22);
+    EmitLinkSite(0, target_desc, target_code_ptr);
 }
 
 void A64EmitX64::EmitPatchMovRcx(CodePtr target_code_ptr) {
     if (!target_code_ptr) {
         target_code_ptr = code.GetReturnFromRunCodeAddress();
     }
-    const CodePtr patch_location = code.getCurr();
-    code.mov(code.rcx, reinterpret_cast<u64>(target_code_ptr));
-    code.EnsurePatchLocationSize(patch_location, 10);
+    // mov rcx, imm64 in its 10-byte form, imm64 aligned on 8
+    code.nop(LinkPadding(code.getCurr(), 2, 8));
+    code.db(0x48);
+    code.db(0xB9);
+    code.dq(reinterpret_cast<u64>(target_code_ptr));
+}
+
+void A64EmitX64::Patch(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    const auto iter = patch_information.find(target_desc);
+    if (iter == patch_information.end()) {
+        return;
+    }
+    const PatchInformation& patch_info = iter->second;
+    const auto patch_site = [&](CodePtr site) {
+        const auto link = link_sites.find(site);
+        ASSERT(link != link_sites.end());
+        StoreRel32(link->second.rel32, target_code_ptr ? target_code_ptr : link->second.stub);
+    };
+    for (CodePtr site : patch_info.jg) {
+        patch_site(site);
+    }
+    for (CodePtr site : patch_info.jz) {
+        patch_site(site);
+    }
+    for (CodePtr site : patch_info.jmp) {
+        patch_site(site);
+    }
+    const u64 rcx_value = reinterpret_cast<u64>(target_code_ptr ? target_code_ptr : code.GetReturnFromRunCodeAddress());
+    for (CodePtr site : patch_info.mov_rcx) {
+        u8* const imm64 = const_cast<u8*>(reinterpret_cast<const u8*>(site)) + LinkPadding(site, 2, 8) + 2;
+        std::atomic_ref<u64>{*reinterpret_cast<u64*>(imm64)}.store(rcx_value, std::memory_order_release);
+    }
 }
 
 void A64EmitX64::Unpatch(const IR::LocationDescriptor& location) {
     EmitX64::Unpatch(location);
     if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
-        code.DisableWriting();
-        (*fast_dispatch_table_lookup)(location.Value()) = {};
-        code.EnableWriting();
+        // Other cores may be running and reading their own table: only the location is
+        // cleared (one aligned store), so a core that already matched still jumps to the
+        // old code, which stays valid until the whole cache is cleared.
+        for (FastDispatchTable* table : fast_dispatch_tables) {
+            FastDispatchEntry& entry = (*fast_dispatch_table_lookup)(location.Value(), table->data());
+            std::atomic_ref<u64>{entry.location_descriptor}.store(0xFFFF'FFFF'FFFF'FFFFull, std::memory_order_relaxed);
+        }
     }
 }
 
