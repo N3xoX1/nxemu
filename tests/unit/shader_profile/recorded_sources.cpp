@@ -115,6 +115,22 @@ int main(int argc,char** argv) try {
     versions=ListRecordedVersions(root,0x1000,"Game");
     Check(versions.entries.size()==1 && versions.unavailable==1);
     Reject([&]{RecordedProvenance(root,enabled["context"].asString(),0x1000);});
+    // A version known only from an import exports under the numbers the file gave.
+    const auto foreign=ContentContext(0x1000,base_part,"imported update");
+    Save(ImportedRecordingPath(VersionDirectory(root,foreign)),"imported");
+    Check(ListRecordedVersions(root,0x1000,"Game").unavailable==2);
+    Check(ImportedVersion(0x1000,foreign,"","").isNull() && ImportedVersion(0x1000,foreign,"1.0.0","1\n").isNull());
+    SaveImportedVersion(root,ImportedVersion(0x1000,foreign,"1.0.0","1.1.0"));
+    versions=ListRecordedVersions(root,0x1000,"Game");
+    Check(versions.entries.size()==2 && versions.unavailable==1);
+    Check(versions.entries[1].short_label=="Update 1.1.0" && versions.entries[1].context==foreign);
+    Check(versions.entries[1].directory.filename().string()=="Update 1.1.0 ("+foreign.substr(0,12)+")");
+    Check(RecordedVersionLabel(VersionProvenance(root,foreign,0x1000))=="Base 1.0.0; update 1.1.0 enabled");
+    Reject([&]{VersionProvenance(root,foreign,0x2000);});
+    // Recorded provenance describes a played version better; an import never replaces it.
+    SaveImportedVersion(root,ImportedVersion(0x1000,disabled["context"].asString(),"2.0.0",""));
+    Check(!std::filesystem::exists(ImportedVersionPath(FindVersionDirectory(root,disabled["context"].asString()))));
+    Check(VersionProvenance(root,disabled["context"].asString(),0x1000)["base_version"].asString()=="1.0.0");
     Reject([&]{ContentProvenance(0x1000,base_part,update_part,"1.0.0","1.3.0",true,false);});
     Reject([&]{ContentProvenance(0x1000,base_part,update_part,"1.0.0","1.3.0",false,true);});
     Save(root/"published.nxshader","previous complete profile");

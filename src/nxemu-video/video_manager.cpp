@@ -202,7 +202,13 @@ struct VideoManager::Impl
             return;
         }
         m_initStop = std::stop_source{};
-        m_init = std::async(std::launch::async, [this, stop_token = m_initStop.get_token()]() {
+        // An import session loads the game only to import and build its shaders.
+        std::string import_file = g_settings->GetString(NXCoreSetting::ShaderImportFile);
+        g_settings->SetString(NXCoreSetting::ShaderImportError, "");
+        g_settings->SetBool(NXCoreSetting::ShaderRecordingOff, false);
+        m_init = std::async(std::launch::async, [this, stop_token = m_initStop.get_token(), import_file = std::move(import_file)]() {
+            const bool importing = !import_file.empty();
+            VideoCore::ShaderImportRequest import_request{import_file};
             const auto notify_disk_cache_progress = [](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
                 if (g_settings == nullptr)
                 {
@@ -240,7 +246,11 @@ struct VideoManager::Impl
             {
                 m_gpuCore->ObtainContext();
                 SCOPE_EXIT { m_gpuCore->ReleaseContext(); };
-                if (videoSettings.use_disk_shader_cache && !stop_token.stop_requested())
+                if (importing && !videoSettings.use_disk_shader_cache)
+                {
+                    import_request.error = "Turn on the disk shader cache to import shaders";
+                }
+                else if (videoSettings.use_disk_shader_cache && !stop_token.stop_requested())
                 {
                     const u64 program_id = m_modules.OperatingSystem().GetProgramId();
                     try {
@@ -248,7 +258,9 @@ struct VideoManager::Impl
                         if (!content.context.empty()) {
                             const auto cache = Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir) / fmt::format("{:016x}", program_id);
                             const bool modded = content.context != content.game_context;
-                            if (!modded) try {
+                            g_settings->SetBool(NXCoreSetting::ShaderRecordingOff, modded);
+                            // Provenance describes the game's own files, which imports target even with mods.
+                            try {
                                 VideoCommon::ShaderProfile::SaveProvenance(cache, content.provenance);
                             } catch (const std::exception & error) {
                                 LOG_WARNING(Render, "Cannot save captured game version: {}", error.what());
@@ -261,21 +273,32 @@ struct VideoManager::Impl
                             program_id, stop_token, notify_disk_cache_progress,
                             content.context,
                             g_settings->GetString(NXCoreSetting::GameFile),
-                            content.game_context);
+                            content.game_context,
+                            importing ? &import_request : nullptr);
                     } catch (const std::exception& exception) {
                         // std::async stores exceptions in its future. If one escapes here,
                         // Start is never called and guest GPU requests wait indefinitely.
                         LOG_ERROR(Render, "Shader cache loading failed: {}", exception.what());
+                        if (importing && import_request.error.empty()) import_request.error = exception.what();
                     }
                 }
             }
             notify_disk_cache_progress(VideoCore::LoadCallbackStage::Complete, 0, 0);
 
+            if (importing && !import_request.imported && import_request.error.empty())
+            {
+                import_request.error = stop_token.stop_requested() ? "Shader import cancelled" : "No shaders were imported";
+            }
             // Even after cancellation, drain GPU calls before OS shutdown joins their callers.
             m_gpuCore->Start();
             if (!stop_token.stop_requested())
             {
-                g_settings->SetInt(NXCoreSetting::GpuInitializationState, (int32_t)GpuInitializationState::Ready);
+                if (importing)
+                {
+                    g_settings->SetString(NXCoreSetting::ShaderImportError, import_request.imported ? "" : import_request.error.c_str());
+                }
+                g_settings->SetInt(NXCoreSetting::GpuInitializationState,
+                                   (int32_t)(importing ? GpuInitializationState::Finished : GpuInitializationState::Ready));
             }
         });
     }

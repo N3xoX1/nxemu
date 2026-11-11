@@ -147,7 +147,8 @@ void RasterizerOpenGL::SyncVertexInstances() {
 }
 
 void RasterizerOpenGL::LoadDiskResources(u64 title_id, std::stop_token stop_loading,
-                                         const VideoCore::DiskResourceLoadCallback& callback, [[maybe_unused]] std::string_view content_identity, [[maybe_unused]] std::string_view game_path, [[maybe_unused]] std::string_view game_context) {
+                                         const VideoCore::DiskResourceLoadCallback& callback, [[maybe_unused]] std::string_view content_identity, [[maybe_unused]] std::string_view game_path, [[maybe_unused]] std::string_view game_context, VideoCore::ShaderImportRequest* import) {
+    if (import) import->error = "Shader files can only be imported with the Vulkan renderer";
     shader_cache.LoadDiskResources(title_id, stop_loading, callback);
 }
 

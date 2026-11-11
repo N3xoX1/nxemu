@@ -102,12 +102,10 @@ private:
         StartMenuGame,
         ExportMenuGameShaders,
         ImportMenuGameShaders,
-        OpenShaderProfileDirectory,
         OpenMenuGameDirectory,
         CopyMenuGamePath,
         ConfigureMenuGame,
         OpenMenuGameSaves,
-        OpenMenuGameCache,
         ClearMenuGameCache,
         ResetVolumeOverrides,
         SetDockedMode,
@@ -152,6 +150,7 @@ private:
     void OnModulesReady(bool gameStarting) override;
     void OnGameStarted(const std::string & path) override;
     void OnSessionError(const std::string & message) override;
+    void OnShaderImportFinished(const std::string & error) override;
 
     void Post(Action action);
     void RunPendingWork();
@@ -285,6 +284,8 @@ private:
     std::string m_menuGame;
     Rml::Element * m_pendingSelectMenu = nullptr;
     std::string m_pendingGame;
+    // A shader file to import as the pending game loads; the game then stops before it runs.
+    std::string m_pendingShaderImport;
     bool m_launchReady = false;
     bool m_gameShown = false;
     bool m_rescanGames = false;

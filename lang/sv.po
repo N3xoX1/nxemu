@@ -207,6 +207,7 @@ msgid "How much of it games may take."
 msgstr "Hur mycket grafikminne spel får använda."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Shaders"
 msgstr "Shaderprogram"
 
@@ -330,7 +331,8 @@ msgstr "Mikrofonen som spel lyssnar på."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/assets/controller_dialog.rml
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/hotkeys.h
 #: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -350,11 +352,13 @@ msgstr "För varje spelare. Var och en har en egen omkopplare."
 msgid "Behaviour"
 msgstr "Beteende"
 
-#: src/nxemu/ui/assets/advanced_dialog.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Start games in fullscreen"
 msgstr "Starta spel i helskärm"
 
-#: src/nxemu/ui/assets/advanced_dialog.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Start games with UI hidden"
 msgstr "Starta spel med gränssnittet dolt"
 
@@ -715,7 +719,6 @@ msgstr "Återställ"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Close"
 msgstr "Stäng"
 
@@ -793,6 +796,8 @@ msgid "Cancel"
 msgstr "Avbryt"
 
 #: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Save"
 msgstr "Spara"
 
@@ -923,7 +928,8 @@ msgstr "Konsolläge"
 msgid "As on the television: games draw up to 1080p."
 msgstr "Som på en tv: spel ritas med upp till 1080p."
 
-#: src/nxemu/ui/assets/general_dialog.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Docked"
 msgstr "Dockad"
@@ -937,7 +943,8 @@ msgstr ""
 "på datorn."
 
 #: src/nxemu/ui/assets/general_dialog.rml
-#: src/nxemu/ui/views/controller_dialog.cpp src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Handheld"
 msgstr "Handhållen"
@@ -1040,11 +1047,13 @@ msgstr ""
 "Ett spel körs. Nedtonade inställningar kan inte ändras förrän spelet har "
 "avslutats och språk läses in när ett spel startar."
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Restart"
 msgstr "Starta om"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Pause emulation (F2)"
 msgstr "Pausa emuleringen (F2)"
 
@@ -1085,7 +1094,8 @@ msgstr "Titel"
 msgid "Card information"
 msgstr "Kortinformation"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Play time"
@@ -1112,26 +1122,31 @@ msgstr "Omslag"
 msgid "Game"
 msgstr "Spel"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Publisher"
 msgstr "Utgivare"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Version"
 msgstr "Version"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Last played"
 msgstr "Senast spelat"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Format"
 msgstr "Format"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Size"
@@ -1151,11 +1166,13 @@ msgid "Reading game information"
 msgstr "Läser spelinformation"
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Configure"
 msgstr "Konfigurera"
 
 #. shown beside the controller's buttons, as in "(A) Play (X) Options".
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Play"
 msgstr "Spela"
@@ -1164,7 +1181,7 @@ msgstr "Spela"
 msgid "Saves"
 msgstr "Sparfiler"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
 msgid "Cache"
 msgstr "Cache"
 
@@ -1184,7 +1201,8 @@ msgstr "Söker efter spel…"
 msgid "Loading"
 msgstr "Läser in"
 
-#: src/nxemu/ui/assets/main_window.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Paused"
 msgstr "Pausad"
 
@@ -1265,7 +1283,8 @@ msgstr "Bild från en fil"
 msgid "This file is not a picture NXEmu can read."
 msgstr "Den här filen är inte en bild som NXEmu kan läsa."
 
-#: src/nxemu/ui/assets/profiles_dialog.rml src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/profiles_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
 msgid "Name"
 msgstr "Namn"
@@ -1291,43 +1310,17 @@ msgid "Delete"
 msgstr "Ta bort"
 
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Shader profile"
-msgstr "Shaderprofil"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game versions"
-msgstr "Spelversioner"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "About this profile"
-msgstr "Om den här profilen"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game completed"
-msgstr "Spelet avklarat"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Profile version"
-msgstr "Profilversion"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Description"
-msgstr "Beskrivning"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-msgid "Choose file"
-msgstr "Välj fil"
+msgid "Export shaders"
+msgstr "Exportera shaderprogram"
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
 msgstr "Stoppa det aktuella spelet innan du öppnar ett annat."
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Stop the current game before importing shaders."
+msgstr "Stoppa det aktuella spelet innan du importerar shaderprogram."
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "The graphics renderer could not be initialized. Check that your GPU drivers are up to date."
@@ -1391,46 +1384,54 @@ msgstr ""
 "Kunde inte läsa in spelet:\n"
 "%1"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Left"
 msgstr "Vänster"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Right"
 msgstr "Höger"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Down"
 msgstr "Ned"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Up"
 msgstr "Upp"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Plus"
 msgstr "Plus"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Minus"
 msgstr "Minus"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Home"
 msgstr "Hem"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Capture"
 msgstr "Skärmbild"
@@ -1443,7 +1444,8 @@ msgstr "Spak L"
 msgid "Stick R"
 msgstr "Spak R"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 msgid "Start"
 msgstr "Start"
 
@@ -1531,12 +1533,14 @@ msgstr "Axlar %1, %2, %3"
 msgid "Motion %1"
 msgstr "Rörelse %1"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/hotkeys.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/hotkeys.cpp
 #: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 msgid "Button %1"
 msgstr "Knapp %1"
 
-#: src/nxemu/ui/input/input_text.cpp src/nxemu/ui/views/controller_dialog.cpp
+#: src/nxemu/ui/input/input_text.cpp
+#: src/nxemu/ui/views/controller_dialog.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/features/input/InputBindingDisplay.kt
 #: src/android/app/src/main/java/org/nxemu/ui/settings/ControllerSettings.kt
@@ -1888,7 +1892,8 @@ msgstr "Ingen (inget ljud)"
 msgid "The one that suits this computer."
 msgstr "Den som passar den här datorn."
 
-#: src/nxemu/ui/views/advanced_dialog.cpp src/nxemu/ui/views/general_dialog.cpp
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/general_dialog.cpp
 msgid "System default"
 msgstr "Systemets standard"
 
@@ -1957,7 +1962,8 @@ msgstr "Tryck på knapparna…"
 msgid "Press the keys..."
 msgstr "Tryck på tangenterna…"
 
-#: src/nxemu/ui/views/advanced_dialog.cpp src/nxemu/ui/views/hotkeys.cpp
+#: src/nxemu/ui/views/advanced_dialog.cpp
+#: src/nxemu/ui/views/hotkeys.cpp
 msgid "Not assigned"
 msgstr "Inte tilldelad"
 
@@ -2120,7 +2126,8 @@ msgstr "Ingen spelmapp finns ännu. Lägg till mapparna där dina spel finns."
 msgid "Choose a game directory"
 msgstr "Välj en spelmapp"
 
-#: src/nxemu/ui/views/firmware_dialog.cpp src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/performance_overlay.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
@@ -2247,7 +2254,8 @@ msgstr ""
 msgid "Firmware"
 msgstr "Fast programvara"
 
-#: src/nxemu/ui/views/firmware_dialog.cpp src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 msgid "All files"
 msgstr "Alla filer"
 
@@ -2489,7 +2497,8 @@ msgstr ""
 msgid "%1 (native)"
 msgstr "%1 (ursprunglig)"
 
-#: src/nxemu/ui/views/general_dialog.cpp src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/general_dialog.cpp
+#: src/nxemu/ui/views/main_window.cpp
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Gaussian"
 msgstr "Gaussisk"
@@ -2552,7 +2561,8 @@ msgstr "Avsluta helskärmsläge"
 msgid "Hide or show the interface"
 msgstr "Dölj eller visa gränssnittet"
 
-#: src/nxemu/ui/views/hotkeys.h src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/hotkeys.h
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Show performance"
 msgstr "Visa prestanda"
 
@@ -2577,16 +2587,40 @@ msgid "Opening the game..."
 msgstr "Öppnar spelet…"
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "Reading and verifying NXShader"
-msgstr "Läser och verifierar NXShader"
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "Det här kan ta några minuter. Kompilerade shaderprogram cachelagras så att spelet startar snabbare nästa gång."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "Importing NXShader"
-msgstr "Importerar NXShader"
+msgid "Shaders are not recorded while mods or cheats are active."
+msgstr "Shaderprogram spelas inte in medan moddar eller fusk är aktiva."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "Compiling NXShader"
-msgstr "Kompilerar NXShader"
+msgid "About %1 s remaining"
+msgstr "Cirka %1 s kvar"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "About %1 min remaining"
+msgstr "Cirka %1 min kvar"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Estimating time remaining..."
+msgstr "Uppskattar återstående tid…"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Finishing shader preparation..."
+msgstr "Slutför förberedelsen av shaderprogram…"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Reading and verifying shaders"
+msgstr "Läser och verifierar shaderprogram"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Importing shaders"
+msgstr "Importerar shaderprogram"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Compiling imported shaders"
+msgstr "Kompilerar importerade shaderprogram"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
@@ -2611,22 +2645,51 @@ msgid "NXEmu - Exit"
 msgstr "NXEmu - Avsluta"
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "These shaders are for a different game."
+msgstr "Dessa shaderprogram är för ett annat spel."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This shader file was made by a newer version of NXEmu."
+msgstr "Den här shaderfilen skapades av en nyare version av NXEmu."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This is not an NXEmu shader file."
+msgstr "Det här är inte en shaderfil från NXEmu."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "None of these shaders match your copy of the game."
+msgstr "Inget av dessa shaderprogram matchar ditt exemplar av spelet."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "The shaders could not be imported."
+msgstr "Shaderprogrammen kunde inte importeras."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Import shaders"
+msgstr "Importera shaderprogram"
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "NXEmu shaders"
+msgstr "NXEmu-shaderprogram"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid ""
-"Clear the shader cache for %1?\n"
+"Delete all shaders for %1, including the ones you recorded and imported?\n"
 "\n"
-"Shaders will be rebuilt the next time you play."
+"The game will stutter while its shaders are built again. Export them first to keep them."
 msgstr ""
-"Tömma shadercachen för %1?\n"
+"Ta bort alla shaderprogram för %1, även de du har spelat in och importerat?\n"
 "\n"
-"Shaderprogrammen byggs om nästa gång du spelar."
+"Spelet kommer att rycka medan shaderprogrammen byggs om. Exportera dem först om du vill behålla dem."
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Clear cache"
-msgstr "Töm cache"
+msgid "Reset shaders"
+msgstr "Återställ shaderprogram"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Could not clear the cache: %1"
-msgstr "Kunde inte tömma cachen: %1"
+msgid "Could not delete the shaders: %1"
+msgstr "Kunde inte ta bort shaderprogrammen: %1"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "&Load File"
@@ -2816,24 +2879,28 @@ msgid "Start Game"
 msgstr "Starta spel"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Open NXShader folder"
-msgstr "Öppna NXShader-mappen"
+msgid "Hide details"
+msgstr "Dölj detaljer"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Export shader profile"
-msgstr "Exportera shaderprofil"
+msgid "Show details"
+msgstr "Visa detaljer"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Import shader profile"
-msgstr "Importera shaderprofil"
+msgid "Import..."
+msgstr "Importera…"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Export..."
+msgstr "Exportera…"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Reset..."
+msgstr "Återställ…"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open saves"
 msgstr "Öppna sparfiler"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Open cache"
-msgstr "Öppna cache"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open Containing Folder"
@@ -4516,6 +4583,8 @@ msgstr "Kunde inte nå GitHub"
 #: src/nxemu/ui/assets/general_dialog.rml
 #: src/nxemu/ui/views/main_window.cpp
 
+#: src/nxemu/ui/assets/general_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Downscaling filter"
 msgstr "Nedskalningsfilter"
 
@@ -4569,184 +4638,48 @@ msgid "Inherit"
 msgstr "Ärv"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Recorded with %1 game versions."
-msgstr "Inspelat med %1 spelversioner."
+msgid "These shaders cannot be exported: the game version they belong to is unknown."
+msgstr "Dessa shaderprogram kan inte exporteras: spelversionen de hör till är okänd."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Made for: %1."
-msgstr "Skapat för: %1."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 — %2 recipes."
-msgstr "%1 — %2 recept."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Share my recordings"
-msgstr "Dela mina inspelningar"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "You played the game yourself. Export what you recorded."
-msgstr "Du har spelat spelet själv. Exportera det du har spelat in."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Complete the installed profile"
-msgstr "Komplettera den installerade profilen"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Add what you recorded to the profile you imported, then share the result."
-msgstr "Lägg till det du har spelat in i profilen du importerade och dela sedan resultatet."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Turn on if you played the whole game while recording, not just a part of it."
-msgstr "Slå på om du spelade hela spelet under inspelningen, inte bara en del av det."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your own number, to tell updates of this profile apart. It is not the game version."
-msgstr "Ditt eget nummer för att skilja uppdateringar av den här profilen åt. Det är inte spelversionen."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "(optional)"
-msgstr "(valfritt)"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Players see it when they import the profile."
-msgstr "Spelare ser den när de importerar profilen."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "For example: 1.0"
-msgstr "Till exempel: 1.0"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "For example: all tracks, 200cc included"
-msgstr "Till exempel: alla banor, inklusive 200cc"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "All recorded versions"
-msgstr "Alla inspelade versioner"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "What do you want to share?"
-msgstr "Vad vill du dela?"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Select a profile. NXEmu verifies it against your local game before prewarming at game startup."
-msgstr "Välj en profil. NXEmu verifierar den mot ditt lokala spel före uppvärmningen när spelet startas."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Choose profile"
-msgstr "Välj profil"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your recordings become a small file you can share. It lists the shaders to prepare; their code is read from each player's own copy of the game."
-msgstr "Dina inspelningar blir en liten fil som du kan dela. Den listar de shaderprogram som ska förberedas. Deras kod läses från varje spelares egen kopia av spelet."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "No identified recording is available. Play with collection enabled, stop the game, then export."
-msgstr "Det finns ingen identifierad inspelning. Spela med insamling aktiverad, stoppa spelet och exportera sedan."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Recorded version: %1"
-msgstr "Inspelad version: %1"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 recordings have missing or invalid version metadata and cannot be exported."
-msgstr "%1 inspelningar saknar versionsmetadata eller har ogiltiga sådana och kan inte exporteras."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Export"
-msgstr "Exportera"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Profile selected. Local shaders will be verified when the game starts."
-msgstr "Profil vald. Lokala shaderprogram verifieras när spelet startas."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game completed: recorded over the whole game."
-msgstr "Spelet avklarat: inspelat under hela spelet."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 graphics recipes, %2 compute recipes."
-msgstr "%1 grafikrecept, %2 beräkningsrecept."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Start game"
-msgstr "Starta spel"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "One shader profile is ready."
-msgstr "En shaderprofil är klar."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 shader profiles are ready."
-msgstr "%1 shaderprofiler är klara."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "installed profile"
-msgstr "installerad profil"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 graphics, %2 compute recipes, %3"
-msgstr "%1 grafik-, %2 beräkningsrecept, %3"
+msgid "Nothing has been recorded for this game yet. Shaders are not recorded while mods or cheats are active."
+msgstr "Inget har spelats in för det här spelet än. Shaderprogram spelas inte in medan moddar eller fusk är aktiva."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Saved in %1"
 msgstr "Sparat i %1"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 and %2 share %3 % of their shaders."
-msgstr "%1 och %2 delar %3 % av sina shaderprogram."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "They are saved in one file. A version only gets its own file if the file would become too large."
-msgstr "De sparas i en fil. En version får bara en egen fil om filen annars skulle bli för stor."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Only this version is exported."
-msgstr "Endast den här versionen exporteras."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your recordings are added to the installed profile."
-msgstr "Dina inspelningar läggs till i den installerade profilen."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile version (32 characters) or the description (1024 characters) is too long, or has a line break."
-msgstr "Profilversionen (32 tecken) eller beskrivningen (1024 tecken) är för lång eller innehåller en radbrytning."
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Identifying recorded game version"
 msgstr "Identifierar inspelad spelversion"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The installed profile cannot be read and was not included."
-msgstr "Den installerade profilen kan inte läsas och togs inte med."
+msgid "%1 starts a new file: combined with the previous versions, the file would be too large."
+msgstr "%1 startar en ny fil: tillsammans med de tidigare versionerna skulle filen bli för stor."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The installed profile is too large to be completed; your recordings were exported in a new file."
-msgstr "Den installerade profilen är för stor för att kompletteras. Dina inspelningar exporterades till en ny fil."
+msgid "%1 was not included: %2"
+msgstr "%1 togs inte med: %2"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 starts a new file: combined with the previous versions, the profile would exceed its limits."
-msgstr "%1 startar en ny fil: tillsammans med de tidigare versionerna skulle profilen överskrida sina gränser."
+msgid "Some shaders were not included: the game version they belong to is unknown."
+msgstr "Vissa shaderprogram togs inte med: spelversionen de hör till är okänd."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Choose the folder for the %1 shader profiles"
-msgstr "Välj mappen för de %1 shaderprofilerna"
+msgid "Choose the folder for the %1 shader files"
+msgstr "Välj mappen för de %1 shaderfilerna"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Replace these existing shader profiles?"
-msgstr "Ersätta dessa befintliga shaderprofiler?"
+msgid "Replace these existing shader files?"
+msgstr "Ersätta dessa befintliga shaderfiler?"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Replace shader profiles"
-msgstr "Ersätt shaderprofiler"
+msgid "Replace shader files"
+msgstr "Ersätt shaderfiler"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile could not be imported"
-msgstr "Profilen kunde inte importeras"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile could not be exported"
-msgstr "Profilen kunde inte exporteras"
+msgid "The shaders could not be exported"
+msgstr "Shaderprogrammen kunde inte exporteras"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Identifying the game version"
@@ -4761,12 +4694,12 @@ msgid "Preparing the recipes"
 msgstr "Förbereder recepten"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Compressing the profile"
-msgstr "Komprimerar profilen"
+msgid "Compressing the shaders"
+msgstr "Komprimerar shaderprogrammen"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Saving the profile"
-msgstr "Sparar profilen"
+msgid "Saving the shaders"
+msgstr "Sparar shaderprogrammen"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Checking earlier results"
@@ -4806,6 +4739,7 @@ msgstr "Avbryter"
 
 #: src/nxemu/ui/views/main_window.cpp
 
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Custom"
 msgstr "Anpassat"
 
