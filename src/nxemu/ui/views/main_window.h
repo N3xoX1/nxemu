@@ -4,6 +4,7 @@
 #include "controller_dialog.h"
 #include "directories_dialog.h"
 #include "firmware_dialog.h"
+#include "shader_import_dialog.h"
 #include "shader_profile_dialog.h"
 #include "general_dialog.h"
 #include "game_details_panel.h"
@@ -244,6 +245,7 @@ private:
     SettingsContext m_settingsContext;
     std::unique_ptr<AboutDialog> m_aboutDialog;
     std::unique_ptr<FirmwareDialog> m_firmwareDialog;
+    std::unique_ptr<ShaderImportDialog> m_shaderImportDialog;
     std::unique_ptr<ShaderProfileDialog> m_shaderProfileDialog;
     std::string m_firmwareVersion;
     std::string m_firmwareOfferedFor;
@@ -284,8 +286,6 @@ private:
     std::string m_menuGame;
     Rml::Element * m_pendingSelectMenu = nullptr;
     std::string m_pendingGame;
-    // A shader file to import as the pending game loads; the game then stops before it runs.
-    std::string m_pendingShaderImport;
     bool m_launchReady = false;
     bool m_gameShown = false;
     bool m_rescanGames = false;

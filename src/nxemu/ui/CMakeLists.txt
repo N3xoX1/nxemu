@@ -111,12 +111,15 @@ add_library(nxemu_ui STATIC
     views/directories_dialog.h
     views/firmware_dialog.cpp
     views/firmware_dialog.h
+    views/shader_import_dialog.cpp
+    views/shader_import_dialog.h
     views/shader_profile_dialog.cpp
     views/shader_profile_dialog.h
     views/hotkeys.cpp
     views/hotkeys.h
     views/loading_screen.cpp
     views/loading_screen.h
+    views/load_stage.h
     views/profiles_dialog.cpp
     views/profiles_dialog.h
     views/shortcut.cpp
