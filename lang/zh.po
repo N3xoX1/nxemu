@@ -689,6 +689,7 @@ msgstr "重做"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Close"
 msgstr "关闭"
 
@@ -758,7 +759,9 @@ msgstr "根据输入设备的建议绑定此玩家的操作"
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/shader_import_dialog.rml
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
 #: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
@@ -2131,6 +2134,7 @@ msgstr "固件复制..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
@@ -2425,10 +2429,12 @@ msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "启用 Mod 或作弊码时不会记录着色器。"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "About %1 s remaining"
 msgstr "大约还剩 %1 秒"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "About %1 min remaining"
 msgstr "大约还剩 %1 分钟"
 
@@ -2441,18 +2447,22 @@ msgid "Finishing shader preparation..."
 msgstr "正在完成着色器准备..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Reading and verifying shaders"
 msgstr "读取并验证着色器"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Importing shaders"
 msgstr "导入着色器"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Compiling imported shaders"
 msgstr "编译导入的着色器"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Preparing shaders"
 msgstr "准备着色器"
 
@@ -2474,27 +2484,36 @@ msgstr "%1 去"
 msgid "NXEmu - Exit"
 msgstr "NXEmu - 退出"
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "These shaders are for a different game."
 msgstr "这些着色器属于另一款游戏。"
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "This shader file was made by a newer version of NXEmu."
 msgstr "此着色器文件由更新版本的 NXEmu 创建。"
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "This is not an NXEmu shader file."
 msgstr "这不是 NXEmu 着色器文件。"
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "None of these shaders match your copy of the game."
 msgstr "这些着色器都与你的游戏副本不匹配。"
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The import window could not be opened, so the shaders were not imported."
+msgstr "无法打开导入窗口，因此着色器未导入。"
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders are checked against your copy of the game, then built. The game does not start."
+msgstr "着色器会先与你的游戏副本核对，然后再编译。游戏不会启动。"
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "The shaders could not be imported."
 msgstr "无法导入着色器。"
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/shader_import_dialog.rml
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Import shaders"
 msgstr "导入着色器"
 
@@ -4305,17 +4324,31 @@ msgstr "已读取 %1 / %2 MiB"
 msgid "%1 resources examined"
 msgstr "已检查 %1 项资源"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "This can take a few minutes."
 msgstr "这可能需要几分钟。"
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders were imported and built. The game uses them the next time it starts."
+msgstr "着色器已导入并编译。游戏下次启动时会使用它们。"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "%1 of %2 shaders found (%3 %)"
 msgstr "已找到 %1 / %2 个着色器（%3 %）"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Cancelling"
 msgstr "正在取消"
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Finishing..."
+msgstr "正在完成..."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Reading the game files"
+msgstr "正在读取游戏文件"
 
 #: src/nxemu/ui/views/scaling_filters.h
 msgid "Catmull-Rom fast"

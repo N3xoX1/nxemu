@@ -269,6 +269,7 @@ bool MainWindow::Create()
     m_gameMenu = std::make_unique<PopupMenu>(
         m_document->GetElementById("popup-menu"), [this](int id) { Post(static_cast<Action>(id)); }, [this](int id, int value) { SetMenuRange(id, value); });
     m_shaderProfileDialog=std::make_unique<ShaderProfileDialog>(m_window,m_assetDir);
+    m_shaderImportDialog = std::make_unique<ShaderImportDialog>(m_window, m_session, m_assetDir);
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
     m_aboutDialog = std::make_unique<AboutDialog>(m_window, m_session, m_assetDir);
@@ -335,6 +336,10 @@ bool MainWindow::Create()
 void MainWindow::OpenGame(const std::string & path)
 {
     if(m_shaderProfileDialog && m_shaderProfileDialog->Busy())return;
+    if (m_shaderImportDialog && m_shaderImportDialog->Busy())
+    {
+        return;
+    }
     m_pendingGame = path;
     m_launchReady = false;
     m_menuDirty = true;
@@ -344,7 +349,7 @@ void MainWindow::RequestQuit()
 {
     m_firmwareDialog->CancelInstall();
     if(m_shaderProfileDialog)m_shaderProfileDialog->Cancel();
-    if (!m_session.IsRunning() || m_session.IsLaunching() || ConfirmStop(Tr("NXEmu - Exit")))
+    if (!m_session.IsRunning() || m_session.IsLaunching() || m_session.ImportingShaders() || ConfirmStop(Tr("NXEmu - Exit")))
     {
         m_quit = true;
     }
@@ -451,6 +456,7 @@ void MainWindow::Update()
     }
     m_aboutDialog->Update();
     m_firmwareDialog->Update();
+    m_shaderImportDialog->Update();
     m_controllerDialog->Update();
     m_generalDialog->Update();
     m_advancedDialog->Update();
@@ -570,13 +576,13 @@ void MainWindow::Update()
 
 bool MainWindow::Still() const
 {
-    return !m_shaderProfileDialog->Busy() && m_phase != EmulatorSession::Phase::Loading && m_pendingGame.empty() && !m_firmwareDialog->Installing() && !m_controllerDialog->Listening() && !m_profilesDialog->Busy() &&
+    return !m_shaderProfileDialog->Busy() && !m_shaderImportDialog->Busy() && m_phase != EmulatorSession::Phase::Loading && m_pendingGame.empty() && !m_firmwareDialog->Installing() && !m_controllerDialog->Listening() && !m_profilesDialog->Busy() &&
            m_window.Context()->GetNextUpdateDelay() > 0 && (m_window.DialogWindow() == nullptr || m_window.DialogWindow()->Still());
 }
 
 bool MainWindow::DialogOpen() const
 {
-    return m_shaderProfileDialog->IsVisible() || m_aboutDialog->IsVisible() || m_firmwareDialog->IsVisible() || m_controllerDialog->IsVisible() || m_generalDialog->IsVisible() || m_advancedDialog->IsVisible() || m_directoriesDialog->IsVisible() ||
+    return m_shaderProfileDialog->IsVisible() || m_shaderImportDialog->IsVisible() || m_aboutDialog->IsVisible() || m_firmwareDialog->IsVisible() || m_controllerDialog->IsVisible() || m_generalDialog->IsVisible() || m_advancedDialog->IsVisible() || m_directoriesDialog->IsVisible() ||
            m_profilesDialog->IsVisible();
 }
 
@@ -613,6 +619,11 @@ void MainWindow::OnModulesReady(bool gameStarting)
 
 void MainWindow::OnGameStarted(const std::string & path)
 {
+    // An import session never plays the game, and the window does not show it.
+    if (m_session.ImportingShaders())
+    {
+        return;
+    }
     const auto game = std::find_if(m_games.begin(), m_games.end(), [&path](const GameEntry & entry) { return entry.path == path; });
     const bool hasIcon = game != m_games.end() && !game->icon.empty();
     m_document->SetClass("has-game-icon", hasIcon);
@@ -629,11 +640,6 @@ void MainWindow::OnGameStarted(const std::string & path)
     }
     SetTitle(game != m_games.end() ? game->title : SettingsStore::GetInstance().GetString(NXCoreSetting::GameName));
     m_menuDirty = true;
-    // An import session never plays the game.
-    if (m_session.ImportingShaders())
-    {
-        return;
-    }
     m_library.AddRecentFile(path);
     m_gamesDirty = true;
     m_applyStartOptions = true;
@@ -647,18 +653,7 @@ void MainWindow::OnSessionError(const std::string & message)
 void MainWindow::OnShaderImportFinished(const std::string & error)
 {
     m_menuDirty = true;
-    // The reader's reasons, in words for players; anything else as it is.
-    const std::string reason = error == "Shader file for a different game" ? Tr("These shaders are for a different game.")
-        : error == "Shader file made by a newer version" ? Tr("This shader file was made by a newer version of NXEmu.")
-        : error == "Expected a compressed NXShader profile" ? Tr("This is not an NXEmu shader file.")
-        : error.starts_with("No compatible shader recipes") ? Tr("None of these shaders match your copy of the game.")
-        : error == "Shader import cancelled" ? std::string()
-        : error;
-    if (!reason.empty())
-    {
-        const std::string message = Tr("The shaders could not be imported.") + "\n\n" + reason;
-        g_notify->DisplayError(message.c_str(), Tr("Import shaders").c_str());
-    }
+    m_shaderImportDialog->Finished(error);
 }
 
 void MainWindow::Post(Action action)
@@ -713,18 +708,10 @@ void MainWindow::RunPendingWork()
             }
         }
         m_launchReady = false;
-        std::string path, shaders;
+        std::string path;
         path.swap(m_pendingGame);
-        shaders.swap(m_pendingShaderImport);
         m_firmwareOfferedFor.clear();
-        if (shaders.empty())
-        {
-            m_session.LoadGame(path);
-        }
-        else
-        {
-            m_session.ImportShaders(path, shaders);
-        }
+        m_session.LoadGame(path);
     }
 }
 
@@ -836,17 +823,16 @@ void MainWindow::Run(Action action)
     }
     case Action::ImportMenuGameShaders:
     {
-        if(m_session.IsRunning() || m_shaderProfileDialog->Busy() || !m_pendingGame.empty())break;
+        if(m_session.IsRunning() || m_shaderProfileDialog->Busy() || m_shaderImportDialog->Busy() || !m_pendingGame.empty())break;
         const auto game=std::find_if(m_games.begin(),m_games.end(),[&](const GameEntry& item){return item.path==m_menuGame;});
         if(game==m_games.end() || !game->programId)break;
         const std::string root=Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(game->path)}.parent_path());
         const std::string filter=FileFilter({{Tr("NXEmu shaders"),"*.nxshader"}});
         Path chosen;
         if(!FileSelect(m_window.NativeHandle(),root.c_str(),filter.c_str(),true,chosen))break;
-        // The import runs as the game loads, with its loading screen, and stops before the game runs.
-        // It reads and checks the file there, so a file for another game is refused after loading.
-        OpenGame(game->path);
-        m_pendingShaderImport=static_cast<const char*>(chosen);
+        // The game loads in the background to read its shaders and stops before it runs; the dialog
+        // shows the progress. The file is checked there, so a file for another game is refused after loading.
+        m_shaderImportDialog->Start(game->path,game->title,static_cast<const char*>(chosen));
         break;
     }
     case Action::StartMenuGame: OpenGame(m_menuGame); break;
@@ -2317,12 +2303,14 @@ void MainWindow::SyncInterfaceLanguage()
 
 void MainWindow::SyncPhase()
 {
-    const EmulatorSession::Phase phase = m_session.CurrentPhase();
+    // A shader import loads the game out of sight: the window stays idle until it is unloaded.
+    const bool importing = m_shaderImportDialog->Busy();
+    const EmulatorSession::Phase phase = importing ? EmulatorSession::Phase::Idle : m_session.CurrentPhase();
     const bool emulating = m_session.IsRunning() && (phase == EmulatorSession::Phase::Running || phase == EmulatorSession::Phase::Paused);
     const bool paused = emulating && phase == EmulatorSession::Phase::Paused;
     m_document->SetClass("emulating", emulating);
     m_document->SetClass("game-paused", paused);
-    m_document->SetClass("game-controls-visible", uiSettings.showEmulationControls && (m_session.IsRunning() || !m_pendingGame.empty()));
+    m_document->SetClass("game-controls-visible", uiSettings.showEmulationControls && !importing && (m_session.IsRunning() || !m_pendingGame.empty()));
     for (const char * id : {"title-pause", "title-restart"})
     {
         if (Rml::Element * button = m_document->GetElementById(id))
@@ -2731,7 +2719,6 @@ void MainWindow::StopGame()
     if (!m_pendingGame.empty())
     {
         m_pendingGame.clear();
-        m_pendingShaderImport.clear();
         m_launchReady = false;
         m_firmwareOfferedFor.clear();
         m_menuDirty = true;

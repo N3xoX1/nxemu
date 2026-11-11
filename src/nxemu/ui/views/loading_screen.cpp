@@ -1,4 +1,5 @@
 #include "loading_screen.h"
+#include "load_stage.h"
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/StringUtilities.h>
 #include <algorithm>
@@ -10,16 +11,6 @@
 
 namespace
 {
-enum class LoadStage
-{
-    Game = 0,
-    Shaders = 1,
-    Launch = 2,
-    ReadProfile = 3,
-    ImportProfile = 4,
-    BuildProfile = 5,
-};
-
 constexpr int kIndeterminate = -1;
 constexpr const char * kUnnamed = TrMark("Loading");
 constexpr const char * kOpening = TrMark("Opening the game...");

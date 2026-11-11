@@ -689,6 +689,7 @@ msgstr "다시 실행"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Close"
 msgstr "닫기"
 
@@ -758,7 +759,9 @@ msgstr "입력 장치의 권장 설정에 따라 이 플레이어의 조작을 �
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/shader_import_dialog.rml
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
 #: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
@@ -2131,6 +2134,7 @@ msgstr "펌웨어 복사..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
@@ -2425,10 +2429,12 @@ msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "모드나 치트가 활성화된 동안에는 셰이더가 기록되지 않습니다."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "About %1 s remaining"
 msgstr "약 %1초 남음"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "About %1 min remaining"
 msgstr "약 %1분 남음"
 
@@ -2441,18 +2447,22 @@ msgid "Finishing shader preparation..."
 msgstr "셰이더 준비 마무리 중..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Reading and verifying shaders"
 msgstr "셰이더 읽기 및 확인"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Importing shaders"
 msgstr "셰이더 가져오는 중"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Compiling imported shaders"
 msgstr "가져온 셰이더 컴파일 중"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Preparing shaders"
 msgstr "셰이더 준비 중"
 
@@ -2474,27 +2484,36 @@ msgstr "%1 이동"
 msgid "NXEmu - Exit"
 msgstr "NXEmu - 종료"
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "These shaders are for a different game."
 msgstr "이 셰이더는 다른 게임용입니다."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "This shader file was made by a newer version of NXEmu."
 msgstr "이 셰이더 파일은 더 새로운 버전의 NXEmu로 만들어졌습니다."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "This is not an NXEmu shader file."
 msgstr "NXEmu 셰이더 파일이 아닙니다."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "None of these shaders match your copy of the game."
 msgstr "이 셰이더 중 가지고 있는 게임과 일치하는 것이 없습니다."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The import window could not be opened, so the shaders were not imported."
+msgstr "가져오기 창을 열 수 없어 셰이더를 가져오지 못했습니다."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders are checked against your copy of the game, then built. The game does not start."
+msgstr "셰이더를 가지고 있는 게임과 대조한 뒤 빌드합니다. 게임은 시작되지 않습니다."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "The shaders could not be imported."
 msgstr "셰이더를 가져올 수 없습니다."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/shader_import_dialog.rml
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Import shaders"
 msgstr "셰이더 가져오기"
 
@@ -4305,17 +4324,31 @@ msgstr "%2MiB 중 %1MiB 읽음"
 msgid "%1 resources examined"
 msgstr "리소스 %1개 확인함"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "This can take a few minutes."
 msgstr "몇 분 정도 걸릴 수 있습니다."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders were imported and built. The game uses them the next time it starts."
+msgstr "셰이더를 가져와 빌드했습니다. 다음에 게임을 시작할 때 사용됩니다."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "%1 of %2 shaders found (%3 %)"
 msgstr "셰이더 %2개 중 %1개 찾음(%3 %)"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Cancelling"
 msgstr "취소 중"
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Finishing..."
+msgstr "마무리 중..."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Reading the game files"
+msgstr "게임 파일 읽는 중"
 
 #: src/nxemu/ui/views/scaling_filters.h
 msgid "Catmull-Rom fast"

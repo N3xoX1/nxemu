@@ -665,6 +665,7 @@ msgstr "Rétablir"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Close"
 msgstr "Fermer"
 
@@ -734,7 +735,9 @@ msgstr "Assigne les commandes de ce joueur selon les suggestions du périphériq
 
 #: src/nxemu/ui/assets/controller_dialog.rml
 #: src/nxemu/ui/assets/firmware_dialog.rml
+#: src/nxemu/ui/assets/shader_import_dialog.rml
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 #: src/android/app/src/main/java/org/nxemu/ui/main/MainActivity.kt
 #: src/android/app/src/main/java/org/nxemu/ui/settings/InputMappingSession.kt
@@ -2096,6 +2099,7 @@ msgstr "Copie du firmware..."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "%1 of %2"
@@ -2391,10 +2395,12 @@ msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "Les shaders ne sont pas enregistrés quand des mods ou des codes de triche sont actifs."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "About %1 s remaining"
 msgstr "Environ %1 s restantes"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "About %1 min remaining"
 msgstr "Environ %1 min restantes"
 
@@ -2407,18 +2413,22 @@ msgid "Finishing shader preparation..."
 msgstr "Finalisation de la préparation des shaders..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Reading and verifying shaders"
 msgstr "Lecture et vérification des shaders"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Importing shaders"
 msgstr "Importation des shaders"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Compiling imported shaders"
 msgstr "Compilation des shaders importés"
 
 #: src/nxemu/ui/views/loading_screen.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Preparing shaders"
 msgstr "Préparation des shaders"
 
@@ -2440,27 +2450,36 @@ msgstr "%1 Go"
 msgid "NXEmu - Exit"
 msgstr "NXEmu - Quitter"
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "These shaders are for a different game."
 msgstr "Ces shaders sont destinés à un autre jeu."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "This shader file was made by a newer version of NXEmu."
 msgstr "Ce fichier de shaders a été créé par une version plus récente de NXEmu."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "This is not an NXEmu shader file."
 msgstr "Ce n'est pas un fichier de shaders NXEmu."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "None of these shaders match your copy of the game."
 msgstr "Aucun de ces shaders ne correspond à votre copie du jeu."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The import window could not be opened, so the shaders were not imported."
+msgstr "La fenêtre d'importation n'a pas pu s'ouvrir : les shaders n'ont pas été importés."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders are checked against your copy of the game, then built. The game does not start."
+msgstr "Les shaders sont vérifiés avec votre copie du jeu, puis compilés. Le jeu ne démarre pas."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "The shaders could not be imported."
 msgstr "Impossible d'importer les shaders."
 
-#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/assets/shader_import_dialog.rml
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Import shaders"
 msgstr "Importer des shaders"
 
@@ -4361,17 +4380,31 @@ msgstr "%1 sur %2 Mio lus"
 msgid "%1 resources examined"
 msgstr "%1 ressources examinées"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "This can take a few minutes."
 msgstr "Cela peut prendre quelques minutes."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "The shaders were imported and built. The game uses them the next time it starts."
+msgstr "Les shaders ont été importés et compilés. Le jeu les utilisera à son prochain lancement."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "%1 of %2 shaders found (%3 %)"
 msgstr "%1 shaders sur %2 trouvés (%3 %)"
 
+#: src/nxemu/ui/views/shader_import_dialog.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Cancelling"
 msgstr "Annulation"
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Finishing..."
+msgstr "Finalisation..."
+
+#: src/nxemu/ui/views/shader_import_dialog.cpp
+msgid "Reading the game files"
+msgstr "Lecture des fichiers du jeu"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Makes details stand out. Set to 0% to turn it off."
