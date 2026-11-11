@@ -163,7 +163,7 @@ public:
         }
         ObserveChangedState(dirty,regs,topology,hint,source,key,features,prefix_memo,vertex_inputs);
     }
-private:
+    // Word 0 of a graphics entry: the dynamic features its key was projected with.
     static u32 FeatureBits(const DynamicFeatures& features) noexcept {
         return (features.has_extended_dynamic_state ? 1U : 0U) |
             (features.has_extended_dynamic_state_2 ? 2U : 0U) |
@@ -173,6 +173,7 @@ private:
             (features.has_dynamic_vertex_input ? 32U : 0U) |
             (features.has_vertex_stride_workaround ? 64U : 0U);
     }
+private:
     // Never zero, so an empty slot never matches. A 64-bit collision can only skip
     // recording one recipe, never change a recorded one.
     static u64 Fingerprint(const std::array<u64, Engine::DirtyState::ShaderProfileGroups>& hashes,

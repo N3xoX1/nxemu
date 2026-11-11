@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <string>
 #include <string_view>
 #include <functional>
 #include <optional>
@@ -37,6 +38,13 @@ enum class LoadCallbackStage {
     BuildProfile,
 };
 using DiskResourceLoadCallback = std::function<void(LoadCallbackStage, std::size_t, std::size_t)>;
+// A shader file imported into the local cache while the game loads. The renderer
+// sets imported, or explains in error why nothing was imported.
+struct ShaderImportRequest {
+    std::string file;
+    bool imported{};
+    std::string error;
+};
 
 /// How guest memory sharing a host page with a CPU access can be exposed.
 enum class SharedPageAccess {
@@ -204,7 +212,7 @@ public:
     virtual void AccelerateInlineToMemory(GPUVAddr address, size_t copy_size, std::span<const u8> memory) = 0;
 
     /// Initialize disk cached resources for the game being emulated
-    virtual void LoadDiskResources(u64 title_id, std::stop_token stop_loading,  const DiskResourceLoadCallback& callback, std::string_view content_identity = {}, std::string_view game_path = {}, std::string_view game_context = {}) {}
+    virtual void LoadDiskResources(u64 title_id, std::stop_token stop_loading,  const DiskResourceLoadCallback& callback, std::string_view content_identity = {}, std::string_view game_path = {}, std::string_view game_context = {}, ShaderImportRequest* import = nullptr) {}
 
     virtual void InitializeChannel(Tegra::Control::ChannelState& channel) {}
 

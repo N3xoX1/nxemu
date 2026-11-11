@@ -195,6 +195,7 @@ msgid "How much of it games may take."
 msgstr "游戏可以使用的数量。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Shaders"
 msgstr "着色器"
 
@@ -688,7 +689,6 @@ msgstr "重做"
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/assets/profiles_dialog.rml
 #: src/nxemu/ui/views/firmware_dialog.cpp
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Close"
 msgstr "关闭"
 
@@ -766,6 +766,8 @@ msgid "Cancel"
 msgstr "取消"
 
 #: src/nxemu/ui/assets/controller_dialog.rml
+#: src/nxemu/ui/assets/shader_profile_dialog.rml
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Save"
 msgstr "保存"
 
@@ -1108,6 +1110,7 @@ msgid "Reading game information"
 msgstr "正在读取游戏信息"
 
 #: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Configure"
 msgstr "配置"
 
@@ -1123,7 +1126,6 @@ msgid "Saves"
 msgstr "存档"
 
 #: src/nxemu/ui/assets/main_window.rml
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Cache"
 msgstr "缓存"
 
@@ -1244,43 +1246,17 @@ msgid "Delete"
 msgstr "删除"
 
 #: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Shader profile"
-msgstr "着色器配置文件"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game versions"
-msgstr "游戏版本"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "About this profile"
-msgstr "关于此配置文件"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game completed"
-msgstr "游戏已通关"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Profile version"
-msgstr "配置文件版本"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Description"
-msgstr "描述"
-
-#: src/nxemu/ui/assets/shader_profile_dialog.rml
-msgid "Choose file"
-msgstr "选择文件"
+msgid "Export shaders"
+msgstr "导出着色器"
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Stop the current game before opening another one."
 msgstr "在打开另一游戏之前停止当前游戏。"
+
+#: src/nxemu/ui/emulation/emulator_session.cpp
+msgid "Stop the current game before importing shaders."
+msgstr "导入着色器前，请先停止当前游戏。"
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid "Required modules failed to reload after stopping the game."
@@ -2441,6 +2417,42 @@ msgid "Opening the game..."
 msgstr "正在打开游戏..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "这可能需要几分钟。编译后的着色器会被缓存，以加快之后的启动速度。"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Shaders are not recorded while mods or cheats are active."
+msgstr "启用 Mod 或作弊码时不会记录着色器。"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "About %1 s remaining"
+msgstr "大约还剩 %1 秒"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "About %1 min remaining"
+msgstr "大约还剩 %1 分钟"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Estimating time remaining..."
+msgstr "正在估算剩余时间..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Finishing shader preparation..."
+msgstr "正在完成着色器准备..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Reading and verifying shaders"
+msgstr "读取并验证着色器"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Importing shaders"
+msgstr "导入着色器"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Compiling imported shaders"
+msgstr "编译导入的着色器"
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Preparing shaders"
 msgstr "准备着色器"
 
@@ -2463,22 +2475,51 @@ msgid "NXEmu - Exit"
 msgstr "NXEmu - 退出"
 
 #: src/nxemu/ui/views/main_window.cpp
+msgid "These shaders are for a different game."
+msgstr "这些着色器属于另一款游戏。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This shader file was made by a newer version of NXEmu."
+msgstr "此着色器文件由更新版本的 NXEmu 创建。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This is not an NXEmu shader file."
+msgstr "这不是 NXEmu 着色器文件。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "None of these shaders match your copy of the game."
+msgstr "这些着色器都与你的游戏副本不匹配。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "The shaders could not be imported."
+msgstr "无法导入着色器。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Import shaders"
+msgstr "导入着色器"
+
+#: src/nxemu/ui/views/main_window.cpp
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "NXEmu shaders"
+msgstr "NXEmu 着色器"
+
+#: src/nxemu/ui/views/main_window.cpp
 msgid ""
-"Clear the shader cache for %1?\n"
+"Delete all shaders for %1, including the ones you recorded and imported?\n"
 "\n"
-"Shaders will be rebuilt the next time you play."
+"The game will stutter while its shaders are built again. Export them first to keep them."
 msgstr ""
-"要清空%1的着色器缓存吗？\n"
+"要删除 %1 的所有着色器吗？包括你记录的和导入的着色器。\n"
 "\n"
-"下次游玩时将重新构建着色器。"
+"重建着色器期间游戏会出现卡顿。如需保留，请先导出。"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Clear cache"
-msgstr "清空缓存"
+msgid "Reset shaders"
+msgstr "重置着色器"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Could not clear the cache: %1"
-msgstr "无法清空缓存：%1"
+msgid "Could not delete the shaders: %1"
+msgstr "无法删除着色器：%1"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "&Load File"
@@ -2663,12 +2704,28 @@ msgid "Start Game"
 msgstr "开始游戏"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Open saves"
-msgstr "打开存档"
+msgid "Hide details"
+msgstr "隐藏详细信息"
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Open cache"
-msgstr "打开缓存"
+msgid "Show details"
+msgstr "显示详细信息"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Import..."
+msgstr "导入..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Export..."
+msgstr "导出..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Reset..."
+msgstr "重置..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Open saves"
+msgstr "打开存档"
 
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Open Containing Folder"
@@ -4132,30 +4189,6 @@ msgstr "GitHub 返回 %1"
 msgid "Couldn't reach GitHub"
 msgstr "无法连接 GitHub"
 
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Reading and verifying NXShader"
-msgstr "读取并验证 NXShader"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Importing NXShader"
-msgstr "导入 NXShader"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Compiling NXShader"
-msgstr "编译 NXShader"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Open NXShader folder"
-msgstr "打开 NXShader 文件夹"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Export shader profile"
-msgstr "导出着色器配置文件"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Import shader profile"
-msgstr "导入着色器配置文件"
-
 #: src/nxemu/ui/assets/general_dialog.rml
 msgid "Optional sharpening at 1:1 and when downscaling; also with Nearest, Bilinear or Catmull-Rom upscaling. Off at 0%."
 msgstr "可选锐化，适用于 1:1 显示和缩小；也适用于最近邻、双线性或 Catmull-Rom 放大。设为 0% 时关闭。"
@@ -4185,184 +4218,48 @@ msgid "Inherit"
 msgstr "继承"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Recorded with %1 game versions."
-msgstr "已使用 %1 个游戏版本记录。"
+msgid "These shaders cannot be exported: the game version they belong to is unknown."
+msgstr "无法导出这些着色器：无法确定它们所属的游戏版本。"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Made for: %1."
-msgstr "适用于：%1。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 — %2 recipes."
-msgstr "%1 — %2 个配方。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Share my recordings"
-msgstr "分享我的记录"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "You played the game yourself. Export what you recorded."
-msgstr "你亲自玩过此游戏。导出你记录的内容。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Complete the installed profile"
-msgstr "补全已安装的配置文件"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Add what you recorded to the profile you imported, then share the result."
-msgstr "将你记录的内容添加到导入的配置文件中，然后分享结果。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Turn on if you played the whole game while recording, not just a part of it."
-msgstr "如果你在记录期间玩了整个游戏而不只是一部分，请打开。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your own number, to tell updates of this profile apart. It is not the game version."
-msgstr "你自己的编号，用于区分此配置文件的更新。它不是游戏版本。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "(optional)"
-msgstr "（可选）"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Players see it when they import the profile."
-msgstr "玩家导入配置文件时会看到此内容。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "For example: 1.0"
-msgstr "例如：1.0"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "For example: all tracks, 200cc included"
-msgstr "例如：所有赛道，包括 200cc"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "All recorded versions"
-msgstr "所有已记录的版本"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "What do you want to share?"
-msgstr "你想分享什么？"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Select a profile. NXEmu verifies it against your local game before prewarming at game startup."
-msgstr "选择一个配置文件。游戏启动预热前，NXEmu 会根据你本地的游戏对其进行验证。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Choose profile"
-msgstr "选择配置文件"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your recordings become a small file you can share. It lists the shaders to prepare; their code is read from each player's own copy of the game."
-msgstr "你的记录会成为一个可分享的小文件。其中列出要准备的着色器；着色器代码从每位玩家自己的游戏副本中读取。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "No identified recording is available. Play with collection enabled, stop the game, then export."
-msgstr "没有可用的已识别记录。请在启用收集的情况下游玩，停止游戏后再导出。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Recorded version: %1"
-msgstr "已记录的版本：%1"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 recordings have missing or invalid version metadata and cannot be exported."
-msgstr "%1 条记录的版本元数据缺失或无效，无法导出。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Export"
-msgstr "导出"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Profile selected. Local shaders will be verified when the game starts."
-msgstr "已选择配置文件。游戏启动时将验证本地着色器。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Game completed: recorded over the whole game."
-msgstr "游戏已通关：记录涵盖整个游戏。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 graphics recipes, %2 compute recipes."
-msgstr "%1 个图形配方，%2 个计算配方。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Start game"
-msgstr "开始游戏"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "One shader profile is ready."
-msgstr "1 个着色器配置文件已就绪。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 shader profiles are ready."
-msgstr "%1 个着色器配置文件已就绪。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "installed profile"
-msgstr "已安装的配置文件"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 graphics, %2 compute recipes, %3"
-msgstr "%1 个图形、%2 个计算配方，%3"
+msgid "Nothing has been recorded for this game yet. Shaders are not recorded while mods or cheats are active."
+msgstr "此游戏尚未记录任何内容。启用 Mod 或作弊码时不会记录着色器。"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Saved in %1"
 msgstr "已保存到 %1"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 and %2 share %3 % of their shaders."
-msgstr "%1 和 %2 共用 %3 % 的着色器。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "They are saved in one file. A version only gets its own file if the file would become too large."
-msgstr "它们保存在一个文件中。只有文件会变得过大时，某个版本才会有单独的文件。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Only this version is exported."
-msgstr "仅导出此版本。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Your recordings are added to the installed profile."
-msgstr "你的记录会添加到已安装的配置文件中。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile version (32 characters) or the description (1024 characters) is too long, or has a line break."
-msgstr "配置文件版本（32 个字符）或描述（1024 个字符）过长，或包含换行符。"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Identifying recorded game version"
 msgstr "正在识别已记录的游戏版本"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The installed profile cannot be read and was not included."
-msgstr "无法读取已安装的配置文件，因此未包含。"
+msgid "%1 starts a new file: combined with the previous versions, the file would be too large."
+msgstr "%1 开始一个新文件：与之前的版本合并后，文件会过大。"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The installed profile is too large to be completed; your recordings were exported in a new file."
-msgstr "已安装的配置文件过大，无法补全；你的记录已导出到新文件。"
+msgid "%1 was not included: %2"
+msgstr "%1 未包含在内：%2"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "%1 starts a new file: combined with the previous versions, the profile would exceed its limits."
-msgstr "%1 开始一个新文件：与之前的版本合并后，配置文件将超出限制。"
+msgid "Some shaders were not included: the game version they belong to is unknown."
+msgstr "部分着色器未包含在内：无法确定它们所属的游戏版本。"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Choose the folder for the %1 shader profiles"
-msgstr "选择用于保存这 %1 个着色器配置文件的文件夹"
+msgid "Choose the folder for the %1 shader files"
+msgstr "选择用于保存这 %1 个着色器文件的文件夹"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Replace these existing shader profiles?"
-msgstr "要替换这些现有的着色器配置文件吗？"
+msgid "Replace these existing shader files?"
+msgstr "要替换这些现有的着色器文件吗？"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Replace shader profiles"
-msgstr "替换着色器配置文件"
+msgid "Replace shader files"
+msgstr "替换着色器文件"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile could not be imported"
-msgstr "无法导入配置文件"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "The profile could not be exported"
-msgstr "无法导出配置文件"
+msgid "The shaders could not be exported"
+msgstr "无法导出着色器"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Identifying the game version"
@@ -4377,12 +4274,12 @@ msgid "Preparing the recipes"
 msgstr "正在准备配方"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Compressing the profile"
-msgstr "正在压缩配置文件"
+msgid "Compressing the shaders"
+msgstr "正在压缩着色器"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Saving the profile"
-msgstr "正在保存配置文件"
+msgid "Saving the shaders"
+msgstr "正在保存着色器"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Checking earlier results"
@@ -4450,6 +4347,7 @@ msgstr "使用三个图形通道的形态抗锯齿。"
 
 #: src/nxemu/ui/views/main_window.cpp
 
+#: src/nxemu/ui/views/main_window.cpp
 msgid "Custom"
 msgstr "自定义"
 

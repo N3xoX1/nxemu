@@ -1,5 +1,4 @@
 #include "main_window.h"
-#include "yuzu_video_core/shader_profile_location.h"
 #include <nxemu/ui/i18n/translation.h>
 #include "resolution_scales.h"
 #include "rml_events.h"
@@ -269,7 +268,7 @@ bool MainWindow::Create()
         m_document->GetElementById("menu-bar"), [this](int id) { Post(static_cast<Action>(id)); }, [this](int id, int value) { SetMenuRange(id, value); });
     m_gameMenu = std::make_unique<PopupMenu>(
         m_document->GetElementById("popup-menu"), [this](int id) { Post(static_cast<Action>(id)); }, [this](int id, int value) { SetMenuRange(id, value); });
-    m_shaderProfileDialog=std::make_unique<ShaderProfileDialog>(m_window,m_assetDir,[this](const std::string& game){OpenGame(game);});
+    m_shaderProfileDialog=std::make_unique<ShaderProfileDialog>(m_window,m_assetDir);
     m_loadingScreen = std::make_unique<LoadingScreen>(m_document->GetElementById("loading-panel"), m_window.Renderer());
     const OpenSettingsPage openPage = [this](SettingsPage page) { return ShowSettingsPage(page); };
     m_aboutDialog = std::make_unique<AboutDialog>(m_window, m_session, m_assetDir);
@@ -629,15 +628,37 @@ void MainWindow::OnGameStarted(const std::string & path)
         }
     }
     SetTitle(game != m_games.end() ? game->title : SettingsStore::GetInstance().GetString(NXCoreSetting::GameName));
+    m_menuDirty = true;
+    // An import session never plays the game.
+    if (m_session.ImportingShaders())
+    {
+        return;
+    }
     m_library.AddRecentFile(path);
     m_gamesDirty = true;
     m_applyStartOptions = true;
-    m_menuDirty = true;
 }
 
 void MainWindow::OnSessionError(const std::string & message)
 {
     g_notify->DisplayError(message.c_str(), "NXEmu");
+}
+
+void MainWindow::OnShaderImportFinished(const std::string & error)
+{
+    m_menuDirty = true;
+    // The reader's reasons, in words for players; anything else as it is.
+    const std::string reason = error == "Shader file for a different game" ? Tr("These shaders are for a different game.")
+        : error == "Shader file made by a newer version" ? Tr("This shader file was made by a newer version of NXEmu.")
+        : error == "Expected a compressed NXShader profile" ? Tr("This is not an NXEmu shader file.")
+        : error.starts_with("No compatible shader recipes") ? Tr("None of these shaders match your copy of the game.")
+        : error == "Shader import cancelled" ? std::string()
+        : error;
+    if (!reason.empty())
+    {
+        const std::string message = Tr("The shaders could not be imported.") + "\n\n" + reason;
+        g_notify->DisplayError(message.c_str(), Tr("Import shaders").c_str());
+    }
 }
 
 void MainWindow::Post(Action action)
@@ -692,10 +713,18 @@ void MainWindow::RunPendingWork()
             }
         }
         m_launchReady = false;
-        std::string path;
+        std::string path, shaders;
         path.swap(m_pendingGame);
+        shaders.swap(m_pendingShaderImport);
         m_firmwareOfferedFor.clear();
-        m_session.LoadGame(path);
+        if (shaders.empty())
+        {
+            m_session.LoadGame(path);
+        }
+        else
+        {
+            m_session.ImportShaders(path, shaders);
+        }
     }
 }
 
@@ -786,33 +815,38 @@ void MainWindow::Run(Action action)
             m_menuDirty = true;
         }
         break;
-    case Action::OpenShaderProfileDirectory:
-    {
-        const auto directory=VideoCommon::ShaderProfile::ProfileDirectory(
-            Common::FS::GetYuzuPath(Common::FS::YuzuPath::YuzuDir));
-        if(Common::FS::CreateDir(directory))OpenDirectory(Common::FS::PathToUTF8String(directory));
-        break;
-    }
     case Action::ExportMenuGameShaders:
-    case Action::ImportMenuGameShaders:
     {
         if(m_session.IsRunning() || m_shaderProfileDialog->Busy())break;
         const auto game=std::find_if(m_games.begin(),m_games.end(),[&](const GameEntry& item){return item.path==m_menuGame;});
         if(game==m_games.end() || !game->programId)break;
         const auto cache=GameCache::Directory(Common::FS::GetYuzuPath(Common::FS::YuzuPath::ShaderDir),game->programId);
+        // NACP slot zero is American English. Use the game's own English
+        // name for portable filenames, independent of the UI language.
         std::string profile_title=game->title;
-        if(action==Action::ExportMenuGameShaders) {
-            // NACP slot zero is American English. Use the game's own English
-            // name for portable filenames, independent of the UI language.
-            std::vector<uint8_t> control(0x4000);
-            uint32_t actual{};
-            if(m_session.Modules().Systemloader().GetPMControlData(game->programId,control.data(),
-                    static_cast<uint32_t>(control.size()),actual)==LoaderResultStatus::Success && actual>=0x200) {
-                const auto end=std::find(control.begin(),control.begin()+0x200,uint8_t{});
-                if(end!=control.begin())profile_title.assign(control.begin(),end);
-            }
+        std::vector<uint8_t> control(0x4000);
+        uint32_t actual{};
+        if(m_session.Modules().Systemloader().GetPMControlData(game->programId,control.data(),
+                static_cast<uint32_t>(control.size()),actual)==LoaderResultStatus::Success && actual>=0x200) {
+            const auto end=std::find(control.begin(),control.begin()+0x200,uint8_t{});
+            if(end!=control.begin())profile_title.assign(control.begin(),end);
         }
-        m_shaderProfileDialog->Prepare(m_session.Modules().Video(),action==Action::ImportMenuGameShaders,game->path,game->programId,cache,std::move(profile_title));
+        m_shaderProfileDialog->Prepare(m_session.Modules().Video(),game->path,game->programId,cache,std::move(profile_title));
+        break;
+    }
+    case Action::ImportMenuGameShaders:
+    {
+        if(m_session.IsRunning() || m_shaderProfileDialog->Busy() || !m_pendingGame.empty())break;
+        const auto game=std::find_if(m_games.begin(),m_games.end(),[&](const GameEntry& item){return item.path==m_menuGame;});
+        if(game==m_games.end() || !game->programId)break;
+        const std::string root=Common::FS::PathToUTF8String(std::filesystem::path{Common::FS::ToU8String(game->path)}.parent_path());
+        const std::string filter=FileFilter({{Tr("NXEmu shaders"),"*.nxshader"}});
+        Path chosen;
+        if(!FileSelect(m_window.NativeHandle(),root.c_str(),filter.c_str(),true,chosen))break;
+        // The import runs as the game loads, with its loading screen, and stops before the game runs.
+        // It reads and checks the file there, so a file for another game is refused after loading.
+        OpenGame(game->path);
+        m_pendingShaderImport=static_cast<const char*>(chosen);
         break;
     }
     case Action::StartMenuGame: OpenGame(m_menuGame); break;
@@ -822,7 +856,6 @@ void MainWindow::Run(Action action)
     case Action::CopyMenuGamePath: SDL_SetClipboardText(m_menuGame.c_str()); break;
     case Action::ConfigureMenuGame:
     case Action::OpenMenuGameSaves:
-    case Action::OpenMenuGameCache:
     case Action::ClearMenuGameCache:
     {
         const auto game = std::find_if(m_games.begin(), m_games.end(), [this](const GameEntry & entry) { return entry.path == m_menuGame; });
@@ -846,20 +879,16 @@ void MainWindow::Run(Action action)
                 OpenDirectory(directory);
             }
         }
-        else if (action == Action::OpenMenuGameCache)
-        {
-            OpenDirectory(Common::FS::PathToUTF8String(GameCache::Directory(cacheRoot, game->programId)));
-        }
         else if (!m_session.IsRunning())
         {
-            const std::string message = Tr("Clear the shader cache for %1?\n\nShaders will be rebuilt the next time you play.", {game->title});
-            const std::string title = Tr("Clear cache");
+            const std::string message = Tr("Delete all shaders for %1, including the ones you recorded and imported?\n\nThe game will stutter while its shaders are built again. Export them first to keep them.", {game->title});
+            const std::string title = Tr("Reset shaders");
             if (g_notify->Query(message.c_str(), title.c_str()) == NotificationResponse::Yes)
             {
                 std::string error;
                 if (!GameCache::Clear(cacheRoot, game->programId, error))
                 {
-                    const std::string failure = Tr("Could not clear the cache: %1", {error});
+                    const std::string failure = Tr("Could not delete the shaders: %1", {error});
                     g_notify->DisplayError(failure.c_str(), title.c_str());
                 }
                 m_details = {};
@@ -1924,17 +1953,13 @@ void MainWindow::ShowGameMenu(Rml::Element * origin)
         MenuItem::Action(static_cast<int>(Action::StartMenuGame), Tr("Start Game"),{},!m_shaderProfileDialog->Busy()),
         MenuItem::Action(static_cast<int>(Action::ConfigureMenuGame), Tr("Configure"), {}, m_settingsContext.CanConfigure(id)),
         MenuItem::Action(static_cast<int>(Action::ToggleGameDetails), uiSettings.showGameDetails ? Tr("Hide details") : Tr("Show details")),
-        MenuItem::Submenu(Tr("Shader profile"),{
-            MenuItem::Action(static_cast<int>(Action::OpenShaderProfileDirectory),Tr("Open NXShader folder")),
-            MenuItem::Action(static_cast<int>(Action::ExportMenuGameShaders),Tr("Export shader profile"),{},cacheExists && !m_session.IsRunning() && !m_shaderProfileDialog->Busy()),
-            MenuItem::Action(static_cast<int>(Action::ImportMenuGameShaders),Tr("Import shader profile"),{},!m_session.IsRunning() && !m_shaderProfileDialog->Busy()),
+        MenuItem::Submenu(Tr("Shaders"),{
+            MenuItem::Action(static_cast<int>(Action::ImportMenuGameShaders),Tr("Import..."),{},!m_session.IsRunning() && m_pendingGame.empty() && !m_shaderProfileDialog->Busy()),
+            MenuItem::Action(static_cast<int>(Action::ExportMenuGameShaders),Tr("Export..."),{},cacheExists && !m_session.IsRunning() && !m_shaderProfileDialog->Busy()),
+            MenuItem::Action(static_cast<int>(Action::ClearMenuGameCache),Tr("Reset..."),{},cacheExists && !m_session.IsRunning() && !m_shaderProfileDialog->Busy()),
         }),
         MenuItem::Separator(),
         MenuItem::Action(static_cast<int>(Action::OpenMenuGameSaves), Tr("Open saves"), {}, !GameDetailsReader::SaveDirectory(id).empty()),
-        MenuItem::Submenu(Tr("Cache"), {
-            MenuItem::Action(static_cast<int>(Action::OpenMenuGameCache), Tr("Open cache"), {}, cacheExists),
-            MenuItem::Action(static_cast<int>(Action::ClearMenuGameCache), Tr("Clear cache"), {}, cacheExists && !m_session.IsRunning()),
-        }),
         MenuItem::Action(static_cast<int>(Action::OpenMenuGameDirectory), Tr("Open Containing Folder")),
         MenuItem::Action(static_cast<int>(Action::CopyMenuGamePath), Tr("Copy File Path")),
     };
@@ -2705,6 +2730,7 @@ void MainWindow::StopGame()
     if (!m_pendingGame.empty())
     {
         m_pendingGame.clear();
+        m_pendingShaderImport.clear();
         m_launchReady = false;
         m_firmwareOfferedFor.clear();
         m_menuDirty = true;
@@ -2713,7 +2739,7 @@ void MainWindow::StopGame()
     {
         m_session.Stop();
     }
-    else if (m_session.IsRunning() && ConfirmStop(Tr("NXEmu - Stop Emulation")))
+    else if (m_session.IsRunning() && (m_session.ImportingShaders() || ConfirmStop(Tr("NXEmu - Stop Emulation"))))
     {
         m_session.Stop();
     }

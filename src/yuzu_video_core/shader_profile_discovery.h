@@ -11,4 +11,8 @@ void ResolveRecordedSources(ExportOptions & options);
 // verified physical spans; GPU addresses are never used as file offsets.
 void Discover(const ExportOptions & options, JsonValue & profile,
               const std::map<std::string, std::string> & codes, ExportReport & report);
+// After an import: where the imported file found each program (code digest -> locator, as the
+// file stores it), so exporting the version verifies them instead of searching the game again.
+// Known programs keep their locator; Discover still checks every one before using it.
+void SeedDiscoveryIndex(const std::filesystem::path & index, const std::map<std::string, JsonValue> & references);
 } // namespace VideoCommon::ShaderProfile

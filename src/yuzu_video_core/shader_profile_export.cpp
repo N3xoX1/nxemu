@@ -262,24 +262,29 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
         auto failure_path = options.recording;
         failure_path += ".failed";
         Require(!std::filesystem::exists(failure_path), "Automatic guest recording failed; see renderer log");
+        // What was played, then what was imported for this version and not played since.
         const auto journal = Journal::Read(options.recording);
         Require(!journal.incomplete_tail, "Incomplete recipe journal; start and stop the game to recover its final frame");
+        const auto imported = Journal::Read(ImportedRecordingPath(options.recording.parent_path()));
         JsonValue result(JsonValueType::Object);
         result["feature_bits"] = 0U;
         result["guest_state_word_count"] = 278U;
         result["records_compute"] = true;
         result["recipes"] = Array();
-        for (const auto & entry : journal.entries)
-        {
-            JsonValue r(JsonValueType::Object);
-            const bool compute = Journal::IsCompute(entry);
-            if (compute) r["kind"] = "compute";
-            else r["source_feature_bits"] = entry[0];
-            r["words"] = Array();
-            for (size_t i = 1; i < (compute ? 1 + Journal::ComputeWords : entry.size()); ++i)
-                r["words"].Append(entry[i]);
-            result["recipes"].Append(std::move(r));
-        }
+        for (const auto * entries : {&journal.entries, &imported.entries})
+            for (const auto & entry : *entries)
+            {
+                if (result["recipes"].size() >= MaxRecipes) break;
+                JsonValue r(JsonValueType::Object);
+                const bool compute = Journal::IsCompute(entry);
+                if (compute) r["kind"] = "compute";
+                else r["source_feature_bits"] = entry[0];
+                if (entries == &imported.entries) r["played"] = false;
+                r["words"] = Array();
+                for (size_t i = 1; i < (compute ? 1 + Journal::ComputeWords : entry.size()); ++i)
+                    r["words"].Append(entry[i]);
+                result["recipes"].Append(std::move(r));
+            }
         return result;
     }();
     Require(!recording["failed"].asBool() && Number(recording["projection_mismatches"]) == 0 && Number(recording["dropped_observations"]) == 0, "Incomplete guest recipe recording");
@@ -328,6 +333,13 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
     std::vector<std::string> compute_order;
     JsonValue graphics = Array(), unresolved = Array();
     std::set<std::string> seen;
+    // One copy of each recipe, whatever its origin: the first, played ones come first.
+    const auto first = [&](const JsonValue & r) {
+        JsonValue bare = r;
+        bare.removeMember("synthetic");
+        bare.removeMember("played");
+        return seen.insert(Canonical(bare)).second;
+    };
     // A synthetic variant stays synthetic, marked played when a draw used it, and gives way to a recorded
     // variant of the same key: the recipe carries the draw's own guest state, so they are one pipeline everywhere.
     const auto origin = [&](JsonValue & r, const std::string & key, const std::vector<std::string> & environments, bool played) {
@@ -382,7 +394,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
             r["environments"] = Array();
             for (const auto & id : environments)
                 r["environments"].Append(id);
-            if (seen.insert(Canonical(r)).second)
+            if (first(r))
             {
                 graphics.Append(std::move(r));
                 ++report.compute;
@@ -393,6 +405,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
     Require(recording["recipes"].isArray() && recording["recipes"].size() <= MaxRecipes, "Guest observation limit");
     for (const auto & observation : recording["recipes"])
     {
+        const bool played = !observation.isMember("played") || observation["played"].asBool();
         if (observation["kind"].asString() == "compute")
         {
             const auto & w = observation["words"];
@@ -401,7 +414,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
             for (unsigned i = 0; i < Journal::ComputeWords; ++i)
                 Put(key, i * 4, Number(w[i]), 4);
             // A dispatch whose pipeline was never stored has no environment to share.
-            if (!emit_compute(NormalizeCompute(std::move(key), dependencies), true)) ++report.unresolved;
+            if (!emit_compute(NormalizeCompute(std::move(key), dependencies), played) && played) ++report.unresolved;
             continue;
         }
         const auto source_bits = observation.isMember("source_feature_bits") ? Number(observation["source_feature_bits"]) : bits;
@@ -474,18 +487,20 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
                         return !model.profile["environments"][id]["cbuf_replacements"].empty();
                     }))
                     continue;
-                if (!origin(r, found->first, *it, true)) continue;
+                if (!origin(r, found->first, *it, played)) continue;
                 matched = true;
                 r["environments"] = Array();
                 for (const auto & id : *it)
                     r["environments"].Append(id);
-                if (seen.insert(Canonical(r)).second)
+                if (first(r))
                 {
                     graphics.Append(r);
                     ++report.graphics;
                 }
             }
         }
+        if (!matched && !played)
+            continue;
         if (!matched)
         {
             r["reason"] = "no_serialized_environment_for_source_key";
@@ -512,7 +527,7 @@ JsonValue Assemble(Model & model, const ExportOptions & options, ExportReport & 
     result["note"] = options.note;
     if (options.full_game) result["full_game"] = true;
     result["versions"] = JsonValue(JsonValueType::Object);
-    if (const auto provenance = RecordedProvenance(options.cache.parent_path(), options.context, options.title_id); !provenance.isNull())
+    if (const auto provenance = VersionProvenance(options.cache.parent_path(), options.context, options.title_id); !provenance.isNull())
     {
         // Version numbers come from the game; one that is not plain short text is left out.
         const auto number = [](const JsonValue & value) {
@@ -969,7 +984,7 @@ ExportReport Export(const ExportOptions & requested)
         ResolveRecordedSources(options);
         // The caller's label (game name and version) wins; the recorded version is the fallback.
         if (options.label.empty() || !ValidProfileText(options.label, 4096))
-            options.label = RecordedVersionLabel(RecordedProvenance(options.cache.parent_path(), options.context, options.title_id));
+            options.label = RecordedVersionLabel(VersionProvenance(options.cache.parent_path(), options.context, options.title_id));
     }
     Require(options.title_id && !options.base.empty(), "Missing game identity");
     Require(ValidProfileText(options.revision, MaxRevision) && ValidProfileText(options.note, MaxNote),

@@ -516,6 +516,35 @@ void ResolveRecordedSources(ExportOptions & options)
     throw std::runtime_error("The update used for this capture was not found beside the game. Place that update there and export again.");
 }
 
+void SeedDiscoveryIndex(const std::filesystem::path & path, const std::map<std::string, JsonValue> & references)
+{
+    if (references.empty()) return;
+    JsonValue index;
+    if (std::filesystem::exists(path))
+    {
+        Check(std::filesystem::file_size(path) <= 64 * 1024 * 1024, "Discovery index size limit");
+        std::ifstream in(path, std::ios::binary);
+        std::string bytes((std::istreambuf_iterator<char>(in)), {});
+        const auto saved = ParseMetadata(bytes, 64 * 1024 * 1024);
+        auto payload = saved;
+        payload.removeMember("checksum");
+        // A damaged index starts again, as Discover would.
+        if (saved["checksum"].isNull() || saved["checksum"].asString() == ResourceSha256(Canonical(payload))) index = saved;
+    }
+    if (Num(index["version"]) != 1 || !index["references"].isObject())
+    {
+        index = JsonValue(JsonValueType::Object);
+        index["version"] = 1U;
+        index["references"] = JsonValue(JsonValueType::Object);
+    }
+    for (const auto & [digest, locator] : references)
+        if (!index["references"].isMember(digest)) index["references"][digest] = locator;
+    // Only locators were added: scans an earlier export completed still hold.
+    index.removeMember("checksum");
+    index["checksum"] = ResourceSha256(Canonical(index));
+    ReplaceIndex(path, index);
+}
+
 void Discover(const ExportOptions & options, JsonValue & profile, const std::map<std::string, std::string> & codes, ExportReport & report)
 {
     IndexLock index_lock(options.index);

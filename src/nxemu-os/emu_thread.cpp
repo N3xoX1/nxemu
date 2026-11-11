@@ -53,7 +53,11 @@ public:
             return gpu_state() != GpuInitializationState::Preparing;
         });
         const bool gpu_ready = gpu_settled && gpu_state() == GpuInitializationState::Ready;
-        if (gpu_settled && !gpu_ready)
+        if (gpu_settled && gpu_state() == GpuInitializationState::Finished)
+        {
+            LOG_INFO(Core, "Shader import finished; the game does not run");
+        }
+        else if (gpu_settled && !gpu_ready)
         {
             LOG_ERROR(Core, "GPU initialization failed; guest execution will not start");
         }
