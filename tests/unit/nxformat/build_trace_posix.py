@@ -1,6 +1,6 @@
 """Build the production NXEmu VFS trace on Linux, without CPU/GPU modules.
 
-Requires C++20, libzstd-dev and libssl-dev. Uses real VFS/filesystem sources
+Requires C++20, libzstd-dev. Uses real VFS/filesystem sources
 and dead-section removal; no loader or filesystem stubs.
 """
 import argparse
@@ -24,11 +24,12 @@ def main():
         parser.error('C++20 compiler required')
     args.output_dir.mkdir(parents=True, exist_ok=True)
     common = [compiler, '-std=c++20', '-O2', '-ffunction-sections', '-fdata-sections',
-              '-DFMT_HEADER_ONLY=1', '-DNX_USE_OPENSSL=1',
+              '-DFMT_HEADER_ONLY=1',
               f'-I{ROOT / "src/nxemu-loader"}', f'-I{ROOT / "src"}',
               f'-I{ROOT / "external/zstd/lib"}', f'-I{ROOT / "external/boost"}',
               f'-I{ROOT / "external/fmt/include"}']
-    sources = ['src/nxemu-loader/core/file_sys/vfs/vfs_nx.cpp',
+    sources = ['src/common/sha256.cpp',
+               'src/nxemu-loader/core/file_sys/vfs/vfs_nx.cpp',
                'src/nxemu-loader/core/file_sys/vfs/vfs.cpp',
                'src/yuzu_common/fs/fs_util.cpp', 'src/yuzu_common/fs/path_util.cpp']
     objects = []
@@ -40,7 +41,7 @@ def main():
     subprocess.run([*common, '-DNX_BENCH_NXEMU=1', f'-I{args.nxformat / "dist"}',
                     f'-I{args.nxformat / "tests/support"}',
                     str(args.nxformat / 'benchmarks/session_trace_benchmark.cpp'), *objects,
-                    '-Wl,--gc-sections', '-lzstd', '-lcrypto', '-ldl', '-pthread',
+                    '-Wl,--gc-sections', '-lzstd', '-ldl', '-pthread',
                     '-o', str(executable)], check=True)
     print(executable)
 

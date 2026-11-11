@@ -39,13 +39,6 @@ target_link_libraries(nxemu-loader PRIVATE
 
 if(WIN32)
     target_compile_definitions(nxemu-loader PRIVATE _CRT_SECURE_NO_WARNINGS)
-    target_link_libraries(nxemu-loader PRIVATE bcrypt)
-elseif(NOT APPLE)
-    find_package(OpenSSL QUIET COMPONENTS Crypto)
-    if(TARGET OpenSSL::Crypto)
-        target_compile_definitions(nxemu-loader PRIVATE NX_USE_OPENSSL=1)
-        target_link_libraries(nxemu-loader PRIVATE OpenSSL::Crypto)
-    endif()
 endif()
 
 if(ANDROID)

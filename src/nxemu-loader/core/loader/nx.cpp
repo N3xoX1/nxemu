@@ -437,7 +437,10 @@ struct AppLoader_NX::Impl {
                 if (target || !Header(Content(base_meta,record),0,&target)) return;
             }
             auto it=std::find_if(a.programs().begin(),a.programs().end(),[&](const nx::Program& p){return p.application_index==app && p.id==target;});
-            if (!target || it==a.programs().end() || (requested && requested!=target)) return;
+            // The frontend supplies the base program ID with a native index.
+            // requested selected the owning application/snapshot above; the CNMT
+            // mapping selects the executable, whose ID can differ from requested.
+            if (!target || it==a.programs().end()) return;
             const auto original=selected; selected=Absent; pi=static_cast<uint32_t>(it-a.programs().begin());
             for (uint32_t si=owner.first_snapshot;si<owner.first_snapshot+owner.snapshot_count;++si) {
                 const auto& s=a.snapshots()[si]; const auto& primary=a.snapshots()[original];

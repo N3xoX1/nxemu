@@ -26,8 +26,9 @@ SOFTWARE.
 #ifndef NX_READER_HPP_INCLUDED
 #define NX_READER_HPP_INCLUDED
 
-// Portable, read-only NX 0.2/0.3 reader. The distributed header is generated from
-// this file without transformations; all wire values are decoded explicitly.
+// Read-only NX 0.2/0.3 reader, adapted to use NXEmu's common SHA-256.
+// All wire values are decoded explicitly.
+#include "common/sha256.h"
 #include <atomic>
 #include <algorithm>
 #include <chrono>
@@ -62,7 +63,6 @@ SOFTWARE.
 #include <cpuid.h>
 #endif
 #include <nmmintrin.h>
-#include <immintrin.h>
 #if defined(__GNUC__) || defined(__clang__)
 #define NX_CRC32C_TARGET __attribute__((target("sse4.2")))
 #else
@@ -75,9 +75,6 @@ SOFTWARE.
 #define NX_CRC32C_TARGET
 #else
 #include <arm_acle.h>
-#if defined(__ARM_FEATURE_SHA2)
-#include <arm_neon.h>
-#endif
 #if defined(__clang__)
 #define NX_CRC32C_TARGET __attribute__((target("crc")))
 #else
@@ -419,197 +416,6 @@ struct DirectoryEntryView {
     std::uint64_t size = 0;
 };
 
-namespace detail {
-// SHA-256 compression of whole 64-byte blocks: SHA-NI on x86-64 (selected at
-// run time), the ARMv8 SHA2 extension when the build targets it, else the
-// portable code in Sha256. The Manifest digest dominates mount time.
-using Sha256BlocksFunction = void (*)(std::uint32_t*, const std::uint8_t*, std::size_t);
-alignas(16) inline constexpr std::uint32_t sha256_k[64] = {
-    0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
-    0xd807aa98u,0x12835b01u,0x243185beu,0x550c7dc3u,0x72be5d74u,0x80deb1feu,0x9bdc06a7u,0xc19bf174u,
-    0xe49b69c1u,0xefbe4786u,0x0fc19dc6u,0x240ca1ccu,0x2de92c6fu,0x4a7484aau,0x5cb0a9dcu,0x76f988dau,
-    0x983e5152u,0xa831c66du,0xb00327c8u,0xbf597fc7u,0xc6e00bf3u,0xd5a79147u,0x06ca6351u,0x14292967u,
-    0x27b70a85u,0x2e1b2138u,0x4d2c6dfcu,0x53380d13u,0x650a7354u,0x766a0abbu,0x81c2c92eu,0x92722c85u,
-    0xa2bfe8a1u,0xa81a664bu,0xc24b8b70u,0xc76c51a3u,0xd192e819u,0xd6990624u,0xf40e3585u,0x106aa070u,
-    0x19a4c116u,0x1e376c08u,0x2748774cu,0x34b0bcb5u,0x391c0cb3u,0x4ed8aa4au,0x5b9cca4fu,0x682e6ff3u,
-    0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u
-};
-#if defined(NX_CRC32C_X86)
-#if defined(__GNUC__) || defined(__clang__)
-#define NX_SHA_TARGET __attribute__((target("sha,sse4.1,ssse3")))
-#else
-#define NX_SHA_TARGET
-#endif
-NX_SHA_TARGET inline void sha256_blocks_hardware(std::uint32_t* state, const std::uint8_t* data, std::size_t blocks) {
-    const __m128i mask = _mm_set_epi64x(0x0c0d0e0f08090a0bll, 0x0405060700010203ll);
-    __m128i tmp = _mm_shuffle_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(state)), 0xb1);
-    __m128i state1 = _mm_shuffle_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(state + 4)), 0x1b);
-    __m128i state0 = _mm_alignr_epi8(tmp, state1, 8);   // ABEF
-    state1 = _mm_blend_epi16(state1, tmp, 0xf0);         // CDGH
-    while (blocks--) {
-        const __m128i abef = state0, cdgh = state1;
-        __m128i w[4];
-        for (int i = 0; i < 16; ++i) {
-            if (i < 4) {
-                w[i] = _mm_shuffle_epi8(_mm_loadu_si128(reinterpret_cast<const __m128i*>(data + 16 * i)), mask);
-            } else {
-                __m128i next = _mm_sha256msg1_epu32(w[i & 3], w[(i + 1) & 3]);
-                next = _mm_add_epi32(next, _mm_alignr_epi8(w[(i + 3) & 3], w[(i + 2) & 3], 4));
-                w[i & 3] = _mm_sha256msg2_epu32(next, w[(i + 3) & 3]);
-            }
-            __m128i msg = _mm_add_epi32(w[i & 3], _mm_load_si128(reinterpret_cast<const __m128i*>(sha256_k + 4 * i)));
-            state1 = _mm_sha256rnds2_epu32(state1, state0, msg);
-            msg = _mm_shuffle_epi32(msg, 0x0e);
-            state0 = _mm_sha256rnds2_epu32(state0, state1, msg);
-        }
-        state0 = _mm_add_epi32(state0, abef);
-        state1 = _mm_add_epi32(state1, cdgh);
-        data += 64;
-    }
-    tmp = _mm_shuffle_epi32(state0, 0x1b);       // FEBA
-    state1 = _mm_shuffle_epi32(state1, 0xb1);    // DCHG
-    state0 = _mm_blend_epi16(tmp, state1, 0xf0); // DCBA
-    state1 = _mm_alignr_epi8(state1, tmp, 8);    // HGFE
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(state), state0);
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(state + 4), state1);
-}
-inline bool sha256_hardware_available() {
-#if defined(_MSC_VER)
-    int info[4] = {};
-    __cpuid(info, 0);
-    if (info[0] < 7) return false;
-    __cpuid(info, 1);
-    const bool sse = (info[2] & (1 << 9)) && (info[2] & (1 << 19));
-    __cpuidex(info, 7, 0);
-    return sse && (info[1] & (1 << 29));
-#else
-    unsigned a = 0, b = 0, c = 0, d = 0;
-    if (!__get_cpuid(1, &a, &b, &c, &d) || !(c & (1u << 9)) || !(c & (1u << 19))) return false;
-    if (__get_cpuid_max(0, nullptr) < 7) return false;
-    __cpuid_count(7, 0, a, b, c, d);
-    return (b & (1u << 29)) != 0;
-#endif
-}
-#define NX_SHA256_HARDWARE 1
-#elif defined(NX_CRC32C_ARM) && defined(__ARM_FEATURE_SHA2) && !defined(_MSC_VER)
-// Compiled only when the target guarantees the extension (Apple silicon,
-// or -march=armv8-a+crypto); other ARM builds use the portable code.
-inline void sha256_blocks_hardware(std::uint32_t* state, const std::uint8_t* data, std::size_t blocks) {
-    uint32x4_t state0 = vld1q_u32(state), state1 = vld1q_u32(state + 4);
-    while (blocks--) {
-        const uint32x4_t abcd = state0, efgh = state1;
-        uint32x4_t w[4];
-        for (int i = 0; i < 16; ++i) {
-            if (i < 4) w[i] = vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(data + 16 * i)));
-            else w[i & 3] = vsha256su1q_u32(vsha256su0q_u32(w[i & 3], w[(i + 1) & 3]), w[(i + 2) & 3], w[(i + 3) & 3]);
-            const uint32x4_t msg = vaddq_u32(w[i & 3], vld1q_u32(sha256_k + 4 * i));
-            const uint32x4_t previous = state0;
-            state0 = vsha256hq_u32(state0, state1, msg);
-            state1 = vsha256h2q_u32(state1, previous, msg);
-        }
-        state0 = vaddq_u32(state0, abcd);
-        state1 = vaddq_u32(state1, efgh);
-        data += 64;
-    }
-    vst1q_u32(state, state0);
-    vst1q_u32(state + 4, state1);
-}
-inline bool sha256_hardware_available() { return true; }
-#define NX_SHA256_HARDWARE 1
-#endif
-inline Sha256BlocksFunction sha256_blocks_function() {
-#if defined(NX_SHA256_HARDWARE)
-    static const Sha256BlocksFunction selected = sha256_hardware_available() ? &sha256_blocks_hardware : nullptr;
-    return selected;
-#else
-    return nullptr;
-#endif
-}
-}  // namespace detail
-
-class Sha256 {
-public:
-    void update(const std::uint8_t* data, std::size_t size) {
-        total_ += size;
-        if (const auto blocks = detail::sha256_blocks_function()) {
-            if (used_) {
-                const std::size_t take = std::min(size, block_.size() - used_);
-                std::memcpy(block_.data() + used_, data, take);
-                used_ += take; data += take; size -= take;
-                if (used_ < block_.size()) return;
-                blocks(state_.data(), block_.data(), 1); used_ = 0;
-            }
-            blocks(state_.data(), data, size / 64);
-            data += size / 64 * 64; size %= 64;
-            std::memcpy(block_.data(), data, size); used_ = size;
-            return;
-        }
-        while (size) {
-            const std::size_t take = std::min(size, block_.size() - used_);
-            std::memcpy(block_.data() + used_, data, take);
-            used_ += take; data += take; size -= take;
-            if (used_ == block_.size()) { transform(block_.data()); used_ = 0; }
-        }
-    }
-    std::array<std::uint8_t, 32> finish() {
-        const std::uint64_t bits = total_ * 8;
-        block_[used_++] = 0x80;
-        if (used_ > 56) { std::fill(block_.begin() + used_, block_.end(), std::uint8_t{0}); transform(block_.data()); used_ = 0; }
-        std::fill(block_.begin() + used_, block_.begin() + 56, std::uint8_t{0});
-        for (int i = 0; i < 8; ++i) block_[63 - i] = static_cast<std::uint8_t>(bits >> (8 * i));
-        transform(block_.data());
-        std::array<std::uint8_t, 32> out{};
-        for (std::size_t i = 0; i < state_.size(); ++i) {
-            out[4 * i] = static_cast<std::uint8_t>(state_[i] >> 24);
-            out[4 * i + 1] = static_cast<std::uint8_t>(state_[i] >> 16);
-            out[4 * i + 2] = static_cast<std::uint8_t>(state_[i] >> 8);
-            out[4 * i + 3] = static_cast<std::uint8_t>(state_[i]);
-        }
-        return out;
-    }
-    static std::array<std::uint8_t, 32> digest(const std::uint8_t* data, std::size_t size) {
-        Sha256 h; h.update(data, size); return h.finish();
-    }
-private:
-    static constexpr std::array<std::uint32_t, 64> k_ = {
-        0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
-        0xd807aa98u,0x12835b01u,0x243185beu,0x550c7dc3u,0x72be5d74u,0x80deb1feu,0x9bdc06a7u,0xc19bf174u,
-        0xe49b69c1u,0xefbe4786u,0x0fc19dc6u,0x240ca1ccu,0x2de92c6fu,0x4a7484aau,0x5cb0a9dcu,0x76f988dau,
-        0x983e5152u,0xa831c66du,0xb00327c8u,0xbf597fc7u,0xc6e00bf3u,0xd5a79147u,0x06ca6351u,0x14292967u,
-        0x27b70a85u,0x2e1b2138u,0x4d2c6dfcu,0x53380d13u,0x650a7354u,0x766a0abbu,0x81c2c92eu,0x92722c85u,
-        0xa2bfe8a1u,0xa81a664bu,0xc24b8b70u,0xc76c51a3u,0xd192e819u,0xd6990624u,0xf40e3585u,0x106aa070u,
-        0x19a4c116u,0x1e376c08u,0x2748774cu,0x34b0bcb5u,0x391c0cb3u,0x4ed8aa4au,0x5b9cca4fu,0x682e6ff3u,
-        0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u
-    };
-    static std::uint32_t rotr(std::uint32_t x, unsigned n) { return (x >> n) | (x << (32 - n)); }
-    void transform(const std::uint8_t* p) {
-        if (const auto blocks = detail::sha256_blocks_function()) { blocks(state_.data(), p, 1); return; }
-        std::uint32_t w[64]{};
-        for (int i = 0; i < 16; ++i) w[i] = (std::uint32_t(p[i*4]) << 24) | (std::uint32_t(p[i*4+1]) << 16) | (std::uint32_t(p[i*4+2]) << 8) | p[i*4+3];
-        for (int i = 16; i < 64; ++i) {
-            const auto s0 = rotr(w[i-15],7) ^ rotr(w[i-15],18) ^ (w[i-15] >> 3);
-            const auto s1 = rotr(w[i-2],17) ^ rotr(w[i-2],19) ^ (w[i-2] >> 10);
-            w[i] = w[i-16] + s0 + w[i-7] + s1;
-        }
-        auto a=state_[0], b=state_[1], c=state_[2], d=state_[3], e=state_[4], f=state_[5], g=state_[6], h=state_[7];
-        for (int i = 0; i < 64; ++i) {
-            const auto s1 = rotr(e,6) ^ rotr(e,11) ^ rotr(e,25);
-            const auto ch = (e & f) ^ (~e & g);
-            const auto t1 = h + s1 + ch + k_[i] + w[i];
-            const auto s0 = rotr(a,2) ^ rotr(a,13) ^ rotr(a,22);
-            const auto maj = (a & b) ^ (a & c) ^ (b & c);
-            const auto t2 = s0 + maj;
-            h=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2;
-        }
-        state_[0]+=a; state_[1]+=b; state_[2]+=c; state_[3]+=d;
-        state_[4]+=e; state_[5]+=f; state_[6]+=g; state_[7]+=h;
-    }
-    std::array<std::uint32_t, 8> state_ = {0x6a09e667u,0xbb67ae85u,0x3c6ef372u,0xa54ff53au,0x510e527fu,0x9b05688cu,0x1f83d9abu,0x5be0cd19u};
-    std::array<std::uint8_t, 64> block_{};
-    std::size_t used_ = 0;
-    std::uint64_t total_ = 0;
-};
-
 struct Archive {
     Archive() = default;
 
@@ -896,7 +702,7 @@ struct Archive {
             detail::LogicalBytes logical;
             ReadBuffer stored;
             for (const auto& file : files_) {
-                Sha256 hash;
+                SHA256 hash; hash.init();
                 for (std::uint32_t j = 0; j < file.count; ++j) {
                     const std::uint32_t id = block_refs_[file.first + j];
                     Status st = load_block(id, checked[id] == 0, logical, nullptr, &stored);
@@ -904,7 +710,9 @@ struct Archive {
                     checked[id] = 1;
                     hash.update(logical.data(), logical.size());
                 }
-                if (hash.finish() != file.digest) return fail_status(ErrorCode::integrity, "file SHA-256 mismatch");
+                std::array<std::uint8_t,32> actual_hash_digest{};
+                hash.final(actual_hash_digest.data());
+                if (actual_hash_digest!=file.digest) return fail_status(ErrorCode::integrity, "file SHA-256 mismatch");
             }
             // Full verification also covers physical blocks not referenced by files.
             for (std::uint64_t i = 0; i < block_count_; ++i) {
@@ -1649,7 +1457,11 @@ inline Status Archive::open_slot(const std::uint8_t* header, std::uint64_t physi
     if (!read(catalog_offset_, catalog_bytes_.data(), catalog_bytes_.size())) return fail(ErrorCode::io, "failed to read Catalog");
     std::array<std::uint8_t,32> catalog_digest{};
     std::copy(h.begin()+120,h.begin()+152,catalog_digest.begin());
-    if (Sha256::digest(catalog_bytes_.data(), catalog_bytes_.size()) != catalog_digest)
+    SHA256 catalog_hash; catalog_hash.init();
+    catalog_hash.update(catalog_bytes_.data(), catalog_bytes_.size());
+    std::array<std::uint8_t,32> actual_catalog_digest{};
+    catalog_hash.final(actual_catalog_digest.data());
+    if (actual_catalog_digest != catalog_digest)
         return fail(ErrorCode::integrity, "Catalog SHA-256 mismatch");
     return parse_catalog();
 }
@@ -1783,7 +1595,7 @@ inline Status Archive::check_mount_limits() const {
 inline Status Archive::check_tail_digests() const {
     auto st = check_mount_limits(); if (!st) return st;
     std::array<std::uint8_t, 64*1024> buffer;
-    auto hash_region = [&](Sha256& hash, std::uint64_t at, std::uint64_t size) -> Status {
+    auto hash_region = [&](SHA256& hash, std::uint64_t at, std::uint64_t size) -> Status {
         while (size) {
             auto cancelled = check_cancelled(); if (!cancelled) return cancelled;
             const auto n = static_cast<std::size_t>(std::min<std::uint64_t>(size, buffer.size()));
@@ -1794,13 +1606,17 @@ inline Status Archive::check_tail_digests() const {
         }
         return ok_status();
     };
-    Sha256 manifest_hash;
+    SHA256 manifest_hash; manifest_hash.init();
     st = hash_region(manifest_hash, manifest_offset_, manifest_size_); if (!st) return st;
-    if (manifest_hash.finish() != manifest_digest_) return fail(ErrorCode::integrity, "Manifest SHA-256 mismatch");
-    Sha256 index_hash;
+    std::array<std::uint8_t,32> actual_manifest_hash_digest{};
+    manifest_hash.final(actual_manifest_hash_digest.data());
+    if (actual_manifest_hash_digest!=manifest_digest_) return fail(ErrorCode::integrity, "Manifest SHA-256 mismatch");
+    SHA256 index_hash; index_hash.init();
     st = hash_region(index_hash, index_offset_, block_count_*24ull); if (!st) return st;
     st = hash_region(index_hash, integrity_offset_, integrity_size_); if (!st) return st;
-    if (index_hash.finish() != index_digest_) return fail(ErrorCode::integrity, "index_sha256 mismatch");
+    std::array<std::uint8_t,32> actual_index_hash_digest{};
+    index_hash.final(actual_index_hash_digest.data());
+    if (actual_index_hash_digest!=index_digest_) return fail(ErrorCode::integrity, "index_sha256 mismatch");
     return ok_status();
 }
 
@@ -1808,7 +1624,7 @@ inline Status Archive::mount_impl() {
     Status limits = check_mount_limits(); if (!limits) return limits;
     const std::uint64_t index_size=block_count_*24ull+integrity_size_;
     index_bytes_.resize(static_cast<std::size_t>(index_size));
-    Sha256 index_hash;
+    SHA256 index_hash; index_hash.init();
     auto capture=[&](std::uint64_t at,std::uint64_t size,std::uint64_t destination)->Status {
         while (size) {
             auto st=check_cancelled(); if (!st) return st;
@@ -1821,7 +1637,9 @@ inline Status Archive::mount_impl() {
     };
     Status st=capture(index_offset_,block_count_*24ull,0); if (!st) return st;
     st=capture(integrity_offset_,integrity_size_,block_count_*24ull); if (!st) return st;
-    if (index_hash.finish()!=index_digest_) return fail(ErrorCode::integrity,"index_sha256 mismatch");
+    std::array<std::uint8_t,32> actual_index_hash_digest{};
+    index_hash.final(actual_index_hash_digest.data());
+    if (actual_index_hash_digest!=index_digest_) return fail(ErrorCode::integrity,"index_sha256 mismatch");
     if (options_.collect_read_stats || options_.collect_read_timing || (options_.max_cached_block_bytes && options_.max_cached_blocks)) {
         block_cache_=std::make_shared<BlockCache>();
         // No rehash while filling the cache up to its entry limit.
@@ -1832,7 +1650,11 @@ inline Status Archive::mount_impl() {
     if (!read(manifest_offset_,manifest_bytes_.data(),manifest_bytes_.size())) return fail(ErrorCode::io,"failed to read Manifest");
     // Use the digest captured from the validated header during open().
     // Never trust a second, unchecked header read.
-    if (Sha256::digest(manifest_bytes_.data(),manifest_bytes_.size())!=manifest_digest_)
+    SHA256 manifest_hash; manifest_hash.init();
+    manifest_hash.update(manifest_bytes_.data(),manifest_bytes_.size());
+    std::array<std::uint8_t,32> actual_manifest_digest{};
+    manifest_hash.final(actual_manifest_digest.data());
+    if (actual_manifest_digest!=manifest_digest_)
         return fail(ErrorCode::integrity,"Manifest SHA-256 mismatch");
     st=parse_manifest(); if (!st) return st;
     std::vector<std::uint32_t> roots;
@@ -1946,7 +1768,7 @@ inline Status Archive::validate_snapshot_identities(std::uint64_t total_nodes, s
             }
         }
         if (logical_size!=snapshot.logical_size) return fail(ErrorCode::format,"snapshot logical size mismatch");
-        Sha256 identity;
+        SHA256 identity; identity.init();
         static constexpr std::uint8_t tag[]={'N','X','-','S','N','A','P','S','H','O','T','-','I','D',0};
         identity.update(tag,sizeof(tag));
         auto put_u8=[&](std::uint8_t v){ identity.update(&v,1); };
@@ -2001,7 +1823,9 @@ inline Status Archive::validate_snapshot_identities(std::uint64_t total_nodes, s
             }
             path.resize(mark);
         }
-        if (identity.finish()!=snapshot.identity) return fail(ErrorCode::integrity,"snapshot identity mismatch");
+        std::array<std::uint8_t,32> actual_identity_digest{};
+        identity.final(actual_identity_digest.data());
+        if (actual_identity_digest!=snapshot.identity) return fail(ErrorCode::integrity,"snapshot identity mismatch");
     }
     return ok_status();
 }
@@ -2244,7 +2068,8 @@ inline Result<std::vector<std::uint8_t>> Archive::read_media_impl(std::uint32_t 
         return Result<std::vector<std::uint8_t>>::failure(ErrorCode::format,"Media owner/type mismatch");
     std::vector<std::uint8_t> bytes(static_cast<std::size_t>(stored));
     if (!read(media_offset_+offset,bytes.data(),bytes.size())) return Result<std::vector<std::uint8_t>>::failure(ErrorCode::io,"failed to read media payload");
-    const auto digest=Sha256::digest(bytes.data(),bytes.size());
+    SHA256 hash; hash.init(); hash.update(bytes.data(),bytes.size());
+    std::array<std::uint8_t,32> digest{}; hash.final(digest.data());
     if (!std::equal(digest.begin(),digest.end(),row.begin()+28)) return Result<std::vector<std::uint8_t>>::failure(ErrorCode::integrity,"media SHA-256 mismatch");
     return Result<std::vector<std::uint8_t>>::success(std::move(bytes));
 }

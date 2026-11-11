@@ -60,6 +60,10 @@ public:
     void SetSectionSettings(const char*,const char*) override {}
     void RegisterCallback(const char*,SettingChangeCallback,void*) override {}
     void UnregisterCallback(const char*,SettingChangeCallback,void*) override {}
+    void SetDebugSetting(const char*,bool) override {}
+    bool DebugSettingsEnabled() const override { return false; }
+    const char* GetGameSectionSettings(const char*) const override { return "{}"; }
+    void SetGameSectionSettings(const char*,const char*) override {}
 };
 class Provider final : public IManualContentProvider {
 public:
@@ -191,12 +195,22 @@ int main(int argc,char** argv) {
         constexpr uint64_t auxiliary_program=application+0x123;
         const auto& display=archive.snapshots()[archive.applications()[0].metadata_snapshot];
         if (archive.programs()[display.program_index].id!=auxiliary_program || display.numeric_version!=1) { std::cerr<<"matrix failure line "<<__LINE__<<'\n'; return 1; }
-        for (unsigned offset=0;offset<2;++offset) {
-            Loader::AppLoader_NX latest(file,0,offset ? 7 : 0,path.string());
-            if (latest.GetStatus()!=LoaderResultStatus::Success) { std::cerr<<"matrix failure line "<<__LINE__<<'\n'; return 1; }
-            const auto& s=latest.Session()->archive().snapshots()[latest.SelectedSnapshot()];
-            uint64_t id=0; if (latest.ReadProgramId(id)!=LoaderResultStatus::Success || id!=(offset ? auxiliary_program : application) || s.numeric_version!=3) { std::cerr<<"matrix failure line "<<__LINE__<<'\n'; return 1; }
+        // EmulatorSession::LoadProgram supplies a nonzero base ID plus the
+        // requested native index. The secondary ID is deliberately not base+7.
+        for (const uint64_t requested : {uint64_t{0}, application}) {
+            for (unsigned offset=0;offset<2;++offset) {
+                Loader::AppLoader_NX latest(file,requested,offset ? 7 : 0,path.string());
+                if (latest.GetStatus()!=LoaderResultStatus::Success) { std::cerr<<"matrix failure line "<<__LINE__<<'\n'; return 1; }
+                const auto& s=latest.Session()->archive().snapshots()[latest.SelectedSnapshot()];
+                uint64_t id=0; if (latest.ReadProgramId(id)!=LoaderResultStatus::Success || id!=(offset ? auxiliary_program : application) || s.numeric_version!=3) { std::cerr<<"matrix failure line "<<__LINE__<<'\n'; return 1; }
+            }
         }
+        for (const size_t index : {size_t{1}, size_t{256}}) {
+            Loader::AppLoader_NX invalid(file,application,index,path.string());
+            if (invalid.GetStatus()==LoaderResultStatus::Success) return 1;
+        }
+        Loader::AppLoader_NX unknown(file,application+1,7,path.string());
+        if (unknown.GetStatus()==LoaderResultStatus::Success) return 1;
         unsigned checked=0;
         for (const auto& snapshot:archive.snapshots()) {
             if (snapshot.type==2) continue;
@@ -214,7 +228,10 @@ int main(int argc,char** argv) {
             std::array<char,32> text{}; uint32_t text_size=static_cast<uint32_t>(text.size());
             const auto display_status=loader.ReadDisplayVersion(text.data(),&text_size);
             const bool own_version=(!auxiliary && version==0) || (auxiliary && version==1);
-            if ((display_status==LoaderResultStatus::Success)!=own_version) return 1;
+            const bool fallback_version=snapshot.type==1 || snapshot.type==3;
+            if ((display_status==LoaderResultStatus::Success)!=(own_version || fallback_version)) return 1;
+            if (!own_version && fallback_version &&
+                std::string_view(text.data(),text_size)!="v"+std::to_string(version)) return 1;
             std::array<uint8_t,96> header{}; auto main=loader.ExeFS()->GetFile("main");
             if (!main || main->Read(header.data(),header.size(),0)!=header.size()) { std::cerr<<"matrix failure line "<<__LINE__<<'\n'; return 1; }
             for (unsigned i=64;i<96;++i) if (header[i]!=expected || snapshot.build_id[i-64]!=expected) { std::cerr<<"matrix failure line "<<__LINE__<<'\n'; return 1; }
@@ -273,7 +290,7 @@ int main(int argc,char** argv) {
         if (missing.GetStatus()==LoaderResultStatus::Success) return 1;
         Loader::AppLoader_NX application_mismatch(file,0,0,path.string(),{}, {}, application+1);
         if (application_mismatch.GetStatus()==LoaderResultStatus::Success) return 1;
-        std::cout<<"PASS 8 native multi-Program versions: exact IDs, one/both replacements, data-only Base inheritance, independent display selection, DLC requirements, native provider precedence and cross-block Data reads (no execution)\n";
+        std::cout<<"PASS frontend base-ID/index selection and 8 native multi-Program versions: exact IDs, one/both replacements, data-only Base inheritance, independent display selection, DLC requirements, native provider precedence and cross-block Data reads (no execution)\n";
         return 0;
     }
     if (std::string_view(argv[1])=="--vfs") {

@@ -77,15 +77,15 @@ const unsigned int SHA256::sha256_k[64] = //UL = uint32
      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
      0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
 
-void SHA256::transform(const unsigned char * message, unsigned int block_nb)
+void SHA256::transform(const unsigned char * message, size_t block_nb)
 {
     uint32_t w[64];
     uint32_t wv[8];
     uint32_t t1, t2;
     const unsigned char * sub_block;
-    int i;
+    size_t i;
     int j;
-    for (i = 0; i < (int)block_nb; i++)
+    for (i = 0; i < block_nb; i++)
     {
         sub_block = message + (i << 6);
         for (j = 0; j < 16; j++)
@@ -134,11 +134,12 @@ void SHA256::init()
     m_tot_len = 0;
 }
 
-void SHA256::update(const unsigned char * message, unsigned int len)
+void SHA256::update(const unsigned char * message, size_t len)
 {
-    unsigned int block_nb;
-    unsigned int new_len, rem_len, tmp_len;
+    size_t block_nb;
+    size_t new_len, rem_len, tmp_len;
     const unsigned char * shifted_message;
+    if (len == 0) return;
     tmp_len = SHA224_256_BLOCK_SIZE - m_len;
     rem_len = len < tmp_len ? len : tmp_len;
     memcpy(&m_block[m_len], message, rem_len);
@@ -160,15 +161,16 @@ void SHA256::update(const unsigned char * message, unsigned int len)
 
 void SHA256::final(unsigned char * digest)
 {
-    unsigned int block_nb;
+    size_t block_nb;
     unsigned int pm_len;
-    unsigned int len_b;
+    uint64_t len_b;
     int i;
     block_nb = (1 + ((SHA224_256_BLOCK_SIZE - 9) < (m_len % SHA224_256_BLOCK_SIZE)));
     len_b = (m_tot_len + m_len) << 3;
     pm_len = block_nb << 6;
     memset(m_block + m_len, 0, pm_len - m_len);
     m_block[m_len] = 0x80;
+    SHA2_UNPACK32(len_b >> 32, m_block + pm_len - 8);
     SHA2_UNPACK32(len_b, m_block + pm_len - 4);
     transform(m_block, block_nb);
     for (i = 0; i < 8; i++)
@@ -184,7 +186,7 @@ std::string sha256(std::string input)
 
     SHA256 ctx = SHA256();
     ctx.init();
-    ctx.update((unsigned char *)input.c_str(), (unsigned int)input.length());
+    ctx.update((unsigned char *)input.c_str(), input.length());
     ctx.final(digest);
 
     char buf[2 * SHA256::DIGEST_SIZE + 1];
