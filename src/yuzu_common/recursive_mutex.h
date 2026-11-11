@@ -27,7 +27,11 @@ public:
             ++depth;
             return;
         }
-        inner.lock();
+        if (!inner.try_lock()) {
+            waiters.fetch_add(1, std::memory_order_relaxed);
+            inner.lock();
+            waiters.fetch_sub(1, std::memory_order_relaxed);
+        }
         owner.store(self, std::memory_order_relaxed);
         depth = 1;
     }
@@ -51,14 +55,31 @@ public:
     /// it. Falls back to lock() after a while.
     void lock_spin() {
         const u32 self = ThisThread();
+        if (try_lock()) {
+            return;
+        }
+        // Counted from the first failed try, so that a holder that keeps the lock between its
+        // own uses hands it over
+        waiters.fetch_add(1, std::memory_order_relaxed);
+        bool locked{};
         for (u32 spins = 0; spins < 4096; ++spins) {
-            const u32 current = owner.load(std::memory_order_relaxed);
-            if ((current == 0 || current == self) && try_lock()) {
-                return;
+            if (owner.load(std::memory_order_relaxed) == 0 && inner.try_lock()) {
+                locked = true;
+                break;
             }
             _mm_pause();
         }
-        lock();
+        if (!locked) {
+            inner.lock();
+        }
+        waiters.fetch_sub(1, std::memory_order_relaxed);
+        owner.store(self, std::memory_order_relaxed);
+        depth = 1;
+    }
+
+    /// True while another thread waits for the lock
+    [[nodiscard]] bool HasWaiters() const noexcept {
+        return waiters.load(std::memory_order_relaxed) != 0;
     }
 
     void unlock() {
@@ -79,6 +100,7 @@ private:
 
     // Only the owner writes its own id, so another thread never reads its own id here
     std::atomic<u32> owner{0};
+    std::atomic<u32> waiters{0};
     u32 depth = 0;
     std::shared_mutex inner;
 };

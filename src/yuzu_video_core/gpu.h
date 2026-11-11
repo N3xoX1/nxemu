@@ -180,6 +180,9 @@ public:
     /// Tick pending requests within the GPU.
     void TickWork();
 
+    /// True when TickWork has sync requests to run
+    [[nodiscard]] bool HasTickWork() const;
+
     /// Gets a mutable reference to the Host1x interface
     [[nodiscard]] Host1x::Host1x& Host1x();
 

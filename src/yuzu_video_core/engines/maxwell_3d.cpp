@@ -96,10 +96,15 @@ void Maxwell3D::InitializePipelineKeyRegisters()
         kinds[MAXWELL3D_REG_INDEX(bind_groups) + i * (sizeof(Regs::BindGroup) / sizeof(u32)) +
               offsetof(Regs::BindGroup, raw_config) / sizeof(u32)] = GEN_NONE;
     }
-    // Rebasing a vertex stream leaves its layout: the stride and the enable are state
+    // The vertex input (attribute formats, strides) is dynamic state, or part of the pipeline
+    // key, and only the vertex buffer binds read the stride and the enable: those binds run
+    // again when the buffers change
+    std::fill_n(kinds.begin() + MAXWELL3D_REG_INDEX(vertex_attrib_format),
+                Regs::NumVertexAttributes, u8{GEN_NONE});
     for (size_t i = 0; i < Regs::NumVertexArrays; ++i) {
         const size_t stream =
             MAXWELL3D_REG_INDEX(vertex_streams) + i * (sizeof(Regs::VertexStream) / sizeof(u32));
+        kinds[stream] = GEN_BUFFERS;
         kinds[stream + offsetof(Regs::VertexStream, address_high) / sizeof(u32)] = GEN_BUFFERS;
         kinds[stream + offsetof(Regs::VertexStream, address_low) / sizeof(u32)] = GEN_BUFFERS;
         const size_t limit = MAXWELL3D_REG_INDEX(vertex_stream_limits) +
@@ -576,6 +581,11 @@ void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argume
     // Methods with side effects (barriers, queries, uploads, constant buffer binds) can change
     // what the next draw reads even when the value is the same
     ++generations[dirty.generation_kinds[method]];
+    // Only the draw methods keep the draw locks, the others may wait for other threads
+    if (dirty.generation_kinds[method] != GEN_NONE)
+    {
+        rasterizer->ReleaseDrawLocks();
+    }
     switch (method)
     {
     case MAXWELL3D_REG_INDEX(wait_for_idle):
@@ -1004,6 +1014,7 @@ void Maxwell3D::Publish(bool verify)
 void Maxwell3D::RunBlock(StreamBlock * block)
 {
     RunWords(block->words.data(), block->words.size(), block->hle);
+    rasterizer->ReleaseDrawLocks();
     ++stream_drains;
     if (block->front) [[unlikely]]
     {
@@ -1017,6 +1028,7 @@ void Maxwell3D::BackCallMethod(u32 method, u32 argument, bool is_last_call)
 {
     ProcessDirtyRegisters(method, argument);
     ProcessMethodCall(method, argument, argument);
+    rasterizer->ReleaseDrawLocks();
 }
 
 void Maxwell3D::BackCallMultiMethod(u32 method, const u32 * base_start, u32 amount)
@@ -1042,6 +1054,7 @@ void Maxwell3D::DrainStream(bool verify)
     stream_draining = true;
     stream_run_open = false;
     RunWords(stream.data(), stream.size(), hle_calls);
+    rasterizer->ReleaseDrawLocks();
     stream.clear();
     hle_count = 0;
     stream_writes_memory = false;
@@ -1087,6 +1100,7 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             pos += count;
             break;
         case StreamInline:
+            rasterizer->ReleaseDrawLocks();
             ++generations[GEN_STATE];
             upload_state.ProcessData(words + pos, count);
             pos += count;
@@ -1095,6 +1109,10 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
         {
             // Draw macros only change the draw range, other macros may write any state
             ++generations[calls[count].program->OnlyDraws() ? GEN_NONE : GEN_STATE];
+            if (!calls[count].program->OnlyDraws())
+            {
+                rasterizer->ReleaseDrawLocks();
+            }
             // The dirty state was taken when the parameters were fetched. DmaPusher drains the
             // stream before that, so queued draws can't make them GPU written later.
             HLECall & call = calls[count];
