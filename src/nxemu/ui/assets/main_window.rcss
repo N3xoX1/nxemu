@@ -2340,16 +2340,17 @@ body.compact .volume-range
     display: none;
 }
 
-/* Status-bar graphics controls expand upward so nested filter lists stay in the window. */
-#popup-menu.graphics-popup .menu-item.has-submenu > .menu-anchor > .menu-popup
+/* PopupMenu places submenus itself so they stay in the window. */
+#popup-menu .menu-item.has-submenu > .menu-anchor > .menu-popup
 {
     display: none;
 }
-#popup-menu.graphics-popup .menu-item.submenu-open > .menu-anchor > .menu-popup
+#popup-menu .menu-item.submenu-open > .menu-anchor > .menu-popup
 {
     display: inline-block;
     pointer-events: auto;
 }
+/* Status-bar graphics controls expand upward so nested filter lists stay in the window. */
 #popup-menu.graphics-popup .menu-item > .menu-anchor
 {
     top: auto;

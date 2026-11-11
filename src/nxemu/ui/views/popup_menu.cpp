@@ -81,7 +81,7 @@ PopupMenu::PopupMenu(Rml::Element * anchor, std::function<void(int)> onAction, s
     });
     Rml::ElementDocument * document = m_anchor->GetOwnerDocument();
     UiEvents::Listen(document, "mousemove", [this](Rml::Event & event) {
-        if (!m_open || !m_anchor->IsClassSet("graphics-popup")) return;
+        if (!m_open) return;
         const Rml::Vector2f position(event.GetParameter<float>("mouse_x", 0),
                                     event.GetParameter<float>("mouse_y", 0));
         const auto previous = std::exchange(m_previousPointer, position);
@@ -139,8 +139,11 @@ void PopupMenu::OpenSubmenu(Rml::Element * item)
     float left = parentLeft + item->GetOffsetWidth();
     if (left + width > document->GetOffsetWidth() - margin) left = parentLeft - width;
     left = std::max(margin, std::min(left, document->GetOffsetWidth() - width - margin));
-    const float top = std::max(margin, std::min(parentTop + item->GetOffsetHeight() - height,
-        document->GetOffsetHeight() - height - margin));
+    // Status-bar graphics controls expand upward; other submenus line up their
+    // first row with the parent row.
+    const float preferredTop = m_anchor->IsClassSet("graphics-popup") ? parentTop + item->GetOffsetHeight() - height :
+        popup->GetFirstChild() ? parentTop - (popup->GetFirstChild()->GetAbsoluteTop() - popup->GetAbsoluteTop()) : parentTop;
+    const float top = std::max(margin, std::min(preferredTop, document->GetOffsetHeight() - height - margin));
     childAnchor->SetProperty("bottom", "auto");
     childAnchor->SetProperty(Rml::PropertyId::Left, Rml::Property(left - parentLeft, Rml::Unit::PX));
     childAnchor->SetProperty(Rml::PropertyId::Top, Rml::Property(top - parentTop, Rml::Unit::PX));
@@ -180,24 +183,21 @@ void PopupMenu::Update(const std::vector<MenuItem> & items)
     }
     // Count only submenu rows. Profile changes can insert or remove slider rows.
     std::vector<int> openPath;
-    if (m_anchor->IsClassSet("graphics-popup"))
+    auto * panel = m_anchor->GetFirstChild();
+    while (panel)
     {
-        auto * panel = m_anchor->GetFirstChild();
-        while (panel)
+        int index = 0;
+        auto * row = SubmenuRow(panel, index);
+        while (row && !row->IsClassSet("submenu-open"))
         {
-            int index = 0;
-            auto * row = SubmenuRow(panel, index);
-            while (row && !row->IsClassSet("submenu-open"))
-            {
-                row = SubmenuRow(panel, ++index);
-            }
-            if (!row)
-            {
-                break;
-            }
-            openPath.push_back(index);
-            panel = row->GetLastChild()->GetFirstChild();
+            row = SubmenuRow(panel, ++index);
         }
+        if (!row)
+        {
+            break;
+        }
+        openPath.push_back(index);
+        panel = row->GetLastChild()->GetFirstChild();
     }
     m_previousPointer.reset();
     m_anchor->RemoveProperty(Rml::PropertyId::Width);
