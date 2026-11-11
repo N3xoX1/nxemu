@@ -125,6 +125,12 @@ public:
     virtual bool FrontEffectsUseParameters() const {
         return true;
     }
+
+    /// HLE macros only. True when Execute changes the state draws read only through the draw
+    /// range registers, constant buffer data and binds, which keep track of their changes.
+    virtual bool OnlyDraws() const {
+        return false;
+    }
 };
 
 class MacroEngine {

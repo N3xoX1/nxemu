@@ -105,6 +105,7 @@ public:
     template <typename T>
         requires std::is_invocable_v<T, vk::CommandBuffer, vk::CommandBuffer>
     void RecordWithUploadBuffer(T&& command) {
+        ++record_epoch;
         if (chunk->Record(command)) {
             return;
         }
@@ -119,6 +120,13 @@ public:
             [command = std::move(c)](vk::CommandBuffer cmdbuf, vk::CommandBuffer) {
                 command(cmdbuf);
             });
+    }
+
+    /// Returns a value that changes each time a command is recorded, the command buffer
+    /// changes or its state is invalidated. While it stays the same, the bindings of the last
+    /// recorded draw are still the current ones.
+    [[nodiscard]] u64 RecordEpoch() const noexcept {
+        return record_epoch;
     }
 
     /// Returns a value that changes each time a render pass ends and makes its attachment
@@ -283,6 +291,7 @@ private:
 
     u32 num_renderpass_images = 0;
     u64 render_pass_end_tick = 0;
+    u64 record_epoch = 0;
     std::array<VkImage, 9> renderpass_images{};
     std::array<VkImageSubresourceRange, 9> renderpass_image_ranges{};
 

@@ -346,6 +346,7 @@ bool Scheduler::IsBufferWritten(VkBuffer buffer) const noexcept {
 }
 
 void Scheduler::AllocateNewContext() {
+    ++record_epoch;
     written_buffers.clear();
     all_buffers_written = false;
     // Enable counters once again. These are disabled when a command buffer is finished.
@@ -362,6 +363,7 @@ void Scheduler::AllocateNewContext() {
 }
 
 void Scheduler::InvalidateState() {
+    ++record_epoch;
     state.graphics_pipeline = nullptr;
     state.rescaling_defined = false;
     state_tracker.InvalidateCommandBufferState();

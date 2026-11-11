@@ -188,6 +188,12 @@ public:
         }
     }
 
+    /// InnerInvalidation of constant buffer uploads only, which the 3D engine keeps track of
+    virtual void InnerConstBufferInvalidation(
+        std::span<const std::pair<DAddr, std::size_t>> sequences) {
+        InnerInvalidation(sequences);
+    }
+
     /// Notify rasterizer that any caches of the specified region are desync with guest
     virtual void OnCacheInvalidation(PAddr addr, u64 size) = 0;
 

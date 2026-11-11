@@ -87,6 +87,51 @@ void Maxwell3D::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
 
 void Maxwell3D::InitializePipelineKeyRegisters()
 {
+    // The constant buffer upload registers only say where data and binds go: the data writes
+    // and the binds change the generation themselves, when they change something.
+    auto& kinds = dirty.generation_kinds;
+    std::fill_n(kinds.begin() + offsetof(Regs, const_buffer) / sizeof(u32),
+                sizeof(Regs::const_buffer) / sizeof(u32), u8{GEN_NONE});
+    for (size_t i = 0; i < Regs::MaxShaderStage; ++i) {
+        kinds[MAXWELL3D_REG_INDEX(bind_groups) + i * (sizeof(Regs::BindGroup) / sizeof(u32)) +
+              offsetof(Regs::BindGroup, raw_config) / sizeof(u32)] = GEN_NONE;
+    }
+    // Rebasing a vertex stream leaves its layout: the stride and the enable are state
+    for (size_t i = 0; i < Regs::NumVertexArrays; ++i) {
+        const size_t stream =
+            MAXWELL3D_REG_INDEX(vertex_streams) + i * (sizeof(Regs::VertexStream) / sizeof(u32));
+        kinds[stream + offsetof(Regs::VertexStream, address_high) / sizeof(u32)] = GEN_BUFFERS;
+        kinds[stream + offsetof(Regs::VertexStream, address_low) / sizeof(u32)] = GEN_BUFFERS;
+        const size_t limit = MAXWELL3D_REG_INDEX(vertex_stream_limits) +
+                             i * (sizeof(Regs::VertexStreamLimit) / sizeof(u32));
+        kinds[limit + offsetof(Regs::VertexStreamLimit, address_high) / sizeof(u32)] = GEN_BUFFERS;
+        kinds[limit + offsetof(Regs::VertexStreamLimit, address_low) / sizeof(u32)] = GEN_BUFFERS;
+    }
+
+    // The draw range and the draw triggers. The topology in draw.begin and in the instanced
+    // array draws reaches the draw state, which the rasterizer compares itself. The rasterizer
+    // binds the index buffer again for each draw, so its address and format are left out too.
+    for (const size_t method : {
+             MAXWELL3D_REG_INDEX(index_buffer.start_addr_high),
+             MAXWELL3D_REG_INDEX(index_buffer.start_addr_low),
+             MAXWELL3D_REG_INDEX(index_buffer.limit_addr_high),
+             MAXWELL3D_REG_INDEX(index_buffer.limit_addr_low),
+             MAXWELL3D_REG_INDEX(index_buffer.format),
+             MAXWELL3D_REG_INDEX(vertex_buffer.first), MAXWELL3D_REG_INDEX(vertex_buffer.count),
+             MAXWELL3D_REG_INDEX(index_buffer.first), MAXWELL3D_REG_INDEX(index_buffer.count),
+             MAXWELL3D_REG_INDEX(index_buffer32_first), MAXWELL3D_REG_INDEX(index_buffer16_first),
+             MAXWELL3D_REG_INDEX(index_buffer8_first),
+             MAXWELL3D_REG_INDEX(index_buffer32_subsequent),
+             MAXWELL3D_REG_INDEX(index_buffer16_subsequent),
+             MAXWELL3D_REG_INDEX(index_buffer8_subsequent),
+             MAXWELL3D_REG_INDEX(vertex_array_instance_first),
+             MAXWELL3D_REG_INDEX(vertex_array_instance_subsequent),
+             MAXWELL3D_REG_INDEX(global_base_vertex_index),
+             MAXWELL3D_REG_INDEX(global_base_instance_index), MAXWELL3D_REG_INDEX(vertex_id_base),
+             MAXWELL3D_REG_INDEX(draw.begin), MAXWELL3D_REG_INDEX(draw.end)}) {
+        kinds[method] = GEN_NONE;
+    }
+
     auto& table = dirty.pipeline_key_registers;
     table.fill(1);
     const auto clear = [&table](size_t offset, size_t size) {
@@ -509,6 +554,7 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
         return;
     }
     regs.reg_array[method] = argument;
+    ++generations[dirty.generation_kinds[method]];
     dirty.MarkShaderProfileRegister(method, old_value, argument);
     dirty.pipeline_key_changed |= dirty.pipeline_key_registers[method] != 0;
 
@@ -527,6 +573,9 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
 
 void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argument)
 {
+    // Methods with side effects (barriers, queries, uploads, constant buffer binds) can change
+    // what the next draw reads even when the value is the same
+    ++generations[dirty.generation_kinds[method]];
     switch (method)
     {
     case MAXWELL3D_REG_INDEX(wait_for_idle):
@@ -1038,11 +1087,14 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             pos += count;
             break;
         case StreamInline:
+            ++generations[GEN_STATE];
             upload_state.ProcessData(words + pos, count);
             pos += count;
             break;
         case StreamHLE:
         {
+            // Draw macros only change the draw range, other macros may write any state
+            ++generations[calls[count].program->OnlyDraws() ? GEN_NONE : GEN_STATE];
             // The dirty state was taken when the parameters were fetched. DmaPusher drains the
             // stream before that, so queued draws can't make them GPU written later.
             HLECall & call = calls[count];
@@ -1062,6 +1114,8 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             break;
         case StreamPrefetch:
         {
+            ++generations[GEN_BUFFERS];
+            buffer_changes.rebound_slots[count & 7] |= 1U << (count >> 3);
             const VideoCore::RasterizerInterface::UniformPrefetch prefetch{
                 .device_addr = static_cast<DAddr>(words[pos]) | (static_cast<DAddr>(words[pos + 1]) << 32),
                 .size = words[pos + 2],
@@ -1072,6 +1126,7 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             break;
         }
         case StreamPrefetchReset:
+            ++generations[GEN_STATE];
             rasterizer->ResetUniformPrefetch(static_cast<u64>(words[pos]) | (static_cast<u64>(words[pos + 1]) << 32));
             pos += 2;
             break;
@@ -1319,6 +1374,16 @@ void Maxwell3D::ProcessCBBind(size_t stage_index)
     {
         dirty.pipeline_key_changed = true;
     }
+    // Binding the same buffer again leaves what the next draw reads
+    if (buffer.enabled != (bind_data.valid.Value() != 0) || buffer.size != regs.const_buffer.size)
+    {
+        ++generations[GEN_STATE];
+    }
+    else if (buffer.address != regs.const_buffer.Address())
+    {
+        ++generations[GEN_BUFFERS];
+        buffer_changes.rebound_slots[stage_index] |= 1U << bind_data.shader_slot;
+    }
     buffer.enabled = bind_data.valid.Value() != 0;
     buffer.address = regs.const_buffer.Address();
     buffer.size = regs.const_buffer.size;
@@ -1345,7 +1410,24 @@ void Maxwell3D::ProcessCBMultiData(const u32 * start_base, u32 amount)
 
     const GPUVAddr address{buffer_address + regs.const_buffer.offset};
     const size_t copy_size = amount * sizeof(u32);
-    memory_manager.WriteBlockCached(address, start_base, copy_size);
+    memory_manager.WriteConstBufferCached(address, start_base, copy_size);
+    ++generations[GEN_BUFFERS];
+    // Uploads mostly write one buffer in a row
+    auto& changes = buffer_changes;
+    if (changes.num_writes != 0 &&
+        changes.writes[changes.num_writes - 1].first + changes.writes[changes.num_writes - 1].second ==
+            address)
+    {
+        changes.writes[changes.num_writes - 1].second += copy_size;
+    }
+    else if (changes.num_writes < BufferChanges::MAX_WRITES)
+    {
+        changes.writes[changes.num_writes++] = {address, copy_size};
+    }
+    else
+    {
+        changes.too_many_writes = true;
+    }
 
     // Increment the current buffer position.
     regs.const_buffer.offset += static_cast<u32>(copy_size);

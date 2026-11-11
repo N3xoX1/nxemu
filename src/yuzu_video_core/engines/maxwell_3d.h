@@ -3048,6 +3048,46 @@ public:
     /// these.
     Regs regs{};
 
+    /// What a change made by the execute side can change for the draws that follow
+    enum GenerationKind : u8 {
+        /// State a draw reads, other than the two kinds below
+        GEN_STATE = 0,
+        /// The draw range registers (first, count, base vertex and instance)
+        GEN_NONE = 1,
+        /// Constant buffer data, the addresses bound to constant buffer slots and the vertex
+        /// stream addresses, see BufferChanges
+        GEN_BUFFERS = 2,
+    };
+
+    /// Change each time the execute side changes something of their kind. Two draws with the
+    /// same values read the same registers and the same buffer data.
+    std::array<u64, 3> generations{1, 0, 1};
+
+    [[nodiscard]] u64 DrawStateGeneration() const noexcept {
+        return generations[GEN_STATE];
+    }
+    [[nodiscard]] u64 BufferGeneration() const noexcept {
+        return generations[GEN_BUFFERS];
+    }
+
+    /// The constant buffer changes since the rasterizer last cleared them, after a draw
+    struct BufferChanges {
+        static constexpr size_t MAX_WRITES = 8;
+        /// Per stage, the slots bound to another address or given prefetched data
+        std::array<u32, Regs::MaxShaderStage> rebound_slots{};
+        /// Constant buffer data written, until there are too many ranges to keep
+        std::array<std::pair<GPUVAddr, u64>, MAX_WRITES> writes{};
+        u32 num_writes{};
+        bool too_many_writes{};
+    };
+    BufferChanges buffer_changes;
+
+    void ClearBufferChanges() noexcept {
+        buffer_changes.rebound_slots = {};
+        buffer_changes.num_writes = 0;
+        buffer_changes.too_many_writes = false;
+    }
+
     /// Registers of the decode side. Shadow RAM and the macro engine read these. Method calls
     /// write them at once, and write `regs` later when the method stream is drained.
     Regs front_regs{};
@@ -3201,6 +3241,8 @@ public:
         // buffer data and draw ranges are left out: most draws only change those.
         Table pipeline_key_registers{};
         bool pipeline_key_changed{true};
+        // GenerationKind of each register
+        Table generation_kinds{};
     } dirty;
 
     std::unique_ptr<DrawManager> draw_manager;

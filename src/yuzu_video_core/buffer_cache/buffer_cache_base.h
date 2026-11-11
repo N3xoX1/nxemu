@@ -404,6 +404,37 @@ public:
         current_draw_indirect = current_draw_indirect_;
     }
 
+    /// Changes each time a buffer is deleted. While it stays the same, the bindings resolved for
+    /// an earlier draw still point to live buffers.
+    [[nodiscard]] u64 DeletedBuffersEpoch() const noexcept {
+        return deleted_buffers_epoch;
+    }
+
+    /// Changes each time a GPU engine writes buffer memory (shaders, copies, DMA). While it
+    /// stays the same, the data bound for an earlier draw is still the current one.
+    [[nodiscard]] u64 GpuWriteEpoch() const noexcept {
+        return gpu_write_epoch.load(std::memory_order_relaxed);
+    }
+
+    /// True when the last graphics update bound a sparse or written assembled buffer
+    [[nodiscard]] bool HasSparseBindings() const noexcept {
+        return has_bound_sparse || has_written_sparse;
+    }
+
+    /// Resolves and binds the index buffer of the current draw again, for a draw that keeps
+    /// every other binding of the previous one. Returns false when that deleted buffers, as
+    /// the other bindings may then point to them.
+    [[nodiscard]] bool RebindIndexBuffer();
+
+    /// For a draw that keeps the bindings of the previous one but its geometry and some uniform
+    /// buffers: resolves the index buffer, the changed vertex streams and the rebound uniform
+    /// buffers. Returns false when that deleted buffers or bound a sparse index buffer.
+    [[nodiscard]] bool UpdateKeptDrawBuffers(bool is_indexed);
+
+    /// Binds uniform buffer `index` of `stage` for a draw updated by UpdateKeptDrawBuffers.
+    /// Adds one descriptor, as the uniform buffers bound by BindHostStageBuffers.
+    void BindKeptUniformBuffer(size_t stage, u32 index);
+
     [[nodiscard]] std::pair<Buffer*, u32> GetDrawIndirectCount();
 
     [[nodiscard]] std::pair<Buffer*, u32> GetDrawIndirectBuffer();
@@ -681,6 +712,13 @@ private:
     u64 sparse_bind_tick = 0;
     bool has_bound_sparse = false;
     bool has_written_sparse = false;
+    u64 deleted_buffers_epoch = 0;
+    std::atomic<u64> gpu_write_epoch{};
+
+    void MarkGpuWriteHistory(DAddr addr, u64 size) noexcept {
+        gpu_write_history.Mark(addr, size);
+        gpu_write_epoch.fetch_add(1, std::memory_order_relaxed);
+    }
     u64 content_version = 0;
 
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
