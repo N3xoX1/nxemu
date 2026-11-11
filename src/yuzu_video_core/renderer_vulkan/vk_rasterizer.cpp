@@ -245,7 +245,11 @@ RasterizerVulkan::~RasterizerVulkan() {
 template <typename Func>
 void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     SCOPE_EXIT {
-        gpu.TickWork();
+        // Sync requests may wait for threads that take the cache locks
+        if (gpu.HasTickWork()) {
+            ReleaseDrawLocks();
+            gpu.TickWork();
+        }
     };
     FlushWork();
     gpu_memory->FlushCaching();
@@ -276,7 +280,19 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
             return;
         }
     }
-    std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
+    // Consecutive draws keep the locks: taking them for each draw costs more than the draw
+    // setup of many draws. Another thread that waits gets them after this draw.
+    if (!draw_locks_held) {
+        std::lock(buffer_cache.mutex, texture_cache.mutex);
+        draw_locks_held = true;
+        draws_under_locks = 0;
+    }
+    SCOPE_EXIT {
+        if (++draws_under_locks >= 64 || buffer_cache.mutex.HasWaiters() ||
+            texture_cache.mutex.HasWaiters()) {
+            ReleaseDrawLocks();
+        }
+    };
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
@@ -1095,6 +1111,15 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
     InnerInvalidationImpl(sequences, false);
 }
 
+void RasterizerVulkan::ReleaseDrawLocks() {
+    if (!draw_locks_held) {
+        return;
+    }
+    draw_locks_held = false;
+    texture_cache.mutex.unlock();
+    buffer_cache.mutex.unlock();
+}
+
 void RasterizerVulkan::InnerConstBufferInvalidation(
     std::span<const std::pair<DAddr, std::size_t>> sequences) {
     InnerInvalidationImpl(sequences, true);
@@ -1107,11 +1132,14 @@ void RasterizerVulkan::InnerInvalidationImpl(
     auto caches = VideoCommon::CacheType::None;
     for (const auto& [addr, size] : sequences) {
         caches |= device_memory.FilterFlushCaches(
-            addr, size, VideoCommon::CacheType::TextureCache | VideoCommon::CacheType::QueryCache);
+            addr, size,
+            VideoCommon::CacheType::TextureCache | VideoCommon::CacheType::QueryCache |
+                VideoCommon::CacheType::ShaderCache);
     }
     // The 3D engine notes its constant buffer writes for the draws that keep their bindings:
     // the buffers they bind are synchronized again, the other caches are not
-    if (!const_buffers_only || caches != VideoCommon::CacheType::None) {
+    if (!const_buffers_only ||
+        True(caches & (VideoCommon::CacheType::TextureCache | VideoCommon::CacheType::QueryCache))) {
         memory_epoch.fetch_add(1, std::memory_order_relaxed);
     }
     if (True(caches & VideoCommon::CacheType::TextureCache)) {
@@ -1131,7 +1159,9 @@ void RasterizerVulkan::InnerInvalidationImpl(
             query_cache.InvalidateRegion(addr, size);
         }
     }
-    pipeline_cache.InvalidateRegions(sequences);
+    if (True(caches & VideoCommon::CacheType::ShaderCache)) {
+        pipeline_cache.InvalidateRegions(sequences);
+    }
 }
 
 void RasterizerVulkan::WaitInPlaceReads(DAddr addr, u64 size) {

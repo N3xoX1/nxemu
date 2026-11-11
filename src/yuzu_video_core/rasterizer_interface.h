@@ -188,6 +188,10 @@ public:
         }
     }
 
+    /// Releases the cache locks that consecutive draws keep. Called before any work that may
+    /// wait for another thread, and when the current command ends.
+    virtual void ReleaseDrawLocks() {}
+
     /// InnerInvalidation of constant buffer uploads only, which the 3D engine keeps track of
     virtual void InnerConstBufferInvalidation(
         std::span<const std::pair<DAddr, std::size_t>> sequences) {

@@ -127,8 +127,10 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
         const u64 count = batch.size();
         {
             std::scoped_lock execution_lock{state.execution_mutex};
+            VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
             for (BackQueue::Work& work : batch) {
                 work();
+                rasterizer->ReleaseDrawLocks();
             }
             batch.clear();
             gpu.ProcessPendingComposite();
@@ -227,6 +229,7 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             {
                 ASSERT(false);
             }
+            rasterizer->ReleaseDrawLocks();
             gpu.ProcessPendingComposite();
         }
         state.signaled_fence.store(next.fence);

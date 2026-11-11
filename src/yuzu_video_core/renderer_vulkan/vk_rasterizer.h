@@ -135,6 +135,7 @@ public:
     void InvalidateRegion(DAddr addr, u64 size,
                           VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) override;
+    void ReleaseDrawLocks() override;
     void InnerConstBufferInvalidation(
         std::span<const std::pair<DAddr, std::size_t>> sequences) override;
     void OnCacheInvalidation(DAddr addr, u64 size) override;
@@ -287,6 +288,9 @@ private:
     /// Changes each time guest memory is written, invalidated or unmapped. Constant buffer
     /// uploads leave it when only buffers held their pages: Maxwell3D::BufferChanges has them.
     std::atomic<u64> memory_epoch{};
+    /// The buffer and texture cache locks, kept from one draw to the next
+    bool draw_locks_held{};
+    u32 draws_under_locks{};
 
     VkPipelineStageFlags image_write_stages{};
     u32 draw_counter = 0;
