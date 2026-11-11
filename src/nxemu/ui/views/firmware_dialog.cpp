@@ -145,7 +145,7 @@ void FirmwareDialog::OnCommand(const std::string & command)
     const FirmwareInstaller::Phase phase = m_installer.Current().phase;
     if (command == "pick-file" && phase == FirmwareInstaller::Phase::Idle)
     {
-        const std::string filter = FileFilter({{Tr("Firmware"), "*.zip;*.dxci"}, {Tr("All files"), "*.*"}});
+        const std::string filter = FileFilter({{Tr("Firmware"), "*.zip;*.dxci;*.nx"}, {Tr("All files"), "*.*"}});
         Path selected;
         if (FileSelect(m_window.NativeHandle(), Path(Path::CURRENT_DIRECTORY), filter.c_str(), true, selected))
         {

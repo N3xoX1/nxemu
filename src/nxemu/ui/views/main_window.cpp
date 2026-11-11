@@ -2419,7 +2419,7 @@ void MainWindow::RefreshFirmwareVersion()
 
 void MainWindow::LoadFile()
 {
-    const std::string filter = FileFilter({{Tr("Switch games"), "*.dxci;*.dnsp;*.nro"}, {Tr("All files"), "*.*"}});
+    const std::string filter = FileFilter({{Tr("Switch games"), "*.nx;*.dxci;*.dnsp;*.nro"}, {Tr("All files"), "*.*"}});
     Path selected;
     if (FileSelect(m_window.NativeHandle(), Path(Path::CURRENT_DIRECTORY), filter.c_str(), true, selected))
     {

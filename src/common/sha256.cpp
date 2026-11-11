@@ -306,6 +306,7 @@ void SHA256::update(const unsigned char * message, size_t len)
     size_t block_nb;
     size_t new_len, rem_len, tmp_len;
     const unsigned char * shifted_message;
+    if (len == 0) return;
     tmp_len = SHA224_256_BLOCK_SIZE - m_len;
     rem_len = len < tmp_len ? len : tmp_len;
     memcpy(&m_block[m_len], message, rem_len);
@@ -352,7 +353,7 @@ std::string sha256(std::string input)
 
     SHA256 ctx = SHA256();
     ctx.init();
-    ctx.update((unsigned char *)input.c_str(), (unsigned int)input.length());
+    ctx.update((unsigned char *)input.c_str(), input.length());
     ctx.final(digest);
 
     char buf[2 * SHA256::DIGEST_SIZE + 1];

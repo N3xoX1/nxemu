@@ -18,6 +18,8 @@ struct ExportOptions
     std::filesystem::path cache, recording, game_root, output, index, previous;
     std::string base, update, label, context, revision, note;
     u64 title_id{};
+    // The update kept inside an .nx container that the capture used; 0: the most recent one.
+    u32 nx_update_version{};
     bool allow_partial{}, compact{}, automatic_sources{};
     bool full_game{}; // The author recorded the whole game.
     int compression_level{19}; // Offline export only.

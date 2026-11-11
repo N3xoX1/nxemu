@@ -3102,7 +3102,7 @@ msgid "No games found"
 msgstr "Geen games gevonden"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
-msgid "No .nro, .dxci, or .dnsp files were found in your folders."
+msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
 msgstr "Er zijn geen .nro-, .dxci- of .dnsp-bestanden in uw mappen gevonden."
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
@@ -3717,7 +3717,7 @@ msgid "No folders yet"
 msgstr "Nog geen mappen"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
+msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
 msgstr "Kies een map met .nro-, .dxci- of .dnsp-bestanden."
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -3745,7 +3745,7 @@ msgid "Add another folder"
 msgstr "Nog een map toevoegen"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Games in .nro, .dxci or .dnsp format"
+msgid "Games in .nx, .nro, .dxci or .dnsp format"
 msgstr "Games in .nro-, .dxci- of .dnsp-formaat"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp

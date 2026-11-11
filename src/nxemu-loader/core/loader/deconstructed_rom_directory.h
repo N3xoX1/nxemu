@@ -45,6 +45,10 @@ public:
 
     LoadResult Load(Systemloader & loader, ISystemModules & systemModules) override;
 
+    // Without override_update, still apply the user's LayeredExeFS mods (an NX archive has
+    // picked its own update).
+    void SetApplyExeFSMods(bool apply) { apply_exefs_mods = apply; }
+
     LoaderResultStatus ReadRomFS(FileSys::VirtualFile& out_dir) override;
     LoaderResultStatus ReadControlData(FileSys::NACP& out_control) override;
     LoaderResultStatus ReadIcon(uint8_t * buffer, uint32_t * bufferSize) override;
@@ -69,6 +73,7 @@ private:
     uint64_t title_id{};
     bool override_update;
     bool is_hbl;
+    bool apply_exefs_mods{false};
 
     Modules modules;
 };

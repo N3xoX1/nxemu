@@ -3092,7 +3092,7 @@ msgid "No games found"
 msgstr "未找到游戏"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
-msgid "No .nro, .dxci, or .dnsp files were found in your folders."
+msgid "No .nx, .nro, .dxci, or .dnsp files were found in your folders."
 msgstr "你的文件夹中没有找到 .nro、.dxci 或 .dnsp 文件。"
 
 #: src/android/app/src/main/jni/ui/ui_activity.cpp
@@ -3702,7 +3702,7 @@ msgid "No folders yet"
 msgstr "暂无文件夹"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Choose a folder that contains .nro, .dxci, or .dnsp files."
+msgid "Choose a folder that contains .nx, .nro, .dxci, or .dnsp files."
 msgstr "选择包含 .nro、.dxci 或 .dnsp 文件的文件夹。"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
@@ -3730,7 +3730,7 @@ msgid "Add another folder"
 msgstr "添加其他文件夹"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Games in .nro, .dxci or .dnsp format"
+msgid "Games in .nx, .nro, .dxci or .dnsp format"
 msgstr ".nro、.dxci 或 .dnsp 格式的游戏"
 
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp

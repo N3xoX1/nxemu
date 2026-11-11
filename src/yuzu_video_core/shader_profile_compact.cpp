@@ -8,6 +8,7 @@
 #include "yuzu_video_core/shader_profile_resources.h"
 #include "yuzu_video_core/shader_profile_validation.h"
 #include "yuzu_video_core/shader_profile_context.h"
+#include "yuzu_video_core/shader_profile_nx.h"
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -18,9 +19,11 @@
 #include <map>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <system_error>
 #include <thread>
 #include <set>
+#include <span>
 #include <tuple>
 #include <utility>
 
@@ -230,8 +233,44 @@ struct Env
 // Where one NCA named by a profile is, in the game containers beside the game.
 struct ContentLocation
 {
+    // In an .nx the NCA is read through the archive: path is then the archive
+    // path joined with the NCA name, a key only, and offset is 0.
     std::filesystem::path path;
     u64 offset{}, size{};
+    std::shared_ptr<NxGame> nx;
+    u32 file{};
+};
+// Reads the file that holds one content: a container, or an NCA of an .nx.
+class ContentInput
+{
+public:
+    void Open(const ContentLocation & content)
+    {
+        nx = content.nx;
+        file = content.file;
+        if (nx) return;
+        input.close();
+        input.clear();
+        input.open(content.path, std::ios::binary);
+        Check(bool(input), "Cannot open compact resource");
+    }
+    void Read(u64 offset, std::span<char> bytes)
+    {
+        if (nx)
+        {
+            nx->Read(file, offset, bytes);
+            return;
+        }
+        input.clear();
+        input.seekg(static_cast<std::streamoff>(offset));
+        input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        Check(bool(input), "Cannot read compact resource");
+    }
+
+private:
+    std::ifstream input;
+    std::shared_ptr<NxGame> nx;
+    u32 file{};
 };
 using ContentMap = std::map<std::string, ContentLocation>;
 const ContentLocation & Locate(const ContentMap & contents, const std::string & name)
@@ -248,10 +287,9 @@ std::string Bytes(const ContentMap & contents, const std::string & name, u64 off
     const auto & content = Locate(contents, name);
     Check(size <= MaxDecodedResource && off <= content.size && size <= content.size - off, "Compact resource range");
     std::string bytes(static_cast<size_t>(size), '\0');
-    std::ifstream in(content.path, std::ios::binary);
-    in.seekg(static_cast<std::streamoff>(content.offset + off));
-    in.read(bytes.data(), size);
-    Check(bool(in), "Cannot read compact resource");
+    ContentInput in;
+    in.Open(content);
+    in.Read(content.offset + off, std::span(bytes));
     if (timings) timings->Add(Timing::Counter::ResourceReadBytes, size);
     return bytes;
 }
@@ -259,13 +297,10 @@ std::string Bytes(const ContentMap & contents, const std::string & name, u64 off
 // every small shader or patch span. These limits do not affect recipe ordering.
 constexpr u64 ReadBatchBytes = 4 * 1024 * 1024;
 constexpr u64 ReadBatchGap = 64 * 1024;
-void ReadInto(std::ifstream& input, u64 offset, std::span<char> bytes, Timing::Metrics* timings)
+void ReadInto(ContentInput& input, u64 offset, std::span<char> bytes, Timing::Metrics* timings)
 {
     Timing::Timer io(timings, Timing::Phase::ResourceIO);
-    input.clear();
-    input.seekg(static_cast<std::streamoff>(offset));
-    input.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-    Check(bool(input), "Cannot read compact resource");
+    input.Read(offset, bytes);
     if (timings) timings->Add(Timing::Counter::ResourceReadBytes, bytes.size());
 }
 std::string SpanBytes(const ContentMap& contents, const Resource& resource, Timing::Metrics* timings)
@@ -286,14 +321,12 @@ std::string SpanBytes(const ContentMap& contents, const Resource& resource, Timi
         return std::tie(a.content->path, a.offset) < std::tie(b.content->path, b.offset);
     });
     std::string raw(static_cast<size_t>(resource.size), '\0');
-    std::ifstream input;
-    std::filesystem::path opened;
+    ContentInput input;
+    std::optional<std::filesystem::path> opened;
     for (size_t first = 0; first < reads.size();) {
         const auto& read = reads[first];
-        if (!input.is_open() || opened != read.content->path) {
-            input.close(); input.clear();
-            input.open(read.content->path, std::ios::binary);
-            Check(bool(input), "Cannot open compact resource");
+        if (opened != read.content->path) {
+            input.Open(*read.content);
             opened = read.content->path;
         }
         size_t last = first + 1;
@@ -341,7 +374,7 @@ std::string Yaz0Programs(const ContentMap& contents, const Resource& resource, s
             add(span.file, span.offset, span.size, logical); logical += span.size;
         }
     } else add(resource.file, resource.offset, resource.size, 0);
-    std::map<std::filesystem::path, std::ifstream> inputs;
+    std::map<std::filesystem::path, ContentInput> inputs;
     std::string raw;
     raw.reserve(static_cast<size_t>(resource.size));
     u64 count = std::min<u64>(resource.size, 64 * 1024);
@@ -352,8 +385,8 @@ std::string Yaz0Programs(const ContentMap& contents, const Resource& resource, s
             const auto begin = std::max<u64>(loaded, span.logical);
             const auto end = std::min(count, span.logical + span.size);
             if (begin >= end) continue;
-            auto [it, fresh] = inputs.try_emplace(span.content->path, span.content->path, std::ios::binary);
-            Check(bool(it->second), "Cannot open compact resource");
+            auto [it, fresh] = inputs.try_emplace(span.content->path);
+            if (fresh) it->second.Open(*span.content);
             ReadInto(it->second, span.offset + begin - span.logical,
                      std::span(raw).subspan(begin, end - begin), timings);
         }
@@ -919,8 +952,8 @@ ContentProbes MakeContentProbes(const std::vector<Resource>& resources,
 bool MatchesContentProbe(const ContentLocation& content, const ContentProbe& probe,
                          Timing::Metrics* timings)
 {
-    std::ifstream input(content.path, std::ios::binary);
-    if (!input) return false;
+    ContentInput input;
+    input.Open(content);
     std::string bytes(static_cast<size_t>(probe.size), '\0');
     size_t destination{};
     for (const auto& span : probe.spans) {
@@ -952,7 +985,8 @@ ContentMap LocateContents(const std::filesystem::path & root, u64 title_id, cons
         Check(++entries <= 4096, "Local resource directory limit");
         std::error_code ignored;
         const auto name = it->path().filename().u8string();
-        if (it->is_regular_file(ignored) && IsGameContainerName(std::string(name.begin(), name.end())))
+        const std::string utf8(name.begin(), name.end());
+        if (it->is_regular_file(ignored) && (IsGameContainerName(utf8) || IsNxName(utf8)))
             containers.push_back(it->path());
     }
     // A shared game folder holds many titles: dumps named after this one first.
@@ -974,6 +1008,30 @@ ContentMap LocateContents(const std::filesystem::path & root, u64 title_id, cons
         try
         {
             Timing::Timer timer(timings, Timing::Phase::ResourceIO);
+            const auto utf8 = path.filename().u8string();
+            if (IsNxName(std::string(utf8.begin(), utf8.end())))
+            {
+                // Every snapshot: a profile may name the NCAs of any version kept.
+                auto game = std::make_shared<NxGame>(path);
+                for (const auto & nca : game->AllContents())
+                {
+                    std::string header;
+                    for (auto it = pending.begin(); it != pending.end();)
+                    {
+                        if ((*it)->size != nca.size) { ++it; continue; }
+                        if (header.empty())
+                        {
+                            std::string bytes(static_cast<size_t>(std::min<u64>(nca.size, 4096)), '\0');
+                            game->Read(nca.file, 0, std::span(bytes));
+                            header = Hash(bytes, timings);
+                        }
+                        if (header != (*it)->header) { ++it; continue; }
+                        found[(*it)->name] = {path / std::u8string(nca.name.begin(), nca.name.end()), 0, nca.size, game, nca.file};
+                        it = pending.erase(it);
+                    }
+                }
+                continue;
+            }
             const auto length = std::filesystem::file_size(path);
             std::ifstream in(path, std::ios::binary);
             const auto read = [&](u64 off, u64 size) {
@@ -1624,8 +1682,8 @@ static std::vector<Recipe> ReadCompactImpl(std::string_view payload, const std::
                     // otherwise useful programs from the same content.
                     const auto& content=Locate(contents,resource.file);
                     const auto length=content.size;
-                    std::ifstream input(content.path,std::ios::binary);
-                    Check(bool(input),"Cannot open compact resource");
+                    ContentInput input;
+                    input.Open(content);
                     std::vector<Request> ordered;
                     for (const auto& request : job.requests) {
                         const auto [id, offset] = request;

@@ -34,6 +34,7 @@ target_link_libraries(nxemu-loader PRIVATE
     lz4
     minizip::minizip
     nx_tzdb
+    zstd::zstd
 )
 
 if(WIN32)

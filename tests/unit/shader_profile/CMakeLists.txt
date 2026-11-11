@@ -8,6 +8,7 @@ add_library(nxemu_shader_profile_test_sources STATIC
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_export.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_discovery.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_compact.cpp"
+    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_nx.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/fixed_pipeline_state.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/surface.cpp"
     "${CMAKE_SOURCE_DIR}/src/common/sha256.cpp"
