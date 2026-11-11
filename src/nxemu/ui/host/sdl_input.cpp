@@ -69,6 +69,12 @@ SDL_Keycode UsKeycode(SDL_Scancode scancode)
         return SDLK_1 + int(scancode - SDL_SCANCODE_1);
     switch (scancode)
     {
+    case SDL_SCANCODE_RETURN: return SDLK_RETURN;
+    case SDL_SCANCODE_ESCAPE: return SDLK_ESCAPE;
+    case SDL_SCANCODE_BACKSPACE: return SDLK_BACKSPACE;
+    case SDL_SCANCODE_TAB: return SDLK_TAB;
+    case SDL_SCANCODE_SPACE: return SDLK_SPACE;
+    case SDL_SCANCODE_DELETE: return SDLK_DELETE;
     case SDL_SCANCODE_0: return SDLK_0;
     case SDL_SCANCODE_SEMICOLON: return SDLK_SEMICOLON;
     case SDL_SCANCODE_EQUALS: return SDLK_EQUALS;
