@@ -2186,12 +2186,17 @@ void RasterizerVulkan::RefreshVertexInput(Tegra::Engines::Maxwell3D::Regs& regs)
         if (attribute.constant || binding >= max_bindings) {
             continue;
         }
+        VkFormat& format = vertex_format_cache[(static_cast<u32>(attribute.type.Value()) << 6) |
+                                               static_cast<u32>(attribute.size.Value())];
+        if (format == VK_FORMAT_UNDEFINED) [[unlikely]] {
+            format = MaxwellToVK::VertexFormat(device, attribute.type, attribute.size);
+        }
         attributes.push_back({
             .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
             .pNext = nullptr,
             .location = index,
             .binding = binding,
-            .format = MaxwellToVK::VertexFormat(device, attribute.type, attribute.size),
+            .format = format,
             .offset = attribute.offset,
         });
         used_bindings |= u32{1} << binding;

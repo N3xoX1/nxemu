@@ -182,6 +182,12 @@ private:
     /// True when the texture handles in the constant buffers are the ones of the last draw
     [[nodiscard]] bool HasKeptHandles();
 
+    enum class KeptTextures { Failed, Same, Changed };
+
+    /// Reads the texture handles again and resolves the views and samplers that changed since
+    /// the last draw, keeping the others
+    [[nodiscard]] KeptTextures UpdateKeptTextures();
+
 public:
 
     /// True when the last Configure left bindings that a later draw can keep: nothing in them
