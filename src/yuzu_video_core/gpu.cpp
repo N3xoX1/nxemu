@@ -950,6 +950,20 @@ bool GPU::AwaitPendingResult(DAddr addr, u64 size, bool kick)
     return impl->AwaitPendingResult(addr, size, kick);
 }
 
+void GPU::WaitPendingResults(DAddr addr, u64 size)
+{
+    if (!impl->AwaitPendingResult(addr, size, true))
+    {
+        return;
+    }
+    const auto started = std::chrono::steady_clock::now();
+    while (impl->AwaitPendingResult(addr, size, false) &&
+           std::chrono::steady_clock::now() - started < std::chrono::milliseconds(100))
+    {
+        std::this_thread::yield();
+    }
+}
+
 bool GPU::OnNativeCPURead(DAddr addr, u64 size, bool shared_page)
 {
     if (shared_page)
