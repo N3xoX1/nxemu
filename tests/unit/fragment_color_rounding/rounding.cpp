@@ -27,6 +27,7 @@ struct Options {
     bool writes_secondary{true};
     bool writes_alpha{true};
     bool declare_unused{};
+    std::optional<u32> component_mask;
     Shader::AttributeType type{Shader::AttributeType::Float};
     std::optional<Shader::CompareFunction> comparison;
     float alpha{};
@@ -37,9 +38,11 @@ std::vector<u32> Compile(const Options& options) {
     Shader::ObjectPool<IR::Block> block_pool{4};
     auto* block = block_pool.Create(inst_pool);
     IR::IREmitter ir{*block};
+    const u32 mask = options.component_mask.value_or(options.writes_alpha ? 15U : 7U);
     ir.Prologue();
     for (u32 target = 0; target < (options.writes_secondary ? 2U : 1U); ++target) {
-        for (u32 component = 0; component < (options.writes_alpha ? 4U : 3U); ++component) {
+        for (u32 component = 0; component < 4; ++component) {
+            if ((mask & (1U << component)) == 0) continue;
             ir.SetFragColor(target, component,
                             ir.Imm32(component == 3 ? options.alpha : 0.5f));
         }
@@ -51,7 +54,7 @@ std::vector<u32> Compile(const Options& options) {
     program.post_order_blocks.push_back(block);
     for (u32 target = 0; target < (options.writes_secondary ? 2U : 1U); ++target) {
         program.info.stores_frag_color[target] = true;
-        program.info.stores_frag_alpha[target] = options.writes_alpha;
+        program.info.stores_frag_alpha[target] = (mask & 8U) != 0;
     }
     program.syntax_list.push_back({.data{.block = block}, .type = IR::AbstractSyntaxNode::Type::Block});
     program.syntax_list.push_back({.type = IR::AbstractSyntaxNode::Type::Return});
@@ -77,11 +80,14 @@ struct Observations {
     std::vector<float> output_alpha;
     unsigned corrections{};
     unsigned corrected_outputs{};
+    bool killed{};
+    unsigned scalar_loads{}, vector_loads{};
+    std::array<unsigned, 4> component_stores{};
 };
 
 // Follow constants, output memory and arithmetic in the emitted shader. Observe comparison
 // operands before control flow: alpha testing and coverage must see the guest's original value.
-Observations Observe(const std::vector<u32>& words) {
+Observations Observe(const std::vector<u32>& words, bool execute_branches = false) {
     struct Value {
         std::array<std::optional<float>, 4> components;
     };
@@ -90,6 +96,13 @@ Observations Observe(const std::vector<u32>& words) {
     std::vector<Pointer> pointers(words[3]);
     std::vector<u32> literals(words[3]);
     std::vector<bool> corrected(words[3]);
+    std::vector<bool> conditions(words[3]);
+    std::vector<size_t> labels(words[3]);
+    for (size_t i = 5; i < words.size(); i += words[i] >> 16) {
+        if (static_cast<spv::Op>(words[i] & 0xffff) == spv::Op::OpLabel) {
+            labels[words[i + 1]] = i;
+        }
+    }
     Observations result;
     for (size_t i = 5; i < words.size();) {
         const u32 count = words[i] >> 16;
@@ -116,6 +129,7 @@ Observations Observe(const std::vector<u32>& words) {
         case spv::Op::OpStore: {
             const auto pointer = pointers[w[1]];
             if (pointer.component) {
+                ++result.component_stores[*pointer.component];
                 values[pointer.base].components[*pointer.component] = values[w[2]].components[0];
             } else {
                 values[pointer.base] = values[w[2]];
@@ -125,6 +139,8 @@ Observations Observe(const std::vector<u32>& words) {
         }
         case spv::Op::OpLoad: {
             const auto pointer = pointers[w[3]];
+            if (pointer.component) ++result.scalar_loads;
+            else ++result.vector_loads;
             if (pointer.component) {
                 values[w[2]].components[0] = values[pointer.base].components[*pointer.component];
             } else {
@@ -152,7 +168,39 @@ Observations Observe(const std::vector<u32>& words) {
         case spv::Op::OpFOrdGreaterThan:
         case spv::Op::OpFOrdNotEqual:
         case spv::Op::OpFOrdGreaterThanEqual:
-            result.compared_alpha.push_back(values[w[3]].components[0].value_or(NAN));
+        {
+            const float lhs = values[w[3]].components[0].value_or(NAN);
+            const float rhs = values[w[4]].components[0].value_or(NAN);
+            result.compared_alpha.push_back(lhs);
+            const bool ordered = !std::isnan(lhs) && !std::isnan(rhs);
+            switch (op) {
+            case spv::Op::OpFOrdLessThan: conditions[w[2]] = ordered && lhs < rhs; break;
+            case spv::Op::OpFOrdEqual: conditions[w[2]] = ordered && lhs == rhs; break;
+            case spv::Op::OpFOrdLessThanEqual: conditions[w[2]] = ordered && lhs <= rhs; break;
+            case spv::Op::OpFOrdGreaterThan: conditions[w[2]] = ordered && lhs > rhs; break;
+            case spv::Op::OpFOrdNotEqual: conditions[w[2]] = ordered && lhs != rhs; break;
+            case spv::Op::OpFOrdGreaterThanEqual: conditions[w[2]] = ordered && lhs >= rhs; break;
+            default: break;
+            }
+            break;
+        }
+        case spv::Op::OpBranchConditional:
+            if (execute_branches) {
+                i = labels[conditions[w[1]] ? w[2] : w[3]];
+                continue;
+            }
+            break;
+        case spv::Op::OpBranch:
+            if (execute_branches) {
+                i = labels[w[1]];
+                continue;
+            }
+            break;
+        case spv::Op::OpKill:
+            if (execute_branches) {
+                result.killed = true;
+                return result;
+            }
             break;
         default:
             break;
@@ -207,6 +255,29 @@ int main(int argc, char** argv) {
           "unused declared attachments are not read or corrected");
     check(Observe(Compile({.dither = true, .writes_alpha = false})).compared_alpha.empty(),
           "RGB-only writes do not enable alpha-to-coverage");
+    for (u32 mask : {1U, 2U, 4U, 7U, 8U, 9U, 15U}) {
+        const auto partial = Observe(Compile({.component_mask = mask}));
+        check(partial.vector_loads == 0, "partial writes add no full RGBA reads");
+        check(partial.scalar_loads == ((mask & 8U) ? 1U : 0U),
+              "only a written RT0 alpha is loaded for deferred correction");
+        check(partial.corrections == 2U * std::popcount(mask),
+              "only written components receive a rounding correction");
+        for (u32 component = 0; component < 4; ++component) {
+            const unsigned expected = (mask & (1U << component))
+                ? (component == 3 ? 3U : 2U) : 0U;
+            check(partial.component_stores[component] == expected,
+                  "unwritten components are never stored by rounding correction");
+        }
+    }
+    // Execute the actual emitted branches for the original transparent-overlay failure.
+    for (float alpha : {0.0f, 0.5f}) {
+        check(Observe(Compile({.comparison = Shader::CompareFunction::NotEqual,
+                  .alpha = alpha}), true).killed == (alpha == 0.0f),
+              "NotEqual-zero kills transparent fragments and retains visible ones");
+        check(Observe(Compile({.comparison = Shader::CompareFunction::Equal,
+                  .alpha = alpha}), true).killed == (alpha != 0.0f),
+              "Equal-zero takes the opposite discard branch");
+    }
     if (argc > 1) {
         const auto words = Compile({.dither = true, .dual_source = true,
             .comparison = Shader::CompareFunction::NotEqual});

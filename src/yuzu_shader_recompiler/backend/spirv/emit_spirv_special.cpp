@@ -132,19 +132,16 @@ void AlphaToCoverageDither(EmitContext& ctx) {
     ctx.AddLabel(keep_label);
 }
 
-void CorrectUnorm8Rounding(EmitContext& ctx) {
-    for (const Id output : ctx.frag_color_rounding) {
-        if (!Sirit::ValidId(output)) {
-            continue;
-        }
-        // Games store integers as (n + 0.5) / 255 and expect to read n back. Apply the
-        // host's rounding bias only after alpha testing and coverage: biasing zero alpha
-        // earlier makes it negative, so a NotEqual-zero test incorrectly keeps the pixel.
-        const Id bias{ctx.Const(1.0f / (255.0f * 512.0f))};
-        const Id correction{ctx.ConstantComposite(ctx.F32[4], bias, bias, bias, bias)};
-        const Id color{ctx.OpLoad(ctx.F32[4], output)};
-        ctx.OpStore(output, ctx.OpFSub(ctx.F32[4], color, correction));
+void CorrectUnorm8AlphaRounding(EmitContext& ctx) {
+    if (!ctx.defer_frag_alpha_rounding) {
+        return;
     }
+    // Biasing zero alpha before the tests makes it negative, incorrectly passing
+    // NotEqual-zero. Only defer RT0 alpha; all other components retain scalar write-time
+    // correction. The flag requires stores_frag_alpha[0], so RGB-only shaders skip this.
+    const Id pointer{ctx.OpAccessChain(ctx.output_f32, ctx.frag_color[0], ctx.Const(3u))};
+    const Id alpha{ctx.OpLoad(ctx.F32[1], pointer)};
+    ctx.OpStore(pointer, ctx.OpFSub(ctx.F32[1], alpha, ctx.Const(1.0f / (255.0f * 512.0f))));
 }
 } // Anonymous namespace
 
@@ -200,7 +197,7 @@ void EmitEpilogue(EmitContext& ctx) {
     if (ctx.stage == Stage::Fragment) {
         AlphaTest(ctx);
         AlphaToCoverageDither(ctx);
-        CorrectUnorm8Rounding(ctx);
+        CorrectUnorm8AlphaRounding(ctx);
     }
 }
 
