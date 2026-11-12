@@ -131,6 +131,12 @@ public:
     virtual bool OnlyDraws() const {
         return false;
     }
+
+    /// HLE macros only. Decode side: when Execute only writes plain registers, queues them as
+    /// register writes instead of a macro call and returns true. The parameters are final.
+    virtual bool LowerToWrites([[maybe_unused]] const std::vector<u32>& parameters) {
+        return false;
+    }
 };
 
 class MacroEngine {

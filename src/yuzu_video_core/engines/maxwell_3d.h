@@ -3303,6 +3303,11 @@ public:
         return front_regs.reg_array[method];
     }
 
+    /// Decode side: queues a plain register write, for HLE macros lowered to writes.
+    void FrontWriteRegister(u32 method, u32 value) {
+        FrontWrite(method, value);
+    }
+
     /// Decode side: queues an HLE macro call for the execute side.
     void FrontHLEMacro(CachedMacro* program, const std::vector<u32>& parameters, u32 method);
 

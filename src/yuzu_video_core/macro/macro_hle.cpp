@@ -497,6 +497,17 @@ public:
         return true;
     }
 
+    bool LowerToWrites(const std::vector<u32>& parameters) override {
+        const u32 address = maxwell3d.front_regs.shadow_scratch[24];
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.size), 0x7000);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.address_high),
+                                     (address >> 24) & 0xFF);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.address_low), address << 8);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.offset),
+                                     (parameters[0] & 0x3FFFFFFF) << 2);
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         auto& regs = maxwell3d.front_regs;
         const u32 address = regs.shadow_scratch[24];
@@ -523,6 +534,18 @@ public:
     explicit HLE_D7333D26E0A93EDE(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
     bool OnlyDraws() const override {
+        return true;
+    }
+
+    bool LowerToWrites(const std::vector<u32>& parameters) override {
+        const auto& regs = maxwell3d.front_regs;
+        const size_t index = parameters[0];
+        const u32 address = regs.shadow_scratch[42 + index];
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.size),
+                                     regs.shadow_scratch[47 + index]);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.address_high),
+                                     (address >> 24) & 0xFF);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.address_low), address << 8);
         return true;
     }
 
