@@ -406,6 +406,8 @@ public:
     std::array<Id, 30> patches{};
 
     std::array<Id, 8> frag_color{};
+    /// Keep RT0 alpha unmodified until alpha testing and coverage have consumed it.
+    bool defer_frag_alpha_rounding{};
     Id sample_mask{};
     Id frag_depth{};
 

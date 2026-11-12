@@ -131,6 +131,18 @@ void AlphaToCoverageDither(EmitContext& ctx) {
     ctx.OpKill();
     ctx.AddLabel(keep_label);
 }
+
+void CorrectUnorm8AlphaRounding(EmitContext& ctx) {
+    if (!ctx.defer_frag_alpha_rounding) {
+        return;
+    }
+    // Biasing zero alpha before the tests makes it negative, incorrectly passing
+    // NotEqual-zero. Only defer RT0 alpha; all other components retain scalar write-time
+    // correction. The flag requires stores_frag_alpha[0], so RGB-only shaders skip this.
+    const Id pointer{ctx.OpAccessChain(ctx.output_f32, ctx.frag_color[0], ctx.Const(3u))};
+    const Id alpha{ctx.OpLoad(ctx.F32[1], pointer)};
+    ctx.OpStore(pointer, ctx.OpFSub(ctx.F32[1], alpha, ctx.Const(1.0f / (255.0f * 512.0f))));
+}
 } // Anonymous namespace
 
 void EmitPrologue(EmitContext& ctx) {
@@ -185,6 +197,7 @@ void EmitEpilogue(EmitContext& ctx) {
     if (ctx.stage == Stage::Fragment) {
         AlphaTest(ctx);
         AlphaToCoverageDither(ctx);
+        CorrectUnorm8AlphaRounding(ctx);
     }
 }
 

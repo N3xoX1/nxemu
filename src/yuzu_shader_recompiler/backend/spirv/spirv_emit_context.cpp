@@ -2126,6 +2126,11 @@ void EmitContext::DefineOutputs(const IR::Program& program) {
             const u32 type_index = dual_source_output ? 0 : index;
             const Id type{GetAttributeType(*this, runtime_info.color_output_types[type_index])};
             frag_color[index] = DefineOutput(*this, type, std::nullopt);
+            if (profile.has_unorm8_round_half_up && type.value == F32[4].value &&
+                runtime_info.color_output_unorm8[type_index] && index == 0 &&
+                info.stores_frag_alpha[0]) {
+                defer_frag_alpha_rounding = true;
+            }
             if (dual_source_output) {
                 Decorate(frag_color[index], spv::Decoration::Location, 0u);
                 Decorate(frag_color[index], spv::Decoration::Index, index);
