@@ -83,7 +83,7 @@ static bool SameGeneratedCode(const UserConfig& a, const UserConfig& b) {
         && a.write_track_l1_offset == b.write_track_l1_offset && a.define_unpredictable_behaviour == b.define_unpredictable_behaviour
         && a.wall_clock_cntpct == b.wall_clock_cntpct && a.check_halt_on_memory_access == b.check_halt_on_memory_access
         && a.enable_cycle_counting == b.enable_cycle_counting && a.code_cache_size == b.code_cache_size
-        && a.very_verbose_debugging_output == b.very_verbose_debugging_output;
+        && a.very_verbose_debugging_output == b.very_verbose_debugging_output && a.test_variant == b.test_variant;
 }
 
 /// Generated code shared by the cores of one process: one code buffer and one set of block

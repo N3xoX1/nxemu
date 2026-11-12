@@ -303,6 +303,9 @@ struct UserConfig {
 
     /// Internal use only
     bool very_verbose_debugging_output = false;
+
+    /// Test only: selects variants of the code generator for differential tests (0 = normal)
+    std::uint32_t test_variant = 0;
 };
 
 }  // namespace A64
