@@ -177,6 +177,13 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     if (conf.very_verbose_debugging_output) {
         std::puts(IR::DumpBlock(block).c_str());
     }
+    jit_test_variant = conf.test_variant;
+    if (conf.test_variant & 4) {  // differential tests: the IR of each block, to jit-ir.txt
+        if (FILE* f = std::fopen("jit-ir.txt", "a")) {
+            std::fprintf(f, "variant %u\n%s\n", conf.test_variant, IR::DumpBlock(block).c_str());
+            std::fclose(f);
+        }
+    }
 
     code.EnableWriting();
     SCOPE_EXIT {
@@ -249,6 +256,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
         }
 
         ctx.reg_alloc.EndOfAllocScope();
+        ctx.reg_alloc.EndOfInstruction();
 
         if (op != IR::Opcode::IsZero32 && op != IR::Opcode::IsZero64) {
             ctx.zero_flag_for = nullptr;

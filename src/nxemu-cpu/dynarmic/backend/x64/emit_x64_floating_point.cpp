@@ -1597,7 +1597,10 @@ void EmitX64::EmitFPHalfToDouble(EmitContext& ctx, IR::Inst* inst) {
         const Xbyak::Xmm value = ctx.reg_alloc.UseXmm(args[0]);
 
         // Double-conversion here is acceptable as this is expanding precision.
-        code.vcvtph2ps(result, value);
+        // Only lane 0 of the value: the other lanes may hold signalling NaNs, which set FPSR.IOC
+        code.vpxor(result, result, result);
+        code.vpblendw(result, result, value, 0x01);
+        code.vcvtph2ps(result, result);
         code.vcvtps2pd(result, result);
         if (ctx.FPCR().DN()) {
             ForceToDefaultNaN<64>(code, result);
@@ -1622,7 +1625,10 @@ void EmitX64::EmitFPHalfToSingle(EmitContext& ctx, IR::Inst* inst) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
         const Xbyak::Xmm value = ctx.reg_alloc.UseXmm(args[0]);
 
-        code.vcvtph2ps(result, value);
+        // Only lane 0 of the value: the other lanes may hold signalling NaNs, which set FPSR.IOC
+        code.vpxor(result, result, result);
+        code.vpblendw(result, result, value, 0x01);
+        code.vcvtph2ps(result, result);
         if (ctx.FPCR().DN()) {
             ForceToDefaultNaN<32>(code, result);
         }
@@ -1668,6 +1674,8 @@ void EmitX64::EmitFPSingleToHalf(EmitContext& ctx, IR::Inst* inst) {
     if (code.HasHostFeature(HostFeature::F16C) && !ctx.FPCR().AHP() && !ctx.FPCR().FZ16()) {
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
 
+        // vcvtps2ph converts four lanes; lanes 1-3 may hold anything and would set FPSR flags
+        code.vinsertps(result, result, result, 0x0e);
         if (ctx.FPCR().DN()) {
             ForceToDefaultNaN<32>(code, result);
         }
