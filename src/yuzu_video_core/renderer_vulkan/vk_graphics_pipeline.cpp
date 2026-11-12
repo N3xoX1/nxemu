@@ -1215,9 +1215,17 @@ bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
         }
         rebind[stage] = changed;
     }
-    // Uploads often write the buffer holding the handles, mostly with the same handles
-    if (handles_changed && !HasKeptHandles()) {
-        return false;
+    // Uploads often write the buffer holding the handles, mostly with the same handles. When
+    // some textures change, only those are looked up again.
+    bool push_images{};
+    if (handles_changed) {
+        const KeptTextures textures = binds_only_uniform_buffers ? UpdateKeptTextures()
+                                      : HasKeptHandles()         ? KeptTextures::Same
+                                                                 : KeptTextures::Failed;
+        if (textures == KeptTextures::Failed) {
+            return false;
+        }
+        push_images = textures == KeptTextures::Changed;
     }
     if (!binds_only_uniform_buffers) {
         return ConfigureKeptImages(is_indexed);
@@ -1229,9 +1237,16 @@ bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
 
     guest_descriptor_queue.Acquire(num_descriptor_entries);
     size_t entry{};
+    RescalingPushConstant rescaling;
+    const VideoCommon::SamplerId* samplers_it{descriptor_samplers.data()};
+    const VideoCommon::ImageViewInOut* views_it{descriptor_views.data()};
     for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
         u32 uniforms = enabled_uniform_buffer_masks[stage];
-        if (uniforms == 0) {
+        if (push_images) {
+            if (((enabled_stage_mask >> stage) & 1) == 0) {
+                continue;
+            }
+        } else if (uniforms == 0) {
             continue;
         }
         for (; entry < kept_stage_entries[stage]; ++entry) {
@@ -1244,6 +1259,12 @@ bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
             } else {
                 guest_descriptor_queue.AddEntry(kept_entries[entry]);
             }
+        }
+        if (push_images) {
+            // The images of the stage follow its uniform buffers, in the same layout
+            PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage],
+                                 rescaling, samplers_it, views_it);
+            entry = guest_descriptor_queue.Entries().size();
         }
     }
     for (; entry < kept_entries.size(); ++entry) {
@@ -1258,8 +1279,157 @@ bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
     RenderAreaPushConstant render_area;
     render_area.uses_render_area = kept_uses_render_area;
     render_area.words = kept_render_area;
+    if (push_images) {
+        kept_rescaling = rescaling.Data();
+    }
     ConfigureDraw(RescalingPushConstant(kept_rescaling), render_area);
     return true;
+}
+
+GraphicsPipeline::KeptTextures GraphicsPipeline::UpdateKeptTextures() {
+    auto& views = descriptor_views;
+    auto& samplers = descriptor_samplers;
+    if (cached_view_indices.size() != views.size() ||
+        cached_sampler_handles.size() != samplers.size() ||
+        cached_view_ids.size() != views.size() || cached_samplers.size() != samplers.size()) {
+        return KeptTextures::Failed;
+    }
+    const u64 descriptor_epoch = texture_cache.GraphicsDescriptorEpoch();
+    texture_cache.SynchronizeGraphicsDescriptors();
+    // Reads the handles as ConfigureImpl does, in the same order
+    const auto& regs{maxwell3d->regs};
+    const bool via_header_index{regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding};
+    size_t view_index{};
+    size_t sampler_index{};
+    for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
+        const size_t stage = static_cast<size_t>(std::countr_zero(mask));
+        const Shader::Info& info{stage_infos[stage]};
+        const auto& cbufs{maxwell3d->state.shader_stages[stage].const_buffers};
+        DescriptorCbufReader<18> cbuf_reader;
+        const auto bind_cbuf = [&](u32 bank, u32 count) {
+            return cbuf_reader.Bind(*gpu_memory, bank, cbufs[bank].address, cbufs[bank].size, count);
+        };
+        const auto prepare_handle = [&](const auto& desc) {
+            const auto primary = bind_cbuf(desc.cbuf_index, desc.count);
+            u32 uniform_offset{};
+            bool invalid_uniform_index{};
+            if constexpr (requires { desc.has_index_cbuf; }) {
+                if (desc.has_index_cbuf) {
+                    const auto index_buffer = bind_cbuf(desc.index_cbuf_index, 1);
+                    invalid_uniform_index = index_buffer.size < sizeof(u32) ||
+                        desc.index_cbuf_offset > index_buffer.size - sizeof(u32);
+                    if (!invalid_uniform_index) {
+                        uniform_offset = index_buffer.Read(desc.index_cbuf_offset) << desc.index_shift;
+                    }
+                }
+            }
+            auto secondary = primary;
+            bool has_secondary{};
+            u32 secondary_offset{};
+            if constexpr (requires { desc.has_secondary; }) {
+                if (desc.has_secondary) {
+                    secondary = bind_cbuf(desc.secondary_cbuf_index, desc.count);
+                    has_secondary = true;
+                    secondary_offset = desc.secondary_cbuf_offset;
+                }
+            }
+            return [=](u32 index) {
+                const u32 delta = index * desc.stride;
+                const u32 offset = desc.cbuf_offset + delta + uniform_offset;
+                if constexpr (requires { desc.has_index_cbuf; }) {
+                    if (desc.has_index_cbuf &&
+                        (invalid_uniform_index || primary.size < sizeof(u32) ||
+                         offset > primary.size - sizeof(u32))) {
+                        return TexturePair(0, via_header_index);
+                    }
+                }
+                const u32 raw = primary.Read(offset);
+                return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                       desc, raw, has_secondary ? secondary.Read(secondary_offset) : 0),
+                                   via_header_index);
+            };
+        };
+        const auto read_image = [&](const auto& desc, bool blacklist) {
+            const auto read_handle = prepare_handle(desc);
+            for (u32 index = 0; index < desc.count; ++index) {
+                views[view_index++] = {
+                    .index = read_handle(index).first,
+                    .blacklist = blacklist,
+                    .id = {},
+                };
+            }
+        };
+        for (const auto& desc : info.texture_buffer_descriptors) {
+            if (desc.sources.empty()) {
+                read_image(desc, false);
+            } else {
+                for (const auto& source : desc.sources) {
+                    read_image(source, false);
+                }
+            }
+        }
+        for (const auto& desc : info.image_buffer_descriptors) {
+            read_image(desc, false);
+        }
+        for (const auto& desc : info.texture_descriptors) {
+            if (desc.is_direct) {
+                return KeptTextures::Failed;
+            }
+            const auto read_texture = [&](const auto& source) {
+                const auto read_handle = prepare_handle(source);
+                for (u32 index = 0; index < source.count; ++index) {
+                    const auto handle{read_handle(index)};
+                    views[view_index++] = {handle.first};
+                    sampler_handles[sampler_index++] = handle.second;
+                }
+            };
+            if (desc.sources.empty()) {
+                read_texture(desc);
+            } else {
+                for (const auto& source : desc.sources) {
+                    read_texture(source);
+                }
+            }
+        }
+        for (const auto& desc : info.image_descriptors) {
+            read_image(desc, desc.is_written);
+        }
+    }
+    if (view_index != views.size() || sampler_index != samplers.size()) {
+        return KeptTextures::Failed;
+    }
+    bool changed{};
+    for (size_t i = 0; i < views.size(); ++i) {
+        if (views[i].index == cached_view_indices[i]) {
+            views[i].id = cached_view_ids[i];
+        } else {
+            changed = true;
+            texture_cache.FillGraphicsImageViews<true>(std::span(views.data() + i, 1));
+        }
+    }
+    for (size_t i = 0; i < samplers.size(); ++i) {
+        if (sampler_handles[i] == cached_sampler_handles[i]) {
+            samplers[i] = cached_samplers[i];
+        } else {
+            changed = true;
+            samplers[i] = texture_cache.GetGraphicsSamplerId(sampler_handles[i]);
+        }
+    }
+    // A lookup that created, deleted or rescaled an image may have changed the kept views
+    if (texture_cache.GraphicsDescriptorEpoch() != descriptor_epoch) {
+        return KeptTextures::Failed;
+    }
+    if (!changed) {
+        return KeptTextures::Same;
+    }
+    for (size_t i = 0; i < views.size(); ++i) {
+        cached_view_indices[i] = views[i].index;
+        cached_view_ids[i] = views[i].id;
+    }
+    std::copy(sampler_handles.begin(), sampler_handles.begin() + samplers.size(),
+              cached_sampler_handles.begin());
+    std::copy(samplers.begin(), samplers.end(), cached_samplers.begin());
+    return KeptTextures::Changed;
 }
 
 bool GraphicsPipeline::HasKeptHandles() {
