@@ -131,6 +131,21 @@ void AlphaToCoverageDither(EmitContext& ctx) {
     ctx.OpKill();
     ctx.AddLabel(keep_label);
 }
+
+void CorrectUnorm8Rounding(EmitContext& ctx) {
+    for (const Id output : ctx.frag_color_rounding) {
+        if (!Sirit::ValidId(output)) {
+            continue;
+        }
+        // Games store integers as (n + 0.5) / 255 and expect to read n back. Apply the
+        // host's rounding bias only after alpha testing and coverage: biasing zero alpha
+        // earlier makes it negative, so a NotEqual-zero test incorrectly keeps the pixel.
+        const Id bias{ctx.Const(1.0f / (255.0f * 512.0f))};
+        const Id correction{ctx.ConstantComposite(ctx.F32[4], bias, bias, bias, bias)};
+        const Id color{ctx.OpLoad(ctx.F32[4], output)};
+        ctx.OpStore(output, ctx.OpFSub(ctx.F32[4], color, correction));
+    }
+}
 } // Anonymous namespace
 
 void EmitPrologue(EmitContext& ctx) {
@@ -185,6 +200,7 @@ void EmitEpilogue(EmitContext& ctx) {
     if (ctx.stage == Stage::Fragment) {
         AlphaTest(ctx);
         AlphaToCoverageDither(ctx);
+        CorrectUnorm8Rounding(ctx);
     }
 }
 

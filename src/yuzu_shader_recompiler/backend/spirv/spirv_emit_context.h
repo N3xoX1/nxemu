@@ -406,6 +406,8 @@ public:
     std::array<Id, 30> patches{};
 
     std::array<Id, 8> frag_color{};
+    /// Written float UNORM8 outputs requiring host rounding correction at the epilogue.
+    std::array<Id, 8> frag_color_rounding{};
     Id sample_mask{};
     Id frag_depth{};
 

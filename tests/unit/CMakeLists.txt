@@ -327,6 +327,16 @@ target_link_libraries(test_alpha_to_coverage_dither PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_alpha_to_coverage_dither)
 
+add_executable(test_fragment_color_rounding fragment_color_rounding/rounding.cpp)
+target_include_directories(test_fragment_color_rounding PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/sirit/include"
+    "${CMAKE_SOURCE_DIR}/external/sirit/externals/SPIRV-Headers/include")
+add_dependencies(test_fragment_color_rounding shader_recompiler sirit fmt common)
+target_link_libraries(test_fragment_color_rounding PRIVATE nxemu_test_support
+    $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
+nxemu_unit_test(test_fragment_color_rounding)
+
 # Compile unchanged conditional-rendering method bodies with fake GPU dependencies.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(_vertex_input_generated "${CMAKE_CURRENT_BINARY_DIR}/vertex_input")
