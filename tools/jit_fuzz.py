@@ -4,11 +4,14 @@
 Random A64 sequences run on two JITs that differ only by UserConfig::test_variant; a difference
 in registers, NZCV, FPSR or memory is a failure. Variant bits: 1 spills XMM values instead of
 moving them to a free callee-saved register, 2 drops the handed-out check (the old bug, for
-checking the tester), 4 writes the IR of each block to jit-ir.txt in the current folder.
+checking the tester), 4 writes the IR of each block to jit-ir.txt in the current folder, 8 makes FCMP NZCV the
+old way (no branch or CSEL on the ucomis flags).
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution
                                                    (JIT_FUZZ_REPS runs of each sequence, default 200)
+
+JIT_FUZZ_FOCUS=FCMP_float,B_cond picks these instructions (decoder names) half of the time.
   jit_fuzz.py DLL shrink SEED ITERATION VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL replay SEED ITERATION VARIANT_A VARIANT_B FASTMEM KEEP [REPORT]
 
@@ -31,6 +34,8 @@ def load(dll):
     lib.nxemu_jit_fuzz.restype = ctypes.c_int
     lib.nxemu_jit_fuzz_replay.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
     lib.nxemu_jit_fuzz_bench.argtypes = [ctypes.c_int]
+    lib.nxemu_jit_fuzz_focus.argtypes = [ctypes.c_char_p]
+    lib.nxemu_jit_fuzz_focus(os.environ.get('JIT_FUZZ_FOCUS', '').encode())
     return lib
 
 

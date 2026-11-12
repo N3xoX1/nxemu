@@ -231,6 +231,7 @@ struct Runner {
 // Replay options, set by nxemu_jit_fuzz_replay (a script cannot reach this module's environment)
 int g_only = -1, g_only_window = 0;
 std::string g_keep;
+std::string g_focus;  // comma-separated instruction names picked half of the time
 int g_bench_reps = 0;  // > 0: also time each compiled sequence, run that many times, on both JITs
 
 struct State {
@@ -264,12 +265,27 @@ extern "C"
 #ifdef _WIN32
     __declspec(dllexport)
 #endif
+        void nxemu_jit_fuzz_focus(const char* names) {
+    g_focus = names ? names : "";
+}
+
+extern "C"
+#ifdef _WIN32
+    __declspec(dllexport)
+#endif
         int nxemu_jit_fuzz(u64 seed, int iterations, u32 variant_a, u32 variant_b, int fastmem, const char* report_path) {
     FILE* rep = report_path && *report_path ? std::fopen(report_path, "w") : stdout;
     if (!rep) {
         return -1;
     }
     static const std::vector<Pattern> patterns = MakePatterns();
+    std::vector<size_t> focus;
+    for (size_t i = 0; i < patterns.size(); i++) {
+        const std::string list = "," + g_focus + ",";
+        if (!g_focus.empty() && list.find("," + std::string(patterns[i].fn) + ",") != std::string::npos) {
+            focus.push_back(i);
+        }
+    }
     Runner a(variant_a, fastmem != 0), b(variant_b, fastmem != 0), probe(0, false);
     // An instruction alone, to drop encodings the translator rejects (reserved fields, unallocated)
     const auto valid = [&](u32 inst, const char* fn) {
@@ -303,7 +319,7 @@ extern "C"
         std::vector<u32> code;
         std::vector<const char*> names;
         while (code.size() < n) {
-            const Pattern& p = patterns[rng() % patterns.size()];
+            const Pattern& p = !focus.empty() && rng() % 2 ? patterns[focus[rng() % focus.size()]] : patterns[rng() % patterns.size()];
             u32 inst = (static_cast<u32>(rng()) & ~p.mask) | p.expected;
             if (IsBranch(p.fn)) {
                 inst = ForwardBranch(p.fn, inst, 1 + static_cast<u32>(rng() % (n - code.size())));
@@ -336,8 +352,19 @@ extern "C"
             }
         }
         s.sp = 0x80000 + (rng() % 0x10000 & ~u64{15});
+        // Half random, half special FP values (zeros, ones, NaNs, infinities) so that compares
+        // also see equal and unordered operands
+        static const u32 f32s[] = {0, 0x80000000, 0x3F800000, 0xBF800000, 0x40000000, 0x7FC00000, 0x7F800001, 0x7F800000, 0xFF800000};
+        static const u64 f64s[] = {0, 0x8000000000000000, 0x3FF0000000000000, 0xBFF0000000000000, 0x4000000000000000,
+                                   0x7FF8000000000000, 0x7FF0000000000001, 0x7FF0000000000000, 0xFFF0000000000000};
+        const auto f32 = [&] { return u64{f32s[rng() % (sizeof(f32s) / sizeof(f32s[0]))]}; };
+        const auto f64 = [&] { return f64s[rng() % (sizeof(f64s) / sizeof(f64s[0]))]; };
         for (auto& v : s.v) {
-            v = {rng(), rng()};
+            switch (rng() % 4) {
+            case 2: v = {f32() | f32() << 32, f32() | f32() << 32}; break;
+            case 3: v = {f64(), f64()}; break;
+            default: v = {rng(), rng()}; break;
+            }
         }
         static const u32 fpcrs[] = {0, 1u << 25, 1u << 24, 3u << 22, 1u << 22, (1u << 25) | (1u << 24)};
         s.fpcr = fpcrs[rng() % (sizeof(fpcrs) / sizeof(fpcrs[0]))];

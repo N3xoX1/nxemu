@@ -1527,7 +1527,26 @@ void EmitX64::EmitFPSub64(EmitContext& ctx, IR::Inst* inst) {
     FPThreeOp<64>(code, ctx, inst, &Xbyak::CodeGenerator::subsd);
 }
 
-static Xbyak::Reg64 SetFpscrNzcvFromFlags(BlockOfCode& code, EmitContext& ctx) {
+static Xbyak::Reg64 SetFpscrNzcvFromFlags(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
+    if ((jit_test_variant & 8) == 0) {
+        // Picks the NZCV with moves and cmovs, which leave the host flags as ucomis set
+        // them: a side exit or CSEL on this NZCV right after can jump on them directly.
+        //   unordered ZF PF CF = 1 1 1 -> 0x0101, equal ZF -> 0x4100, less CF -> 0x8000,
+        //   greater -> 0x0100 (NZ-----C-------V)
+        const Xbyak::Reg32 nzcv = ctx.reg_alloc.ScratchGpr().cvt32();
+        const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
+        code.mov(nzcv, 0x0100);
+        code.mov(tmp, 0x8000);
+        code.cmovb(nzcv, tmp);
+        code.mov(tmp, 0x4100);
+        code.cmovz(nzcv, tmp);
+        code.mov(tmp, 0x0101);
+        code.cmovp(nzcv, tmp);
+        ctx.host_flags_nzcv = inst;
+        ctx.host_flags_fcmp = true;
+        return nzcv.cvt64();
+    }
+
     ctx.reg_alloc.ScratchGpr(HostLoc::RCX);  // shifting requires use of cl
     const Xbyak::Reg64 nzcv = ctx.reg_alloc.ScratchGpr();
 
@@ -1568,7 +1587,7 @@ void EmitX64::EmitFPCompare32(EmitContext& ctx, IR::Inst* inst) {
         code.ucomiss(reg_a, reg_b);
     }
 
-    const Xbyak::Reg64 nzcv = SetFpscrNzcvFromFlags(code, ctx);
+    const Xbyak::Reg64 nzcv = SetFpscrNzcvFromFlags(code, ctx, inst);
     ctx.reg_alloc.DefineValue(inst, nzcv);
 }
 
@@ -1584,7 +1603,7 @@ void EmitX64::EmitFPCompare64(EmitContext& ctx, IR::Inst* inst) {
         code.ucomisd(reg_a, reg_b);
     }
 
-    const Xbyak::Reg64 nzcv = SetFpscrNzcvFromFlags(code, ctx);
+    const Xbyak::Reg64 nzcv = SetFpscrNzcvFromFlags(code, ctx, inst);
     ctx.reg_alloc.DefineValue(inst, nzcv);
 }
 
