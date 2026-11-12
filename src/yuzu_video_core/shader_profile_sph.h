@@ -15,7 +15,10 @@ namespace VideoCommon
             mask |= u64{3} << (attribute * 2);
         }
     }
-    return mask;
+    // A header that declares no generic input does not tell which attributes the draw needs:
+    // masking them all turns the whole scene of Pokemon Legends Z-A into one flat color.
+    // Keep every attribute type in the key.
+    return mask != 0 ? mask : ~0ULL;
 }
 } // namespace VideoCommon
 
