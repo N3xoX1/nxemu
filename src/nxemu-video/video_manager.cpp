@@ -621,6 +621,12 @@ RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * po
                     area.deferred || deferred};
             return;
         }
+        // Fast readback publishes GPU signals before the results of earlier queries are
+        // written, and their pages stay read protected until then. A read must wait for them:
+        // Ender Magnolia reads its occlusion queries as soon as their payload shows, and an
+        // old count hides characters and lights for a frame. The check is lock-free when the
+        // region holds no pending result.
+        impl->m_gpuCore->WaitPendingResults(address, size);
         if (area.startAddress <= address && end_address <= area.endAddress) [[likely]] {
             return;
         }
