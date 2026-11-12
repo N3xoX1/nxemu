@@ -3,6 +3,9 @@
 #include <filesystem>
 #include <stdexcept>
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 namespace VideoCommon::ShaderProfile {

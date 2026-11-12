@@ -5,6 +5,9 @@
 #include "yuzu_video_core/shader_profile.h"
 #include "yuzu_video_core/shader_profile_text.h"
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 
