@@ -229,9 +229,11 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     for (auto iter = block.begin(); iter != block.end(); ++iter) {
         IR::Inst* inst = &*iter;
         const IR::Opcode op = inst->GetOpcode();
-        const bool flag_producer = op == IR::Opcode::Add32 || op == IR::Opcode::Add64 || op == IR::Opcode::Sub32 || op == IR::Opcode::Sub64;
+        const bool flag_producer = op == IR::Opcode::Add32 || op == IR::Opcode::Add64 || op == IR::Opcode::Sub32 || op == IR::Opcode::Sub64
+                                   || op == IR::Opcode::FPCompare32 || op == IR::Opcode::FPCompare64;
         if (flag_producer) {
             ctx.host_flags_nzcv = nullptr;  // set again by the emitter when it makes NZCV
+            ctx.host_flags_fcmp = false;
         }
 
         // Call the relevant Emit* member function.
@@ -271,6 +273,11 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
         case IR::Opcode::Sub64:
         case IR::Opcode::GetNZCVFromOp:
             ctx.host_flags_are_cpsr = false;  // the emitter set host_flags_nzcv
+            ctx.host_flags_fcmp = false;
+            break;
+        case IR::Opcode::FPCompare32:
+        case IR::Opcode::FPCompare64:
+            ctx.host_flags_are_cpsr = false;  // the emitter set host_flags_nzcv and host_flags_fcmp
             break;
         case IR::Opcode::A64SetNZCV:
             ctx.host_flags_are_cpsr = ctx.host_flags_nzcv && !inst->GetArg(0).IsImmediate() && inst->GetArg(0).GetInst() == ctx.host_flags_nzcv;
@@ -294,6 +301,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
         default:
             ctx.host_flags_nzcv = nullptr;
             ctx.host_flags_are_cpsr = false;
+            ctx.host_flags_fcmp = false;
             break;
         }
 
@@ -701,6 +709,47 @@ void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
                 code.jz(*exit, code.T_NEAR);
             }
         }
+    } else if (ctx.host_flags_are_cpsr && ctx.host_flags_fcmp) {
+        // The host flags are those of the ucomis that made NZCV: unordered ZF PF CF = 1 1 1,
+        // equal ZF, less CF, greater none. Guest NZCV: unordered 0011, equal 0110, less 1000,
+        // greater 0010. Some conditions need PF to tell unordered apart.
+        Xbyak::Label skip;
+        switch (cond) {
+        case IR::Cond::EQ:  // equal
+            code.jp(skip);
+            code.jz(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::NE:  // not equal
+            code.jnz(*exit, code.T_NEAR);
+            code.jp(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::CS:  // not less
+        case IR::Cond::PL:
+            code.jae(*exit, code.T_NEAR);
+            code.jp(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::CC:  // less
+        case IR::Cond::MI:
+            code.jp(skip);
+            code.jb(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::VS: code.jp(*exit, code.T_NEAR); break;   // unordered
+        case IR::Cond::VC: code.jnp(*exit, code.T_NEAR); break;  // ordered
+        case IR::Cond::HI:  // greater or unordered
+            code.ja(*exit, code.T_NEAR);
+            code.jp(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::LS:  // less or equal
+            code.jp(skip);
+            code.jbe(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::GE: code.jae(*exit, code.T_NEAR); break;  // greater or equal
+        case IR::Cond::LT: code.jb(*exit, code.T_NEAR); break;   // less or unordered
+        case IR::Cond::GT: code.ja(*exit, code.T_NEAR); break;   // greater
+        case IR::Cond::LE: code.jbe(*exit, code.T_NEAR); break;  // less, equal or unordered
+        default: ASSERT_MSG(false, "Unknown cond {}", static_cast<size_t>(cond)); break;
+        }
+        code.L(skip);
     } else {
         if (ctx.host_flags_are_cpsr) {
             // The host flags already hold the guest NZCV. Only HI and LS need CF inverted.

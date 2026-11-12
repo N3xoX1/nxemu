@@ -71,6 +71,9 @@ struct EmitContext {
     const IR::Inst* host_flags_nzcv = nullptr;
     /// The host flags hold the same NZCV as cpsr_nzcv, so a condition needs no reload
     bool host_flags_are_cpsr = false;
+    /// host_flags_nzcv is an FPCompare: the host flags are those of ucomis (ZF, PF, CF), not
+    /// the guest NZCV layout, so conditions map to other jumps
+    bool host_flags_fcmp = false;
     /// IsZero whose only use is the side exit right after it: ZF holds the result, the
     /// value itself is never written
     const IR::Inst* zero_flag_for = nullptr;

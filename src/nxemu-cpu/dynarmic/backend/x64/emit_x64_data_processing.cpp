@@ -164,7 +164,36 @@ void EmitX64::EmitTestBit(EmitContext& ctx, IR::Inst* inst) {
 static void EmitConditionalSelect(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bitsize) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const IR::Cond cond = args[0].GetImmediateCond();
-    if (ctx.host_flags_are_cpsr) {
+    if (ctx.host_flags_are_cpsr && ctx.host_flags_fcmp) {
+        // The host flags are those of the ucomis that made NZCV (see EmitA64SideExit). Only
+        // the conditions that one flag test gives; the others reload NZCV below.
+        bool handled = true;
+        switch (cond) {
+        case IR::Cond::VS: case IR::Cond::VC: case IR::Cond::GE: case IR::Cond::LT:
+        case IR::Cond::GT: case IR::Cond::LE: break;
+        default: handled = false; break;
+        }
+        if (handled) {
+            ctx.reg_alloc.preserve_host_flags = true;
+            const Xbyak::Reg then_reg = ctx.reg_alloc.UseGpr(args[1]).changeBit(bitsize);
+            const Xbyak::Reg else_reg = ctx.reg_alloc.UseScratchGpr(args[2]).changeBit(bitsize);
+            ctx.reg_alloc.preserve_host_flags = false;
+            switch (cond) {
+            case IR::Cond::VS: code.cmovp(else_reg, then_reg); break;   // unordered
+            case IR::Cond::VC: code.cmovnp(else_reg, then_reg); break;  // ordered
+            case IR::Cond::GE: code.cmovae(else_reg, then_reg); break;  // greater or equal
+            case IR::Cond::LT: code.cmovb(else_reg, then_reg); break;   // less or unordered
+            case IR::Cond::GT: code.cmova(else_reg, then_reg); break;   // greater
+            case IR::Cond::LE: code.cmovbe(else_reg, then_reg); break;  // less, equal or unordered
+            default: UNREACHABLE();
+            }
+            ctx.reg_alloc.DefineValue(inst, else_reg);
+            return;
+        }
+        // The reload below changes the host flags
+        ctx.host_flags_are_cpsr = false;
+        ctx.host_flags_nzcv = nullptr;
+    } else if (ctx.host_flags_are_cpsr) {
         // The host flags already hold the guest NZCV: no reload. Keep them while the
         // operands are loaded.
         ctx.reg_alloc.preserve_host_flags = true;
