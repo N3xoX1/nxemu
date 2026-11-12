@@ -873,6 +873,11 @@ void Maxwell3D::UniformPrefetchBarrier()
 void Maxwell3D::FrontHLEMacro(CachedMacro * program, const std::vector<u32> & parameters,
                               u32 method)
 {
+    // Parameters that the GPU may still write are read again later, keep the macro call then
+    if (!current_macro_dirty && !current_macro_payload && program->LowerToWrites(parameters))
+    {
+        return;
+    }
     if (hle_count == hle_calls.size())
     {
         hle_calls.emplace_back();
