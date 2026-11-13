@@ -3,6 +3,7 @@
 // Called from a script through the exported nxemu_jit_fuzz (no emulator needed).
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -411,8 +412,7 @@ extern "C"
             // from the same state, interleaved, so machine noise hits both alike.
             for (int pass = 0; pass < 2; pass++) {
                 Runner* r = (pass ^ (it & 1)) ? &b : &a;
-                LARGE_INTEGER t0, t1;
-                QueryPerformanceCounter(&t0);
+                const auto t0 = std::chrono::steady_clock::now();
                 for (int k = 0; k < g_bench_reps; k++) {
                     r->env.done = false;
                     r->jit->SetRegisters(s.x);
@@ -423,8 +423,8 @@ extern "C"
                     r->jit->SetPC(code_base);
                     r->jit->Run();
                 }
-                QueryPerformanceCounter(&t1);
-                (r == &a ? bench_a : bench_b) += t1.QuadPart - t0.QuadPart;
+                const auto t1 = std::chrono::steady_clock::now();
+                (r == &a ? bench_a : bench_b) += std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
             }
         }
 
@@ -478,9 +478,7 @@ extern "C"
         }
     }
     if (g_bench_reps > 0 && run > 0) {
-        LARGE_INTEGER f;
-        QueryPerformanceFrequency(&f);
-        const double scale = 1e9 / static_cast<double>(f.QuadPart) / (static_cast<double>(run) * g_bench_reps);
+        const double scale = 1.0 / (static_cast<double>(run) * g_bench_reps);
         std::fprintf(rep, "bench: variant %u %.1f ns per run, variant %u %.1f ns per run (%+.2f %%)\n", variant_a, bench_a * scale, variant_b,
                      bench_b * scale, 100.0 * (static_cast<double>(bench_b) / static_cast<double>(bench_a) - 1.0));
     }
