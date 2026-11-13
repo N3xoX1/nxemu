@@ -81,6 +81,7 @@ struct RasterizerVulkan {
     Engine* maxwell3d{&engine};
     BufferCacheRuntime buffer_cache_runtime;
     Scheduler scheduler;
+    std::array<VkFormat, 512> vertex_format_cache{};
     void UpdateVertexInput(Maxwell& regs);
     void RefreshVertexInput(Maxwell& regs);
 };
