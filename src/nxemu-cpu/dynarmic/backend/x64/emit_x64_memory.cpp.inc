@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <mutex>
+
 #include <mcl/macro/concatenate_tokens.hpp>
 
 #define AxxEmitX64 CONCATENATE_TOKENS(Axx, EmitX64)
