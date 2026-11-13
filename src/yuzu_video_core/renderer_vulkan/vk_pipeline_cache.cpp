@@ -39,6 +39,7 @@
 #include "yuzu_video_core/renderer_vulkan/driver_pipeline_cache_io.h"
 #include "yuzu_video_core/renderer_vulkan/driver_pipeline_cache_probe.h"
 #include "yuzu_video_core/renderer_vulkan/maxwell_to_vk.h"
+#include "yuzu_video_core/renderer_vulkan/pipeline_crash_trace.h"
 #include "yuzu_video_core/renderer_vulkan/pipeline_helper.h"
 #include "yuzu_video_core/renderer_vulkan/pipeline_statistics.h"
 #include "yuzu_video_core/renderer_vulkan/vk_compute_pipeline.h"
@@ -2926,6 +2927,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     Timing::Timer compiler_timer(Timing::current, Timing::Phase::CompilerWall);
     auto hash = key.Hash();
     LOG_INFO(Render_Vulkan, "0x{:016x}", hash);
+    PipelineCrashTrace::Stages trace_stages;
     size_t env_index{0};
     std::array<Shader::IR::Program, Maxwell::MaxShaderProgram> programs;
     const bool uses_vertex_a{key.unique_hashes[0] != 0};
@@ -3061,6 +3063,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                         [&] { return EmitSPIRV(vtg_profile, *runtimes[stage], *stages[stage], compute_binding); })};
                 VideoCommon::ShaderProfile::Audit::Record(code);
             device.SaveShader(code);
+                trace_stages.emplace_back(fmt::format("vtg_compute{}", stage), code);
                 info->modules[stage] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,
                     [&] { return BuildShader(device, code); });
                 info->infos[stage] = stages[stage]->info;
@@ -3083,6 +3086,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                 [&] { return EmitSPIRV(profile, runtime_info, vtg_passthrough, binding); })};
             VideoCommon::ShaderProfile::Audit::Record(code);
             device.SaveShader(code);
+            trace_stages.emplace_back("vtg_passthrough_vertex", code);
             modules[0] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,
                 [&] { return BuildShader(device, code); });
             infos[0] = &vtg_passthrough.info;
@@ -3142,6 +3146,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
                 [&] { return EmitSPIRV(vtg_profile, vertex_runtime, vertex, compute_binding); })};
             VideoCommon::ShaderProfile::Audit::Record(code);
             device.SaveShader(code);
+            trace_stages.emplace_back("xfb_vertex", code);
             info->modules[VtgPipelineInfo::VERTEX] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,
                 [&] { return BuildShader(device, code); });
             info->infos[VtgPipelineInfo::VERTEX] = vertex.info;
@@ -3229,6 +3234,8 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             Shader::ScaleTrace::Spirv(key.unique_hashes[index], code);
         }
         device.SaveShader(code);
+        trace_stages.emplace_back(
+            fmt::format("stage{}_{:016x}", index, key.unique_hashes[index]), code);
         modules[stage_index] = Timing::Measure(Timing::current, Timing::Phase::ShaderModuleCreation,
             [&] { return BuildShader(device, code); });
 
@@ -3256,6 +3263,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             if (infos[stage]) audit->interfaces.emplace_back(stage, *infos[stage]);
         }
     }
+    PipelineCrashTrace::Record(hash, key, trace_stages);
     NativePipelineBuildQueue* const thread_worker{build_in_parallel ? &runtime_builds : nullptr};
     return std::make_unique<GraphicsPipeline>(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
