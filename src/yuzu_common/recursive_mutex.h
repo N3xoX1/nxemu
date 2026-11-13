@@ -6,7 +6,9 @@
 #include <atomic>
 #include <shared_mutex>
 
+#if defined(_M_X64) || defined(__x86_64__)
 #include <immintrin.h>
+#endif
 
 #include "yuzu_common/common_types.h"
 
@@ -67,7 +69,11 @@ public:
                 locked = true;
                 break;
             }
+#if defined(_M_X64) || defined(__x86_64__)
             _mm_pause();
+#elif defined(__aarch64__) && !defined(_MSC_VER)
+            asm volatile("yield");
+#endif
         }
         if (!locked) {
             inner.lock();
