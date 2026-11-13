@@ -122,17 +122,13 @@ public:
         using namespace Common::Literals;
         // Prevent logs from exceeding a set maximum size in the event that log entries are spammed.
         const auto write_limit = Settings::values.extended_logging.GetValue() ? 1_GiB : 100_MiB;
-        const bool write_limit_exceeded = bytes_written > write_limit;
-        if (entry.log_level >= LogLevel::Error || write_limit_exceeded)
+        if (bytes_written > write_limit)
         {
-            if (write_limit_exceeded)
-            {
-                // Stop writing after the write limit is exceeded.
-                // Don't close the file so we can print a stacktrace if necessary
-                enabled = false;
-            }
-            file->Flush();
+            // Stop writing after the write limit is exceeded.
+            // Don't close the file so we can print a stacktrace if necessary
+            enabled = false;
         }
+        file->Flush();
     }
 
     void Flush() override
@@ -242,6 +238,9 @@ public:
             void(CreateDir(log_dir));
             instance = std::unique_ptr<Impl, decltype(&Deleter)>(new Impl(log_dir / LOG_FILE, filter),
                                                                  Deleter);
+#ifdef _WIN32
+            previous_exception_filter = SetUnhandledExceptionFilter(UnhandledException);
+#endif
         }
         initialization_in_progress_suppress_logging = false;
     }
@@ -261,6 +260,44 @@ public:
             instance->StopBackendThread();
         }
     }
+
+#ifdef _WIN32
+    static LONG WINAPI UnhandledException(EXCEPTION_POINTERS * info)
+    {
+        static std::atomic_flag handled = ATOMIC_FLAG_INIT;
+        if (instance && !handled.test_and_set())
+        {
+            const EXCEPTION_RECORD & record = *info->ExceptionRecord;
+            const auto address = reinterpret_cast<uintptr_t>(record.ExceptionAddress);
+            std::string module_name = "unknown";
+            uintptr_t module_base = 0;
+            HMODULE module = nullptr;
+            if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                   reinterpret_cast<LPCWSTR>(record.ExceptionAddress), &module))
+            {
+                wchar_t path[MAX_PATH] = {};
+                GetModuleFileNameW(module, path, MAX_PATH);
+                module_name = UTF16ToUTF8(std::wstring_view{path});
+                module_base = reinterpret_cast<uintptr_t>(module);
+            }
+            instance->PushEntry(LogClass::Log, LogLevel::Critical, __FILE__, __LINE__, __func__,
+                                fmt::format("Unhandled exception 0x{:08x} at 0x{:016x} ({}+0x{:x}) on thread {}",
+                                            static_cast<unsigned long>(record.ExceptionCode), address, module_name,
+                                            address - module_base, GetCurrentThreadId()));
+            if (instance->backend_thread.get_id() == std::this_thread::get_id())
+            {
+                instance->ForEachBackend([](Backend & backend) { backend.Flush(); });
+            }
+            else
+            {
+                instance->StopBackendThread();
+            }
+        }
+        return previous_exception_filter != nullptr ? previous_exception_filter(info) : EXCEPTION_CONTINUE_SEARCH;
+    }
+
+    static inline LPTOP_LEVEL_EXCEPTION_FILTER previous_exception_filter = nullptr;
+#endif
 
     Impl(const Impl &) = delete;
     Impl & operator=(const Impl &) = delete;
