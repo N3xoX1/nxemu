@@ -82,6 +82,15 @@ NCA::NCA(VirtualFile file_, const NCA * base_nca) :
         if (header_reader.GetFsType() == NcaFsHeader::FsType::PartitionFs)
         {
             auto npfs = std::make_shared<PartitionFilesystem>(filesystems[i]);
+            // GetExeFS() only exposes a complete directory. Remember malformed
+            // executable partitions too, so a RomFS-only fallback cannot hide them.
+            if (GetType() == NCAContentType::Program &&
+                (npfs->GetStatus() != LoaderResultStatus::Success ||
+                 !IsDirectoryLogoPartition(npfs) || npfs->GetFile("main") != nullptr ||
+                 npfs->GetFile("main.npdm") != nullptr))
+            {
+                has_exefs_section = true;
+            }
             if (npfs->GetStatus() == LoaderResultStatus::Success)
             {
                 dirs.push_back(npfs);
@@ -125,6 +134,11 @@ NCA::~NCA() = default;
 LoaderResultStatus NCA::GetStatus() const
 {
     return status;
+}
+
+bool NCA::HasExeFSSection() const
+{
+    return has_exefs_section;
 }
 
 bool NCA::HasRomFSSectionReadFailure() const

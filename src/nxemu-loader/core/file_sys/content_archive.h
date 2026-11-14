@@ -80,6 +80,8 @@ public:
 
     VirtualFile RomFS() const;
     VirtualDir GetExeFS() const;
+    // Includes an executable partition that was present but could not be parsed.
+    bool HasExeFSSection() const;
 
     VirtualFile BaseFile() const;
 
@@ -107,6 +109,7 @@ private:
     LoaderResultStatus status{};
     bool romfs_section_read_failure = false;
 
+    bool has_exefs_section = false;
     bool encrypted = false;
     bool is_update = false;
 

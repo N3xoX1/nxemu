@@ -236,6 +236,51 @@ int main(int argc, char **argv)
     disable({});
     Check(pm.PatchExeFS(nullptr, true, good, 3) != nullptr, "packed fallback enabled");
     Check(pm.PatchExeFS(nullptr, false, good, 3) == nullptr, "apply_update false respected");
+    manual.AddEntry(LoaderTitleType::Update, LoaderContentRecordType::Program, Title | 0x800, 4,
+                    File(Nca(NcaHeader::ContentType::Program)));
+    Check(pm.PatchExeFS(empty) != nullptr, "valid update without ExeFS keeps base executable");
+    Check(pm.PatchExeFS(nullptr) == nullptr, "no ExeFS in base or update must fail");
+    manual.ClearAllEntries();
+    // A genuine RomFS-only program NCA has no executable partition.
+    auto romfs_only_bytes = Nca(NcaHeader::ContentType::Program, Pfs({{"data", {1}}}));
+    NcaFsHeader romfs_header{};
+    std::memcpy(&romfs_header, romfs_only_bytes.data() + 0x400, sizeof(romfs_header));
+    romfs_header.fs_type = NcaFsHeader::FsType::RomFs;
+    Put(romfs_only_bytes, 0x400, romfs_header);
+    const auto romfs_only = File(romfs_only_bytes);
+    Check(NCA(romfs_only).RomFS() && !NCA(romfs_only).HasExeFSSection(),
+          "RomFS-only fixture has data and no executable partition");
+    manual.AddEntry(LoaderTitleType::Update, LoaderContentRecordType::Program, Title | 0x800, 5,
+                    romfs_only);
+    const auto retained = pm.PatchExeFS(empty);
+    Check(retained && retained->GetFile("main") == empty->GetFile("main"),
+          "RomFS-only update preserves the actual base executable");
+    Check(pm.PatchExeFS(nullptr) == nullptr, "RomFS-only update cannot boot without base ExeFS");
+    const auto invalid_base = std::make_shared<VectorVfsDirectory>();
+    Check(pm.PatchExeFS(invalid_base) == nullptr, "RomFS-only update requires a usable base ExeFS");
+    manual.ClearAllEntries();
+    Check(pm.PatchExeFS(empty, true, romfs_only, 5) != nullptr,
+          "packed RomFS-only update retains base ExeFS");
+    for (const auto &invalid_partition :
+         {Pfs({{"main", {1}}}),
+          Pfs({{"main", {1}}, {"NintendoLogo.png", {1}}, {"StartupMovie.gif", {1}}}),
+          std::vector<u8>{1, 2, 3}})
+    {
+        const auto broken_exefs = File(Nca(NcaHeader::ContentType::Program, invalid_partition));
+        const NCA broken(broken_exefs);
+        Check(broken.GetStatus() == LoaderResultStatus::Success && broken.HasExeFSSection() &&
+                  !broken.GetExeFS(),
+              "malformed executable partition is distinguished from absence");
+        manual.AddEntry(LoaderTitleType::Update, LoaderContentRecordType::Program, Title | 0x800, 6,
+                        broken_exefs);
+        Check(pm.PatchExeFS(empty) == nullptr,
+              "present but malformed update ExeFS must not fall back to base");
+        manual.ClearAllEntries();
+        Check(pm.PatchExeFS(empty, true, broken_exefs, 6) == nullptr,
+              "packed malformed update ExeFS must not fall back to base");
+    }
+    Check(pm.PatchExeFS(empty, true, File(Nca(NcaHeader::ContentType::Meta)), 7) == nullptr,
+          "non-program NCA must not be treated as a RomFS-only program update");
     const NCA code_base(good);
     const auto original_data = File({1, 2, 3});
     Check(pm.PatchRomFS(&code_base, original_data, LoaderContentRecordType::Program, good, false,

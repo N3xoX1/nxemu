@@ -447,13 +447,39 @@ VirtualDir PatchManager::PatchExeFS(VirtualDir exefs, bool apply_update,
         const NCA update(selected.file);
         if ((update.GetStatus() != LoaderResultStatus::Success &&
              update.GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS) ||
-            !update.GetExeFS() || !IsDirectoryExeFS(update.GetExeFS()))
+            update.GetType() != NCAContentType::Program)
         {
-            LOG_ERROR(Loader, "Selected update {} has no usable ExeFS", selected.version);
+            LOG_ERROR(Loader, "Selected update {} has an unreadable program NCA", selected.version);
             return nullptr;
         }
-        LOG_INFO(Loader, "    ExeFS: Update ({}) applied successfully", FormatTitleVersion(selected.version));
-        exefs = update.GetExeFS();
+
+        const auto update_exefs = update.GetExeFS();
+        if (update_exefs == nullptr)
+        {
+            if (update.HasExeFSSection())
+            {
+                LOG_ERROR(Loader, "Selected update {} has an unreadable ExeFS partition", selected.version);
+                return nullptr;
+            }
+            // RomFS-only updates do not replace the executable. The base
+            // ExeFS is still required; never boot an update-only sparse base.
+            if (exefs == nullptr || !IsDirectoryExeFS(exefs))
+            {
+                LOG_ERROR(Loader, "Selected update {} and base have no usable ExeFS", selected.version);
+                return nullptr;
+            }
+            LOG_INFO(Loader, "    ExeFS: Update ({}) does not replace base ExeFS", FormatTitleVersion(selected.version));
+        }
+        else
+        {
+            if (!IsDirectoryExeFS(update_exefs))
+            {
+                LOG_ERROR(Loader, "Selected update {} has an invalid ExeFS", selected.version);
+                return nullptr;
+            }
+            LOG_INFO(Loader, "    ExeFS: Update ({}) applied successfully", FormatTitleVersion(selected.version));
+            exefs = update_exefs;
+        }
     }
     if (exefs == nullptr)
     {
