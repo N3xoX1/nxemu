@@ -79,14 +79,6 @@ private:
         ExitFullscreen,
         ToggleHideUi,
         TogglePerformance,
-        // One for each PerformanceItem, in their order.
-        TogglePerformanceHistory,
-        TogglePerformanceRange,
-        TogglePerformanceFrameTime,
-        TogglePerformanceLongest,
-        TogglePerformanceSpeed,
-        TogglePerformanceProcessor,
-        TogglePerformanceMemory,
         ToggleDockedMode,
         ResetWindowSize720p,
         ResetWindowSize900p,
@@ -239,6 +231,10 @@ private:
     bool m_detailsDirty = false;
     bool m_detailsReload = false;
     bool m_longestMeasured = false;
+    bool m_gpuTimeMeasured = false;
+    uint64_t m_gpuTimeNs = 0;
+    std::vector<float> m_frameTimes = std::vector<float>(1024);
+    MachineMonitor m_machine;
     std::unique_ptr<VolumeControl> m_volume;
     std::vector<UserProfile> m_profiles;
     uint64_t m_lastStatusUpdate = 0;

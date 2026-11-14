@@ -75,9 +75,11 @@ private:
     void Open(Rml::Element * menu);
     void OnClick(Rml::Event & event);
     void OnMouseOver(Rml::Event & event);
+    void PlaceSubmenu(Rml::Event & event);
 
     Rml::Element * m_root;
     std::function<void(int)> m_onAction;
     std::function<void(int, int)> m_onRange;
     Rml::Element * m_openMenu = nullptr;
+    Rml::Element * m_placedItem = nullptr;
 };

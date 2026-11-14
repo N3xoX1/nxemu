@@ -319,6 +319,10 @@ public:
 
     bool ShouldBoostClocks() const;
 
+    float GetTimestampPeriod() const {
+        return properties.properties.limits.timestampPeriod;
+    }
+
     /// Returns uniform buffer alignment requirement.
     VkDeviceSize GetUniformBufferAlignment() const {
         return properties.properties.limits.minUniformBufferOffsetAlignment;

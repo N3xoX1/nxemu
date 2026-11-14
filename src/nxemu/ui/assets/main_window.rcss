@@ -2181,7 +2181,7 @@ body.compact .volume-range
     font-size: 18dp;
 }
 
-/* How the game runs: one line in the corner of it, that the game shows
+/* How the game runs: a panel in the corner of it, that the game shows
    through. Its sizes are in em: its font size, which the user sets, is the
    size of all of it. */
 #performance
@@ -2191,14 +2191,15 @@ body.compact .volume-range
     left: 10dp;
     top: 10dp;
     z-index: 2;
-    align-items: center;
-    height: 2em;
-    padding: 0 0.77em 0 0.3em;
-    border-radius: 1em;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.3em 0.77em 0.38em 0.77em;
+    border-radius: 0.62em;
     background-color: rgba(7, 11, 20, 150);
     color: #ffffff;
     font-size: 13dp;
     font-weight: bold;
+    white-space: nowrap;
     pointer-events: none;
 }
 
@@ -2207,16 +2208,127 @@ body.compact .volume-range
     display: flex;
 }
 
-.perf-value
+.perf-head
 {
-    margin-left: 0.77em;
+    display: flex;
+    align-items: center;
+    height: 1.85em;
+}
+
+.perf-head .perf-fps
+{
+    font-size: 1.38em;
+}
+
+.perf-table
+{
+    display: flex;
+    margin-top: 0.15em;
+}
+
+.perf-labels,
+.perf-cells
+{
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.perf-labels
+{
+    margin-right: 0.92em;
+}
+
+.perf-values
+{
+    display: flex;
+    align-items: center;
+    height: 1.54em;
+}
+
+.perf-values.tall
+{
+    height: 2.77em;
+}
+
+.perf-label
+{
+    height: 1.81em;
+    line-height: 1.81em;
+    color: #8fb8ff;
+    font-size: 0.85em;
+}
+
+.perf-label.tall
+{
+    height: 3.26em;
+    line-height: 3.26em;
+}
+
+.perf-label.time
+{
+    color: #edc254;
+}
+
+.perf-label.process
+{
+    color: #4fb0e0;
+}
+
+.perf-label.gpu
+{
+    color: #8cd44f;
+}
+
+.perf-label.system
+{
+    color: #cc73b3;
+}
+
+.perf-name
+{
+    margin-top: 0.15em;
+    color: #c5d3ea;
+    font-size: 0.85em;
+    font-weight: normal;
+    line-height: 1.5em;
+}
+
+.perf-frames
+{
+    display: flex;
+    align-items: flex-end;
+    height: 2.46em;
+    border-radius: 0.15em;
+    background-color: rgba(143, 184, 255, 28);
+    overflow: hidden;
+}
+
+.perf-frames div
+{
+    box-sizing: border-box;
+    width: 0.2em;
+    height: 0;
+    border-top: 0.12em #a9c8ff;
+    background-color: rgba(143, 184, 255, 70);
+}
+
+.perf-frames div.stutter
+{
+    border-top-color: #ffbd7a;
+    background-color: rgba(255, 189, 122, 200);
+}
+
+.perf-frames div.freeze
+{
+    border-top-color: #ff6b6b;
+    background-color: rgba(255, 107, 107, 220);
 }
 
 /* The first keeps its width as its figures change: nothing after it moves. */
 .perf-fps
 {
     min-width: 1.85em;
-    margin-left: 0.46em;
     text-align: right;
 }
 
@@ -2273,6 +2385,11 @@ body.compact .volume-range
     margin-left: 0.54em;
 }
 
+.perf-mark.low
+{
+    margin-left: 0;
+}
+
 .perf-unit
 {
     margin-left: 0.3em;
@@ -2300,7 +2417,6 @@ body.compact .volume-range
     display: flex;
     align-items: flex-end;
     height: 1.23em;
-    margin-left: 0.77em;
     border-radius: 0.15em;
     background-color: rgba(143, 184, 255, 28);
     overflow: hidden;

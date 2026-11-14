@@ -2833,6 +2833,34 @@ msgstr ""
 msgid "Yes"
 msgstr "是"
 
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "1% low"
+msgstr "1% 低帧"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "0.1% low"
+msgstr "0.1% 低帧"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "GPU time"
+msgstr "GPU 时间"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator CPU"
+msgstr "模拟器 CPU"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator RAM"
+msgstr "模拟器内存"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System CPU"
+msgstr "系统 CPU"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System RAM"
+msgstr "系统内存"
+
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
 msgstr "历史"
@@ -2860,6 +2888,34 @@ msgstr "处理器占用"
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "Memory use"
 msgstr "内存占用"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Frame time history"
+msgstr "帧时间历史"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "1% and 0.1% lows"
+msgstr "1% 和 0.1% 低帧"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "GPU time per frame"
+msgstr "每帧 GPU 时间"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Computer"
+msgstr "电脑"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Graphics card use"
+msgstr "显卡占用"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "System use"
+msgstr "系统占用"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Hardware names"
+msgstr "硬件名称"
 
 #: src/nxemu/ui/views/profiles_dialog.cpp
 msgid "Active"

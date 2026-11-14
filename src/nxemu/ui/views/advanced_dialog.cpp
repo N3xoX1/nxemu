@@ -31,7 +31,7 @@ using namespace SettingsControls;
 namespace
 {
 constexpr const char * kTabs[] = {"graphics", "system", "application", "shortcuts"};
-constexpr const char * kDebugTabs[] = {"debug-graphics", "debug-system", "debug-applets", "debug-log"};
+constexpr const char * kDebugTabs[] = {"debug-graphics", "debug-system", "debug-applets", "debug-overlay", "debug-log"};
 constexpr const char * kHotkeyPrefix = "hotkey:";
 constexpr const char * kTogglePrefix = "toggle:";
 constexpr const char * kTabPrefix = "tab:";
@@ -82,6 +82,19 @@ constexpr Toggle kToggles[] = {
     {"debug-settings", NXCoreSetting::DebugSettingsEnabled, Store::Core, false},
     {"cpu-backend-info", NXUISetting::ShowCpuBackend, Store::Interface, true},
     {"log-console", NXCoreSetting::ShowLogConsole, Store::Core, true},
+    {"perf-history", NXUISetting::PerformanceHistory, Store::Interface, true},
+    {"perf-range", NXUISetting::PerformanceRange, Store::Interface, true},
+    {"perf-frame-time", NXUISetting::PerformanceFrameTime, Store::Interface, true},
+    {"perf-longest", NXUISetting::PerformanceLongest, Store::Interface, true},
+    {"perf-speed", NXUISetting::PerformanceSpeed, Store::Interface, true},
+    {"perf-processor", NXUISetting::PerformanceProcessor, Store::Interface, true},
+    {"perf-memory", NXUISetting::PerformanceMemory, Store::Interface, true},
+    {"perf-frame-graph", NXUISetting::PerformanceFrameGraph, Store::Interface, true},
+    {"perf-lows", NXUISetting::PerformanceLows, Store::Interface, true},
+    {"perf-gpu-time", NXUISetting::PerformanceGpuTime, Store::Interface, true},
+    {"perf-graphics", NXUISetting::PerformanceGraphics, Store::Interface, true},
+    {"perf-system", NXUISetting::PerformanceSystem, Store::Interface, true},
+    {"perf-hardware", NXUISetting::PerformanceHardware, Store::Interface, true},
 };
 
 // A list of the page whose setting is a number.
@@ -91,6 +104,7 @@ struct List
     const char * setting;
     bool live;
     Choices (*choices)();
+    bool interface = false; // saved with the settings of the interface
 };
 
 Choices AntiAliasings()
@@ -233,6 +247,28 @@ Choices NXShaderDurations()
     return choices;
 }
 
+Choices OverlaySizes()
+{
+    Choices choices;
+    for (const int value : {75, 100, 125, 150, 175, 200})
+        choices.push_back(Numbered(std::to_string(value) + "%", value, {}));
+    return choices;
+}
+Choices OverlayRates()
+{
+    Choices choices;
+    for (const int value : {1, 2, 4, 10})
+        choices.push_back(Numbered(std::to_string(value), value, {}));
+    return choices;
+}
+Choices OverlayLengths()
+{
+    Choices choices;
+    for (const int value : {10, 20, 30, 45, 60})
+        choices.push_back(Numbered(std::to_string(value), value, {}));
+    return choices;
+}
+
 constexpr List kLists[] = {
     {"nxshader-mode", NXVideoSetting::NXShaderWarmupMode, false, NXShaderModes},
     {"nxshader-minimum", NXVideoSetting::NXShaderInitialMinimum, false, NXShaderMinimums},
@@ -263,6 +299,9 @@ constexpr List kLists[] = {
     {"applet-login-share", NXOsSetting::LoginShareAppletMode, false, AppletModes},
     {"applet-wifi-web-auth", NXOsSetting::WifiWebAuthAppletMode, false, AppletModes},
     {"applet-my-page", NXOsSetting::MyPageAppletMode, false, AppletModes},
+    {"perf-size", NXUISetting::PerformanceSize, true, OverlaySizes, true},
+    {"perf-rate", NXUISetting::PerformanceRate, true, OverlayRates, true},
+    {"perf-length", NXUISetting::PerformanceHistoryLength, true, OverlayLengths, true},
 };
 
 // In the order the audio engines are numbered.
@@ -361,7 +400,7 @@ void AdvancedDialog::OnOpen()
     m_running = m_session.IsRunning();
     m_logFilterLeft = false;
     if (m_settings.IsGame() && (m_tab == "application" || m_tab == "shortcuts")) m_tab = "graphics";
-    if (m_settings.IsGame() && m_debugTab == "debug-log") m_debugTab = "debug-graphics";
+    if (m_settings.IsGame() && (m_debugTab == "debug-log" || m_debugTab == "debug-overlay")) m_debugTab = "debug-graphics";
     m_hotkeyAsked = -1;
     m_hotkeyNote.clear();
     FillLists();
@@ -441,7 +480,7 @@ void AdvancedDialog::OnCommand(const std::string & command)
     }
     else if (command.rfind(kTabPrefix, 0) == 0)
     {
-        if (m_settings.IsGame() && (command == "tab:application" || command == "tab:shortcuts" || command == "tab:debug-log")) return;
+        if (m_settings.IsGame() && (command == "tab:application" || command == "tab:shortcuts" || command == "tab:debug-log" || command == "tab:debug-overlay")) return;
         const std::string tab = command.substr(std::string(kTabPrefix).size());
         (std::find(std::begin(kDebugTabs), std::end(kDebugTabs), tab) != std::end(kDebugTabs) ? m_debugTab : m_tab) = tab;
         ShowTab();
@@ -538,6 +577,10 @@ void AdvancedDialog::FillLists()
         {
             settings.SetInt(list.setting, settings.GetDefaultInt(list.setting));
             m_unsaved = true;
+            if (list.interface)
+            {
+                SaveUISetting();
+            }
         }
         Fill(Select(Document(), list.id), choices, std::to_string(settings.GetInt(list.setting)));
     }
@@ -876,8 +919,17 @@ void AdvancedDialog::ApplyChange(const std::string & id)
     else
     {
         const auto list = std::find_if(std::begin(kLists), std::end(kLists), [&id](const List & candidate) { return id == candidate.id; });
-        if (list == std::end(kLists) || (m_running && !list->live))
+        if (list == std::end(kLists) || (m_running && !list->live) || (list->interface && m_settings.IsGame()))
         {
+            return;
+        }
+        if (list->interface)
+        {
+            if (settings.GetInt(list->setting) != value)
+            {
+                settings.SetInt(list->setting, value);
+                SaveUISetting();
+            }
             return;
         }
         setting = list->setting;
@@ -980,6 +1032,7 @@ void AdvancedDialog::RestoreDefaults()
             settings.SetInt(list.setting, settings.GetDefaultInt(list.setting));
         }
     }
+    SaveUISetting();
     settings.SetInt(NXOsSetting::SystemSpeedLimit, settings.GetDefaultInt(NXOsSetting::SystemSpeedLimit));
     settings.SetInt(NXOsSetting::SystemAudioMode, settings.GetDefaultInt(NXOsSetting::SystemAudioMode));
     if (!IsDisabledDebugSetting(NXCoreSetting::LogFilter))

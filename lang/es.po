@@ -2843,6 +2843,34 @@ msgstr ""
 msgid "Yes"
 msgstr "Sí"
 
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "1% low"
+msgstr "Mínimo 1 %"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "0.1% low"
+msgstr "Mínimo 0,1 %"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "GPU time"
+msgstr "Tiempo de GPU"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator CPU"
+msgstr "CPU del emulador"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator RAM"
+msgstr "RAM del emulador"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System CPU"
+msgstr "CPU del sistema"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System RAM"
+msgstr "RAM del sistema"
+
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
 msgstr "Historial"
@@ -2870,6 +2898,34 @@ msgstr "Uso del procesador"
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "Memory use"
 msgstr "Uso de memoria"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Frame time history"
+msgstr "Historial de tiempos de fotograma"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "1% and 0.1% lows"
+msgstr "Mínimos 1 % y 0,1 %"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "GPU time per frame"
+msgstr "Tiempo de GPU por fotograma"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Computer"
+msgstr "Equipo"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Graphics card use"
+msgstr "Uso de la tarjeta gráfica"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "System use"
+msgstr "Uso del sistema"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Hardware names"
+msgstr "Nombres del hardware"
 
 #: src/nxemu/ui/views/profiles_dialog.cpp
 msgid "Active"

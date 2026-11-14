@@ -313,6 +313,8 @@ add_library(video_core STATIC
     renderer_vulkan/vk_display.h
     renderer_vulkan/vk_fence_manager.cpp
     renderer_vulkan/vk_fence_manager.h
+    renderer_vulkan/vk_gpu_timer.cpp
+    renderer_vulkan/vk_gpu_timer.h
     renderer_vulkan/vk_graphics_pipeline.cpp
     renderer_vulkan/vk_graphics_pipeline.h
     renderer_vulkan/vk_master_semaphore.cpp

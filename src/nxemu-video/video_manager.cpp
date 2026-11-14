@@ -13,6 +13,7 @@
 #include "yuzu_video_core/dma_pusher.h"
 #include "yuzu_video_core/host1x/host1x.h"
 #include "yuzu_video_core/video_core.h"
+#include "yuzu_video_core/gpu_time_status.h"
 #include "yuzu_video_core/presentation_status.h"
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/renderer_base.h"
@@ -324,6 +325,7 @@ void VideoManager::EmulationStarting()
 {
     impl->EmulationStarting();
     VideoCore::presentation_status.Reset();
+    VideoCore::gpu_time_status.Measure(false);
 }
 
 void VideoManager::EmulationStopping(bool wait)
@@ -681,6 +683,16 @@ bool VideoManager::WaitHost(uint32_t syncpoint_id, uint32_t expected_value, std:
 
 VideoPresentationState VideoManager::GetPresentationState() {
     return VideoCore::presentation_status.Read();
+}
+
+void VideoManager::MeasureGpuTime(bool measure)
+{
+    VideoCore::gpu_time_status.Measure(measure);
+}
+
+uint64_t VideoManager::GpuTimeNs()
+{
+    return VideoCore::gpu_time_status.BusyNs();
 }
 
 uint32_t VideoManager::ShadersBuilding()

@@ -711,6 +711,7 @@ nxinterface IOperatingSystem
     virtual void PumpInputEvents() const = 0;
     virtual PerfStatsResults GetAndResetPerfStats() = 0;
     virtual void MeasureGameFrames(bool measure) = 0;
+    virtual uint32_t GameFrameTimes(float * times, uint32_t maxCount) = 0;
     virtual void SetEmulationPaused(bool paused) = 0;
     virtual bool IsEmulationPaused() const = 0;
     virtual void SetFrontendApplets(ICabinetApplet * cabinet, IControllerApplet * controller, IErrorApplet * error, IMiiEditApplet * mii_edit, IParentalControlsApplet * parental_controls, IPhotoViewerApplet * photo_viewer, IProfileSelectApplet * profile_select, ISoftwareKeyboardApplet * software_keyboard, IWebBrowserApplet * web_browser) = 0;

@@ -137,6 +137,10 @@ msgid "Applets"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Performance overlay"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Log"
 msgstr ""
 
@@ -635,6 +639,93 @@ msgid "My page"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Frame time"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Longest frame"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulation speed"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "History"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Lowest, average and highest"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Frame time history"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "1% and 0.1% lows"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "GPU time per frame"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Computer"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Processor use"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Memory use"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Graphics card use"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "System use"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Hardware names"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/general_dialog.rml
+msgid "Display"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+#: src/nxemu/ui/assets/main_window.rml
+#: src/nxemu/ui/views/main_window.cpp
+#: src/android/app/src/main/jni/ui/ui_activity.cpp
+#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
+msgid "Size"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Measures per second"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "History length"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "How many measures the history shows"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Show CPU backend in the title bar"
 msgstr ""
 
@@ -870,10 +961,6 @@ msgstr ""
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
 msgid "Choose another source"
-msgstr ""
-
-#: src/nxemu/ui/assets/general_dialog.rml
-msgid "Display"
 msgstr ""
 
 #: src/nxemu/ui/assets/general_dialog.rml
@@ -1115,13 +1202,6 @@ msgstr ""
 #: src/nxemu/ui/assets/main_window.rml
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Format"
-msgstr ""
-
-#: src/nxemu/ui/assets/main_window.rml
-#: src/nxemu/ui/views/main_window.cpp
-#: src/android/app/src/main/jni/ui/ui_activity.cpp
-#: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
-msgid "Size"
 msgstr ""
 
 #: src/nxemu/ui/assets/main_window.rml
@@ -2678,22 +2758,6 @@ msgid "Window size"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Measures per second"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "History length"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "How many measures the history shows"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Performance overlay"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
 msgid "&Emulation"
 msgstr ""
 
@@ -2886,32 +2950,32 @@ msgstr ""
 msgid "Yes"
 msgstr ""
 
-#: src/nxemu/ui/views/performance_overlay.h
-msgid "History"
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "1% low"
 msgstr ""
 
-#: src/nxemu/ui/views/performance_overlay.h
-msgid "Lowest, average and highest"
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "0.1% low"
 msgstr ""
 
-#: src/nxemu/ui/views/performance_overlay.h
-msgid "Frame time"
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "GPU time"
 msgstr ""
 
-#: src/nxemu/ui/views/performance_overlay.h
-msgid "Longest frame"
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator CPU"
 msgstr ""
 
-#: src/nxemu/ui/views/performance_overlay.h
-msgid "Emulation speed"
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator RAM"
 msgstr ""
 
-#: src/nxemu/ui/views/performance_overlay.h
-msgid "Processor use"
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System CPU"
 msgstr ""
 
-#: src/nxemu/ui/views/performance_overlay.h
-msgid "Memory use"
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System RAM"
 msgstr ""
 
 #: src/nxemu/ui/views/profiles_dialog.cpp

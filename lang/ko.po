@@ -2833,6 +2833,34 @@ msgstr ""
 msgid "Yes"
 msgstr "예"
 
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "1% low"
+msgstr "하위 1%"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "0.1% low"
+msgstr "하위 0.1%"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "GPU time"
+msgstr "GPU 시간"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator CPU"
+msgstr "에뮬레이터 CPU"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator RAM"
+msgstr "에뮬레이터 RAM"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System CPU"
+msgstr "시스템 CPU"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System RAM"
+msgstr "시스템 RAM"
+
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
 msgstr "기록"
@@ -2860,6 +2888,34 @@ msgstr "프로세서 사용률"
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "Memory use"
 msgstr "메모리 사용량"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Frame time history"
+msgstr "프레임 시간 기록"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "1% and 0.1% lows"
+msgstr "하위 1% 및 0.1%"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "GPU time per frame"
+msgstr "프레임당 GPU 시간"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Computer"
+msgstr "컴퓨터"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Graphics card use"
+msgstr "그래픽 카드 사용률"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "System use"
+msgstr "시스템 사용률"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Hardware names"
+msgstr "하드웨어 이름"
 
 #: src/nxemu/ui/views/profiles_dialog.cpp
 msgid "Active"
