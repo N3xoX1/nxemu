@@ -61,6 +61,7 @@ private:
     PerformanceOverlay(const PerformanceOverlay &) = delete;
     PerformanceOverlay & operator=(const PerformanceOverlay &) = delete;
 
+    static bool Compact();
     static uint32_t Items();
     void Refresh();
     void Build();
@@ -71,6 +72,7 @@ private:
 
     Rml::Element * const m_root;
     bool m_shown = false;
+    bool m_compact = true;
     std::array<float, kLongest> m_fps{};
     std::array<Hitch, kLongest> m_hitches{};
     std::array<int, kLongest> m_heights{};

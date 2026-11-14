@@ -23,6 +23,7 @@ constexpr const char * PerformanceGpuTime = "nxui:PerformanceGpuTime";
 constexpr const char * PerformanceGraphics = "nxui:PerformanceGraphics";
 constexpr const char * PerformanceSystem = "nxui:PerformanceSystem";
 constexpr const char * PerformanceHardware = "nxui:PerformanceHardware";
+constexpr const char * PerformanceStyle = "nxui:PerformanceStyle";
 constexpr const char * PerformanceSize = "nxui:PerformanceSize";
 constexpr const char * PerformanceRate = "nxui:PerformanceRate";
 constexpr const char * PerformanceHistoryLength = "nxui:PerformanceHistoryLength";

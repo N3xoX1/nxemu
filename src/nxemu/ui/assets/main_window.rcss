@@ -2208,6 +2208,87 @@ body.compact .volume-range
     display: flex;
 }
 
+/* Preserve the original horizontal performance bar in compact mode. */
+#performance.compact
+{
+    flex-direction: row;
+    align-items: center;
+    height: 2em;
+    padding: 0 0.77em 0 0.3em;
+    border-radius: 1em;
+}
+
+#performance.compact .perf-value,
+#performance.compact .perf-graph,
+#performance.compact .perf-frames
+{
+    margin-left: 0.77em;
+}
+
+#performance.compact .perf-frames
+{
+    height: 1.23em;
+}
+
+#performance.compact .perf-frames div
+{
+    width: 0.1em;
+}
+
+#performance.compact .perf-fps
+{
+    font-size: 1.15em;
+    min-width: 0;
+    margin-left: 0.28em;
+}
+
+#performance.compact .perf-shaders
+{
+    margin-left: 0.91em; /* Same spacing as 0.77em at the base font size. */
+}
+
+.perf-stacked-unit
+{
+    text-align: center;
+    line-height: 1em;
+}
+
+.perf-fps-group
+{
+    display: flex;
+    align-items: center;
+}
+
+.perf-fps-cell
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 1.65em;
+    margin-left: 0.18em;
+}
+
+.perf-unlocked + .perf-fps-cell
+{
+    margin-left: 0.5em;
+}
+
+.perf-fps-label
+{
+    color: #8fb8ff;
+    font-size: 0.6em;
+    line-height: 1.2em;
+}
+
+#performance.compact .perf-fps-cell .perf-value
+{
+    min-width: 0;
+    margin-left: 0;
+    font-size: 0.85em;
+    line-height: 1.1em;
+    text-align: center;
+}
+
 .perf-head
 {
     display: flex;
@@ -2307,7 +2388,7 @@ body.compact .volume-range
 .perf-frames div
 {
     box-sizing: border-box;
-    width: 0.2em;
+    width: 0.12em;
     height: 0;
     border-top: 0.12em #a9c8ff;
     background-color: rgba(143, 184, 255, 70);

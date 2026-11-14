@@ -45,6 +45,7 @@ struct UISettings
     bool performanceGraphics;
     bool performanceSystem;
     bool performanceHardware;
+    int32_t performanceStyle; // 0: compact, 1: normal
     int32_t performanceSize;
     int32_t performanceRate;
     int32_t performanceHistoryLength;
