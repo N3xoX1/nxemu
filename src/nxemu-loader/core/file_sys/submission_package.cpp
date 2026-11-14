@@ -298,8 +298,15 @@ void NSP::ReadNCAs(const std::vector<VirtualFile> & files)
                     program_ids.insert(next_nca->GetTitleId() & 0xFFFFFFFFFFFFF000);
                 }
 
+                // Retain a program whose filesystem could not be opened so the
+                // loader can try the installed update's standalone ExeFS.
+                const bool may_use_update_exefs =
+                    next_nca->GetStatus() == LoaderResultStatus::ErrorBadNCAHeader &&
+                    next_nca->GetType() == NCAContentType::Program &&
+                    next_nca->GetExeFS() == nullptr;
                 if (next_nca->GetStatus() != LoaderResultStatus::Success &&
-                    next_nca->GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS)
+                    next_nca->GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS &&
+                    !may_use_update_exefs)
                 {
                     continue;
                 }
