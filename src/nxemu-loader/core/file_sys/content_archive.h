@@ -87,6 +87,10 @@ public:
 
     //IFileSysNCA
     LoaderResultStatus GetStatus() const override;
+    // A sparse/compressed RomFS has incomplete bucket-tree data after its
+    // headers were read successfully. Invalid headers and unrelated section
+    // errors never enable the update-ExeFS fallback.
+    bool HasRomFSSectionReadFailure() const;
     IVirtualFile * GetBaseFile() override;
     IVirtualFile * GetRomFS() override;
     void Release() override;
@@ -101,6 +105,7 @@ private:
     VirtualFile file;
 
     LoaderResultStatus status{};
+    bool romfs_section_read_failure = false;
 
     bool encrypted = false;
     bool is_update = false;

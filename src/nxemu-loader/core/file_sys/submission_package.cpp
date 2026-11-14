@@ -119,6 +119,12 @@ std::vector<uint64_t> NSP::GetProgramTitleIDs() const
     return out;
 }
 
+u32 NSP::GetTitleVersion(uint64_t title_id) const
+{
+    const auto it = title_versions.find(title_id);
+    return it == title_versions.end() ? 0 : it->second;
+}
+
 bool NSP::IsExtractedType() const
 {
     return extracted;
@@ -249,9 +255,10 @@ void NSP::ReadNCAs(const std::vector<VirtualFile> & files)
         }
 
         const auto nca = std::make_shared<NCA>(outer_file);
+        // A failed NCA header read leaves the reader uninitialized; asking it
+        // for a title ID or content type would assert.
         if (nca->GetStatus() != LoaderResultStatus::Success || nca->GetSubdirectories().empty())
         {
-            program_status[nca->GetTitleId()] = nca->GetStatus();
             continue;
         }
 
@@ -273,6 +280,7 @@ void NSP::ReadNCAs(const std::vector<VirtualFile> & files)
                 continue;
             }
 
+            title_versions[cnmt.GetTitleID()] = cnmt.GetTitleVersion();
             ncas[cnmt.GetTitleID()][{cnmt.GetType(), LoaderContentRecordType::Meta}] = nca;
 
             for (const auto & rec : cnmt.GetContentRecords())
@@ -292,6 +300,13 @@ void NSP::ReadNCAs(const std::vector<VirtualFile> & files)
 
                 auto next_nca = std::make_shared<NCA>(std::move(next_file));
 
+                if (next_nca->GetStatus() == LoaderResultStatus::ErrorBadNCAHeader &&
+                    !next_nca->HasRomFSSectionReadFailure())
+                {
+                    LOG_WARNING(Service_FS, "NCA {} has an invalid header", id_string);
+                    continue;
+                }
+
                 if (next_nca->GetType() == NCAContentType::Program)
                 {
                     program_status[next_nca->GetTitleId()] = next_nca->GetStatus();
@@ -301,7 +316,7 @@ void NSP::ReadNCAs(const std::vector<VirtualFile> & files)
                 // Retain a program whose filesystem could not be opened so the
                 // loader can try the installed update's standalone ExeFS.
                 const bool may_use_update_exefs =
-                    next_nca->GetStatus() == LoaderResultStatus::ErrorBadNCAHeader &&
+                    next_nca->HasRomFSSectionReadFailure() &&
                     next_nca->GetType() == NCAContentType::Program &&
                     next_nca->GetExeFS() == nullptr;
                 if (next_nca->GetStatus() != LoaderResultStatus::Success &&
