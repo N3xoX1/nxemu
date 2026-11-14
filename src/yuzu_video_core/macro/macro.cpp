@@ -73,9 +73,11 @@ void MacroEngine::Execute(u32 method, const std::vector<u32>& parameters) {
         const FastEntry entry = fast_lookup[method];
         if (entry.program) [[likely]] {
             if (entry.is_lle) {
-                maxwell3d.RefreshParameters();
+                maxwell3d.FrontRefreshParameters();
+                entry.program->Execute(parameters, method);
+            } else {
+                maxwell3d.FrontHLEMacro(entry.program, parameters, method);
             }
-            entry.program->Execute(parameters, method);
             return;
         }
     }
@@ -83,9 +85,9 @@ void MacroEngine::Execute(u32 method, const std::vector<u32>& parameters) {
     if (compiled_macro != macro_cache.end()) {
         const auto& cache_info = compiled_macro->second;
         if (cache_info.has_hle_program) {
-            cache_info.hle_program->Execute(parameters, method);
+            maxwell3d.FrontHLEMacro(cache_info.hle_program.get(), parameters, method);
         } else {
-            maxwell3d.RefreshParameters();
+            maxwell3d.FrontRefreshParameters();
             cache_info.lle_program->Execute(parameters, method);
         }
     } else {
@@ -134,9 +136,9 @@ void MacroEngine::Execute(u32 method, const std::vector<u32>& parameters) {
                                       : FastEntry{cache_info.lle_program.get(), true};
         }
         if (cache_info.has_hle_program) {
-            cache_info.hle_program->Execute(parameters, method);
+            maxwell3d.FrontHLEMacro(cache_info.hle_program.get(), parameters, method);
         } else {
-            maxwell3d.RefreshParameters();
+            maxwell3d.FrontRefreshParameters();
             cache_info.lle_program->Execute(parameters, method);
         }
 

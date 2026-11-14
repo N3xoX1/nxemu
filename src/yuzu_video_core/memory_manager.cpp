@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <utility>
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -435,6 +436,10 @@ T MemoryManager::Read(GPUVAddr addr) const
 template <typename T>
 void MemoryManager::Write(GPUVAddr addr, T data)
 {
+    if (const std::optional<DAddr> device_addr = GpuToCpuAddress(addr))
+    {
+        memory.MarkEngineWrite(*device_addr, sizeof(T));
+    }
     if (auto page_pointer{GetPointer(addr)}; page_pointer)
     {
         // NOTE: Avoid adding any extra logic to this fast-path block
@@ -631,6 +636,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
+        memory.MarkTimelineWrite(dev_addr_base, copy_amount);
         // A delayed readback can complete after the guest memory was unmapped at shutdown.
         if (u8 * physical = memory.GetPointer<u8>(dev_addr_base))
         {
@@ -645,6 +651,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
+        memory.MarkTimelineWrite(dev_addr_base, copy_amount);
         if (!IsBigPageContinuous(page_index)) [[unlikely]]
         {
             memory.WriteBlockUnsafe(dev_addr_base, src_buffer, copy_amount);
@@ -673,6 +680,13 @@ void MemoryManager::WriteBlockUnsafe(GPUVAddr gpu_dest_addr, const void * src_bu
 }
 
 void MemoryManager::WriteBlockCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
+{
+    WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
+    accumulator->Add(gpu_dest_addr, size);
+    accumulated_other_writes = true;
+}
+
+void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
 {
     WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
     accumulator->Add(gpu_dest_addr, size);
@@ -1023,7 +1037,14 @@ void MemoryManager::FlushCaching()
     accumulator->Callback([this](GPUVAddr addr, size_t size) {
         GetSubmappedRangeImpl<false>(addr, size, page_stash2);
     });
-    rasterizer->InnerInvalidation(page_stash2);
+    if (std::exchange(accumulated_other_writes, false))
+    {
+        rasterizer->InnerInvalidation(page_stash2);
+    }
+    else
+    {
+        rasterizer->InnerConstBufferInvalidation(page_stash2);
+    }
     page_stash2.clear();
     accumulator->Clear();
 }

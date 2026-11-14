@@ -182,6 +182,7 @@
     <ClCompile Include="arm_dynarmic_32.cpp" />
     <ClCompile Include="arm_dynarmic_64.cpp" />
     <ClCompile Include="cpu_manager.cpp" />
+    <ClCompile Include="jit_fuzz.cpp" />
     <ClCompile Include="cpu_enum_strings.cpp" />
     <ClCompile Include="cpu_settings.cpp" />
     <ClCompile Include="dynarmic\backend\block_range_information.cpp" />

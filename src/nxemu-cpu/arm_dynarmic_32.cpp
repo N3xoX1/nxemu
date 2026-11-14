@@ -213,6 +213,7 @@ std::shared_ptr<Dynarmic::A32::Jit> ArmDynarmic32::MakeJit(IKernelProcess & proc
     config.only_detect_misalignment_via_page_table_on_page_boundary = true;
 
     config.fastmem_pointer = page_table.FastmemArena();
+    config.write_track_map = page_table.WriteTrackMap(config.write_track_l2_offset, config.write_track_l1_offset);
 
     config.fastmem_exclusive_access = config.fastmem_pointer != nullptr;
     config.recompile_on_exclusive_fastmem_failure = true;

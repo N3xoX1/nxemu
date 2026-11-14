@@ -68,6 +68,18 @@ struct A64JitState {
     void SetFpcr(u32 value);
     void SetFpsr(u32 value);
 
+    // Per-core context read by run code, so emitted code does not embed one core's objects.
+    // Set by Jit::Impl and kept across Reset.
+    u64 core_callbacks = 0;            // A64::UserCallbacks*
+    u64 core_lookup_arg = 0;           // Jit::Impl*, argument of the dispatcher's LookupBlock
+    u64 core_monitor = 0;              // ExclusiveMonitor*
+    u64 core_excl_addr_ptr = 0;        // this core's exclusive address slot
+    u64 core_excl_value_ptr = 0;       // this core's exclusive value slot
+    u64 core_tpidr_el0_ptr = 0;        // u64*
+    u64 core_tpidrro_el0_ptr = 0;      // const u64*
+    u64 core_fast_dispatch_table = 0;  // FastDispatchEntry*
+    u64 core_processor_id = 0;
+
     u64 GetUniqueHash() const noexcept {
         const u64 fpcr_u64 = static_cast<u64>(fpcr & A64::LocationDescriptor::fpcr_mask) << A64::LocationDescriptor::fpcr_shift;
         const u64 pc_u64 = pc & A64::LocationDescriptor::pc_mask;

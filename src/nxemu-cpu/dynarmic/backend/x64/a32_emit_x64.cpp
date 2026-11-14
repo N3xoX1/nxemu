@@ -148,6 +148,7 @@ A32EmitX64::BlockDescriptor A32EmitX64::Emit(IR::Block& block) {
         }
 
         reg_alloc.EndOfAllocScope();
+        reg_alloc.EndOfInstruction();
 
         if (conf.very_verbose_debugging_output) {
             EmitVerboseDebuggingOutput(reg_alloc);

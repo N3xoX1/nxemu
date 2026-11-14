@@ -52,6 +52,13 @@ struct A32JitState {
     std::array<u64, RSBSize> rsb_codeptrs;
     void ResetRSB();
 
+    // Per-core context read by the shared memory emitters (see A64JitState). Kept across Reset.
+    u64 core_callbacks = 0;      // A32::UserCallbacks*
+    u64 core_monitor = 0;        // ExclusiveMonitor*
+    u64 core_excl_addr_ptr = 0;
+    u64 core_excl_value_ptr = 0;
+    u64 core_processor_id = 0;
+
     u32 fpsr_exc = 0;
     u32 fpsr_qc = 0;
     u32 fpsr_nzcv = 0;

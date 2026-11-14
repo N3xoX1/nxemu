@@ -44,6 +44,10 @@ constexpr std::size_t YUZU_PAGEBITS = 12;
 constexpr u64 YUZU_PAGESIZE = 1ULL << YUZU_PAGEBITS;
 constexpr u64 YUZU_PAGEMASK = YUZU_PAGESIZE - 1;
 
+// Whether the JIT marks fastmem writes in a map instead of the GPU caches write-protecting
+// their pages
+bool UseWriteTrackMap();
+
 /// Virtual user-space memory regions
 enum : u64 {
     /// TLS (Thread-Local Storage) related.
@@ -155,6 +159,8 @@ public:
     /// Reports to the GPU the native code writes to the pages NceTrackWrites opened, and
     /// write-protects them again.
     void FlushNceWrites(bool rearm_native_reads = true);
+    // Reports the cached pages the JIT wrote since the last call, as a write fault would
+    void HarvestCpuWrites();
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override;
     bool ProtectsReadCachedRegions() override;
 

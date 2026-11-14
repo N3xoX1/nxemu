@@ -28,6 +28,9 @@ enum class AccType;
 
 namespace Dynarmic::Backend::X64 {
 
+/// UserConfig::test_variant of the block being emitted (differential tests only)
+extern thread_local u32 jit_test_variant;
+
 class RegAlloc;
 
 struct HostLocInfo {
@@ -145,10 +148,22 @@ public:
     void ReleaseStackSpace(size_t stack_space);
 
     void EndOfAllocScope();
+    /// Called between IR instructions. Registers handed out during an instruction are not
+    /// targets for moved-away values until then: an emitter may end its alloc scope and make
+    /// a host call while it still uses the registers it got (vector fallbacks do).
+    void EndOfInstruction() { handed_out = 0; }
 
     void AssertNoMoreUses();
 
+    /// Where a value is right now. Used by side exits, which store values in their cold
+    /// stub from the place they are at the jump.
+    std::optional<HostLoc> CurrentLocation(const IR::Inst* value) const { return ValueLocation(value); }
+    Xbyak::Address SpillAddress(HostLoc loc) { return SpillToOpArg(loc); }
+
     void EmitVerboseDebuggingOutput();
+
+    /// When set, loading a zero immediate uses mov instead of xor, so the host flags stay
+    bool preserve_host_flags = false;
 
 private:
     friend struct Argument;
@@ -182,6 +197,10 @@ private:
     mutable size_t memo_loc = 0;
     HostLocInfo& LocInfo(HostLoc loc);
     const HostLocInfo& LocInfo(HostLoc loc) const;
+
+    u64 handed_out = 0;
+    void HandOut(HostLoc loc) { handed_out |= u64{1} << static_cast<size_t>(loc); }
+    bool HandedOut(HostLoc loc) const { return (handed_out >> static_cast<size_t>(loc)) & 1; }
 
     BlockOfCode& code;
     size_t reserved_stack_space = 0;

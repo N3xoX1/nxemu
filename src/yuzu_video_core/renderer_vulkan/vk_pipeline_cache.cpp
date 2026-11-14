@@ -993,6 +993,30 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
     if (progressive_warmup) progressive_warmup->PublishReady();
     skipped_unfinished = false;
 
+    // Most draws only change bindings: nothing in the key changed since the last lookup
+    auto& dirty = maxwell3d->dirty;
+    const auto topology = maxwell3d->draw_manager->GetDrawState().topology;
+    if (!dirty.pipeline_key_changed && !dirty.flags[VideoCommon::Dirty::Shaders] &&
+        fast_lookup_pipeline != nullptr && fast_lookup_pipeline == current_pipeline &&
+        fast_lookup_engine == maxwell3d && fast_lookup_topology == topology &&
+        fast_lookup_hint == maxwell3d->engine_state &&
+        fast_lookup_revision == cbuf_size_dependencies.Revision()) {
+        return BuiltPipeline(current_pipeline);
+    }
+    fast_lookup_pipeline = nullptr;
+    dirty.pipeline_key_changed = false;
+    GraphicsPipeline* const pipeline = LookupGraphicsPipeline();
+    if (pipeline != nullptr && pipeline == current_pipeline && guest_recipe_probe == nullptr) {
+        fast_lookup_pipeline = pipeline;
+        fast_lookup_engine = maxwell3d;
+        fast_lookup_topology = topology;
+        fast_lookup_hint = maxwell3d->engine_state;
+        fast_lookup_revision = cbuf_size_dependencies.Revision();
+    }
+    return pipeline;
+}
+
+GraphicsPipeline* PipelineCache::LookupGraphicsPipeline() {
     if (!RefreshStages(graphics_key.unique_hashes)) {
         current_pipeline = nullptr;
         return nullptr;

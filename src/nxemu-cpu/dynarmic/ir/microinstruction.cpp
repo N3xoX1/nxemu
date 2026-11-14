@@ -159,6 +159,7 @@ bool Inst::ReadsFromCPSR() const {
     case Opcode::A32UpdateUpperLocationDescriptor:
     case Opcode::A64GetCFlag:
     case Opcode::A64GetNZCVRaw:
+    case Opcode::A64SideExit:
     case Opcode::ConditionalSelect32:
     case Opcode::ConditionalSelect64:
     case Opcode::ConditionalSelectNZCV:
@@ -543,6 +544,7 @@ bool Inst::IsSetCheckBitOperation() const {
 
 bool Inst::MayHaveSideEffects() const {
     return op == Opcode::PushRSB
+        || op == Opcode::A64SideExit
         || op == Opcode::CallHostFunction
         || op == Opcode::A64DataCacheOperationRaised
         || op == Opcode::A64InstructionCacheOperationRaised

@@ -57,6 +57,13 @@ private:
 #endif
 
 
+#ifdef _WIN32
+// The high-resolution timer stops this long before an event, and the rest is a busy wait.
+// It is accurate to a few tens of microseconds, so stopping a whole system tick early
+// (about 0.5 ms) only burns a host core.
+constexpr s64 high_resolution_timer_margin_ns = 100'000;
+#endif
+
 std::shared_ptr<EventType> CreateEvent(std::string name, TimedCallback&& callback) {
     return std::make_shared<EventType>(std::move(callback), std::move(name));
 }
@@ -354,10 +361,8 @@ void CoreTiming::ThreadLoop() {
                             bool ok = true;
                             if (blocked) {
                                 ok = windows_timer_wait->WaitForNotification();
-                            } else if (wait_time > timer_resolution_ns) {
-                                // The timer fires on the first system tick after its due time.
-                                // Stop one tick early and finish below the resolution here.
-                                ok = windows_timer_wait->Wait(wait_time - timer_resolution_ns);
+                            } else if (wait_time > high_resolution_timer_margin_ns) {
+                                ok = windows_timer_wait->Wait(wait_time - high_resolution_timer_margin_ns);
                             } else {
 #if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
                                 Common::X64::MicroSleep();

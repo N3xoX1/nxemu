@@ -15,6 +15,7 @@
 #include <stdexcept>
 using Maxwell3D = Tegra::Engines::Maxwell3D;
 namespace Engines = Tegra::Engines;
+using BufferMethods = Tegra::BufferMethods;
 constexpr u32 MacroRegistersStart = 0xe00, non_puller_methods = 0x40;
 void Check(bool v, const char *s) {
   if (!v)
@@ -47,6 +48,7 @@ struct Raster {
   void FragmentBarrier() {}
   void InvalidateGPUCache() {}
   void TiledCacheBarrier() {}
+  void ReleaseDrawLocks() {}
 };
 struct Macro {
   void ClearCode(u32) {}
@@ -62,7 +64,7 @@ struct Fixture : Engines::EngineInterface {
   std::vector<std::array<u32, 4>> effects;
   std::vector<std::array<u32, Regs::NUM_REGS>> observed;
   using Regs = Maxwell3D::Regs;
-  Regs regs{}, shadow_state{};
+  Regs regs{}, shadow_state{}, front_regs{};
   Memory memory_manager;
   Draw draw;
   Draw *draw_manager = &draw;
@@ -73,6 +75,29 @@ struct Fixture : Engines::EngineInterface {
   Upload upload_state;
   bool execute_on = true;
   u32 executing_macro{};
+  // What a change can change for the draws that follow, matching Maxwell3D::GenerationKind
+  enum GenerationKind : u8 { GEN_STATE = 0, GEN_NONE = 1, GEN_BUFFERS = 2 };
+  std::array<u64, 3> generations{1, 0, 1};
+  // Queued methods for the execute side: single-threaded here, so publish right after every
+  // call that has one (PublishWords=1) instead of batching like production.
+  static constexpr u32 PublishWords = 1;
+  static constexpr u32 StreamCall = 0, StreamRegs = 1;
+  std::vector<u32> stream;
+  bool skip_same_writes{true};
+  size_t stream_run_pos{};
+  u32 stream_run_next{};
+  bool stream_run_open{};
+  bool IsThreaded() const { return true; }
+  void FrontWrite(u32 method, u32 value) { front_regs.reg_array[method] = value; }
+  void StreamHeader(u32, u32) {}
+  void FrontMethodCall(u32, u32, u32) {}
+  void Publish() {
+    for (size_t i = 0; i + 3 <= stream.size(); i += 3) {
+      ProcessDirtyRegisters(stream[i], stream[i + 1]);
+      ProcessMethodCall(stream[i], stream[i + 1], stream[i + 2]);
+    }
+    stream.clear();
+  }
 
   Fixture() {
     draw.on_method = [this](u32 m, u32 a) {
@@ -126,6 +151,20 @@ struct Dma {
     void CallPullerMethod(Engines::Puller::MethodCall) const {}
     void CallMultiMethod(u32, u32, const u32 *, u32, u32) const {}
   } puller;
+  void *maxwell3d_engine = nullptr;
+  mutable std::vector<Engines::Puller::MethodCall> pending_puller;
+  mutable std::array<std::vector<std::pair<u32, u32>>, 8> front_sinks;
+  bool IsThreaded() const { return false; }
+  void DrainMaxwell3D() const {}
+  bool IsPullerRegisterOnly(u32) const { return false; }
+  bool IsPullerWait(u32, u32) const { return false; }
+  template <typename F> void PostBack(F &&f) const { f(); }
+  std::vector<std::pair<u32, u32>> &SinkFor(u32 sc) const {
+    if (IsThreaded() && subchannel_type[sc] != Engines::EngineTypes::Maxwell3D) {
+      return front_sinks[sc];
+    }
+    return subchannels[sc]->method_sink;
+  }
   void ProcessCommands(std::span<const CommandHeader>);
   void SetState(const CommandHeader &);
   void CallMethod(u32) const;

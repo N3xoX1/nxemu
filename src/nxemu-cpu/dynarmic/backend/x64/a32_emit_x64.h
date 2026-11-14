@@ -14,6 +14,7 @@
 
 #include "dynarmic/backend/block_range_information.h"
 #include "dynarmic/backend/x64/a32_jitstate.h"
+#include "dynarmic/backend/x64/devirtualize.h"
 #include "dynarmic/backend/x64/emit_x64.h"
 #include "dynarmic/frontend/A32/a32_location_descriptor.h"
 #include "dynarmic/interface/A32/a32.h"
@@ -55,6 +56,12 @@ public:
     void InvalidateCacheRanges(const boost::icl::interval_set<u32>& ranges);
 
 protected:
+    /// A user callback for the shared memory emitters. The A32 JIT keeps the object in the code.
+    template<auto mfp>
+    ArgCallback CoreCallback() const {
+        return Devirtualize<mfp>(conf.callbacks);
+    }
+
     const A32::UserConfig conf;
     A32::Jit* jit_interface;
     BlockRangeInformation<u32> block_ranges;

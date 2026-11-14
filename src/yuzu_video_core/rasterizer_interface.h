@@ -88,6 +88,34 @@ public:
     /// Signal disabling of a uniform buffer
     virtual void DisableGraphicsUniformBuffer(size_t stage, u32 index) = 0;
 
+    /// Uniform buffer copied by the decode thread ahead of the GPU thread
+    struct UniformPrefetch {
+        DAddr device_addr;
+        u32 size;
+        u32 offset; ///< in the prefetch ring
+    };
+
+    /// Decode thread: copies up to `max_size` bytes of the uniform buffer bound at
+    /// `device_addr` to (stage, index), when the GPU thread would copy it. Returns false
+    /// when it doesn't.
+    virtual bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                 UniformPrefetch& prefetch) {
+        return false;
+    }
+
+    /// Decode thread: prefetch ring position, see ResetUniformPrefetch
+    virtual u64 UniformPrefetchPosition() {
+        return 0;
+    }
+
+    /// GPU thread: a draw of this submission that binds `prefetch.device_addr` to
+    /// (stage, index) can use the copy
+    virtual void ApplyUniformPrefetch(size_t stage, u32 index, const UniformPrefetch& prefetch) {}
+
+    /// GPU thread: drops the copies; the ring below `position` is free once the work
+    /// recorded so far ran
+    virtual void ResetUniformPrefetch(u64 position) {}
+
     /// Signal a GPU based semaphore as a fence
     virtual void SignalFence(std::function<void()>&& func) = 0;
 
@@ -160,10 +188,24 @@ public:
         }
     }
 
+    /// Releases the cache locks that consecutive draws keep. Called before any work that may
+    /// wait for another thread, and when the current command ends.
+    virtual void ReleaseDrawLocks() {}
+
+    /// InnerInvalidation of constant buffer uploads only, which the 3D engine keeps track of
+    virtual void InnerConstBufferInvalidation(
+        std::span<const std::pair<DAddr, std::size_t>> sequences) {
+        InnerInvalidation(sequences);
+    }
+
     /// Notify rasterizer that any caches of the specified region are desync with guest
     virtual void OnCacheInvalidation(PAddr addr, u64 size) = 0;
 
     virtual bool OnCPUWrite(PAddr addr, u64 size) = 0;
+
+    /// Called before every guest CPU write to cached memory: waits for queued GPU work that
+    /// reads it in place.
+    virtual void WaitInPlaceReads(PAddr addr, u64 size) {}
 
     /// Sync memory between guest and host.
     virtual void InvalidateGPUCache() = 0;

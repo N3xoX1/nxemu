@@ -8,6 +8,7 @@
 #include <cstring>
 #include <utility>
 
+#include <mcl/assert.hpp>
 #include <mcl/bit_cast.hpp>
 #include <mcl/stdint.hpp>
 #include <mcl/type_traits/function_info.hpp>
@@ -75,6 +76,16 @@ ArgCallback Devirtualize(mcl::class_type<decltype(mfp)>* this_) {
 #else
     return DevirtualizeGeneric<mfp>(this_);
 #endif
+}
+
+/// Like Devirtualize, but the object pointer is read from the JIT state at state_offset when the
+/// call runs. Every core passes an object of the same class, so the function is the same.
+template<auto mfp>
+ArgCallback DevirtualizeFromState(mcl::class_type<decltype(mfp)>* this_, size_t state_offset) {
+    const ArgCallback callback = Devirtualize<mfp>(this_);
+    // The object pointer must be passed unchanged (no this adjustment)
+    ASSERT(callback.Arg() == reinterpret_cast<u64>(this_));
+    return callback.WithArgFromState(state_offset);
 }
 
 }  // namespace Backend::X64

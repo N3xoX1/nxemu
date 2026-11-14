@@ -128,6 +128,8 @@ public:
 
     /// Get the microop this microinstruction represents.
     Opcode GetOpcode() const { return op; }
+    /// Changes the opcode. The new one must take the same arguments and return the same type.
+    void ReplaceOpcode(Opcode new_op) { op = new_op; }
     /// Get the type this instruction returns.
     Type GetType() const;
     /// Get the number of arguments this instruction has.

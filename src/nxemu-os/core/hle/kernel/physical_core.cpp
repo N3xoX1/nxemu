@@ -1,6 +1,11 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <chrono>
+#include <thread>
+#if defined(_M_X64) || defined(__x86_64__)
+#include <immintrin.h>
+#endif
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "core/core.h"
@@ -237,10 +242,34 @@ void PhysicalCore::LogBacktrace()
 
 void PhysicalCore::Idle()
 {
-    std::unique_lock lk{m_guard};
-    m_on_interrupt.wait(lk, [this] {
-        return m_is_interrupted.load(std::memory_order_acquire);
-    });
+    // Spin a little before sleeping: waking a sleeping host thread costs tens of
+    // microseconds, and guest threads wake each other very often.
+    constexpr auto spin_time = std::chrono::microseconds(50);
+    if (!m_is_interrupted.load(std::memory_order_acquire))
+    {
+        const auto deadline = std::chrono::steady_clock::now() + spin_time;
+        do
+        {
+            for (int i = 0; i < 16; ++i)
+            {
+                if (m_is_interrupted.load(std::memory_order_acquire))
+                {
+                    break;
+                }
+#if defined(_M_X64) || defined(__x86_64__)
+                _mm_pause();
+#else
+                std::this_thread::yield();
+#endif
+            }
+        } while (!m_is_interrupted.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline);
+    }
+    {
+        std::unique_lock lk{m_guard};
+        m_on_interrupt.wait(lk, [this] {
+            return m_is_interrupted.load(std::memory_order_acquire);
+        });
+    }
 }
 
 bool PhysicalCore::IsInterrupted() const

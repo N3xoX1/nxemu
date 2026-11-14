@@ -23,6 +23,14 @@ concept StreamUniformReusable = requires(Runtime& runtime, u32 size) {
     { runtime.CurrentTick() } -> std::convertible_to<u64>;
 };
 
+/// Runtimes with a ring the decode thread copies uniform buffers to
+template <class Runtime>
+concept UniformPrefetchable = requires(Runtime& runtime, u32 size, u32& offset, u8*& pointer) {
+    { runtime.AllocatePrefetch(size, offset, pointer) } -> std::same_as<bool>;
+    runtime.ReleasePrefetch(u64{});
+    runtime.BindPrefetchedUniform(size, size);
+};
+
 // Unsupported backends (including OpenGL) have no additional state or overhead.
 template <class Runtime, bool Supported = StreamUniformReusable<Runtime>>
 class UniformStreamReuse {
@@ -60,16 +68,29 @@ public:
         }
         if (slot.size == size && slot.tick == tick && slot.misses < MaxConsecutiveMisses) {
             // Contents, not just guest address, determine whether an allocation may be reused.
-            memory.ReadBlockUnsafe(device_addr, scratch.data(), size);
-            if (std::memcmp(slot.bytes.data(), scratch.data(), size) == 0) {
-                slot.misses = 0;
-                runtime.RebindStreamUniform(slot.ref, size);
-                return true;
+            // Compare in place when the range is contiguous in host memory. The snapshot is
+            // then taken again, and the upload is written from the snapshot, so the snapshot
+            // always holds what the GPU reads.
+            const u8* const guest = memory.GetSpan(device_addr, size);
+            if (guest != nullptr) {
+                if (std::memcmp(slot.bytes.data(), guest, size) == 0) {
+                    slot.misses = 0;
+                    runtime.RebindStreamUniform(slot.ref, size);
+                    return true;
+                }
+                std::memcpy(slot.bytes.data(), guest, size);
+            } else {
+                memory.ReadBlockUnsafe(device_addr, scratch.data(), size);
+                if (std::memcmp(slot.bytes.data(), scratch.data(), size) == 0) {
+                    slot.misses = 0;
+                    runtime.RebindStreamUniform(slot.ref, size);
+                    return true;
+                }
+                std::memcpy(slot.bytes.data(), scratch.data(), size);
             }
             ++slot.misses;
             const std::span<u8> mapped = runtime.BindMappedUniformBuffer(stage, binding_index, size);
-            std::memcpy(mapped.data(), scratch.data(), size);
-            std::memcpy(slot.bytes.data(), scratch.data(), size);
+            std::memcpy(mapped.data(), slot.bytes.data(), size);
         } else {
             // A new tick can never reuse the old allocation. Prime the next comparison.
             if (slot.tick != tick || slot.size != size) {

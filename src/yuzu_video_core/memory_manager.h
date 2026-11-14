@@ -105,6 +105,8 @@ public:
     void ReadBlockUnsafe(GPUVAddr gpu_src_addr, void* dest_buffer, std::size_t size) const;
     void WriteBlockUnsafe(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
     void WriteBlockCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
+    /// WriteBlockCached for constant buffer uploads, which the 3D engine keeps track of itself
+    void WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
 
     /**
      * Checks if a gpu region can be simply read with a pointer.
@@ -269,6 +271,8 @@ private:
 
     const size_t unique_identifier;
     std::unique_ptr<VideoCommon::InvalidationAccumulator> accumulator;
+    /// The accumulator holds writes other than constant buffer uploads
+    bool accumulated_other_writes{};
 
     static std::atomic<size_t> unique_identifier_generator;
 

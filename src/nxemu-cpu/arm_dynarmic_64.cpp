@@ -350,6 +350,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     config.only_detect_misalignment_via_page_table_on_page_boundary = true;
 
     config.fastmem_pointer = page_table.FastmemArena();
+    config.write_track_map = page_table.WriteTrackMap(config.write_track_l2_offset, config.write_track_l1_offset);
     config.fastmem_address_space_bits = page_table.GetAddressSpaceWidth();
     config.silently_mirror_fastmem = false;
 

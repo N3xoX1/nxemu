@@ -18,6 +18,10 @@ namespace Core {
 class System;
 } // namespace Core
 
+namespace VideoCommon::GPUThread {
+class BackQueue;
+}
+
 namespace VideoCore {
 class RendererBase;
 class ShaderNotify;
@@ -134,6 +138,12 @@ class Host1x;
 
 class MemoryManager;
 
+/// Locks of the decode thread and of the GPU thread, see GPU::LockExecution
+struct ExecutionLock {
+    std::unique_lock<std::recursive_mutex> decode;
+    std::unique_lock<std::recursive_mutex> execution;
+};
+
 class GPU final {
 public:
     explicit GPU(ISystemModules & modules, Tegra::Host1x::Host1x & host1x, bool is_async, bool use_nvdec);
@@ -169,6 +179,9 @@ public:
 
     /// Tick pending requests within the GPU.
     void TickWork();
+
+    /// True when TickWork has sync requests to run
+    [[nodiscard]] bool HasTickWork() const;
 
     /// Gets a mutable reference to the Host1x interface
     [[nodiscard]] Host1x::Host1x& Host1x();
@@ -264,6 +277,9 @@ public:
     /// submit the GPU work that writes it.
     bool AwaitPendingResult(DAddr addr, u64 size, bool kick);
 
+    /// Wait until the query results a CPU read of the region covers are written.
+    void WaitPendingResults(DAddr addr, u64 size);
+
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     void FlushRegion(DAddr addr, u64 size);
 
@@ -274,12 +290,18 @@ public:
     /// sensible, false otherwise
     bool OnCPUWrite(DAddr addr, u64 size);
 
+    /// Waits for queued GPU work that reads this area in place, before the CPU writes it
+    void WaitInPlaceReads(DAddr addr, u64 size);
+
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(DAddr addr, u64 size);
 
     /// Excludes command recording/compositing while guest GPU mappings change.
     /// Never hold this lock while enqueueing and waiting for a GPU-thread request.
-    std::unique_lock<std::recursive_mutex> LockExecution();
+    ExecutionLock LockExecution();
+
+    /// Work queue to the GPU thread, see DESIGN-gpu-split.md
+    VideoCommon::GPUThread::BackQueue& BackQueue();
 
     /// Register a host thread as an auxiliary thread.
     void RegisterHostThread();

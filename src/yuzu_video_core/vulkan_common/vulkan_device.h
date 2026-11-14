@@ -73,6 +73,7 @@ VK_DEFINE_HANDLE(VmaAllocator)
     EXTENSION(EXT, CONSERVATIVE_RASTERIZATION, conservative_rasterization)                         \
     EXTENSION(EXT, DEPTH_RANGE_UNRESTRICTED, depth_range_unrestricted)                             \
     EXTENSION(EXT, MEMORY_BUDGET, memory_budget)                                                   \
+    EXTENSION(EXT, EXTERNAL_MEMORY_HOST, external_memory_host)                                     \
     EXTENSION(EXT, ROBUSTNESS_2, robustness_2)                                                     \
     EXTENSION(EXT, SAMPLER_FILTER_MINMAX, sampler_filter_minmax)                                   \
     EXTENSION(EXT, SHADER_STENCIL_EXPORT, shader_stencil_export)                                   \
@@ -795,6 +796,11 @@ public:
 
     bool CanReportMemoryUsage() const {
         return extensions.memory_budget;
+    }
+
+    /// Host memory, such as the guest RAM backing, can be imported as device memory
+    bool IsExtExternalMemoryHostSupported() const {
+        return extensions.external_memory_host;
     }
 
     u64 GetDeviceMemoryUsage() const;

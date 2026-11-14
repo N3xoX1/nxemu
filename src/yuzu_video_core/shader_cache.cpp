@@ -137,6 +137,8 @@ void ShaderCache::Register(std::unique_ptr<ShaderInfo> data, VAddr addr, size_t 
     std::scoped_lock lock{invalidation_mutex, lookup_mutex};
 
     const VAddr addr_end = addr + size;
+    // Before the entry is visible: invalidations skip the pages without a shader
+    device_memory.RegisterFlushCacheRegion(addr, size, VideoCommon::CacheType::ShaderCache);
     Entry* const entry = NewEntry(addr, addr_end, data.get());
 
     const u64 page_end = (addr_end + YUZU_PAGESIZE - 1) >> YUZU_PAGEBITS;

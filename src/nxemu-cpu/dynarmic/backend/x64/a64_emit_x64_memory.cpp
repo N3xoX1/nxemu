@@ -5,11 +5,13 @@
 
 #include <array>
 #include <initializer_list>
+#include <mutex>
 #include <tuple>
 #include <utility>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <mcl/macro/concatenate_tokens.hpp>
 #include <mcl/type_traits/integer_of_size.hpp>
 #include <xbyak/xbyak.h>
 
@@ -31,7 +33,7 @@ void A64EmitX64::GenMemory128Accessors() {
     code.align();
     memory_read_128 = code.getCurr<void (*)()>();
 #ifdef _WIN32
-    Devirtualize<&A64::UserCallbacks::MemoryRead128>(conf.callbacks).EmitCallWithReturnPointer(code, [&](Xbyak::Reg64 return_value_ptr, [[maybe_unused]] RegList args) {
+    CoreCallback<&A64::UserCallbacks::MemoryRead128>().EmitCallWithReturnPointer(code, [&](Xbyak::Reg64 return_value_ptr, [[maybe_unused]] RegList args) {
         code.mov(code.ABI_PARAM3, code.ABI_PARAM2);
         code.sub(rsp, 8 + 16 + ABI_SHADOW_SPACE);
         code.lea(return_value_ptr, ptr[rsp + ABI_SHADOW_SPACE]);
@@ -40,7 +42,7 @@ void A64EmitX64::GenMemory128Accessors() {
     code.add(rsp, 8 + 16 + ABI_SHADOW_SPACE);
 #else
     code.sub(rsp, 8);
-    Devirtualize<&A64::UserCallbacks::MemoryRead128>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::MemoryRead128>().EmitCall(code);
     if (code.HasHostFeature(HostFeature::SSE41)) {
         code.movq(xmm1, code.ABI_RETURN);
         code.pinsrq(xmm1, code.ABI_RETURN2, 1);
@@ -60,7 +62,7 @@ void A64EmitX64::GenMemory128Accessors() {
     code.sub(rsp, 8 + 16 + ABI_SHADOW_SPACE);
     code.lea(code.ABI_PARAM3, ptr[rsp + ABI_SHADOW_SPACE]);
     code.movaps(xword[code.ABI_PARAM3], xmm1);
-    Devirtualize<&A64::UserCallbacks::MemoryWrite128>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::MemoryWrite128>().EmitCall(code);
     code.add(rsp, 8 + 16 + ABI_SHADOW_SPACE);
 #else
     code.sub(rsp, 8);
@@ -72,7 +74,7 @@ void A64EmitX64::GenMemory128Accessors() {
         code.punpckhqdq(xmm1, xmm1);
         code.movq(code.ABI_PARAM4, xmm1);
     }
-    Devirtualize<&A64::UserCallbacks::MemoryWrite128>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::MemoryWrite128>().EmitCall(code);
     code.add(rsp, 8);
 #endif
     code.ret();
@@ -86,7 +88,7 @@ void A64EmitX64::GenMemory128Accessors() {
     code.lea(code.ABI_PARAM4, ptr[rsp + ABI_SHADOW_SPACE + 16]);
     code.movaps(xword[code.ABI_PARAM3], xmm1);
     code.movaps(xword[code.ABI_PARAM4], xmm2);
-    Devirtualize<&A64::UserCallbacks::MemoryWriteExclusive128>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::MemoryWriteExclusive128>().EmitCall(code);
     code.add(rsp, 8 + 32 + ABI_SHADOW_SPACE);
 #else
     code.sub(rsp, 8);
@@ -103,7 +105,7 @@ void A64EmitX64::GenMemory128Accessors() {
         code.punpckhqdq(xmm2, xmm2);
         code.movq(code.ABI_PARAM6, xmm2);
     }
-    Devirtualize<&A64::UserCallbacks::MemoryWriteExclusive128>(conf.callbacks).EmitCall(code);
+    CoreCallback<&A64::UserCallbacks::MemoryWriteExclusive128>().EmitCall(code);
     code.add(rsp, 8);
 #endif
     code.ret();
@@ -113,22 +115,22 @@ void A64EmitX64::GenMemory128Accessors() {
 void A64EmitX64::GenFastmemFallbacks() {
     const std::initializer_list<int> idxes{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     const std::array<std::pair<size_t, ArgCallback>, 4> read_callbacks{{
-        {8, Devirtualize<&A64::UserCallbacks::MemoryRead8>(conf.callbacks)},
-        {16, Devirtualize<&A64::UserCallbacks::MemoryRead16>(conf.callbacks)},
-        {32, Devirtualize<&A64::UserCallbacks::MemoryRead32>(conf.callbacks)},
-        {64, Devirtualize<&A64::UserCallbacks::MemoryRead64>(conf.callbacks)},
+        {8, CoreCallback<&A64::UserCallbacks::MemoryRead8>()},
+        {16, CoreCallback<&A64::UserCallbacks::MemoryRead16>()},
+        {32, CoreCallback<&A64::UserCallbacks::MemoryRead32>()},
+        {64, CoreCallback<&A64::UserCallbacks::MemoryRead64>()},
     }};
     const std::array<std::pair<size_t, ArgCallback>, 4> write_callbacks{{
-        {8, Devirtualize<&A64::UserCallbacks::MemoryWrite8>(conf.callbacks)},
-        {16, Devirtualize<&A64::UserCallbacks::MemoryWrite16>(conf.callbacks)},
-        {32, Devirtualize<&A64::UserCallbacks::MemoryWrite32>(conf.callbacks)},
-        {64, Devirtualize<&A64::UserCallbacks::MemoryWrite64>(conf.callbacks)},
+        {8, CoreCallback<&A64::UserCallbacks::MemoryWrite8>()},
+        {16, CoreCallback<&A64::UserCallbacks::MemoryWrite16>()},
+        {32, CoreCallback<&A64::UserCallbacks::MemoryWrite32>()},
+        {64, CoreCallback<&A64::UserCallbacks::MemoryWrite64>()},
     }};
     const std::array<std::pair<size_t, ArgCallback>, 4> exclusive_write_callbacks{{
-        {8, Devirtualize<&A64::UserCallbacks::MemoryWriteExclusive8>(conf.callbacks)},
-        {16, Devirtualize<&A64::UserCallbacks::MemoryWriteExclusive16>(conf.callbacks)},
-        {32, Devirtualize<&A64::UserCallbacks::MemoryWriteExclusive32>(conf.callbacks)},
-        {64, Devirtualize<&A64::UserCallbacks::MemoryWriteExclusive64>(conf.callbacks)},
+        {8, CoreCallback<&A64::UserCallbacks::MemoryWriteExclusive8>()},
+        {16, CoreCallback<&A64::UserCallbacks::MemoryWriteExclusive16>()},
+        {32, CoreCallback<&A64::UserCallbacks::MemoryWriteExclusive32>()},
+        {64, CoreCallback<&A64::UserCallbacks::MemoryWriteExclusive64>()},
     }};
 
     for (bool ordered : {false, true}) {

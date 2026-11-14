@@ -41,6 +41,35 @@ bool TranslatorVisitor::RaiseException(Exception exception) {
     return false;
 }
 
+// Turns a forward conditional branch into a side exit and keeps translating the
+// fall-through path in the same block. Returns false when the block has to end here.
+bool TranslatorVisitor::SideExit(IR::Cond cond, IR::U1 bit, u64 target) {
+    constexpr size_t max_trace_instructions = 64;
+    if (!options.side_exits || ir.current_location->SingleStepping() || target <= ir.PC()
+        || ir.block.CycleCount() + 1 >= max_trace_instructions) {
+        return false;
+    }
+    ir.SideExit(cond, bit, target, ir.block.CycleCount() + 1);
+    return true;
+}
+
+// Follows a short forward unconditional branch inside the block. The block range then
+// also covers the skipped instructions, which only makes invalidation a bit wider.
+bool TranslatorVisitor::FollowBranch(u64 target) {
+    constexpr size_t max_trace_instructions = 64;
+    constexpr u64 max_skip = 64 * 4;
+    if (!options.side_exits || ir.current_location->SingleStepping()
+        || ir.block.CycleCount() + 1 >= max_trace_instructions) {
+        return false;
+    }
+    const u64 pc = ir.PC();
+    if (target <= pc || target - pc > max_skip) {
+        return false;
+    }
+    ir.current_location = ir.current_location->SetPC(target - 4);  // the loop adds 4
+    return true;
+}
+
 std::optional<TranslatorVisitor::BitMasks> TranslatorVisitor::DecodeBitMasks(bool immN, Imm<6> imms, Imm<6> immr, bool immediate) {
     const int len = mcl::bit::highest_set_bit((immN ? 1 << 6 : 0) | (imms.ZeroExtend() ^ 0b111111));
     if (len < 1) {

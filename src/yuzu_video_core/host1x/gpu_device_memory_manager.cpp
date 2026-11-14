@@ -480,6 +480,7 @@ template <typename Traits>
 template <typename T>
 void DeviceMemoryManager<Traits>::Write(DAddr address, T value)
 {
+    MarkEngineWrite(address, sizeof(T));
     T* ptr = GetPointer<T>(address);
     if (!ptr) [[unlikely]] 
     {
@@ -555,6 +556,7 @@ void DeviceMemoryManager<Traits>::ReadBlock(DAddr address, void * dest_pointer, 
 template <typename Traits>
 void DeviceMemoryManager<Traits>::WriteBlock(DAddr address, const void* src_pointer, size_t size)
 {
+    MarkEngineWrite(address, size);
     WalkBlock(address, size, [&](size_t copy_amount, DAddr current_vaddr) 
         {
             LOG_ERROR(HW_Memory, "Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
@@ -600,6 +602,7 @@ void DeviceMemoryManager<Traits>::ReadBlockUnsafe(DAddr address, void* dest_poin
 template <typename Traits>
 void DeviceMemoryManager<Traits>::WriteBlockUnsafe(DAddr address, const void* src_pointer, size_t size)
 {
+    MarkEngineWrite(address, size);
     WalkBlock(address, size, [&](size_t copy_amount, DAddr current_vaddr)
         {
             LOG_ERROR(HW_Memory,"Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
@@ -618,6 +621,7 @@ template <typename Traits>
 void DeviceMemoryManager<Traits>::WriteBlockForGpuReadback(DAddr address,
                                                          const void* src_pointer, size_t size)
 {
+    MarkEngineWrite(address, size);
     if (size < 96 * 1024 * 1024) {
         // Retirement holds the cache mutex and excludes cancelled CPU writes.
         WalkBlock(address, size, [&](size_t, DAddr current_vaddr)
@@ -751,7 +755,6 @@ void DeviceMemoryManager<Traits>::InvalidateNativeReadRegion(DAddr addr, size_t 
 template <typename Traits>
 void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta)
 {
-#if defined(__APPLE__)
     if (size == 0) return;
     Common::ScopedRangeLock lk(counter_guard, addr, size);
     std::atomic_thread_fence(std::memory_order_acquire);
@@ -784,7 +787,6 @@ void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t 
         bytes += DEVICE_PAGESIZE;
     }
     flush();
-#endif
 }
 
 template <typename Traits>

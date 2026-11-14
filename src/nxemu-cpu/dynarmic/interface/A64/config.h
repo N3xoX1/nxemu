@@ -269,6 +269,15 @@ struct UserConfig {
     /// callbacks.
     bool recompile_on_exclusive_fastmem_failure = true;
 
+    /// Write tracking map, used when not null. Each fastmem write marks its 4 KiB page:
+    /// map[page] = 1. When that byte was clear, it also sets map[write_track_l2_offset +
+    /// (page >> 9)] and map[write_track_l1_offset + (page >> 18)], so that the reader only
+    /// scans the parts of the map that changed. Writes that fall back to the memory callbacks
+    /// are not marked.
+    std::uint8_t* write_track_map = nullptr;
+    std::uint32_t write_track_l2_offset = 0;
+    std::uint32_t write_track_l1_offset = 0;
+
     /// This option relates to translation. Generally when we run into an unpredictable
     /// instruction the ExceptionRaised callback is called. If this is true, we define
     /// definite behaviour for some unpredictable instructions.
@@ -294,6 +303,9 @@ struct UserConfig {
 
     /// Internal use only
     bool very_verbose_debugging_output = false;
+
+    /// Test only: selects variants of the code generator for differential tests (0 = normal)
+    std::uint32_t test_variant = 0;
 };
 
 }  // namespace A64

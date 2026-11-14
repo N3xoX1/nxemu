@@ -5,11 +5,15 @@
 #include <array>
 #include <atomic>
 #include <bit>
+#include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <span>
+#include <thread>
 #include <vector>
 
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
+#include "yuzu_common/alignment.h"
 #include "yuzu_common/readback_reference.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 
@@ -410,6 +414,22 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
         uint8_pass = std::make_unique<Uint8Pass>(device, scheduler, descriptor_pool, staging_pool,
                                                  compute_pass_descriptor_queue);
     }
+    {
+        const VkBufferCreateInfo prefetch_ci{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .size = PrefetchRingSize,
+            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 0,
+            .pQueueFamilyIndices = nullptr,
+        };
+        prefetch_buffer = memory_allocator.CreateBuffer(prefetch_ci, MemoryUsage::Stream);
+        prefetch_span = prefetch_buffer.Mapped();
+        prefetch_alignment =
+            std::max<u64>(64, static_cast<u64>(device.GetUniformBufferAlignment()));
+    }
     quad_array_index_buffer = std::make_shared<QuadArrayIndexBuffer>(device_, memory_allocator_,
                                                                      scheduler_, staging_pool_);
     quad_strip_index_buffer = std::make_shared<QuadStripIndexBuffer>(device_, memory_allocator_,
@@ -501,6 +521,186 @@ bool BufferCacheRuntime::DifferentialReadback(Buffer& buffer, const StagingBuffe
 
 void BufferCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) {
     staging_pool.FreeDeferred(ref);
+}
+
+BufferCacheRuntime::~BufferCacheRuntime() {
+    const auto& dld = device.GetDispatchLoader();
+    const VkDevice handle = *device.GetLogical();
+    for (const VkBuffer window : host_mapped_windows) {
+        dld.vkDestroyBuffer(handle, window, nullptr);
+    }
+    if (host_mapped_memory) {
+        dld.vkFreeMemory(handle, host_mapped_memory, nullptr);
+    }
+}
+
+void BufferCacheRuntime::MarkInPlaceBind() noexcept {
+    in_place_tick = scheduler.CurrentTick();
+}
+
+bool BufferCacheRuntime::AllocatePrefetch(u32 size, u32& offset, u8*& pointer) {
+    if (prefetch_span.empty() || size == 0 || size > PrefetchRingSize / 8) {
+        return false;
+    }
+    const auto place = [&] {
+        u64 start = Common::AlignUp(prefetch_head, prefetch_alignment);
+        if ((start % PrefetchRingSize) + size > PrefetchRingSize) {
+            start = Common::AlignUp(start, PrefetchRingSize);
+        }
+        return start;
+    };
+    u64 start = place();
+    if (start + size - prefetch_tail > PrefetchRingSize) {
+        MasterSemaphore& master = scheduler.GetMasterSemaphore();
+        master.Refresh();
+        std::scoped_lock lock{prefetch_mutex};
+        while (!prefetch_releases.empty() && master.IsFree(prefetch_releases.front().second)) {
+            prefetch_tail = std::max(prefetch_tail, prefetch_releases.front().first);
+            prefetch_releases.pop_front();
+        }
+        if (start + size - prefetch_tail > PrefetchRingSize) {
+            return false;
+        }
+    }
+    prefetch_head = start + size;
+    offset = static_cast<u32>(start % PrefetchRingSize);
+    pointer = prefetch_span.data() + offset;
+    return true;
+}
+
+void BufferCacheRuntime::ReleasePrefetch(u64 position) {
+    const u64 tick = scheduler.CurrentTick();
+    std::scoped_lock lock{prefetch_mutex};
+    if (!prefetch_releases.empty() && prefetch_releases.back().second == tick) {
+        prefetch_releases.back().first = std::max(prefetch_releases.back().first, position);
+        return;
+    }
+    prefetch_releases.emplace_back(position, tick);
+}
+
+void BufferCacheRuntime::WaitInPlaceTick(u64 tick) {
+    MasterSemaphore& master = scheduler.GetMasterSemaphore();
+    if (master.IsFree(tick)) {
+        return;
+    }
+    // The tick may still be recorded and not submitted: the GPU thread submits it on its own,
+    // so poll rather than wait on the semaphore. Give up after a while, never deadlock.
+    const auto give_up = std::chrono::steady_clock::now() + std::chrono::milliseconds{20};
+    while (true) {
+        master.Refresh();
+        if (master.IsFree(tick) || std::chrono::steady_clock::now() > give_up) {
+            return;
+        }
+        std::this_thread::yield();
+    }
+}
+
+bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, size_t size) {
+    if (host_mapped_size != 0) {
+        return true;
+    }
+    if (!device.IsExtExternalMemoryHostSupported() || base == nullptr || size == 0) {
+        return false;
+    }
+    const auto& dld = device.GetDispatchLoader();
+    const VkDevice handle = *device.GetLogical();
+    const auto get_properties = reinterpret_cast<PFN_vkGetMemoryHostPointerPropertiesEXT>(
+        dld.vkGetDeviceProcAddr(handle, "vkGetMemoryHostPointerPropertiesEXT"));
+    const auto get_requirements = reinterpret_cast<PFN_vkGetBufferMemoryRequirements>(
+        dld.vkGetDeviceProcAddr(handle, "vkGetBufferMemoryRequirements"));
+    if (!get_properties || !get_requirements) {
+        return false;
+    }
+    VkMemoryHostPointerPropertiesEXT pointer_properties{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT,
+    };
+    void* const pointer = const_cast<u8*>(base);
+    if (get_properties(handle, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, pointer,
+                       &pointer_properties) != VK_SUCCESS ||
+        pointer_properties.memoryTypeBits == 0) {
+        LOG_WARNING(Render_Vulkan, "Guest RAM can't be imported as device memory");
+        return false;
+    }
+    const VkBufferUsageFlags usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                     VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                                     VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    const VkExternalMemoryBufferCreateInfo external_info{
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+    };
+    std::vector<VkBuffer> windows;
+    const auto destroy_windows = [&] {
+        for (const VkBuffer window : windows) {
+            dld.vkDestroyBuffer(handle, window, nullptr);
+        }
+    };
+    u32 type_bits = pointer_properties.memoryTypeBits;
+    for (size_t start = 0; start < size; start += size_t{1} << HostMappedWindowBits) {
+        const size_t window_size =
+            std::min(size - start, (size_t{1} << HostMappedWindowBits) + HostMappedWindowTail);
+        const VkBufferCreateInfo buffer_info{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pNext = &external_info,
+            .flags = 0,
+            .size = window_size,
+            .usage = usage,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 0,
+            .pQueueFamilyIndices = nullptr,
+        };
+        VkBuffer window{};
+        if (dld.vkCreateBuffer(handle, &buffer_info, nullptr, &window) != VK_SUCCESS) {
+            destroy_windows();
+            return false;
+        }
+        windows.push_back(window);
+        VkMemoryRequirements requirements{};
+        get_requirements(handle, window, &requirements);
+        type_bits &= requirements.memoryTypeBits;
+    }
+    if (type_bits == 0) {
+        destroy_windows();
+        LOG_WARNING(Render_Vulkan, "No memory type fits guest RAM buffers");
+        return false;
+    }
+    const VkImportMemoryHostPointerInfoEXT import_info{
+        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT,
+        .pNext = nullptr,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+        .pHostPointer = pointer,
+    };
+    const VkMemoryAllocateInfo allocate_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &import_info,
+        .allocationSize = size,
+        .memoryTypeIndex = static_cast<u32>(std::countr_zero(type_bits)),
+    };
+    VkDeviceMemory memory{};
+    if (dld.vkAllocateMemory(handle, &allocate_info, nullptr, &memory) != VK_SUCCESS) {
+        destroy_windows();
+        LOG_WARNING(Render_Vulkan, "Importing {} MiB of guest RAM failed", size >> 20);
+        return false;
+    }
+    for (size_t i = 0; i < windows.size(); ++i) {
+        if (dld.vkBindBufferMemory(handle, windows[i], memory, i << HostMappedWindowBits) !=
+            VK_SUCCESS) {
+            destroy_windows();
+            dld.vkFreeMemory(handle, memory, nullptr);
+            return false;
+        }
+    }
+    host_mapped_memory = memory;
+    host_mapped_windows = std::move(windows);
+    host_mapped_base = base;
+    host_mapped_size = size;
+    host_mapped_ubo_alignment =
+        std::max<size_t>(16, static_cast<size_t>(device.GetUniformBufferAlignment()));
+    LOG_INFO(Render_Vulkan, "Guest RAM imported as device memory: {} MiB, {} windows",
+             size >> 20, host_mapped_windows.size());
+    return true;
 }
 
 u64 BufferCacheRuntime::GetDeviceLocalMemory() const {
