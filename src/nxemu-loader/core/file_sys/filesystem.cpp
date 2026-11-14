@@ -62,7 +62,7 @@ bool FileSystemController::RegisterProcess(FileSys::ProcessId process_id, FileSy
     return true;
 }
 
-void FileSystemController::SetPackedUpdate(FileSys::ProcessId process_id, FileSys::VirtualFile update_raw)
+void FileSystemController::SetPackedUpdate(FileSys::ProcessId process_id, FileSys::VirtualFile update_raw, u32 version)
 {
     LOG_TRACE(Service_FS, "Setting packed update for romfs");
 
@@ -72,7 +72,7 @@ void FileSystemController::SetPackedUpdate(FileSys::ProcessId process_id, FileSy
     {
         return;
     }
-    it->second.romfs_factory->SetPackedUpdate(std::move(update_raw));
+    it->second.romfs_factory->SetPackedUpdate(std::move(update_raw), version);
 }
 
 ISaveDataController * FileSystemController::OpenSaveDataController() const

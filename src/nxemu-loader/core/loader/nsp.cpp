@@ -35,19 +35,20 @@ AppLoader_NSP::AppLoader_NSP(FileSys::VirtualFile file_,
         secondary_loader = std::make_unique<AppLoader_DeconstructedRomDirectory>(
             nsp->GetExeFS(), false, file->GetName() == "hbl.nsp");
     } else {
-        const auto control_nca =
-            nsp->GetNCA(nsp->GetProgramTitleID(), LoaderContentRecordType::Control);
-        if (control_nca == nullptr || control_nca->GetStatus() != LoaderResultStatus::Success) {
-            return;
+        const auto program_file =
+            nsp->GetNCAFile(nsp->GetProgramTitleID(), LoaderContentRecordType::Program);
+        if (program_file != nullptr) {
+            secondary_loader = std::make_unique<AppLoader_NCA>(program_file);
         }
 
-        std::tie(nacp_file, icon_file) = [this, &content_provider, &control_nca, &fsc] {
-            const FileSys::PatchManager pm{nsp->GetProgramTitleID(), fsc, content_provider};
-            return pm.ParseControlNCA(*control_nca);
-        }();
-
-        secondary_loader = std::make_unique<AppLoader_NCA>(
-            nsp->GetNCAFile(nsp->GetProgramTitleID(), LoaderContentRecordType::Program));
+        const auto control_nca =
+            nsp->GetNCA(nsp->GetProgramTitleID(), LoaderContentRecordType::Control);
+        if (control_nca != nullptr && control_nca->GetStatus() == LoaderResultStatus::Success) {
+            std::tie(nacp_file, icon_file) = [this, &content_provider, &control_nca, &fsc] {
+                const FileSys::PatchManager pm{nsp->GetProgramTitleID(), fsc, content_provider};
+                return pm.ParseControlNCA(*control_nca);
+            }();
+        }
     }
 }
 
@@ -67,7 +68,14 @@ LoaderFileType AppLoader_NSP::IdentifyType(const FileSys::VirtualFile & nsp_file
 
         // Non-Extracted Type case
         const auto program_id = nsp.GetProgramTitleID();
-        if (!nsp.IsExtractedType() && nsp.GetNCA(program_id, LoaderContentRecordType::Program) != nullptr && AppLoader_NCA::IdentifyType(nsp.GetNCAFile(program_id, LoaderContentRecordType::Program)) == LoaderFileType::NCA)
+        const auto program_nca = nsp.GetNCA(program_id, LoaderContentRecordType::Program);
+        const bool usable_program = !nsp.IsExtractedType() && program_nca != nullptr &&
+            ((program_nca->GetStatus() == LoaderResultStatus::Success &&
+              program_nca->GetType() == FileSys::NCAContentType::Program) ||
+             (program_nca->HasRomFSSectionReadFailure() &&
+              program_nca->GetType() == FileSys::NCAContentType::Program &&
+              program_nca->GetExeFS() == nullptr));
+        if (usable_program)
         {
             return LoaderFileType::NSP;
         }
@@ -96,7 +104,14 @@ AppLoader_NSP::LoadResult AppLoader_NSP::Load(Systemloader & loader, ISystemModu
     }
 
     const auto nsp_program_status = nsp->GetProgramStatus();
-    if (nsp_program_status != LoaderResultStatus::Success)
+    const auto program_nca = nsp->IsExtractedType() ? nullptr :
+        nsp->GetNCA(title_id, LoaderContentRecordType::Program);
+    const bool use_enabled_update_exefs =
+        nsp_program_status == LoaderResultStatus::ErrorBadNCAHeader && program_nca != nullptr &&
+        program_nca->HasRomFSSectionReadFailure() &&
+        program_nca->GetType() == FileSys::NCAContentType::Program &&
+        program_nca->GetExeFS() == nullptr;
+    if (nsp_program_status != LoaderResultStatus::Success && !use_enabled_update_exefs)
     {
         return {nsp_program_status, {}};
     }
@@ -104,6 +119,18 @@ AppLoader_NSP::LoadResult AppLoader_NSP::Load(Systemloader & loader, ISystemModu
     if (!nsp->IsExtractedType() && nsp->GetNCA(title_id, LoaderContentRecordType::Program) == nullptr)
     {
         return {LoaderResultStatus::ErrorNSPMissingProgramNCA, {}};
+    }
+
+    if (!secondary_loader)
+    {
+        return {LoaderResultStatus::ErrorNSPMissingProgramNCA, {}};
+    }
+
+    const u32 update_version = nsp->GetTitleVersion(FileSys::GetUpdateTitleID(title_id));
+    FileSys::VirtualFile update_raw;
+    if (!nsp->IsExtractedType() && ReadUpdateRaw(update_raw) == LoaderResultStatus::Success)
+    {
+        static_cast<AppLoader_NCA*>(secondary_loader.get())->SetPackedUpdate(update_raw, update_version);
     }
 
     const auto result = secondary_loader->Load(loader, systemModules);
@@ -117,10 +144,9 @@ AppLoader_NSP::LoadResult AppLoader_NSP::Load(Systemloader & loader, ISystemModu
         UNIMPLEMENTED();
     }
 
-    FileSys::VirtualFile update_raw;
-    if (ReadUpdateRaw(update_raw) == LoaderResultStatus::Success && update_raw != nullptr)
+    if (update_raw != nullptr)
     {
-        loader.GetFileSystemController().SetPackedUpdate(result.second->process_id, std::move(update_raw));
+        loader.GetFileSystemController().SetPackedUpdate(result.second->process_id, std::move(update_raw), update_version);
     }
 
     is_loaded = true;
@@ -181,7 +207,7 @@ LoaderResultStatus AppLoader_NSP::ReadUpdateRaw(FileSys::VirtualFile& out_file)
         return LoaderResultStatus::ErrorNoPackedUpdate;
     }
 
-    const auto read = nsp->GetNCAFile(FileSys::GetUpdateTitleID(nsp->GetProgramTitleID()), LoaderContentRecordType::Program);
+    const auto read = nsp->GetNCAFile(FileSys::GetUpdateTitleID(nsp->GetProgramTitleID()), LoaderContentRecordType::Program, LoaderTitleType::Update);
 
     if (read == nullptr)
     {
@@ -189,7 +215,8 @@ LoaderResultStatus AppLoader_NSP::ReadUpdateRaw(FileSys::VirtualFile& out_file)
     }
 
     const auto nca_test = std::make_shared<FileSys::NCA>(read);
-    if (nca_test->GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS)
+    if (nca_test->GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS &&
+        nca_test->GetStatus() != LoaderResultStatus::Success)
     {
         return nca_test->GetStatus();
     }

@@ -27,10 +27,11 @@ class NCA;
 class RomFSFactory {
 public:
     explicit RomFSFactory(FileSys::VirtualFile file_, bool updatable_, ContentProvider& provider, FileSystemController& controller,
-                          std::shared_ptr<ContentProvider> provider_owner = {});
+                          std::shared_ptr<ContentProvider> provider_owner = {},
+                          std::shared_ptr<NCA> source_base_nca = {});
     ~RomFSFactory();
 
-    void SetPackedUpdate(VirtualFile packed_update_raw);
+    void SetPackedUpdate(VirtualFile packed_update_raw, u32 version = 0);
     // A RomFS that is not updatable still takes the user's LayeredFS mods (an NX archive
     // has applied its own update already).
     void SetApplyMods(bool apply) { apply_mods = apply; }
@@ -43,6 +44,7 @@ public:
 private:
     VirtualFile file;
     VirtualFile packed_update_raw;
+    u32 packed_update_version{};
 
     VirtualFile base;
 
@@ -51,6 +53,7 @@ private:
 
     ContentProvider& content_provider;
     std::shared_ptr<ContentProvider> provider_owner;
+    std::shared_ptr<NCA> source_base_nca;
     FileSystemController & filesystem_controller;
 };
 

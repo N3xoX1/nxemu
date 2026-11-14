@@ -33,7 +33,7 @@ public:
     ~FileSystemController();
 
     bool RegisterProcess(FileSys::ProcessId process_id, FileSys::ProgramId program_id, std::shared_ptr<FileSys::RomFSFactory>&& romfs_factory);
-    void SetPackedUpdate(FileSys::ProcessId process_id, FileSys::VirtualFile update_raw);
+    void SetPackedUpdate(FileSys::ProcessId process_id, FileSys::VirtualFile update_raw, u32 version = 0);
 
     FileSys::RegisteredCache * SystemNANDContents() const;
     FileSys::RegisteredCache * UserNANDContents() const;

@@ -40,6 +40,8 @@ public:
 
     LoadResult Load(Systemloader & loader, ISystemModules & systemModules) override;
 
+    void SetPackedUpdate(FileSys::VirtualFile file, u32 version = 0);
+
     LoaderResultStatus VerifyIntegrity(std::function<bool(size_t, size_t)> progress_callback) override;
 
     LoaderResultStatus ReadRomFS(FileSys::VirtualFile& dir) override;
@@ -51,7 +53,11 @@ public:
     LoaderResultStatus ReadNSOModules(Modules& modules) override;
 
 private:
-    std::unique_ptr<FileSys::NCA> nca;
+    // The RomFS factory can need this base NCA to resolve a BKTR update after
+    // the loader has returned.
+    std::shared_ptr<FileSys::NCA> nca;
+    FileSys::VirtualFile packed_update;
+    u32 packed_update_version{};
     std::unique_ptr<AppLoader_DeconstructedRomDirectory> directory_loader;
 };
 

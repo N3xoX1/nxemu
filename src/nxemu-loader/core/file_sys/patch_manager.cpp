@@ -391,72 +391,99 @@ uint64_t PatchManager::GetTitleID() const
     return title_id;
 }
 
-VirtualDir PatchManager::PatchExeFS(VirtualDir exefs, bool apply_update) const
+PatchManager::UpdateSelection PatchManager::SelectUpdate(
+    LoaderContentRecordType type, bool apply_update, VirtualFile packed_update, u32 packed_version,
+    const std::vector<std::string>& disabled) const
+{
+    if (!apply_update)
+    {
+        return {};
+    }
+    const auto update_tid = GetUpdateTitleID(title_id);
+    if (const auto* manual = content_provider.GetManualContentProvider())
+    {
+        const auto versions = manual->ListUpdateVersions(update_tid);
+        if (!versions.empty())
+        {
+            for (const auto& entry : versions)
+            {
+                if (!IsVersionedUpdateDisabled(disabled, entry.version))
+                {
+                    return {manual->GetEntryForVersion(update_tid, type, entry.version), entry.version, true};
+                }
+            }
+            return {};
+        }
+    }
+    if (auto file = content_provider.GetEntryRaw(update_tid, type))
+    {
+        const auto version = content_provider.GetEntryVersion(update_tid).value_or(0);
+        return IsVersionedUpdateDisabled(disabled, version) ? UpdateSelection{} :
+            UpdateSelection{std::move(file), version, true};
+    }
+    if (!packed_update)
+    {
+        return {};
+    }
+    return IsVersionedUpdateDisabled(disabled, packed_version) ? UpdateSelection{} :
+        UpdateSelection{std::move(packed_update), packed_version, true};
+}
+
+VirtualDir PatchManager::PatchExeFS(VirtualDir exefs, bool apply_update,
+                                   VirtualFile packed_update_raw, u32 packed_update_version) const
 {
     LOG_INFO(Loader, "Patching ExeFS for title_id={:016X}", title_id);
 
+    const auto disabled = GetDisabledAddOns(title_id, fs_controller);
+    const auto selected = SelectUpdate(LoaderContentRecordType::Program, apply_update,
+                                       std::move(packed_update_raw), packed_update_version, disabled);
+    if (selected.selected && selected.file == nullptr)
+    {
+        LOG_ERROR(Loader, "Selected update {} is missing its program NCA", selected.version);
+        return nullptr;
+    }
+    if (selected.file != nullptr)
+    {
+        const NCA update(selected.file);
+        if ((update.GetStatus() != LoaderResultStatus::Success &&
+             update.GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS) ||
+            update.GetType() != NCAContentType::Program)
+        {
+            LOG_ERROR(Loader, "Selected update {} has an unreadable program NCA", selected.version);
+            return nullptr;
+        }
+
+        const auto update_exefs = update.GetExeFS();
+        if (update_exefs == nullptr)
+        {
+            if (update.HasExeFSSection())
+            {
+                LOG_ERROR(Loader, "Selected update {} has an unreadable ExeFS partition", selected.version);
+                return nullptr;
+            }
+            // RomFS-only updates do not replace the executable. The base
+            // ExeFS is still required; never boot an update-only sparse base.
+            if (exefs == nullptr || !IsDirectoryExeFS(exefs))
+            {
+                LOG_ERROR(Loader, "Selected update {} and base have no usable ExeFS", selected.version);
+                return nullptr;
+            }
+            LOG_INFO(Loader, "    ExeFS: Update ({}) does not replace base ExeFS", FormatTitleVersion(selected.version));
+        }
+        else
+        {
+            if (!IsDirectoryExeFS(update_exefs))
+            {
+                LOG_ERROR(Loader, "Selected update {} has an invalid ExeFS", selected.version);
+                return nullptr;
+            }
+            LOG_INFO(Loader, "    ExeFS: Update ({}) applied successfully", FormatTitleVersion(selected.version));
+            exefs = update_exefs;
+        }
+    }
     if (exefs == nullptr)
     {
-        return exefs;    
-    }
-
-    const std::vector<std::string> disabled = GetDisabledAddOns(title_id, fs_controller);
-    const uint64_t update_tid = GetUpdateTitleID(title_id);
-    const ManualContentProvider * manual_provider = content_provider.GetManualContentProvider();
-
-    bool update_disabled = true;
-    std::optional<u32> enabled_version;
-    bool checked_manual = false;
-
-    if (manual_provider != nullptr)
-    {
-        const std::vector<ManualUpdateEntry> update_versions = manual_provider->ListUpdateVersions(update_tid);
-        if (!update_versions.empty())
-        {
-            checked_manual = true;
-            for (const ManualUpdateEntry & update_entry : update_versions)
-            {
-                if (!IsVersionedUpdateDisabled(disabled, update_entry.version))
-                {
-                    update_disabled = false;
-                    enabled_version = update_entry.version;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (!checked_manual)
-    {
-        update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
-    }
-    if (!apply_update)
-    {
-        update_disabled = true;
-        enabled_version.reset();
-    }
-
-    std::unique_ptr<NCA> update;
-    if (enabled_version.has_value() && manual_provider != nullptr)
-    {
-        VirtualFile file = manual_provider->GetEntryForVersion(update_tid, LoaderContentRecordType::Program,
-                                                              *enabled_version);
-        if (file != nullptr)
-        {
-            update = std::make_unique<NCA>(file);
-        }
-    }
-
-    if (update == nullptr && !update_disabled)
-    {
-        update = content_provider.GetEntryNCA(update_tid, LoaderContentRecordType::Program);
-    }
-
-    if (!update_disabled && update != nullptr && update->GetExeFS() != nullptr)
-    {
-        const u32 version = enabled_version.value_or(content_provider.GetEntryVersion(update_tid).value_or(0));
-        LOG_INFO(Loader, "    ExeFS: Update ({}) applied successfully", FormatTitleVersion(version));
-        exefs = update->GetExeFS();
+        return nullptr;
     }
 
     // LayeredExeFS
@@ -774,7 +801,7 @@ static void ApplyLayeredFS(VirtualFile & romfs, uint64_t title_id, LoaderContent
     romfs = std::move(packed);
 }
 
-VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romfs, LoaderContentRecordType type, VirtualFile packed_update_raw, bool apply_layeredfs, bool apply_update) const
+VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romfs, LoaderContentRecordType type, VirtualFile packed_update_raw, bool apply_layeredfs, bool apply_update, u32 packed_update_version) const
 {
     const auto log_string = fmt::format("Patching RomFS for title_id={:016X}, type={:02X}", title_id, static_cast<u8>(type));
     if (type == LoaderContentRecordType::Program || type == LoaderContentRecordType::Data)
@@ -788,72 +815,28 @@ VirtualFile PatchManager::PatchRomFS(const NCA * base_nca, VirtualFile base_romf
 
     VirtualFile romfs = base_romfs;
 
-    // Game Updates
-    const uint64_t update_tid = GetUpdateTitleID(title_id);
-    const std::vector<std::string> disabled = GetDisabledAddOns(title_id, fs_controller);
-    const ManualContentProvider * manual_provider = content_provider.GetManualContentProvider();
-
-    bool update_disabled = true;
-    std::optional<u32> enabled_version;
-    bool checked_manual = false;
-    VirtualFile update_raw;
-
-    if (manual_provider != nullptr)
+    const auto disabled = GetDisabledAddOns(title_id, fs_controller);
+    const auto selected = SelectUpdate(type, apply_update, std::move(packed_update_raw),
+                                       packed_update_version, disabled);
+    if (selected.file != nullptr && base_nca != nullptr)
     {
-        const auto update_versions = manual_provider->ListUpdateVersions(update_tid);
-        if (!update_versions.empty())
+        const NCA patched(selected.file, base_nca);
+        if (patched.GetStatus() == LoaderResultStatus::Success)
         {
-            checked_manual = true;
-            for (const auto & update_entry : update_versions)
+            // A code-only update legitimately has no RomFS; retain the base data.
+            if (patched.RomFS() != nullptr)
             {
-                if (!IsVersionedUpdateDisabled(disabled, update_entry.version))
-                {
-                    update_disabled = false;
-                    enabled_version = update_entry.version;
-                    update_raw = manual_provider->GetEntryForVersion(update_tid, type, update_entry.version);
-                    break;
-                }
+                LOG_INFO(Loader, "    RomFS: Update ({}) applied successfully", FormatTitleVersion(selected.version));
+                romfs = patched.RomFS();
             }
         }
-    }
-
-    if (!checked_manual)
-    {
-        update_disabled = std::find(disabled.cbegin(), disabled.cend(), "Update") != disabled.cend();
-        update_raw = content_provider.GetEntryRaw(update_tid, type);
-    }
-    else if (update_raw == nullptr && !update_disabled)
-    {
-        update_raw = content_provider.GetEntryRaw(update_tid, type);
-    }
-    if (!apply_update)
-    {
-        update_disabled = true;
-    }
-
-    if (!update_disabled && update_raw != nullptr && base_nca != nullptr)
-    {
-        const auto new_nca = std::make_shared<NCA>(update_raw, base_nca);
-        if (new_nca->GetStatus() == LoaderResultStatus::Success &&
-            new_nca->RomFS() != nullptr)
+        else
         {
-            const u32 version = enabled_version.value_or(content_provider.GetEntryVersion(update_tid).value_or(0));
-            LOG_INFO(Loader, "    RomFS: Update ({}) applied successfully", FormatTitleVersion(version));
-            romfs = new_nca->RomFS();
-        }
-    }
-    else if (!update_disabled && packed_update_raw != nullptr && base_nca != nullptr)
-    {
-        const auto new_nca = std::make_shared<NCA>(packed_update_raw, base_nca);
-        if (new_nca->GetStatus() == LoaderResultStatus::Success &&
-            new_nca->RomFS() != nullptr)
-        {
-            LOG_INFO(Loader, "    RomFS: Update (PACKED) applied successfully");
-            romfs = new_nca->RomFS();
+            LOG_ERROR(Loader, "Cannot apply selected update {} to base RomFS", selected.version);
+            return nullptr;
         }
     }
 
-    // LayeredFS
     if (apply_layeredfs)
     {
         ApplyLayeredFS(romfs, title_id, type, fs_controller);

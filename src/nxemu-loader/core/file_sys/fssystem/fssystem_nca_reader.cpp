@@ -46,7 +46,8 @@ Result NcaReader::Initialize(VirtualFile base_storage, const NcaCompressionConfi
     VirtualFile work_header_storage;
 
     // Read the header.
-    base_storage->ReadObject(std::addressof(m_header), 0);
+    R_UNLESS(base_storage->ReadObject(std::addressof(m_header), 0) == sizeof(m_header),
+             ResultInvalidNcaSignature);
     const Result magic_result = CheckNcaMagic(m_header.magic);
     R_UNLESS(R_SUCCEEDED(magic_result), magic_result);
 
@@ -222,7 +223,8 @@ Result NcaReader::ReadHeader(NcaFsHeader* dst, s32 index) const {
     ASSERT(0 <= index && index < NcaHeader::FsCountMax);
 
     const s64 offset = sizeof(NcaHeader) + sizeof(NcaFsHeader) * index;
-    m_header_storage->ReadObject(dst, offset);
+    R_UNLESS(m_header_storage->ReadObject(dst, offset) == sizeof(*dst),
+             ResultInvalidNcaSignature);
 
     R_SUCCEED();
 }

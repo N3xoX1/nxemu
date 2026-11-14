@@ -335,6 +335,15 @@ std::string EmulatorSession::LoadFailureMessage(const std::string & path) const
     {
         return Tr("This game has no usable executable (ExeFS).\n\nIf this copy requires an update, add its folder in Settings > Game directories, then enable the update in the game's details. If an update is already enabled, check that its files are complete and readable.\n\nGame: %1", {path});
     }
+    if (result == LoaderResultStatus::ErrorBadNCAHeader)
+    {
+        return Tr("A game content file has an invalid or unreadable NCA header or filesystem. Check the base game and update files.\n\nGame: %1", {path});
+    }
+    if (result == LoaderResultStatus::ErrorNSPMissingProgramNCA ||
+        result == LoaderResultStatus::ErrorXCIMissingProgramNCA)
+    {
+        return Tr("This package has no usable base program. Select the base game, and keep its required update enabled.\n\nGame: %1", {path});
+    }
     if (result != LoaderResultStatus::ErrorNotInitialized)
     {
         return Tr("Could not load the game:\n%1\n\nLoader error: %2. Check that the game files are complete and that the required keys and firmware are available.", {path, std::to_string(static_cast<int>(result))});
