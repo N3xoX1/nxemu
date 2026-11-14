@@ -247,6 +247,11 @@ Choices NXShaderDurations()
     return choices;
 }
 
+Choices OverlayStyles()
+{
+    return {Numbered(Tr("Compact"), 0, {}), Numbered(Tr("Normal"), 1, {})};
+}
+
 Choices OverlaySizes()
 {
     Choices choices;
@@ -299,6 +304,7 @@ constexpr List kLists[] = {
     {"applet-login-share", NXOsSetting::LoginShareAppletMode, false, AppletModes},
     {"applet-wifi-web-auth", NXOsSetting::WifiWebAuthAppletMode, false, AppletModes},
     {"applet-my-page", NXOsSetting::MyPageAppletMode, false, AppletModes},
+    {"perf-style", NXUISetting::PerformanceStyle, true, OverlayStyles, true},
     {"perf-size", NXUISetting::PerformanceSize, true, OverlaySizes, true},
     {"perf-rate", NXUISetting::PerformanceRate, true, OverlayRates, true},
     {"perf-length", NXUISetting::PerformanceHistoryLength, true, OverlayLengths, true},

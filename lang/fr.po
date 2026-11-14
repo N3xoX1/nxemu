@@ -4492,3 +4492,12 @@ msgstr "Contraste (CAS)"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "Contrast (RCAS)"
 msgstr "Contraste (RCAS)"
+
+msgid "Compact"
+msgstr "Compact"
+
+msgid "Layout"
+msgstr "Disposition"
+
+msgid "Compact uses the original performance bar"
+msgstr "Compact utilise la barre de performances d’origine"

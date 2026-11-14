@@ -12,6 +12,7 @@
 #include <nxemu/ui/host/process_usage.h>
 #include <nxemu/settings/ui_settings.h>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace
@@ -62,13 +63,24 @@ std::string Plain(const char * className)
     return std::string("<div class=\"perf-value ") + className + "\">" + kUnknown + "</div>";
 }
 
+std::string FpsCell(const char * className, const char * label)
+{
+    return std::string("<div class=\"perf-fps-cell\"><div class=\"perf-fps-label\">") + label + "</div>" + Plain(className) + "</div>";
+}
+
 struct Rows
 {
+    bool compact;
     std::string labels;
     std::string values;
 
     void Add(const std::string & label, const char * group, const std::string & content, bool tall = false)
     {
+        if (compact)
+        {
+            values += content;
+            return;
+        }
         const std::string size = tall ? " tall" : "";
         labels += std::string("<div class=\"perf-label ") + group + size + "\">" + Rml::StringUtilities::EncodeRml(label) + "</div>";
         values += "<div class=\"perf-values" + size + "\">" + content + "</div>";
@@ -77,6 +89,7 @@ struct Rows
 
 std::string Bytes(uint64_t bytes)
 {
+    if (bytes == 0) return kUnknown;
     constexpr double kMegabyte = 1024.0 * 1024.0;
     constexpr double kGigabyte = kMegabyte * 1024.0;
     return bytes >= kGigabyte ? Tr("%1 GB", {Number("%.1f", bytes / kGigabyte)}) : Tr("%1 MB", {Number("%.0f", bytes / kMegabyte)});
@@ -136,9 +149,14 @@ PerformanceOverlay::PerformanceOverlay(Rml::Element * root) :
 {
 }
 
+bool PerformanceOverlay::Compact()
+{
+    return uiSettings.performanceStyle != 1;
+}
+
 bool PerformanceOverlay::Has(PerformanceItem item)
 {
-    return Setting(item);
+    return (!Compact() || item <= PerformanceItem::Lows) && Setting(item);
 }
 
 bool PerformanceOverlay::WantsMachine()
@@ -178,7 +196,7 @@ void PerformanceOverlay::Refresh()
         m_size = Size();
         m_root->SetProperty(Rml::PropertyId::FontSize, Rml::Property(kFontSize * static_cast<float>(m_size) / kUsualSize, Rml::Unit::DP));
     }
-    if (Items() == m_items && static_cast<size_t>(Length()) == m_length)
+    if (Compact() == m_compact && Items() == m_items && static_cast<size_t>(Length()) == m_length)
     {
         return;
     }
@@ -221,8 +239,12 @@ void PerformanceOverlay::Build()
 {
     m_length = static_cast<size_t>(Length());
     m_items = Items();
-    std::string rml = "<div class=\"perf-head\">" + Value("perf-fps", "FPS") + "<div class=\"perf-unlocked\">&#8734;</div><div class=\"perf-shaders\" /></div>";
-    Rows rows;
+    m_compact = Compact();
+    m_root->SetClass("compact", m_compact);
+    std::string rml = (m_compact ? "<div class=\"perf-unit\">FPS</div>" + Plain("perf-fps") : Value("perf-fps", "FPS")) + "<div class=\"perf-unlocked\">&#8734;</div>";
+    std::string fpsCells;
+    if (!m_compact) rml = "<div class=\"perf-head\">" + rml + "<div class=\"perf-shaders\" /></div>";
+    Rows rows{m_compact, {}, {}};
     if (Has(PerformanceItem::History))
     {
         std::string graph = "<div class=\"perf-graph\">";
@@ -237,12 +259,20 @@ void PerformanceOverlay::Build()
         std::string range;
         for (const char * part : {"low", "mean", "high"})
         {
-            range += std::string("<div class=\"perf-mark ") + part + "\" /><div class=\"perf-" + part + "\">" + kUnknown + "</div>";
+            if (m_compact)
+            {
+                const char * label = std::string_view(part) == "low" ? "min" : std::string_view(part) == "mean" ? "avg" : "max";
+                fpsCells += FpsCell((std::string("perf-") + part).c_str(), label);
+            }
+            else
+            {
+                range += std::string("<div class=\"perf-mark ") + part + "\" /><div class=\"perf-" + part + "\">" + kUnknown + "</div>";
+            }
         }
-        rows.Add(Tr("Lowest, average and highest"), "game", range);
+        if (!m_compact) rows.Add(Tr("Lowest, average and highest"), "game", range);
     }
     if (Has(PerformanceItem::FrameTime)) rows.Add(Tr("Frame time"), "game", Value("perf-time", "ms"));
-    if (Has(PerformanceItem::Longest)) rows.Add(Tr("Longest frame"), "game", Value("perf-longest", "ms"));
+    if (Has(PerformanceItem::Longest)) rows.Add(Tr("Longest frame"), "game", m_compact ? Plain("perf-longest") + "<div class=\"perf-unit perf-stacked-unit\">ms<br />max</div>" : Value("perf-longest", "ms"));
     if (Has(PerformanceItem::Speed)) rows.Add(Tr("Emulation speed"), "game", Value("perf-speed", "%"));
     if (Has(PerformanceItem::FrameGraph))
     {
@@ -255,12 +285,13 @@ void PerformanceOverlay::Build()
     }
     if (Has(PerformanceItem::Lows))
     {
-        rows.Add(Tr("1% low"), "game", Value("perf-low-1", "FPS"));
-        rows.Add(Tr("0.1% low"), "game", Value("perf-low-01", "FPS"));
+        if (m_compact) fpsCells += FpsCell("perf-low-1", "1% low");
+        else rows.Add(Tr("1% low"), "game", Value("perf-low-1", "FPS"));
+        if (!m_compact) rows.Add(Tr("0.1% low"), "game", Value("perf-low-01", "FPS"));
     }
     if (Has(PerformanceItem::GpuTime)) rows.Add(Tr("GPU time"), "time", Value("perf-gpu-time", "ms"));
-    if (Has(PerformanceItem::Processor)) rows.Add(Tr("Emulator CPU"), "process", Value("perf-cpu", "%"));
-    if (Has(PerformanceItem::Memory)) rows.Add(Tr("Emulator RAM"), "process", Plain("perf-memory"));
+    if (Has(PerformanceItem::Processor)) rows.Add(Tr("Emulator CPU"), "process", Value("perf-cpu", m_compact ? "% CPU" : "%"));
+    if (Has(PerformanceItem::Memory)) rows.Add(Tr("Emulator RAM"), "process", m_compact ? Value("perf-memory", "RAM") : Plain("perf-memory"));
     if (Has(PerformanceItem::Graphics))
     {
         rows.Add("GPU", "gpu", Plain("perf-gpu"));
@@ -271,7 +302,11 @@ void PerformanceOverlay::Build()
         rows.Add(Tr("System CPU"), "system", Plain("perf-system-cpu"));
         rows.Add(Tr("System RAM"), "system", Plain("perf-system-ram"));
     }
-    if (!rows.labels.empty())
+    if (m_compact)
+    {
+        rml = "<div class=\"perf-fps-group\">" + rml + fpsCells + "</div>" + rows.values + "<div class=\"perf-shaders\" />";
+    }
+    else if (!rows.labels.empty())
     {
         rml += "<div class=\"perf-table\"><div class=\"perf-labels\">" + rows.labels + "</div><div class=\"perf-cells\">" + rows.values + "</div></div>";
     }
@@ -345,7 +380,7 @@ void PerformanceOverlay::Render()
     SetText(m_root, "perf-longest", Number("%.0f", m_stats.longest_game_frame * 1000.0));
     SetText(m_root, "perf-speed", Number("%.0f", m_stats.emulation_speed * 100.0));
     SetText(m_root, "perf-cpu", m_cpuShare < 0.0 ? kUnknown : Number("%.0f", m_cpuShare * 100.0));
-    SetText(m_root, "perf-memory", Share(m_memory, static_cast<uint64_t>(std::max(0, SDL_GetSystemRAM())) * 1024 * 1024));
+    SetText(m_root, "perf-memory", m_compact ? Bytes(m_memory) : Share(m_memory, static_cast<uint64_t>(std::max(0, SDL_GetSystemRAM())) * 1024 * 1024));
     m_root->SetClass("stutter", m_hitches[m_count - 1] == Hitch::Stutter);
     m_root->SetClass("freeze", m_hitches[m_count - 1] == Hitch::Freeze);
     m_root->SetClass("unlocked", m_unlocked);
@@ -445,7 +480,7 @@ void PerformanceOverlay::RenderDetails()
         if (height != m_frameHeights[i])
         {
             m_frameHeights[i] = height;
-            bar->SetProperty(Rml::PropertyId::Height, Rml::Property(kGraphHeight * 2.0f * static_cast<float>(height) / kFrameSteps, Rml::Unit::EM));
+            bar->SetProperty(Rml::PropertyId::Height, Rml::Property(kGraphHeight * (m_compact ? 1.0f : 2.0f) * static_cast<float>(height) / kFrameSteps, Rml::Unit::EM));
         }
         const uint8_t hitch = static_cast<uint8_t>(i >= shown ? Hitch::None : time >= kFreeze * 1000.0 ? Hitch::Freeze : time > mean * kStutterRatio ? Hitch::Stutter : Hitch::None);
         if (hitch != m_frameHitches[i])

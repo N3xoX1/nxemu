@@ -750,6 +750,13 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Layout</div>
+                      <div class="row-text">Compact uses the original performance bar</div>
+                    </div>
+                    <select id="perf-style" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Size</div>
                     </div>
                     <select id="perf-size" />
