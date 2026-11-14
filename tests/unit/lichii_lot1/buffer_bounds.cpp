@@ -104,6 +104,10 @@ struct BufferCache
     Notifications memory_tracker, device_memory, runtime, untracked_gpu_writes,
         gpu_write_history, gpu_modified_ranges, uncommitted_gpu_modified_ranges;
     unsigned changed{}, uploads{}, cleared{};
+    void MarkGpuWriteHistory(DAddr address, u64 size)
+    {
+        gpu_write_history.Mark(address, size);
+    }
     void MarkBufferContentChanged(Buffer &, DAddr, u64)
     {
         ++changed;
@@ -186,4 +190,5 @@ int main()
     cache.MarkWrittenBuffer(1, 65536, 16);
     Require(cache.memory_tracker.calls == 2 && cache.device_memory.calls == 1);
     Require(cache.changed == 1 && cache.runtime.calls == 1);
+    Require(cache.gpu_write_history.calls == 1);
 }
