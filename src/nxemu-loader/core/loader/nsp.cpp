@@ -67,7 +67,13 @@ LoaderFileType AppLoader_NSP::IdentifyType(const FileSys::VirtualFile & nsp_file
 
         // Non-Extracted Type case
         const auto program_id = nsp.GetProgramTitleID();
-        if (!nsp.IsExtractedType() && nsp.GetNCA(program_id, LoaderContentRecordType::Program) != nullptr && AppLoader_NCA::IdentifyType(nsp.GetNCAFile(program_id, LoaderContentRecordType::Program)) == LoaderFileType::NCA)
+        const auto program_nca = nsp.GetNCA(program_id, LoaderContentRecordType::Program);
+        const bool usable_program = program_nca != nullptr &&
+            (AppLoader_NCA::IdentifyType(nsp.GetNCAFile(program_id, LoaderContentRecordType::Program)) == LoaderFileType::NCA ||
+             (program_nca->GetStatus() == LoaderResultStatus::ErrorBadNCAHeader &&
+              program_nca->GetType() == FileSys::NCAContentType::Program &&
+              program_nca->GetExeFS() == nullptr));
+        if (!nsp.IsExtractedType() && usable_program)
         {
             return LoaderFileType::NSP;
         }
@@ -96,7 +102,12 @@ AppLoader_NSP::LoadResult AppLoader_NSP::Load(Systemloader & loader, ISystemModu
     }
 
     const auto nsp_program_status = nsp->GetProgramStatus();
-    if (nsp_program_status != LoaderResultStatus::Success)
+    const auto program_nca = nsp->GetNCA(title_id, LoaderContentRecordType::Program);
+    const bool use_enabled_update_exefs =
+        nsp_program_status == LoaderResultStatus::ErrorBadNCAHeader && program_nca != nullptr &&
+        program_nca->GetType() == FileSys::NCAContentType::Program &&
+        program_nca->GetExeFS() == nullptr;
+    if (nsp_program_status != LoaderResultStatus::Success && !use_enabled_update_exefs)
     {
         return {nsp_program_status, {}};
     }

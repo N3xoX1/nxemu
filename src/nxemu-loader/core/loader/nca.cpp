@@ -43,7 +43,13 @@ AppLoader_NCA::LoadResult AppLoader_NCA::Load(Systemloader & loader, ISystemModu
     }
 
     const auto result = nca->GetStatus();
-    if (result != LoaderResultStatus::Success)
+    // A sparse base can have a RomFS section that is incomplete until its
+    // enabled BKTR update is applied. Keep the program candidate loadable so
+    // the update's standalone ExeFS can supply the executable below.
+    const bool may_use_enabled_update_exefs =
+        result == LoaderResultStatus::ErrorBadNCAHeader &&
+        nca->GetType() == FileSys::NCAContentType::Program && nca->GetExeFS() == nullptr;
+    if (result != LoaderResultStatus::Success && !may_use_enabled_update_exefs)
     {
         return {result, {}};
     }
