@@ -2249,6 +2249,7 @@ body.compact .volume-range
 
 .perf-stacked-unit
 {
+    text-align: center;
     line-height: 1em;
 }
 

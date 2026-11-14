@@ -272,7 +272,8 @@ void PerformanceOverlay::Build()
         if (!m_compact) rows.Add(Tr("Lowest, average and highest"), "game", range);
     }
     if (Has(PerformanceItem::FrameTime)) rows.Add(Tr("Frame time"), "game", Value("perf-time", "ms"));
-    if (Has(PerformanceItem::Longest)) rows.Add(Tr("Longest frame"), "game", m_compact ? Plain("perf-longest") + "<div class=\"perf-unit perf-stacked-unit\">ms<br />max</div>" : Value("perf-longest", "ms"));
+    const std::string longest = m_compact ? Plain("perf-longest") + "<div class=\"perf-unit perf-stacked-unit\">ms<br />max</div>" : Value("perf-longest", "ms");
+    if (!m_compact && Has(PerformanceItem::Longest)) rows.Add(Tr("Longest frame"), "game", longest);
     if (Has(PerformanceItem::Speed)) rows.Add(Tr("Emulation speed"), "game", Value("perf-speed", "%"));
     if (Has(PerformanceItem::FrameGraph))
     {
@@ -283,6 +284,7 @@ void PerformanceOverlay::Build()
         }
         rows.Add(Tr("Frame time history"), "game", graph + "</div>", true);
     }
+    if (m_compact && Has(PerformanceItem::Longest)) rows.values += longest;
     if (Has(PerformanceItem::Lows))
     {
         if (m_compact) fpsCells += FpsCell("perf-low-1", "1% low");
