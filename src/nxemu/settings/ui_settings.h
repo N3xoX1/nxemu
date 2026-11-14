@@ -39,6 +39,12 @@ struct UISettings
     bool performanceSpeed;
     bool performanceProcessor;
     bool performanceMemory;
+    bool performanceFrameGraph;
+    bool performanceLows;
+    bool performanceGpuTime;
+    bool performanceGraphics;
+    bool performanceSystem;
+    bool performanceHardware;
     int32_t performanceSize;
     int32_t performanceRate;
     int32_t performanceHistoryLength;

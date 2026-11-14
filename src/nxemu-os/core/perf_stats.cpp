@@ -88,6 +88,11 @@ void PerfStats::EndGameFrame() {
         return;
     }
     const Clock::rep length = now - previous;
+    const u32 index = game_frame_times_written.load(std::memory_order_relaxed);
+    game_frame_times[index % game_frame_times.size()].store(
+        std::chrono::duration<float, std::milli>(Clock::duration{length}).count(),
+        std::memory_order_relaxed);
+    game_frame_times_written.store(index + 1, std::memory_order_release);
     Clock::rep longest = longest_game_frame.load(std::memory_order_relaxed);
     while (length > longest &&
            !longest_game_frame.compare_exchange_weak(longest, length, std::memory_order_relaxed)) {
@@ -98,7 +103,26 @@ void PerfStats::MeasureGameFrames(bool measure) {
     if (measure_game_frames.exchange(measure, std::memory_order_relaxed) != measure) {
         last_game_frame.store(0, std::memory_order_relaxed);
         longest_game_frame.store(0, std::memory_order_relaxed);
+        std::scoped_lock lock{object_mutex};
+        game_frame_times_read = game_frame_times_written.load(std::memory_order_relaxed);
     }
+}
+
+void PerfStats::RestartGameFrames() {
+    last_game_frame.store(0, std::memory_order_relaxed);
+}
+
+u32 PerfStats::GameFrameTimes(float* times, u32 max_count) {
+    std::scoped_lock lock{object_mutex};
+    const u32 written = game_frame_times_written.load(std::memory_order_acquire);
+    const u32 count = std::min({written - game_frame_times_read, max_count,
+                                static_cast<u32>(game_frame_times.size())});
+    for (u32 i = 0; i < count; i++) {
+        times[i] = game_frame_times[(written - count + i) % game_frame_times.size()].load(
+            std::memory_order_relaxed);
+    }
+    game_frame_times_read = written;
+    return count;
 }
 
 double PerfStats::GetMeanFrametime() const {

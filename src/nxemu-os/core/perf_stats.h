@@ -28,6 +28,8 @@ public:
     void EndSystemFrame();
     void EndGameFrame();
     void MeasureGameFrames(bool measure);
+    void RestartGameFrames();
+    u32 GameFrameTimes(float* times, u32 max_count);
 
     PerfStatsResults GetAndResetStats(std::chrono::microseconds current_system_time_us);
 
@@ -67,6 +69,9 @@ private:
     std::atomic<bool> measure_game_frames = false;
     std::atomic<Clock::rep> last_game_frame = 0;
     std::atomic<Clock::rep> longest_game_frame = 0;
+    std::array<std::atomic<float>, 1024> game_frame_times{};
+    std::atomic<u32> game_frame_times_written = 0;
+    u32 game_frame_times_read = 0;
 
     /// Point when the previous system frame ended
     Clock::time_point previous_frame_end = reset_point;

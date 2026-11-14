@@ -312,6 +312,8 @@ nxinterface IVideo
                                       ShaderProfileResult & result, char * error, uint32_t error_size) = 0;
     // Latest display composition geometry; no GPU wait and no applet-capture state.
     virtual VideoPresentationState GetPresentationState() = 0;
+    virtual void MeasureGpuTime(bool measure) = 0;
+    virtual uint64_t GpuTimeNs() = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);

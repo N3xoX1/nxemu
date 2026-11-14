@@ -58,6 +58,9 @@
             <div id="tab-button-debug-applets" class="settings-tab" data-command="tab:debug-applets"><img src="images/view-grid.png" />
               <div>Applets</div>
             </div>
+            <div id="tab-button-debug-overlay" class="settings-tab global-only" data-command="tab:debug-overlay"><img src="images/clock.png" />
+              <div>Performance overlay</div>
+            </div>
             <div id="tab-button-debug-log" class="settings-tab global-only" data-command="tab:debug-log"><img src="images/log.png" />
               <div>Log</div>
             </div>
@@ -617,6 +620,152 @@
                       <div class="row-label">My page</div>
                     </div>
                     <select id="applet-my-page" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="tab-debug-overlay" class="tab-page">
+            <div class="cards-page">
+              <div class="cards-column">
+                <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/clock.png" />
+                    <div>Performance overlay</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Frame time</div>
+                    </div>
+                    <div id="perf-frame-time" class="switch" data-command="toggle:perf-frame-time">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Longest frame</div>
+                    </div>
+                    <div id="perf-longest" class="switch" data-command="toggle:perf-longest">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Emulation speed</div>
+                    </div>
+                    <div id="perf-speed" class="switch" data-command="toggle:perf-speed">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">History</div>
+                    </div>
+                    <div id="perf-history" class="switch" data-command="toggle:perf-history">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Lowest, average and highest</div>
+                    </div>
+                    <div id="perf-range" class="switch" data-command="toggle:perf-range">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Frame time history</div>
+                    </div>
+                    <div id="perf-frame-graph" class="switch" data-command="toggle:perf-frame-graph">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">1% and 0.1% lows</div>
+                    </div>
+                    <div id="perf-lows" class="switch" data-command="toggle:perf-lows">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">GPU time per frame</div>
+                    </div>
+                    <div id="perf-gpu-time" class="switch" data-command="toggle:perf-gpu-time">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="cards-column">
+                <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/chip.png" />
+                    <div>Computer</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Processor use</div>
+                    </div>
+                    <div id="perf-processor" class="switch" data-command="toggle:perf-processor">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Memory use</div>
+                    </div>
+                    <div id="perf-memory" class="switch" data-command="toggle:perf-memory">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Graphics card use</div>
+                    </div>
+                    <div id="perf-graphics" class="switch" data-command="toggle:perf-graphics">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">System use</div>
+                    </div>
+                    <div id="perf-system" class="switch" data-command="toggle:perf-system">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Hardware names</div>
+                    </div>
+                    <div id="perf-hardware" class="switch" data-command="toggle:perf-hardware">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                </div>
+                <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/sliders.png" />
+                    <div>Display</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Size</div>
+                    </div>
+                    <select id="perf-size" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Measures per second</div>
+                    </div>
+                    <select id="perf-rate" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">History length</div>
+                      <div class="row-text">How many measures the history shows</div>
+                    </div>
+                    <select id="perf-length" />
                   </div>
                 </div>
               </div>

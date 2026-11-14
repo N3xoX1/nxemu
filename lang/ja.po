@@ -2833,6 +2833,34 @@ msgstr ""
 msgid "Yes"
 msgstr "はい"
 
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "1% low"
+msgstr "下位1%"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "0.1% low"
+msgstr "下位0.1%"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "GPU time"
+msgstr "GPU時間"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator CPU"
+msgstr "エミュレーターのCPU"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "Emulator RAM"
+msgstr "エミュレーターのRAM"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System CPU"
+msgstr "システムのCPU"
+
+#: src/nxemu/ui/views/performance_overlay.cpp
+msgid "System RAM"
+msgstr "システムのRAM"
+
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "History"
 msgstr "履歴"
@@ -2860,6 +2888,34 @@ msgstr "プロセッサ使用率"
 #: src/nxemu/ui/views/performance_overlay.h
 msgid "Memory use"
 msgstr "メモリ使用量"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Frame time history"
+msgstr "フレーム時間の履歴"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "1% and 0.1% lows"
+msgstr "下位1%と0.1%"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "GPU time per frame"
+msgstr "フレームあたりのGPU時間"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Computer"
+msgstr "コンピューター"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Graphics card use"
+msgstr "グラフィックカード使用率"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "System use"
+msgstr "システム使用率"
+
+#: src/nxemu/ui/views/performance_overlay.h
+msgid "Hardware names"
+msgstr "ハードウェア名"
 
 #: src/nxemu/ui/views/profiles_dialog.cpp
 msgid "Active"

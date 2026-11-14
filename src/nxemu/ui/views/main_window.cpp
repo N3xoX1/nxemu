@@ -104,9 +104,6 @@ constexpr int kCasSharpnessRange = 5;
 constexpr float kScanStepShare = 0.85f;
 constexpr float kScanEaseSeconds = 0.7f;
 constexpr uint64_t kScanIndicatorDelayMs = 250;
-constexpr int kPerformanceSizeRange = 2;
-constexpr int kPerformanceRateRange = 3;
-constexpr int kPerformanceLengthRange = 4;
 constexpr uint64_t kGameHintMs = 4000;
 constexpr uint64_t kMouseHideMs = 2500;
 
@@ -785,16 +782,6 @@ void MainWindow::Run(Action action)
         SaveUISetting();
         m_menuDirty = true;
         break;
-    case Action::TogglePerformanceHistory:
-    case Action::TogglePerformanceRange:
-    case Action::TogglePerformanceFrameTime:
-    case Action::TogglePerformanceLongest:
-    case Action::TogglePerformanceSpeed:
-    case Action::TogglePerformanceProcessor:
-    case Action::TogglePerformanceMemory:
-        m_performance->Toggle(static_cast<PerformanceItem>(static_cast<int>(action) - static_cast<int>(Action::TogglePerformanceHistory)));
-        m_menuDirty = true;
-        break;
     case Action::ToggleHideUi:
         if (m_session.IsRunning())
         {
@@ -1270,23 +1257,8 @@ void MainWindow::RebuildMenu()
         action(Action::ResetWindowSize900p, "900p"),
         action(Action::ResetWindowSize1080p, "1080p"),
     }));
-    std::vector<MenuItem> performance;
-    performance.push_back(check(Action::TogglePerformance, Tr("Show performance"), uiSettings.showPerformance));
-    performance.push_back(MenuItem::Separator());
-    for (const PerformanceOverlay::Item & item : PerformanceOverlay::kItems)
-    {
-        const Action id = static_cast<Action>(static_cast<int>(Action::TogglePerformanceHistory) + static_cast<int>(item.id));
-        performance.push_back(check(id, Tr(item.label), PerformanceOverlay::Has(item.id)));
-    }
-    performance.push_back(MenuItem::Separator());
-    performance.push_back(MenuItem::Slider(Tr("Size"), {kPerformanceSizeRange, PerformanceOverlay::kLargest, PerformanceOverlay::Size(), true, {}, PerformanceOverlay::kSmallest,
-                                                        PerformanceOverlay::kSizeStep}));
-    performance.push_back(MenuItem::Slider(Tr("Measures per second"), {kPerformanceRateRange, PerformanceOverlay::kFastest, PerformanceOverlay::Rate(), true, {},
-                                                                       PerformanceOverlay::kSlowest, 1, ""}));
-    performance.push_back(MenuItem::Slider(Tr("History length"), {kPerformanceLengthRange, PerformanceOverlay::kLongest, PerformanceOverlay::Length(), true,
-                                                                  Tr("How many measures the history shows"), PerformanceOverlay::kShortest, 1, ""}));
     emulation.push_back(MenuItem::Separator());
-    emulation.push_back(MenuItem::Submenu(Tr("Performance overlay"), std::move(performance)));
+    emulation.push_back(check(Action::TogglePerformance, Tr("Show performance"), uiSettings.showPerformance));
     emulation.push_back(MenuItem::Separator());
     emulation.push_back(check(Action::ToggleStartGamesInFullscreen, Tr("Start games in fullscreen"), uiSettings.startGamesInFullscreen));
     emulation.push_back(check(Action::ToggleStartGamesWithUiHidden, Tr("Start games with UI hidden"), uiSettings.startGamesWithUiHidden));
@@ -1818,18 +1790,6 @@ void MainWindow::SetMenuRange(int id, int value)
         return;
     }
 
-    if (id == kPerformanceSizeRange)
-    {
-        m_performance->SetSize(value);
-    }
-    else if (id == kPerformanceRateRange)
-    {
-        m_performance->SetRate(value);
-    }
-    else if (id == kPerformanceLengthRange)
-    {
-        m_performance->SetLength(value);
-    }
     if (id == kFilterSharpnessRange && value != (settings.GetInt(NXVideoSetting::GameScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu) ? 0 : FsrSharpness::ToDisplay(settings.GetInt(NXVideoSetting::GameFSPSharpness))))
     {
         if (settings.GetInt(NXVideoSetting::GameScalingFilter) == static_cast<int>(ScalingFilter::FsrEasu))
@@ -2623,22 +2583,50 @@ void MainWindow::MeasureGame()
 {
     m_speedText.clear();
     const bool measured = m_longestMeasured;
+    const bool gpuTimeMeasured = m_gpuTimeMeasured;
     m_longestMeasured = false;
+    m_gpuTimeMeasured = false;
+    bool machine = false;
     if (m_session.IsValid() && m_session.IsRunning())
     {
         IOperatingSystem & os = m_session.Modules().OperatingSystem();
+        IVideo & video = m_session.Modules().Video();
         m_longestMeasured = m_performance->Shown();
+        m_gpuTimeMeasured = m_longestMeasured && PerformanceOverlay::Has(PerformanceItem::GpuTime);
+        machine = m_longestMeasured && PerformanceOverlay::WantsMachine();
         os.MeasureGameFrames(m_longestMeasured);
+        video.MeasureGpuTime(m_gpuTimeMeasured);
         const PerfStatsResults stats = os.GetAndResetPerfStats();
+        PerformanceOverlay::Details details;
+        details.frames = m_frameTimes.data();
+        details.frameCount = m_longestMeasured ? os.GameFrameTimes(m_frameTimes.data(), static_cast<uint32_t>(m_frameTimes.size())) : 0;
+        const uint64_t gpuTime = m_gpuTimeMeasured ? video.GpuTimeNs() : 0;
+        if (gpuTimeMeasured && m_gpuTimeMeasured && details.frameCount != 0 && gpuTime > m_gpuTimeNs)
+        {
+            details.gpuTime = static_cast<double>(gpuTime - m_gpuTimeNs) / 1e6 / details.frameCount;
+        }
+        m_gpuTimeNs = gpuTime;
+        if (machine)
+        {
+            if (!m_machine.Running())
+            {
+                m_machine.Start(m_window.Renderer().Graphics());
+            }
+            details.machine = m_machine.Usage();
+        }
         if (measured && m_longestMeasured && !os.IsEmulationPaused())
         {
-            m_performance->Add(stats, m_session.Modules().Video().ShadersBuilding(), CurrentSpeedMode() != SpeedMode::Limited, CurrentSpeedMode() == SpeedMode::Uncapped);
+            m_performance->Add(stats, video.ShadersBuilding(), CurrentSpeedMode() != SpeedMode::Limited, CurrentSpeedMode() == SpeedMode::Uncapped, details);
         }
         if (std::isfinite(stats.average_game_fps) && stats.average_game_fps != 0)
         {
             const double frametime = std::isfinite(stats.frametime) ? stats.frametime * 1000.0 : 0.0;
             m_speedText = stdstr_f("%.0f FPS (%.2f ms)", std::round(stats.average_game_fps), frametime);
         }
+    }
+    if (!machine)
+    {
+        m_machine.Stop();
     }
     UpdateStatusText();
 }
