@@ -44,6 +44,7 @@ add_library(nxemu-cpu SHARED
     cpu_enum_strings.cpp
     cpu_enum_strings.h
     cpu_manager.cpp
+    jit_fuzz.cpp
     cpu_manager.h
     cpu_settings.cpp
     cpu_settings.h
