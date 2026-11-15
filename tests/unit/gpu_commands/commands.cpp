@@ -154,6 +154,11 @@ struct Dma {
   void *maxwell3d_engine = nullptr;
   mutable std::vector<Engines::Puller::MethodCall> pending_puller;
   mutable std::array<std::vector<std::pair<u32, u32>>, 8> front_sinks;
+  static constexpr u32 ComputeInline = 0x6D;
+  bool compute_payload_entry{};
+  struct MemoryManager {
+    void ReadBlockUnsafe(GPUVAddr, void *, size_t) const {}
+  } memory_manager;
   bool IsThreaded() const { return false; }
   void DrainMaxwell3D() const {}
   bool IsPullerRegisterOnly(u32) const { return false; }
