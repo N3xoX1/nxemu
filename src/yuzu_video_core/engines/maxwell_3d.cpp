@@ -1123,9 +1123,15 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             HLECall & call = calls[count];
             if (call.recheck)
             {
-                // The decode thread fetched the parameters before the queued work ran
+                // The decode thread fetched the parameters before the queued work ran. GPU
+                // written ones are read on demand by the macro (RefreshParameters), as without
+                // the thread: reading them here would wait for the host GPU even when the draw
+                // is indirect.
                 call.dirty = call.dirty || AnySegmentDirty(call.segments);
-                RefreshParametersImpl(call.segments, call.params);
+                if (!call.dirty)
+                {
+                    RefreshParametersImpl(call.segments, call.params);
+                }
             }
             back_hle = &call;
             call.program->Execute(call.params, call.method);
