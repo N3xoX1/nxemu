@@ -97,6 +97,7 @@ A32EmitX64::BlockDescriptor A32EmitX64::Emit(IR::Block& block) {
     if (conf.very_verbose_debugging_output) {
         std::puts(IR::DumpBlock(block).c_str());
     }
+    jit_test_variant = 0;  // test variants are A64 only; don't inherit the last A64 block's
 
     code.EnableWriting();
     SCOPE_EXIT {

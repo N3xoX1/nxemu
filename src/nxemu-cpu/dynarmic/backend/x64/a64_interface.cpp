@@ -287,7 +287,7 @@ private:
         Optimization::A64CallbackConfigPass(ir_block, conf);
         Optimization::NamingPass(ir_block);
         if (conf.HasOptimization(OptimizationFlag::GetSetElimination) && !conf.check_halt_on_memory_access) {
-            Optimization::A64GetSetElimination(ir_block);
+            Optimization::A64GetSetElimination(ir_block, (conf.test_variant & 16) == 0);
             Optimization::DeadCodeElimination(ir_block);
         }
         if (conf.HasOptimization(OptimizationFlag::ConstProp)) {
