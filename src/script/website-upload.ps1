@@ -108,7 +108,7 @@ function Upload-FilesToWebsite {
         exit 1
     }
 
-    $validExtensions = @('.zip', '.apk')
+    $validExtensions = @('.zip', '.apk', '.appimage', '.gz', '.dmg')
     $files = Get-ChildItem -Path $Directory -File | Where-Object {
         $validExtensions -contains $_.Extension.ToLower()
     }
