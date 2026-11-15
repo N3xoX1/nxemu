@@ -11,6 +11,7 @@
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/gpu_thread.h"
+#include "yuzu_video_core/host1x/host1x.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
@@ -475,24 +476,79 @@ bool IsPullerRegisterOnly(u32 method)
 }
 
 /// Puller methods that can make the GPU wait for the guest CPU: the guest may write memory
-/// that the next methods read after the wait. Everything but the release kinds.
+/// that the next methods read after the wait. The acquires only: cache operations (MemOp),
+/// WaitForIdle and the releases don't wait for the guest.
 bool IsPullerWait(u32 method, u32 argument)
 {
     switch (static_cast<BufferMethods>(method))
     {
     case BufferMethods::SemaphoreOperation:
         return (argument & 0xF) != 2; // not WriteLong
+    case BufferMethods::SemaphoreAcquire:
+        return true;
     case BufferMethods::SyncpointOperation:
         return (argument & 1) == 0; // Acquire
-    case BufferMethods::SemaphoreRelease:
-    case BufferMethods::RefCnt:
-    case BufferMethods::NonStallInterrupt:
-        return false;
     default:
-        return true;
+        return false;
     }
 }
 } // namespace
+
+/// A wait whose condition already holds when the decode thread reaches it: the writes it
+/// orders were done before, the uniform buffers copied from here on see them.
+bool DmaPusher::PullerWaitMet(u32 method, u32 argument) const
+{
+    const auto semaphore_word = [this](u32 & word) {
+        const GPUVAddr address = (static_cast<GPUVAddr>(front_puller_regs[static_cast<u32>(BufferMethods::SemaphoreAddressHigh)] & 0xFF) << 32) |
+                                 front_puller_regs[static_cast<u32>(BufferMethods::SemaphoreAddressLow)];
+        if (memory_manager.GetPointer(address) == nullptr)
+        {
+            return false;
+        }
+        memory_manager.ReadBlockUnsafe(address, &word, sizeof(word));
+        return true;
+    };
+    const u32 sequence = front_puller_regs[static_cast<u32>(BufferMethods::SemaphoreSequencePayload)];
+    u32 word{};
+    switch (static_cast<BufferMethods>(method))
+    {
+    case BufferMethods::SemaphoreOperation:
+    {
+        if (!semaphore_word(word))
+        {
+            return false;
+        }
+        bool met = false;
+        switch (argument & 0xF)
+        {
+        case 0x1: // AcquireEqual
+            met = word == sequence;
+            break;
+        case 0x4: // AcquireGequal
+            met = word >= sequence;
+            break;
+        case 0x8: // AcquireMask
+            met = word == 0 || sequence != 0;
+            break;
+        }
+        return met;
+    }
+    case BufferMethods::SemaphoreAcquire:
+    {
+        const bool met = semaphore_word(word) && word == argument;
+        return met;
+    }
+    case BufferMethods::SyncpointOperation:
+    {
+        const u32 syncpoint_id = (argument >> 8) & 0xFFFFFF;
+        const u32 value = front_puller_regs[static_cast<u32>(BufferMethods::SyncpointPayload)];
+        const bool met = gpu.Host1x().GetSyncpointManager().IsReadyHost(syncpoint_id, value);
+        return met;
+    }
+    default:
+        return false;
+    }
+}
 
 void DmaPusher::CallMethod(u32 argument) const
 {
@@ -507,13 +563,15 @@ void DmaPusher::CallMethod(u32 argument) const
             puller.CallPullerMethod(method_call);
             return;
         }
+        front_puller_regs[dma_state.method] = argument;
         if (IsPullerRegisterOnly(dma_state.method))
         {
             // Order against Maxwell3D does not matter, only the puller triggers read these
             pending_puller.push_back(method_call);
             return;
         }
-        if (maxwell3d_engine != nullptr && IsPullerWait(dma_state.method, argument))
+        if (maxwell3d_engine != nullptr && IsPullerWait(dma_state.method, argument) &&
+            !PullerWaitMet(dma_state.method, argument))
         {
             static_cast<Engines::Maxwell3D *>(maxwell3d_engine)->UniformPrefetchBarrier();
         }

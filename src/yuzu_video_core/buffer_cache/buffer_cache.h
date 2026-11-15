@@ -402,10 +402,11 @@ bool BufferCache<P>::PrefetchUniform(size_t stage, u32 index, DAddr device_addr,
         if (size == 0) {
             return false;
         }
-        // Ranges without a timeline mark are read in place. Engine written ranges change
-        // in the GPU timeline, after this point of the stream.
-        if (!device_memory.HasTimelineWrite(device_addr, size) ||
-            device_memory.HasEngineWrite(device_addr, size)) {
+        // Large ranges without a timeline mark are read in place. Engine written ranges
+        // change in the GPU timeline, after this point of the stream.
+        if (device_memory.HasEngineWrite(device_addr, size) ||
+            (size > channel_state->uniform_buffer_skip_cache_size &&
+             !device_memory.HasTimelineWrite(device_addr, size))) {
             return false;
         }
         u8* pointer{};
