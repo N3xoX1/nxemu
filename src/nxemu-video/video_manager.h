@@ -55,6 +55,8 @@ public:
     bool WaitHost(uint32_t syncpoint_id, uint32_t expected_value, std::stop_token stop) override;
     uint32_t ShadersBuilding() override;
     VideoPresentationState GetPresentationState() override;
+    void MeasureGpuTime(bool measure) override;
+    uint64_t GpuTimeNs() override;
     bool UseNvdec() override;
     void ClearCdmaInstance(uint32_t id) override;
     void PushCommandBufferWithResources(int32_t bindId, const uint32_t* commandList,

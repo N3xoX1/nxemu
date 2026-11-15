@@ -37,8 +37,15 @@ int main()
         preferences["Controllers"]["InputDevices"].Append(JsonValue("engine:[any]"));
         preferences["Controllers"]["InputDevices"].Append(JsonValue("engine:[keyboard]"));
         store.SetSettings("UI", preferences);
+        store.SetDebugSettingsEnabled(true);
         SetupUISetting();
         Check(uiSettings.interfaceLanguage == "fr" && uiSettings.interfaceTheme == "light", "Keep RmlUi language and theme");
+        Check(uiSettings.performanceStyle == 0, "Default to the original compact performance bar");
+        Check(uiSettings.performanceLongest && !uiSettings.performanceFrameTime && !uiSettings.performanceSpeed, "Keep longest-frame alerts in the concise default layout");
+        store.SetBool(NXUISetting::PerformanceFrameTime, true);
+        Check(uiSettings.performanceFrameTime, "Allow enabling optional frame-time information");
+        store.SetBool(NXUISetting::PerformanceFrameTime, false);
+        uiSettings.performanceStyle = 1;
         Check(uiSettings.startGamesInFullscreen, "Keep startup options");
         Check(uiSettings.gameDirectories == Stringlist{"games"} &&
               uiSettings.gameDirectoriesRecursive == Stringlist{"games"}, "Keep scan preferences");
@@ -48,6 +55,13 @@ int main()
         Check(uiSettings.gameDirectories == Stringlist{"new-games"}, "Keep settings callbacks");
         SaveUISetting();
         const auto saved = store.GetSettings("UI");
+        Check(saved["Performance"]["Style"].asInt64() == 1, "Save normal performance layout");
+        SetupUISetting();
+        Check(uiSettings.performanceStyle == 1, "Restore normal performance layout");
+        uiSettings.performanceStyle = 0;
+        SaveUISetting();
+        SetupUISetting();
+        Check(uiSettings.performanceStyle == 0, "Restore compact performance layout");
         Check(!saved.isMember("UseRmlUI") && !saved.isMember("SciterConsole") &&
               !saved.isMember("Language"), "Do not save removed frontend settings");
         Check(saved["InterfaceLanguage"].asString() == "fr", "Save RmlUi preferences");

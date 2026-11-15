@@ -30,6 +30,7 @@ public:
     std::vector<uint64_t> GetProgramTitleIDs() const;
 
     bool IsExtractedType() const;
+    u32 GetTitleVersion(uint64_t title_id) const;
 
     // Common (Can be safely called on both types)
     VirtualFile GetRomFS() const;
@@ -71,6 +72,7 @@ private:
     // Map title id -> {map type -> NCA}
     std::map<uint64_t, std::map<std::pair<LoaderTitleType, LoaderContentRecordType>, std::shared_ptr<NCA>>> ncas;
     std::set<uint64_t> program_ids;
+    std::map<uint64_t, u32> title_versions;
     std::vector<VirtualFile> ticket_files;
 
     VirtualFile romfs;

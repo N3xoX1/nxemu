@@ -10,6 +10,7 @@
 #include "core/core.h"
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/nca_metadata.h"
+#include "core/file_sys/patch_manager.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/romfs_factory.h"
 #include "core/file_sys/filesystem.h"
@@ -19,15 +20,23 @@
 namespace Loader {
 
 AppLoader_NCA::AppLoader_NCA(FileSys::VirtualFile file_)
-    : AppLoader(std::move(file_)), nca(std::make_unique<FileSys::NCA>(file)) {}
+    : AppLoader(std::move(file_)), nca(std::make_shared<FileSys::NCA>(file)) {}
 
 AppLoader_NCA::~AppLoader_NCA() = default;
+
+void AppLoader_NCA::SetPackedUpdate(FileSys::VirtualFile update, u32 version)
+{
+    packed_update = std::move(update);
+    packed_update_version = version;
+}
 
 LoaderFileType AppLoader_NCA::IdentifyType(const FileSys::VirtualFile & nca_file)
 {
     const FileSys::NCA nca(nca_file);
 
-    if (nca.GetStatus() == LoaderResultStatus::Success && nca.GetType() == FileSys::NCAContentType::Program)
+    if ((nca.GetStatus() == LoaderResultStatus::Success ||
+         (nca.HasRomFSSectionReadFailure() && nca.GetExeFS() == nullptr)) &&
+        nca.GetType() == FileSys::NCAContentType::Program)
     {
         return LoaderFileType::NCA;
     }
@@ -43,7 +52,13 @@ AppLoader_NCA::LoadResult AppLoader_NCA::Load(Systemloader & loader, ISystemModu
     }
 
     const auto result = nca->GetStatus();
-    if (result != LoaderResultStatus::Success)
+    // A sparse base can have a RomFS section that is incomplete until its
+    // enabled BKTR update is applied. Keep the program candidate loadable so
+    // the update's standalone ExeFS can supply the executable below.
+    const bool may_use_enabled_update_exefs =
+        nca->HasRomFSSectionReadFailure() &&
+        nca->GetType() == FileSys::NCAContentType::Program && nca->GetExeFS() == nullptr;
+    if (result != LoaderResultStatus::Success && !may_use_enabled_update_exefs)
     {
         return {result, {}};
     }
@@ -53,28 +68,14 @@ AppLoader_NCA::LoadResult AppLoader_NCA::Load(Systemloader & loader, ISystemModu
         return {LoaderResultStatus::ErrorNCANotProgram, {}};
     }
 
-    auto exefs = nca->GetExeFS();
-    if (exefs == nullptr)
+    const FileSys::PatchManager patch_manager{
+        nca->GetTitleId(), loader.GetFileSystemController(), loader.GetContentProvider()};
+    auto exefs = patch_manager.PatchExeFS(nca->GetExeFS(), true, packed_update, packed_update_version);
+    if (!exefs || !FileSys::IsDirectoryExeFS(exefs))
     {
-        LOG_INFO(Loader, "No ExeFS found in NCA, looking for ExeFS from update");
-
-        // This NCA may be a sparse base of an installed title.
-        // Try to fetch the ExeFS from the installed update.
-        const auto& installed = loader.GetContentProvider();
-        const auto update_nca = installed.GetEntryNCA(FileSys::GetUpdateTitleID(nca->GetTitleId()), LoaderContentRecordType::Program);
-
-        if (update_nca)
-        {
-            exefs = update_nca->GetExeFS();
-        }
-
-        if (exefs == nullptr)
-        {
-            return { LoaderResultStatus::ErrorNoExeFS, {}};
-        }
+        return {LoaderResultStatus::ErrorNoExeFS, {}};
     }
-
-    directory_loader = std::make_unique<AppLoader_DeconstructedRomDirectory>(exefs, true);
+    directory_loader = std::make_unique<AppLoader_DeconstructedRomDirectory>(exefs, false);
 
     const auto load_result = directory_loader->Load(loader, systemModules);
     if (load_result.first != LoaderResultStatus::Success)
@@ -88,7 +89,11 @@ AppLoader_NCA::LoadResult AppLoader_NCA::Load(Systemloader & loader, ISystemModu
         LOG_WARNING(Service_FS, "Unable to read base RomFS");
     }
 
-    loader.GetFileSystemController().RegisterProcess(load_result.second->process_id, nca->GetTitleId(),std::make_shared<FileSys::RomFSFactory>(romFS, IsRomFSUpdatable(), loader.GetContentProvider(), loader.GetFileSystemController()));
+    loader.GetFileSystemController().RegisterProcess(
+        load_result.second->process_id, nca->GetTitleId(),
+        std::make_shared<FileSys::RomFSFactory>(romFS, IsRomFSUpdatable(),
+                                               loader.GetContentProvider(),
+                                               loader.GetFileSystemController(), nullptr, nca));
     is_loaded = true;
     return load_result;
 }
@@ -148,7 +153,8 @@ LoaderResultStatus AppLoader_NCA::ReadRomFS(FileSys::VirtualFile& dir)
 
 LoaderResultStatus AppLoader_NCA::ReadProgramId(uint64_t& out_program_id)
 {
-    if (nca == nullptr || nca->GetStatus() != LoaderResultStatus::Success)
+    if (nca == nullptr || (nca->GetStatus() != LoaderResultStatus::Success &&
+                           !nca->HasRomFSSectionReadFailure()))
     {
         return LoaderResultStatus::ErrorNotInitialized;
     }

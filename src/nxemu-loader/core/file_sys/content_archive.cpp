@@ -57,6 +57,19 @@ NCA::NCA(VirtualFile file_, const NCA * base_nca) :
         {
             LOG_ERROR(Loader, "File reader errored out during read of section {}: {:#x}", i, rc.GetInnerValue());
             status = LoaderResultStatus::ErrorBadNCAHeader;
+            // Incomplete sparse/compressed bases may have missing bucket-tree
+            // nodes until the BKTR update is applied. Header/schema errors and
+            // unrelated filesystem failures must not enable this fallback.
+            const bool missing_bucket_data =
+                rc == ResultInvalidBucketTreeNodeEntryCount ||
+                rc == ResultInvalidBucketTreeNodeOffset ||
+                rc == ResultInvalidBucketTreeEntryOffset ||
+                rc == ResultInvalidBucketTreeEntrySetOffset ||
+                rc == ResultInvalidBucketTreeNodeIndex ||
+                rc == ResultInvalidBucketTreeVirtualOffset;
+            romfs_section_read_failure = missing_bucket_data && header_reader.IsInitialized() &&
+                header_reader.GetFsType() == NcaFsHeader::FsType::RomFs &&
+                (header_reader.ExistsSparseLayer() || header_reader.ExistsCompressionLayer());
             return;
         }
 
@@ -69,6 +82,15 @@ NCA::NCA(VirtualFile file_, const NCA * base_nca) :
         if (header_reader.GetFsType() == NcaFsHeader::FsType::PartitionFs)
         {
             auto npfs = std::make_shared<PartitionFilesystem>(filesystems[i]);
+            // GetExeFS() only exposes a complete directory. Remember malformed
+            // executable partitions too, so a RomFS-only fallback cannot hide them.
+            if (GetType() == NCAContentType::Program &&
+                (npfs->GetStatus() != LoaderResultStatus::Success ||
+                 !IsDirectoryLogoPartition(npfs) || npfs->GetFile("main") != nullptr ||
+                 npfs->GetFile("main.npdm") != nullptr))
+            {
+                has_exefs_section = true;
+            }
             if (npfs->GetStatus() == LoaderResultStatus::Success)
             {
                 dirs.push_back(npfs);
@@ -112,6 +134,16 @@ NCA::~NCA() = default;
 LoaderResultStatus NCA::GetStatus() const
 {
     return status;
+}
+
+bool NCA::HasExeFSSection() const
+{
+    return has_exefs_section;
+}
+
+bool NCA::HasRomFSSectionReadFailure() const
+{
+    return romfs_section_read_failure;
 }
 
 std::vector<VirtualFile> NCA::GetFiles() const

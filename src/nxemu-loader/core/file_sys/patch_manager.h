@@ -51,7 +51,8 @@ public:
     // Currently tracked ExeFS patches:
     // - Game Updates (unless apply_update is false: an NX archive picks its own update)
     // - LayeredExeFS
-    [[nodiscard]] VirtualDir PatchExeFS(VirtualDir exefs, bool apply_update = true) const;
+    [[nodiscard]] VirtualDir PatchExeFS(VirtualDir exefs, bool apply_update = true,
+                                        VirtualFile packed_update_raw = nullptr, u32 packed_update_version = 0) const;
 
     // Currently tracked NSO patches:
     // - IPS
@@ -77,7 +78,7 @@ public:
                                          LoaderContentRecordType type = LoaderContentRecordType::Program,
                                          VirtualFile packed_update_raw = nullptr,
                                          bool apply_layeredfs = true,
-                                         bool apply_update = true) const;
+                                         bool apply_update = true, u32 packed_update_version = 0) const;
 
     // Returns a vector of patches
     [[nodiscard]] std::vector<Patch> GetPatches(VirtualFile update_raw = nullptr) const;
@@ -95,6 +96,15 @@ public:
     [[nodiscard]] Metadata ParseControlNCA(const NCA& nca) const;
 
 private:
+    struct UpdateSelection {
+        VirtualFile file;
+        u32 version{};
+        bool selected{};
+    };
+    UpdateSelection SelectUpdate(LoaderContentRecordType type, bool apply_update,
+                                 VirtualFile packed_update, u32 packed_version,
+                                 const std::vector<std::string>& disabled) const;
+
     [[nodiscard]] std::vector<VirtualFile> CollectPatches(const std::vector<VirtualDir>& patch_dirs,
                                                           const std::string& build_id) const;
 

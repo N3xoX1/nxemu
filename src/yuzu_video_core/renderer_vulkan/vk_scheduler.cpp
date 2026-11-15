@@ -15,6 +15,7 @@
 
 #include "yuzu_common/thread.h"
 #include "yuzu_video_core/renderer_vulkan/vk_command_pool.h"
+#include "yuzu_video_core/renderer_vulkan/vk_gpu_timer.h"
 #include "yuzu_video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
 #include "yuzu_video_core/renderer_vulkan/vk_stall_profile.h"
@@ -47,7 +48,8 @@ void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf,
 Scheduler::Scheduler(const Device& device_, StateTracker& state_tracker_)
     : device{device_}, state_tracker{state_tracker_},
       master_semaphore{std::make_unique<MasterSemaphore>(device)},
-      command_pool{std::make_unique<CommandPool>(*master_semaphore, device)} {
+      command_pool{std::make_unique<CommandPool>(*master_semaphore, device)},
+      gpu_timer{std::make_unique<GpuTimer>(device, *master_semaphore)} {
     AcquireNewChunk();
     AllocateWorkerCommandBuffer();
     worker_thread = std::jthread([this](std::stop_token token) { WorkerThread(token); });
@@ -283,6 +285,7 @@ void Scheduler::AllocateWorkerCommandBuffer() {
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr,
     });
+    gpu_timer->Begin(current_upload_cmdbuf);
 }
 
 u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore,
@@ -302,6 +305,7 @@ u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_se
         upload_cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
                                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, WRITE_BARRIER);
         upload_cmdbuf.End();
+        gpu_timer->End(cmdbuf, signal_value);
         cmdbuf.End();
 
         if (on_submit) {

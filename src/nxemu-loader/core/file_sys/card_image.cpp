@@ -337,6 +337,12 @@ LoaderResultStatus XCI::AddNCAFromPartition(XCIPartition part)
         }
 
         auto nca = std::make_shared<NCA>(partition_file);
+        if (nca->GetStatus() == LoaderResultStatus::ErrorBadNCAHeader &&
+            !nca->HasRomFSSectionReadFailure())
+        {
+            LOG_WARNING(Loader, "Skipping NCA with an invalid header in {}", partition_names[partition_index]);
+            continue;
+        }
         if (nca->IsUpdate())
         {
             continue;

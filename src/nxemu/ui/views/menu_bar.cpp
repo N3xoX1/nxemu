@@ -1,11 +1,15 @@
 #include "menu_bar.h"
 #include "rml_events.h"
+#include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/StringUtilities.h>
+#include <algorithm>
 #include <cmath>
 
 namespace
 {
+constexpr float kMargin = 6.0f;
+
 std::string LabelRml(const std::string & label)
 {
     std::string text;
@@ -198,6 +202,7 @@ MenuBar::MenuBar(Rml::Element * root, std::function<void(int)> onAction, std::fu
         }
     });
     UiEvents::Listen(m_root, "mouseover", [this](Rml::Event & event) { OnMouseOver(event); });
+    UiEvents::Listen(m_root, "mousemove", [this](Rml::Event & event) { PlaceSubmenu(event); });
     UiEvents::Listen(m_root->GetOwnerDocument(), "mousedown", [this](Rml::Event & event) {
         if (!m_root->Contains(event.GetTargetElement()))
         {
@@ -226,6 +231,7 @@ void MenuBar::Close()
         m_openMenu->SetClass("open", false);
         m_openMenu = nullptr;
     }
+    m_placedItem = nullptr;
 }
 
 void MenuBar::Open(Rml::Element * menu)
@@ -279,5 +285,36 @@ void MenuBar::OnMouseOver(Rml::Event & event)
     if (m_openMenu != nullptr && menu != nullptr)
     {
         Open(menu);
+    }
+}
+
+void MenuBar::PlaceSubmenu(Rml::Event & event)
+{
+    Rml::Element * item = UiEvents::ClosestWithClass(event.GetTargetElement(), "menu-item");
+    if (m_openMenu == nullptr || item == m_placedItem)
+    {
+        return;
+    }
+    m_placedItem = item;
+    Rml::Element * anchor = item != nullptr && item->IsClassSet("has-submenu") ? item->GetLastChild() : nullptr;
+    if (anchor == nullptr || !anchor->IsClassSet("menu-anchor") || anchor->GetFirstChild() == nullptr)
+    {
+        return;
+    }
+    Rml::ElementDocument * document = m_root->GetOwnerDocument();
+    anchor->RemoveProperty(Rml::PropertyId::Top);
+    document->UpdateDocument();
+    Rml::Element * popup = anchor->GetFirstChild();
+    const float height = popup->GetOffsetHeight();
+    if (height <= 0)
+    {
+        return;
+    }
+    const float margin = kMargin * document->GetContext()->GetDensityIndependentPixelRatio();
+    const float top = popup->GetAbsoluteTop();
+    const float raise = std::min(top + height + margin - document->GetOffsetHeight(), top - margin);
+    if (raise > 0)
+    {
+        anchor->SetProperty(Rml::PropertyId::Top, Rml::Property(anchor->GetAbsoluteTop() - item->GetAbsoluteTop() - raise, Rml::Unit::PX));
     }
 }

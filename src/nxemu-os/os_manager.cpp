@@ -629,6 +629,11 @@ void OSManager::MeasureGameFrames(bool measure)
     m_coreSystem.GetPerfStats().MeasureGameFrames(measure);
 }
 
+uint32_t OSManager::GameFrameTimes(float * times, uint32_t maxCount)
+{
+    return m_coreSystem.GetPerfStats().GameFrameTimes(times, maxCount);
+}
+
 void OSManager::SetEmulationPaused(bool paused)
 {
     if (!m_emuThread)
@@ -636,6 +641,10 @@ void OSManager::SetEmulationPaused(bool paused)
         return;
     }
     m_emuThread->SetRunning(!paused);
+    if (m_coreSystem.IsPoweredOn())
+    {
+        m_coreSystem.GetPerfStats().RestartGameFrames();
+    }
 }
 
 bool OSManager::IsEmulationPaused() const

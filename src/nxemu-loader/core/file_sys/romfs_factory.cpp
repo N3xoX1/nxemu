@@ -19,19 +19,21 @@
 namespace FileSys {
 
 RomFSFactory::RomFSFactory(FileSys::VirtualFile file_, bool updatable_, ContentProvider & provider, FileSystemController& controller,
-    std::shared_ptr<ContentProvider> owner) :
+    std::shared_ptr<ContentProvider> owner, std::shared_ptr<NCA> source_base) :
+    file(std::move(file_)),
+    updatable(updatable_),
     content_provider{provider}, 
     provider_owner{std::move(owner)},
-    filesystem_controller{controller},
-    file(file_),
-    updatable(updatable_) 
+    source_base_nca{std::move(source_base)},
+    filesystem_controller{controller}
 {
 }
 
 RomFSFactory::~RomFSFactory() = default;
 
-void RomFSFactory::SetPackedUpdate(VirtualFile update_raw_file) {
+void RomFSFactory::SetPackedUpdate(VirtualFile update_raw_file, u32 version) {
     packed_update_raw = std::move(update_raw_file);
+    packed_update_version = version;
 }
 
 VirtualFile RomFSFactory::OpenCurrentProcess(uint64_t current_process_title_id) const {
@@ -46,10 +48,13 @@ VirtualFile RomFSFactory::OpenCurrentProcess(uint64_t current_process_title_id) 
     }
 
     const auto type = LoaderContentRecordType::Program;
-    const auto nca = content_provider.GetEntryNCA(current_process_title_id, type);
+    const auto nca = source_base_nca ? nullptr : content_provider.GetEntryNCA(current_process_title_id, type);
     const FileSys::PatchManager patch_manager{current_process_title_id, filesystem_controller,
                                      content_provider};
-    return patch_manager.PatchRomFS(nca.get(), file, LoaderContentRecordType::Program, packed_update_raw);
+    const NCA * base_nca = nca && (nca->GetStatus() == LoaderResultStatus::Success ||
+                                  nca->HasRomFSSectionReadFailure())
+                               ? nca.get() : source_base_nca.get();
+    return patch_manager.PatchRomFS(base_nca, file, LoaderContentRecordType::Program, packed_update_raw, true, true, packed_update_version);
 }
 
 VirtualFile RomFSFactory::OpenPatchedRomFS(uint64_t title_id, LoaderContentRecordType type) const {

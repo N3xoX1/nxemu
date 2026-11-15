@@ -12,6 +12,8 @@
 #include <unordered_set>
 #include <vector>
 
+struct GraphicsIdentity;
+
 class UiRenderer final : public Rml::RenderInterface
 {
 public:
@@ -30,6 +32,7 @@ public:
         bool inUse;
     };
     std::vector<GraphicsDevice> GraphicsDevices() const;
+    GraphicsIdentity Graphics() const;
 
     static std::string FileImageSource(const std::string & utf8Path);
     std::string AddMemoryImage(std::vector<uint8_t> encoded);

@@ -13,6 +13,8 @@ add_library(nxemu_ui STATIC
     emulation/emulator_session.h
     host/discord_presence.cpp
     host/discord_presence.h
+    host/machine_usage.cpp
+    host/machine_usage.h
     host/process_usage.cpp
     host/process_usage.h
     host/sdl_input.cpp

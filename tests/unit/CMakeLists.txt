@@ -481,3 +481,12 @@ foreach(suite IN LISTS unit_suites)
     get_filename_component(suite_directory "${suite}" DIRECTORY)
     add_subdirectory("${suite_directory}")
 endforeach()
+
+# Link the real loader module on platforms where its C++ symbols are exported.
+if(UNIX)
+    add_executable(test_sparse_loader sparse_loader/sparse_loader.cpp)
+    target_include_directories(test_sparse_loader PRIVATE "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_SOURCE_DIR}/src/nxemu-loader" "${CMAKE_SOURCE_DIR}/external/boost")
+    target_link_libraries(test_sparse_loader PRIVATE nxemu-loader fmt::fmt)
+    nxemu_unit_test(test_sparse_loader)
+endif()

@@ -551,6 +551,9 @@
     <ClInclude Include="renderer_vulkan\vk_fence_manager.h">
       <Filter>Header Files\renderer_vulkan</Filter>
     </ClInclude>
+    <ClInclude Include="renderer_vulkan\vk_gpu_timer.h">
+      <Filter>Header Files\renderer_vulkan</Filter>
+    </ClInclude>
     <ClInclude Include="renderer_vulkan\vk_graphics_pipeline.h">
       <Filter>Header Files\renderer_vulkan</Filter>
     </ClInclude>
@@ -1016,6 +1019,9 @@
       <Filter>Source Files\renderer_vulkan</Filter>
     </ClCompile>
     <ClCompile Include="renderer_vulkan\vk_fence_manager.cpp">
+      <Filter>Source Files\renderer_vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="renderer_vulkan\vk_gpu_timer.cpp">
       <Filter>Source Files\renderer_vulkan</Filter>
     </ClCompile>
     <ClCompile Include="renderer_vulkan\vk_graphics_pipeline.cpp">

@@ -1,8 +1,11 @@
 #include "ui_renderer.h"
+#include "machine_usage.h"
 #include "ui_renderer_internal.h"
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/FileInterface.h>
 #include <RmlUi/Core/Log.h>
+#include <algorithm>
+#include <cstring>
 #include <stb_image.h>
 
 namespace
@@ -214,6 +217,45 @@ std::vector<UiRenderer::GraphicsDevice> UiRenderer::GraphicsDevices() const
         result.push_back({properties.deviceName, properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, device == m_context.physicalDevice});
     }
     return result;
+}
+
+GraphicsIdentity UiRenderer::Graphics() const
+{
+    GraphicsIdentity identity;
+    if (!IsBound())
+    {
+        return identity;
+    }
+    VkPhysicalDeviceIDProperties ids{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES};
+    VkPhysicalDeviceProperties2 properties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &ids};
+    const auto properties2 = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2>(m_api.GetInstanceProcAddr(m_context.instance, "vkGetPhysicalDeviceProperties2"));
+    if (properties2 != nullptr)
+    {
+        properties2(m_context.physicalDevice, &properties);
+        identity.hasLuid = ids.deviceLUIDValid == VK_TRUE;
+        std::memcpy(identity.luid, ids.deviceLUID, sizeof(identity.luid));
+    }
+    else
+    {
+        m_api.GetPhysicalDeviceProperties(m_context.physicalDevice, &properties.properties);
+    }
+    identity.name = properties.properties.deviceName;
+    identity.vendorId = properties.properties.vendorID;
+    identity.deviceId = properties.properties.deviceID;
+    const auto memoryProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(m_api.GetInstanceProcAddr(m_context.instance, "vkGetPhysicalDeviceMemoryProperties"));
+    if (memoryProperties != nullptr && properties.properties.deviceType != VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+    {
+        VkPhysicalDeviceMemoryProperties memory{};
+        memoryProperties(m_context.physicalDevice, &memory);
+        for (uint32_t i = 0; i < memory.memoryHeapCount; i++)
+        {
+            if ((memory.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0)
+            {
+                identity.memory = std::max<uint64_t>(identity.memory, memory.memoryHeaps[i].size);
+            }
+        }
+    }
+    return identity;
 }
 
 bool UiRenderer::CreateSamplers()

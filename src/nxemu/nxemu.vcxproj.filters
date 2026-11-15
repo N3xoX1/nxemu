@@ -286,6 +286,9 @@
     <ClCompile Include="ui\host\discord_presence.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
+    <ClCompile Include="ui\host\machine_usage.cpp">
+      <Filter>Source Files\ui\host</Filter>
+    </ClCompile>
     <ClCompile Include="ui\host\process_usage.cpp">
       <Filter>Source Files\ui\host</Filter>
     </ClCompile>
@@ -425,6 +428,9 @@
       <Filter>Header Files\ui\views</Filter>
     </ClInclude>
     <ClInclude Include="ui\host\discord_presence.h">
+      <Filter>Header Files\ui\host</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\host\machine_usage.h">
       <Filter>Header Files\ui\host</Filter>
     </ClInclude>
     <ClInclude Include="ui\host\process_usage.h">

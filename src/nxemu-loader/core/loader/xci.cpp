@@ -48,7 +48,11 @@ AppLoader_XCI::~AppLoader_XCI() = default;
 LoaderFileType AppLoader_XCI::IdentifyType(const FileSys::VirtualFile & xci_file)
 {
     const FileSys::XCI xci(xci_file);
-    if (xci.GetStatus() == LoaderResultStatus::Success && xci.GetNCAByType(FileSys::NCAContentType::Program) != nullptr && AppLoader_NCA::IdentifyType(xci.GetNCAFileByType(FileSys::NCAContentType::Program)) == LoaderFileType::NCA)
+    const auto program_nca = xci.GetStatus() == LoaderResultStatus::Success
+                                 ? xci.GetNCAByType(FileSys::NCAContentType::Program) : nullptr;
+    if (program_nca != nullptr &&
+        ((program_nca->GetStatus() == LoaderResultStatus::Success) ||
+         (program_nca->HasRomFSSectionReadFailure() && program_nca->GetExeFS() == nullptr)))
     {
         return LoaderFileType::XCI;
     }
@@ -67,9 +71,19 @@ AppLoader_XCI::LoadResult AppLoader_XCI::Load(Systemloader & loader, ISystemModu
         return {xci->GetStatus(), {}};
     }
 
-    if (xci->GetProgramNCAStatus() != LoaderResultStatus::Success)
+    const auto program_nca = xci->GetNCAByType(FileSys::NCAContentType::Program);
+    if (xci->GetProgramNCAStatus() != LoaderResultStatus::Success &&
+        !(program_nca != nullptr && program_nca->HasRomFSSectionReadFailure() &&
+          program_nca->GetExeFS() == nullptr))
     {
         return {xci->GetProgramNCAStatus(), {}};
+    }
+
+    const u32 update_version = xci->GetSecurePartitionNSP()->GetTitleVersion(FileSys::GetUpdateTitleID(xci->GetProgramTitleID()));
+    FileSys::VirtualFile update_raw;
+    if (ReadUpdateRaw(update_raw) == LoaderResultStatus::Success)
+    {
+        nca_loader->SetPackedUpdate(update_raw, update_version);
     }
 
     const auto result = nca_loader->Load(loader, systemModules);
@@ -78,10 +92,9 @@ AppLoader_XCI::LoadResult AppLoader_XCI::Load(Systemloader & loader, ISystemModu
         return result;
     }
 
-    FileSys::VirtualFile update_raw;
-    if (ReadUpdateRaw(update_raw) == LoaderResultStatus::Success && update_raw != nullptr)
+    if (update_raw != nullptr)
     {
-        loader.GetFileSystemController().SetPackedUpdate(result.second->process_id, std::move(update_raw));
+        loader.GetFileSystemController().SetPackedUpdate(result.second->process_id, std::move(update_raw), update_version);
     }
     is_loaded = true;
     return result;
@@ -111,14 +124,15 @@ LoaderResultStatus AppLoader_XCI::ReadUpdateRaw(FileSys::VirtualFile& out_file)
         return LoaderResultStatus::ErrorXCIMissingProgramNCA;
     }
 
-    const auto read = xci->GetSecurePartitionNSP()->GetNCAFile(FileSys::GetUpdateTitleID(program_id), LoaderContentRecordType::Program);
+    const auto read = xci->GetSecurePartitionNSP()->GetNCAFile(FileSys::GetUpdateTitleID(program_id), LoaderContentRecordType::Program, LoaderTitleType::Update);
     if (read == nullptr)
     {
         return LoaderResultStatus::ErrorNoPackedUpdate;
     }
 
     const auto nca_test = std::make_shared<FileSys::NCA>(read);
-    if (nca_test->GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS)
+    if (nca_test->GetStatus() != LoaderResultStatus::ErrorMissingBKTRBaseRomFS &&
+        nca_test->GetStatus() != LoaderResultStatus::Success)
     {
         return nca_test->GetStatus();
     }

@@ -73,6 +73,7 @@
     <ClCompile Include="ui\views\shortcut.cpp" />
     <ClCompile Include="ui\views\tooltip.cpp" />
     <ClCompile Include="ui\host\discord_presence.cpp" />
+    <ClCompile Include="ui\host\machine_usage.cpp" />
     <ClCompile Include="ui\host\process_usage.cpp" />
     <ClCompile Include="ui\host\sdl_input.cpp" />
     <ClCompile Include="ui\input\input_params.cpp" />
@@ -134,6 +135,7 @@
     <ClInclude Include="ui\views\shortcut.h" />
     <ClInclude Include="ui\views\tooltip.h" />
     <ClInclude Include="ui\host\discord_presence.h" />
+    <ClInclude Include="ui\host\machine_usage.h" />
     <ClInclude Include="ui\host\process_usage.h" />
     <ClInclude Include="ui\host\sdl_input.h" />
     <ClInclude Include="ui\input\input_params.h" />

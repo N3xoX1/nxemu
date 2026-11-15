@@ -205,6 +205,7 @@
     <ClInclude Include="renderer_vulkan\vk_descriptor_pool.h" />
     <ClInclude Include="renderer_vulkan\vk_display.h" />
     <ClInclude Include="renderer_vulkan\vk_fence_manager.h" />
+    <ClInclude Include="renderer_vulkan\vk_gpu_timer.h" />
     <ClInclude Include="renderer_vulkan\vk_graphics_pipeline.h" />
     <ClInclude Include="renderer_vulkan\vk_master_semaphore.h" />
     <ClInclude Include="renderer_vulkan\vk_pipeline_cache.h" />
@@ -387,6 +388,7 @@
     <ClCompile Include="renderer_vulkan\vk_descriptor_pool.cpp" />
     <ClCompile Include="renderer_vulkan\vk_display.cpp" />
     <ClCompile Include="renderer_vulkan\vk_fence_manager.cpp" />
+    <ClCompile Include="renderer_vulkan\vk_gpu_timer.cpp" />
     <ClCompile Include="renderer_vulkan\vk_graphics_pipeline.cpp" />
     <ClCompile Include="renderer_vulkan\vk_master_semaphore.cpp" />
     <ClCompile Include="renderer_vulkan\vk_pipeline_cache.cpp" />
