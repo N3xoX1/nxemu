@@ -64,6 +64,21 @@ struct EmitContext {
     IR::Block& block;
 
     std::vector<std::function<void()>> deferred_emits;
+
+    /// Host flags may be used across IR instructions: side exits, CSEL and FCMP on live flags,
+    /// IsZero fused into the side exit. Off for A32, for test variant bit 8 and with verbose
+    /// debugging output, which changes the flags between instructions.
+    bool reuse_host_flags = false;
+    /// NZCV value that the host flags hold right now (SF, ZF, CF = guest C, OF), or null
+    const IR::Inst* host_flags_nzcv = nullptr;
+    /// The host flags hold the same NZCV as cpsr_nzcv, so a condition needs no reload
+    bool host_flags_are_cpsr = false;
+    /// host_flags_nzcv is an FPCompare: the host flags are those of ucomis (ZF, PF, CF), not
+    /// the guest NZCV layout, so conditions map to other jumps
+    bool host_flags_fcmp = false;
+    /// IsZero whose only use is the side exit right after it: ZF holds the result, the
+    /// value itself is never written
+    const IR::Inst* zero_flag_for = nullptr;
 };
 
 using SharedLabel = std::shared_ptr<Xbyak::Label>;

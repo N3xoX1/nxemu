@@ -299,8 +299,10 @@ private:
         const auto get_code = [this](u64 vaddr) { return conf.callbacks->MemoryReadCode(vaddr); };
         const auto descriptor = A64::LocationDescriptor{current_location};
         ir_block.Reset(descriptor);
-        A64::Translate(ir_block, descriptor, get_code,
-                       {conf.define_unpredictable_behaviour, conf.wall_clock_cntpct});
+        A64::TranslationOptions options{conf.define_unpredictable_behaviour, conf.wall_clock_cntpct};
+        // Test variant bit 64 turns side exits off (the translation before them)
+        options.side_exits = conf.HasOptimization(OptimizationFlag::BlockLinking) && (conf.test_variant & 64) == 0;
+        A64::Translate(ir_block, descriptor, get_code, options);
         Optimization::PolyfillPass(ir_block, polyfill_options);
         Optimization::A64CallbackConfigPass(ir_block, conf);
         Optimization::NamingPass(ir_block);

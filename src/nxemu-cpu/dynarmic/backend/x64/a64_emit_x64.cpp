@@ -101,6 +101,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
     RegAlloc reg_alloc{code, gpr_order, any_xmm};
     A64EmitContext ctx{conf, reg_alloc, block};
+    ctx.reuse_host_flags = (conf.test_variant & 8) == 0 && !conf.very_verbose_debugging_output;
 
     // Start emitting.
     code.align();
@@ -110,6 +111,13 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
     for (auto iter = block.begin(); iter != block.end(); ++iter) {
         IR::Inst* inst = &*iter;
+        const IR::Opcode op = inst->GetOpcode();
+        const bool flag_producer = op == IR::Opcode::Add32 || op == IR::Opcode::Add64 || op == IR::Opcode::Sub32 || op == IR::Opcode::Sub64
+                                   || op == IR::Opcode::FPCompare32 || op == IR::Opcode::FPCompare64;
+        if (flag_producer) {
+            ctx.host_flags_nzcv = nullptr;  // set again by the emitter when it makes NZCV
+            ctx.host_flags_fcmp = false;
+        }
 
         // Call the relevant Emit* member function.
         switch (inst->GetOpcode()) {
@@ -134,6 +142,51 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
         ctx.reg_alloc.EndOfAllocScope();
         ctx.reg_alloc.EndOfInstruction();
+
+        if (op != IR::Opcode::IsZero32 && op != IR::Opcode::IsZero64) {
+            ctx.zero_flag_for = nullptr;
+        }
+
+        // Track whether the host flags still hold the guest NZCV. Only the opcodes listed
+        // here keep the flags; their emitted code is moves only.
+        switch (op) {
+        case IR::Opcode::Add32:
+        case IR::Opcode::Add64:
+        case IR::Opcode::Sub32:
+        case IR::Opcode::Sub64:
+        case IR::Opcode::GetNZCVFromOp:
+            ctx.host_flags_are_cpsr = false;  // the emitter set host_flags_nzcv
+            ctx.host_flags_fcmp = false;
+            break;
+        case IR::Opcode::FPCompare32:
+        case IR::Opcode::FPCompare64:
+            ctx.host_flags_are_cpsr = false;  // the emitter set host_flags_nzcv and host_flags_fcmp
+            break;
+        case IR::Opcode::A64SetNZCV:
+            ctx.host_flags_are_cpsr = ctx.reuse_host_flags && ctx.host_flags_nzcv && !inst->GetArg(0).IsImmediate() && inst->GetArg(0).GetInst() == ctx.host_flags_nzcv;
+            break;
+        case IR::Opcode::A64SideExit:
+        case IR::Opcode::ConditionalSelect32:
+        case IR::Opcode::ConditionalSelect64:
+        case IR::Opcode::ConditionalSelectNZCV:
+            if (!ctx.host_flags_are_cpsr) {
+                ctx.host_flags_nzcv = nullptr;
+            }
+            break;
+        case IR::Opcode::A64GetW:
+        case IR::Opcode::A64GetX:
+        case IR::Opcode::A64GetSP:
+        case IR::Opcode::A64SetW:
+        case IR::Opcode::A64SetX:
+        case IR::Opcode::A64SetSP:
+        case IR::Opcode::Identity:
+            break;
+        default:
+            ctx.host_flags_nzcv = nullptr;
+            ctx.host_flags_are_cpsr = false;
+            ctx.host_flags_fcmp = false;
+            break;
+        }
 
         if (conf.very_verbose_debugging_output) {
             EmitVerboseDebuggingOutput(reg_alloc);
@@ -494,6 +547,121 @@ void A64EmitX64::EmitA64SetFPSR(A64EmitContext& ctx, IR::Inst* inst) {
     code.mov(code.ABI_PARAM1, code.r15);
     code.CallFunction(SetFPSRImpl);
     code.ldmxcsr(code.dword[code.r15 + offsetof(A64JitState, guest_MXCSR)]);
+}
+
+void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
+    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    const IR::Cond cond = args[0].GetImmediateCond();
+    const IR::LocationDescriptor next = ctx.Location().SetPC(args[2].GetImmediateU64());
+    const size_t cycles = static_cast<size_t>(args[3].GetImmediateU64());
+    const IR::LocationDescriptor location = ctx.Location().SetSingleStepping(false);
+    const bool is_single_step = ctx.IsSingleStep();
+
+    SharedLabel exit = GenSharedLabel();
+    if (cond == IR::Cond::AL || cond == IR::Cond::NV) {
+        const bool exit_when_set = cond == IR::Cond::AL;
+        if (!inst->GetArg(1).IsImmediate() && ctx.zero_flag_for == inst->GetArg(1).GetInst()) {
+            // ZF holds the bit
+            if (exit_when_set) {
+                code.jz(*exit, code.T_NEAR);
+            } else {
+                code.jnz(*exit, code.T_NEAR);
+            }
+        } else if (args[1].IsImmediate()) {
+            if (args[1].GetImmediateU1() != exit_when_set) {
+                return;  // never exits
+            }
+            code.jmp(*exit, code.T_NEAR);
+        } else {
+            const Xbyak::Reg8 bit = ctx.reg_alloc.UseGpr(args[1]).cvt8();
+            code.test(bit, bit);
+            if (exit_when_set) {
+                code.jnz(*exit, code.T_NEAR);
+            } else {
+                code.jz(*exit, code.T_NEAR);
+            }
+        }
+    } else if (ctx.host_flags_are_cpsr && ctx.host_flags_fcmp) {
+        // The host flags are those of the ucomis that made NZCV: unordered ZF PF CF = 1 1 1,
+        // equal ZF, less CF, greater none. Guest NZCV: unordered 0011, equal 0110, less 1000,
+        // greater 0010. Some conditions need PF to tell unordered apart.
+        Xbyak::Label skip;
+        switch (cond) {
+        case IR::Cond::EQ:  // equal
+            code.jp(skip);
+            code.jz(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::NE:  // not equal
+            code.jnz(*exit, code.T_NEAR);
+            code.jp(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::CS:  // not less
+        case IR::Cond::PL:
+            code.jae(*exit, code.T_NEAR);
+            code.jp(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::CC:  // less
+        case IR::Cond::MI:
+            code.jp(skip);
+            code.jb(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::VS: code.jp(*exit, code.T_NEAR); break;   // unordered
+        case IR::Cond::VC: code.jnp(*exit, code.T_NEAR); break;  // ordered
+        case IR::Cond::HI:  // greater or unordered
+            code.ja(*exit, code.T_NEAR);
+            code.jp(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::LS:  // less or equal
+            code.jp(skip);
+            code.jbe(*exit, code.T_NEAR);
+            break;
+        case IR::Cond::GE: code.jae(*exit, code.T_NEAR); break;  // greater or equal
+        case IR::Cond::LT: code.jb(*exit, code.T_NEAR); break;   // less or unordered
+        case IR::Cond::GT: code.ja(*exit, code.T_NEAR); break;   // greater
+        case IR::Cond::LE: code.jbe(*exit, code.T_NEAR); break;  // less, equal or unordered
+        default: ASSERT_MSG(false, "Unknown cond {}", static_cast<size_t>(cond)); break;
+        }
+        code.L(skip);
+    } else {
+        if (ctx.host_flags_are_cpsr) {
+            // The host flags already hold the guest NZCV. Only HI and LS need CF inverted.
+            if (cond == IR::Cond::HI || cond == IR::Cond::LS) {
+                code.cmc();
+                ctx.host_flags_are_cpsr = false;
+            }
+        } else {
+            ctx.reg_alloc.ScratchGpr(HostLoc::RAX);
+            code.mov(eax, dword[r15 + offsetof(A64JitState, cpsr_nzcv)]);
+            code.LoadRequiredFlagsForCondFromRax(cond);
+        }
+        switch (cond) {
+        case IR::Cond::EQ: code.jz(*exit, code.T_NEAR); break;
+        case IR::Cond::NE: code.jnz(*exit, code.T_NEAR); break;
+        case IR::Cond::CS: code.jc(*exit, code.T_NEAR); break;
+        case IR::Cond::CC: code.jnc(*exit, code.T_NEAR); break;
+        case IR::Cond::MI: code.js(*exit, code.T_NEAR); break;
+        case IR::Cond::PL: code.jns(*exit, code.T_NEAR); break;
+        case IR::Cond::VS: code.jo(*exit, code.T_NEAR); break;
+        case IR::Cond::VC: code.jno(*exit, code.T_NEAR); break;
+        case IR::Cond::HI: code.ja(*exit, code.T_NEAR); break;
+        case IR::Cond::LS: code.jna(*exit, code.T_NEAR); break;
+        case IR::Cond::GE: code.jge(*exit, code.T_NEAR); break;
+        case IR::Cond::LT: code.jl(*exit, code.T_NEAR); break;
+        case IR::Cond::GT: code.jg(*exit, code.T_NEAR); break;
+        case IR::Cond::LE: code.jle(*exit, code.T_NEAR); break;
+        default: ASSERT_MSG(false, "Unknown cond {}", static_cast<size_t>(cond)); break;
+        }
+    }
+
+    // The guest registers are already stored, so the exit only has to count its cycles
+    // and link to the target block.
+    ctx.deferred_emits.emplace_back([=, this] {
+        code.L(*exit);
+        if (conf.enable_cycle_counting) {
+            EmitAddCycles(cycles);
+        }
+        EmitTerminal(IR::Term::LinkBlock{next}, location, is_single_step);
+    });
 }
 
 void A64EmitX64::EmitA64SetPC(A64EmitContext& ctx, IR::Inst* inst) {

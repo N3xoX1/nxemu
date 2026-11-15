@@ -30,6 +30,8 @@ struct TranslatorVisitor final {
     bool ReservedValue();
     bool UnallocatedEncoding();
     bool RaiseException(Exception exception);
+    bool SideExit(IR::Cond cond, IR::U1 bit, u64 target);
+    bool FollowBranch(u64 target);
 
     struct BitMasks {
         u64 wmask, tmask;

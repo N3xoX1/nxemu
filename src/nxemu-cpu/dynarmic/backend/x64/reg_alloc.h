@@ -157,6 +157,9 @@ public:
 
     void EmitVerboseDebuggingOutput();
 
+    /// When set, loading a zero immediate uses mov instead of xor, so the host flags stay
+    bool preserve_host_flags = false;
+
 private:
     friend struct Argument;
 
