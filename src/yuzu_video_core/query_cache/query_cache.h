@@ -322,7 +322,7 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             std::scoped_lock lock(cache_mutex);
             if (const auto it1 = cached_queries.find(cont_addr); it1 != cached_queries.end()) {
                 if (const auto it = it1->second.find(base); it != it1->second.end()) {
-                    impl->ObtainQuery(it->second)->flags |= QueryFlagBits::IsRewritten;
+                    MarkRewritten(impl->ObtainQuery(it->second), query, cpu_addr);
                 }
             }
             publish();
@@ -383,10 +383,22 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             sub_container.insert_or_assign(base, query_location);
             return;
         }
-        auto* old_query = impl->ObtainQuery(it_current->second);
-        old_query->flags |= QueryFlagBits::IsRewritten;
+        MarkRewritten(impl->ObtainQuery(it_current->second), query, cpu_addr);
         sub_container.insert_or_assign(base, query_location);
     }
+}
+
+template <typename Traits>
+void QueryCacheBase<Traits>::MarkRewritten(QueryBase* old_query, const QueryBase* new_query,
+                                           DAddr address) {
+    // A cache entry can outlive its query, and its slot may hold the new query by now. The new
+    // query must not drop itself: its result would never be written, and a guest waiting for
+    // it waits forever (Ace Combat 7 GPU timers). A slot reused at another address isn't the
+    // older payload either.
+    if (old_query == nullptr || old_query == new_query || old_query->guest_address != address) {
+        return;
+    }
+    old_query->flags |= QueryFlagBits::IsRewritten;
 }
 
 template <typename Traits>
