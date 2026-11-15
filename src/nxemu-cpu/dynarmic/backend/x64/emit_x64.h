@@ -135,7 +135,7 @@ class EmitX64 {
 public:
     struct BlockDescriptor {
         CodePtr entrypoint;  // Entrypoint of emitted code
-        size_t size;         // Length in bytes of emitted code
+        size_t size;         // Length in bytes of emitted code, without the cold code in the far area
     };
 
     explicit EmitX64(BlockOfCode& code);
