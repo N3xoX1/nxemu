@@ -168,6 +168,9 @@ bool DmaPusher::Step()
             }
             else if (compute_payload)
             {
+                // The queued work can still write the parameters, CallMultiMethod reads them
+                // again on the GPU thread
+                compute_payload_entry = true;
                 // The compute engine runs on the GPU thread, check there after the queued work
                 PostBack([this, subchannel, address = dma_state.dma_get, words]() {
                     subchannel->current_dirty =
@@ -221,6 +224,8 @@ bool DmaPusher::Step()
             ProcessCommands(headers);
         }
     }
+
+    compute_payload_entry = false;
 
     // Prepare a following SYNC_WAIT at the current GP-entry boundary. Clean pushbuffers can be
     // fetched directly because DmaPusher already processes GP entries in order.
@@ -595,14 +600,24 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
         {
             if (IsThreaded())
             {
-                PostBack([subchannel, sink = std::move(front_sinks[dma_state.subchannel]),
+                // A compute parameter payload from its own GP entry is read once the queued work
+                // has run, like the macro parameters of Maxwell3D
+                const bool reread = compute_payload_entry && dma_state.dma_word_offset == 0 &&
+                                    dma_state.method == ComputeInline;
+                PostBack([this, subchannel, sink = std::move(front_sinks[dma_state.subchannel]),
                           segment = dma_state.dma_get + dma_state.dma_word_offset,
                           payload = std::vector<u32>(base_start, base_start + num_methods),
-                          method = dma_state.method, pending = dma_state.method_count]() mutable {
+                          method = dma_state.method, pending = dma_state.method_count,
+                          reread]() mutable {
                     if (!sink.empty())
                     {
                         subchannel->method_sink = std::move(sink);
                         subchannel->ConsumeSink();
+                    }
+                    if (reread)
+                    {
+                        memory_manager.ReadBlockUnsafe(segment, payload.data(),
+                                                       payload.size() * sizeof(u32));
                     }
                     subchannel->current_dma_segment = segment;
                     subchannel->CallMultiMethod(method, payload.data(),

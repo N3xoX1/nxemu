@@ -192,6 +192,8 @@ private:
     mutable std::array<std::vector<std::pair<u32, u32>>, max_subchannels> front_sinks;
     /// Puller methods that only write a register, sent with the next puller method that acts
     mutable std::vector<Engines::Puller::MethodCall> pending_puller;
+    /// The current GP entry continues a compute parameter payload, see Step
+    bool compute_payload_entry{};
 
     GPU& gpu;
     MemoryManager& memory_manager;
