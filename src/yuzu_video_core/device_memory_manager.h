@@ -185,7 +185,10 @@ public:
             const u64 bit = u64{1} << (page & 63);
             if ((word.load(std::memory_order_relaxed) & bit) == 0) {
                 word.fetch_or(bit, std::memory_order_release);
-                UpdatePagesCachedCount(page << page_bits, page_size, 1);
+                // The ordinary cached-page count is not enforced under write tracking (the
+                // JIT marks writes instead): use the read-cached path, which still denies
+                // access there, like a pending query result does.
+                UpdatePagesReadCachedCount(page << page_bits, page_size, 1);
             }
         }
     }
@@ -210,7 +213,7 @@ public:
                     continue;
                 }
                 word.fetch_and(~bit, std::memory_order_release);
-                UpdatePagesCachedCount(page << page_bits, page_size, -1);
+                UpdatePagesReadCachedCount(page << page_bits, page_size, -1);
                 // The guest rewrites this page while the GPU reads it: from now on it takes
                 // the copy path, so this wait happens once per page
                 MarkPages(timeline_pages, page << page_bits, page_size);

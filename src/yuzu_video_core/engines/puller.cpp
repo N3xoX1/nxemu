@@ -132,6 +132,13 @@ void Puller::ProcessSemaphoreAcquire() {
     u32 word = memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress());
     const auto value = regs.semaphore_acquire;
     while (word != value) {
+        if (memory_manager.GetPointer(regs.semaphore_address.SemaphoreAddress()) == nullptr)
+            [[unlikely]] {
+            // The guest unmapped the semaphore, as on exit: nothing can release it anymore
+            LOG_WARNING(HW_GPU, "Semaphore acquire on unmapped memory 0x{:x}",
+                        regs.semaphore_address.SemaphoreAddress());
+            break;
+        }
         regs.acquire_active = true;
         regs.acquire_value = value;
         rasterizer->ReleaseFences();

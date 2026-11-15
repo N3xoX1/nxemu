@@ -282,7 +282,9 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         }
         query_base->value += streamer->GetAmendValue();
         streamer->SetAccumulationValue(query_base->value);
-        if (True(query_base->flags & QueryFlagBits::HasTimestamp)) {
+        if (pointer == nullptr || pointer_timestamp == nullptr) [[unlikely]] {
+            // The guest memory was unmapped before the report, as on exit
+        } else if (True(query_base->flags & QueryFlagBits::HasTimestamp)) {
             u64 timestamp = impl->gpu.GetTicks();
             std::memcpy(pointer_timestamp, &timestamp, sizeof(timestamp));
             std::memcpy(pointer, &query_base->value, sizeof(query_base->value));
@@ -300,6 +302,9 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
     // without submitting more work.
     if (fast_payload && !behind_readback) {
         const auto publish = [&] {
+            if (pointer == nullptr || pointer_timestamp == nullptr) [[unlikely]] {
+                return;
+            }
             if (has_timestamp) {
                 u64 timestamp = impl->gpu.GetTicks();
                 u64 value = static_cast<u64>(payload);
@@ -322,6 +327,8 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             }
             publish();
         }
+        // A stale cache entry may still name this slot: it must not look pending
+        query->flags |= QueryFlagBits::IsWritten;
         impl->rasterizer.SyncOperation(
             [streamer, new_query_id] { streamer->Free(new_query_id); });
         if (is_fence) {
@@ -446,7 +453,13 @@ bool QueryCacheBase<Traits>::HasPendingResult(VAddr addr, size_t size) {
         }
         constexpr auto done = QueryFlagBits::IsRewritten | QueryFlagBits::IsInvalidated |
                               QueryFlagBits::IsWritten;
-        pending |= False(streamer->GetQuery(query_id)->flags & done);
+        const auto* query = streamer->GetQuery(query_id);
+        // A cache entry can outlive its query: the slot may hold another query since. It
+        // is not pending at this address, and it may never be written (a fast payload).
+        if (query->guest_address >= addr + size || query->guest_address + sizeof(u32) <= addr) {
+            return;
+        }
+        pending |= False(query->flags & done);
     });
     return pending;
 }
@@ -462,6 +475,9 @@ void QueryCacheBase<Traits>::HostSyncedResults(VAddr addr, size_t size,
         }
         const auto* query = streamer->GetQuery(query_id);
         constexpr auto skipped = QueryFlagBits::IsRewritten | QueryFlagBits::IsInvalidated;
+        if (query->guest_address >= addr + size || query->guest_address + sizeof(u32) <= addr) {
+            return;
+        }
         if (False(query->flags & QueryFlagBits::IsHostSynced) || True(query->flags & skipped)) {
             return;
         }

@@ -1168,6 +1168,11 @@ void RasterizerVulkan::WaitInPlaceReads(DAddr addr, u64 size) {
     buffer_cache.WaitInPlaceReads(addr, size);
 }
 
+void RasterizerVulkan::WaitInPlaceReadsForEngineWrite(DAddr addr, u64 size) {
+    // Bounded: a blocking wait here could outlive the Vulkan worker on shutdown
+    buffer_cache.WaitInPlaceReads(addr, size);
+}
+
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
     if (addr == 0 || size == 0) {
         return false;

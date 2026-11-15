@@ -1318,7 +1318,10 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
             host_mapped_ready = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
                                                                   device_memory.PhysicalSize());
         }
-        if (host_mapped_ready && binding.buffer_id != NULL_BUFFER_ID && size != 0) {
+        // Small buffers are rewritten almost every draw: protecting them now actually faults
+        // (see HoldInPlaceRead), so only the rarer-written, larger ones are worth the zero-copy.
+        if (host_mapped_ready && binding.buffer_id != NULL_BUFFER_ID &&
+            size > channel_state->uniform_buffer_skip_cache_size) {
             if (!gpu_modified && !device_memory.HasTimelineWrite(device_addr, size)) {
                 if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
                     pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {

@@ -207,6 +207,10 @@ public:
     /// reads it in place.
     virtual void WaitInPlaceReads(PAddr addr, u64 size) {}
 
+    /// Called before a GPU engine writes guest memory (inline data, I2M, DMA): earlier
+    /// queued draws may still read it in place on the host GPU.
+    virtual void WaitInPlaceReadsForEngineWrite(PAddr addr, u64 size) {}
+
     /// Sync memory between guest and host.
     virtual void InvalidateGPUCache() = 0;
 
