@@ -12,6 +12,7 @@
 
 #include "dynarmic/backend/block_range_information.h"
 #include "dynarmic/backend/x64/a64_jitstate.h"
+#include "dynarmic/backend/x64/devirtualize.h"
 #include "dynarmic/backend/x64/emit_x64.h"
 #include "dynarmic/frontend/A64/a64_location_descriptor.h"
 #include "dynarmic/interface/A64/a64.h"
@@ -52,6 +53,12 @@ public:
     void InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges);
 
 protected:
+    /// A user callback whose object comes from the running core's JIT state.
+    template<auto mfp>
+    ArgCallback CoreCallback() const {
+        return DevirtualizeFromState<mfp>(conf.callbacks, offsetof(A64JitState, core_callbacks));
+    }
+
     const A64::UserConfig conf;
     A64::Jit* jit_interface;
     BlockRangeInformation<u64> block_ranges;

@@ -12,7 +12,15 @@
 
 namespace {
 using Vector = std::array<u64, 2>;
+
+// The running core's objects, as stored in its JIT state
+inline auto* CoreMonitor(const AxxJitState& state) {
+    return reinterpret_cast<std::remove_pointer_t<decltype(AxxUserConfig::global_monitor)>*>(state.core_monitor);
 }
+inline auto* CoreCallbacks(const AxxJitState& state) {
+    return reinterpret_cast<std::remove_pointer_t<decltype(AxxUserConfig::callbacks)>*>(state.core_callbacks);
+}
+}  // namespace
 
 std::optional<AxxEmitX64::DoNotFastmemMarker> AxxEmitX64::ShouldFastmem(AxxEmitContext& ctx, IR::Inst* inst) const {
     if (!conf.fastmem_pointer || !exception_handler.SupportsFastmem()) {
@@ -71,7 +79,7 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
             if (ordered) {
                 code.mfence();
             }
-            Devirtualize<callback>(conf.callbacks).EmitCall(code);
+            CoreCallback<callback>().EmitCall(code);
             code.ZeroExtendFrom(bitsize, code.ABI_RETURN);
         }
         EmitCheckMemoryAbort(ctx, inst);
@@ -154,7 +162,7 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
             code.CallFunction(memory_write_128);
         } else {
             ctx.reg_alloc.HostCall(nullptr, {}, args[1], args[2]);
-            Devirtualize<callback>(conf.callbacks).EmitCall(code);
+            CoreCallback<callback>().EmitCall(code);
         }
         if (ordered) {
             code.mfence();
@@ -231,14 +239,14 @@ void AxxEmitX64::EmitExclusiveReadMemory(AxxEmitContext& ctx, IR::Inst* inst) {
         ctx.reg_alloc.HostCall(inst, {}, args[1]);
 
         code.mov(code.byte[r15 + offsetof(AxxJitState, exclusive_state)], u8(1));
-        code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
+        code.mov(code.ABI_PARAM1, r15);
         if (ordered) {
             code.mfence();
         }
         code.CallLambda(
-            [](AxxUserConfig& conf, Axx::VAddr vaddr) -> T {
-                return conf.global_monitor->ReadAndMark<T>(conf.processor_id, vaddr, [&]() -> T {
-                    return (conf.callbacks->*callback)(vaddr);
+            [](AxxJitState& state, Axx::VAddr vaddr) -> T {
+                return CoreMonitor(state)->ReadAndMark<T>(state.core_processor_id, vaddr, [&]() -> T {
+                    return (CoreCallbacks(state)->*callback)(vaddr);
                 });
             });
         code.ZeroExtendFrom(bitsize, code.ABI_RETURN);
@@ -249,16 +257,16 @@ void AxxEmitX64::EmitExclusiveReadMemory(AxxEmitContext& ctx, IR::Inst* inst) {
         ctx.reg_alloc.HostCall(nullptr);
 
         code.mov(code.byte[r15 + offsetof(AxxJitState, exclusive_state)], u8(1));
-        code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
+        code.mov(code.ABI_PARAM1, r15);
         ctx.reg_alloc.AllocStackSpace(16 + ABI_SHADOW_SPACE);
         code.lea(code.ABI_PARAM3, ptr[rsp + ABI_SHADOW_SPACE]);
         if (ordered) {
             code.mfence();
         }
         code.CallLambda(
-            [](AxxUserConfig& conf, Axx::VAddr vaddr, Vector& ret) {
-                ret = conf.global_monitor->ReadAndMark<Vector>(conf.processor_id, vaddr, [&]() -> Vector {
-                    return (conf.callbacks->*callback)(vaddr);
+            [](AxxJitState& state, Axx::VAddr vaddr, Vector& ret) {
+                ret = CoreMonitor(state)->ReadAndMark<Vector>(state.core_processor_id, vaddr, [&]() -> Vector {
+                    return (CoreCallbacks(state)->*callback)(vaddr);
                 });
             });
         code.movups(result, xword[rsp + ABI_SHADOW_SPACE]);
@@ -291,15 +299,15 @@ void AxxEmitX64::EmitExclusiveWriteMemory(AxxEmitContext& ctx, IR::Inst* inst) {
     code.cmp(code.byte[r15 + offsetof(AxxJitState, exclusive_state)], u8(0));
     code.je(end);
     code.mov(code.byte[r15 + offsetof(AxxJitState, exclusive_state)], u8(0));
-    code.mov(code.ABI_PARAM1, reinterpret_cast<u64>(&conf));
+    code.mov(code.ABI_PARAM1, r15);
     if constexpr (bitsize != 128) {
         using T = mcl::unsigned_integer_of_size<bitsize>;
 
         code.CallLambda(
-            [](AxxUserConfig& conf, Axx::VAddr vaddr, T value) -> u32 {
-                return conf.global_monitor->DoExclusiveOperation<T>(conf.processor_id, vaddr,
+            [](AxxJitState& state, Axx::VAddr vaddr, T value) -> u32 {
+                return CoreMonitor(state)->DoExclusiveOperation<T>(state.core_processor_id, vaddr,
                                                                     [&](T expected) -> bool {
-                                                                        return (conf.callbacks->*callback)(vaddr, value, expected);
+                                                                        return (CoreCallbacks(state)->*callback)(vaddr, value, expected);
                                                                     })
                          ? 0
                          : 1;
@@ -312,10 +320,10 @@ void AxxEmitX64::EmitExclusiveWriteMemory(AxxEmitContext& ctx, IR::Inst* inst) {
         code.lea(code.ABI_PARAM3, ptr[rsp + ABI_SHADOW_SPACE]);
         code.movaps(xword[code.ABI_PARAM3], xmm1);
         code.CallLambda(
-            [](AxxUserConfig& conf, Axx::VAddr vaddr, Vector& value) -> u32 {
-                return conf.global_monitor->DoExclusiveOperation<Vector>(conf.processor_id, vaddr,
+            [](AxxJitState& state, Axx::VAddr vaddr, Vector& value) -> u32 {
+                return CoreMonitor(state)->DoExclusiveOperation<Vector>(state.core_processor_id, vaddr,
                                                                          [&](Vector expected) -> bool {
-                                                                             return (conf.callbacks->*callback)(vaddr, value, expected);
+                                                                             return (CoreCallbacks(state)->*callback)(vaddr, value, expected);
                                                                          })
                          ? 0
                          : 1;
@@ -359,7 +367,7 @@ void AxxEmitX64::EmitExclusiveReadMemoryInline(AxxEmitContext& ctx, IR::Inst* in
     EmitExclusiveLock(code, conf, tmp, tmp2.cvt32());
 
     code.mov(code.byte[r15 + offsetof(AxxJitState, exclusive_state)], u8(1));
-    code.mov(tmp, mcl::bit_cast<u64>(GetExclusiveMonitorAddressPointer(conf.global_monitor, conf.processor_id)));
+    code.mov(tmp, qword[r15 + offsetof(AxxJitState, core_excl_addr_ptr)]);
     code.mov(qword[tmp], vaddr);
 
     const auto fastmem_marker = ShouldFastmem(ctx, inst);
@@ -393,7 +401,7 @@ void AxxEmitX64::EmitExclusiveReadMemoryInline(AxxEmitContext& ctx, IR::Inst* in
         code.call(wrapped_fn);
     }
 
-    code.mov(tmp, mcl::bit_cast<u64>(GetExclusiveMonitorValuePointer(conf.global_monitor, conf.processor_id)));
+    code.mov(tmp, qword[r15 + offsetof(AxxJitState, core_excl_value_ptr)]);
     EmitWriteMemoryMov<bitsize>(code, tmp, value_idx, false);
 
     EmitExclusiveUnlock(code, conf, tmp, tmp2.cvt32());
@@ -440,7 +448,7 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
 
     SharedLabel end = GenSharedLabel();
 
-    code.mov(tmp, mcl::bit_cast<u64>(GetExclusiveMonitorAddressPointer(conf.global_monitor, conf.processor_id)));
+    code.mov(tmp, qword[r15 + offsetof(AxxJitState, core_excl_addr_ptr)]);
     code.mov(status, u32(1));
     code.cmp(code.byte[r15 + offsetof(AxxJitState, exclusive_state)], u8(0));
     code.je(*end, code.T_NEAR);
@@ -450,7 +458,7 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
     EmitExclusiveTestAndClear(code, conf, vaddr, tmp, rax);
 
     code.mov(code.byte[r15 + offsetof(AxxJitState, exclusive_state)], u8(0));
-    code.mov(tmp, mcl::bit_cast<u64>(GetExclusiveMonitorValuePointer(conf.global_monitor, conf.processor_id)));
+    code.mov(tmp, qword[r15 + offsetof(AxxJitState, core_excl_value_ptr)]);
 
     if constexpr (bitsize == 128) {
         code.mov(rax, qword[tmp + 0]);
