@@ -377,8 +377,17 @@ void A64EmitX64::EmitA64SetW(A64EmitContext& ctx, IR::Inst* inst) {
     const auto addr = qword[r15 + offsetof(A64JitState, reg) + sizeof(u64) * static_cast<size_t>(reg)];
     if (args[1].FitsInImmediateS32()) {
         code.mov(addr, args[1].GetImmediateS32());
+    } else if (args[1].IsImmediate() && !BaselineCodegen()) {
+        // A 32-bit move clears the upper half
+        const Xbyak::Reg64 tmp = ctx.reg_alloc.ScratchGpr();
+        code.mov(tmp.cvt32(), args[1].GetImmediateU32());
+        code.mov(addr, tmp);
     } else {
-        // TODO: zext tracking, xmm variant
+        // TODO: xmm variant
+        if (GprZeroExtended32(inst->GetArg(1))) {
+            code.mov(addr, ctx.reg_alloc.UseGpr(args[1]));
+            return;
+        }
         const Xbyak::Reg64 to_store = ctx.reg_alloc.UseScratchGpr(args[1]);
         code.mov(to_store.cvt32(), to_store.cvt32());
         code.mov(addr, to_store);

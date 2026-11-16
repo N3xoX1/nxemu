@@ -1449,7 +1449,13 @@ static Xbyak::Reg64 SetFpscrNzcvFromFlags(BlockOfCode& code, EmitContext& ctx) {
 
     code.mov(nzcv, 0x0101'4100'8000'0100);
     code.sete(cl);
-    code.rcl(cl, 5);  // cl = ZF:CF:0000
+    if (BaselineCodegen()) {
+        code.rcl(cl, 5);  // cl = ZF:CF:0000
+    } else {
+        // rcl with a count above 1 is microcoded; adc + shl are simple ops.
+        code.adc(cl, cl);  // cl = ZF:CF
+        code.shl(cl, 4);   // cl = ZF:CF:0000
+    }
     code.shr(nzcv, cl);
 
     return nzcv;

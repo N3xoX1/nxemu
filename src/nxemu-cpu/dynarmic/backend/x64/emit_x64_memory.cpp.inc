@@ -304,6 +304,7 @@ void AxxEmitX64::EmitExclusiveWriteMemory(AxxEmitContext& ctx, IR::Inst* inst) {
                          ? 0
                          : 1;
             });
+        code.mov(code.ABI_RETURN.cvt32(), code.ABI_RETURN.cvt32());  // the status is used as zero extended
         if (ordered) {
             code.mfence();
         }
@@ -320,6 +321,7 @@ void AxxEmitX64::EmitExclusiveWriteMemory(AxxEmitContext& ctx, IR::Inst* inst) {
                          ? 0
                          : 1;
             });
+        code.mov(code.ABI_RETURN.cvt32(), code.ABI_RETURN.cvt32());  // the status is used as zero extended
         if (ordered) {
             code.mfence();
         }

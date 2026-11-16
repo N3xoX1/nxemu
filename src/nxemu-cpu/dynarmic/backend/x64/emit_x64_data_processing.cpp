@@ -1522,6 +1522,11 @@ void EmitX64::EmitZeroExtendWordToLong(EmitContext& ctx, IR::Inst* inst) {
         ctx.reg_alloc.DefineValue(inst, result);
         return;
     }
+    // Only in place in a register: a spill slot may hold just the low 32 bits
+    if (args[0].IsInGpr() && GprZeroExtended32(inst->GetArg(0))) {
+        ctx.reg_alloc.DefineValue(inst, args[0]);
+        return;
+    }
     const Xbyak::Reg64 result = ctx.reg_alloc.UseScratchGpr(args[0]);
     code.mov(result.cvt32(), result.cvt32());  // x64 zeros upper 32 bits on a 32-bit move
     ctx.reg_alloc.DefineValue(inst, result);
@@ -1534,6 +1539,8 @@ void EmitX64::EmitZeroExtendLongToQuad(EmitContext& ctx, IR::Inst* inst) {
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
         code.movq(result, source);
         ctx.reg_alloc.DefineValue(inst, result);
+    } else if (args[0].IsInXmm() && UpperLanesClear(inst->GetArg(0), 64)) {  // a spill slot holds 64 bits only
+        ctx.reg_alloc.DefineValue(inst, args[0]);
     } else {
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
         code.movq(result, result);

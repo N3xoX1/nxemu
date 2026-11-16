@@ -15,7 +15,7 @@
 
 namespace Dynarmic::Optimization {
 
-void A64GetSetElimination(IR::Block& block) {
+void A64GetSetElimination(IR::Block& block, bool forward_conversions) {
     using Iterator = IR::Block::iterator;
 
     enum class TrackingType {
@@ -32,6 +32,9 @@ void A64GetSetElimination(IR::Block& block) {
         IR::Value register_value;
         TrackingType tracking_type;
         bool set_instruction_present = false;
+        // register_value holds what a set wrote, not only what a get read: the parts a
+        // narrower set leaves out are known to be zero
+        bool from_set = false;
         Iterator last_set_instruction;
     };
     std::array<RegisterInfo, 31> reg_info;
@@ -47,11 +50,34 @@ void A64GetSetElimination(IR::Block& block) {
 
         info.register_value = value;
         info.tracking_type = tracking_type;
+        info.from_set = true;
         info.set_instruction_present = true;
         info.last_set_instruction = set_inst;
     };
 
-    const auto do_get = [](RegisterInfo& info, Iterator get_inst, TrackingType tracking_type) {
+    // Returns the opcode that turns a value tracked as `from` into a get of `to`, or Void
+    // when the register has to be read
+    const auto conversion = [forward_conversions](const RegisterInfo& info, TrackingType to) {
+        if (!forward_conversions) {
+            return IR::Opcode::Void;
+        }
+        const TrackingType from = info.tracking_type;
+        if (from == TrackingType::X && to == TrackingType::W) {
+            return IR::Opcode::LeastSignificantWord;
+        }
+        if (from == TrackingType::W && to == TrackingType::X && info.from_set) {
+            return IR::Opcode::ZeroExtendWordToLong;
+        }
+        if (from == TrackingType::Q && to == TrackingType::D) {
+            return IR::Opcode::VectorZeroUpper;
+        }
+        if (from == TrackingType::D && to == TrackingType::Q && info.from_set) {
+            return IR::Opcode::VectorZeroUpper;
+        }
+        return IR::Opcode::Void;
+    };
+
+    const auto do_get = [&block, &conversion](RegisterInfo& info, Iterator get_inst, TrackingType tracking_type) {
         const auto do_nothing = [&] {
             info = {};
             info.register_value = IR::Value(&*get_inst);
@@ -65,6 +91,12 @@ void A64GetSetElimination(IR::Block& block) {
 
         if (info.tracking_type == tracking_type) {
             get_inst->ReplaceUsesWith(info.register_value);
+            return;
+        }
+
+        if (const IR::Opcode op = conversion(info, tracking_type); op != IR::Opcode::Void) {
+            const auto converted = block.PrependNewInst(get_inst, op, {info.register_value});
+            get_inst->ReplaceUsesWith(IR::Value(&*converted));
             return;
         }
 
@@ -154,6 +186,29 @@ void A64GetSetElimination(IR::Block& block) {
             }
             break;
         }
+        }
+    }
+
+    if (!forward_conversions) {
+        return;
+    }
+
+    // A vector register read whose only use is lane 0 of 32 bits loads just that lane. The
+    // load (movd) clears the upper lanes, so the lane extract has nothing left to clear.
+    for (auto& inst : block) {
+        if (inst.GetOpcode() != IR::Opcode::VectorGetElement32 || !inst.GetArg(1).IsImmediate() ||
+            inst.GetArg(1).GetU8() != 0 || inst.GetArg(0).IsImmediate()) {
+            continue;
+        }
+        IR::Value source = inst.GetArg(0);
+        bool single_use = true;
+        while (source.IsIdentity()) {
+            single_use = single_use && source.GetInst()->UseCount() == 1;
+            source = source.GetInst()->GetArg(0);
+        }
+        IR::Inst* const read = source.GetInst();
+        if (single_use && read->GetOpcode() == IR::Opcode::A64GetQ && read->UseCount() == 1) {
+            read->ReplaceOpcode(IR::Opcode::A64GetS);
         }
     }
 }

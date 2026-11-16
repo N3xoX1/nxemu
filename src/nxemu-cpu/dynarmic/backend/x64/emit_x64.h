@@ -23,6 +23,7 @@
 #include "dynarmic/backend/x64/reg_alloc.h"
 #include "dynarmic/common/fp/fpcr.h"
 #include "dynarmic/ir/location_descriptor.h"
+#include "dynarmic/ir/opcodes.h"
 #include "dynarmic/ir/terminal.h"
 
 namespace Dynarmic::IR {
@@ -69,6 +70,65 @@ using SharedLabel = std::shared_ptr<Xbyak::Label>;
 
 inline SharedLabel GenSharedLabel() {
     return std::make_shared<Xbyak::Label>();
+}
+
+/// Test variant bit 16: the code generation before zero extension tracking, adc for FCMP NZCV
+/// and plain ordered loads, for differential tests
+inline bool BaselineCodegen() {
+    return (jit_test_variant & 16) != 0;
+}
+
+/// True when the value is known to have every bit above `kept_bits` clear, wherever it lives:
+/// the loads below and the zero extensions clear them in an XMM, and a GPR value moved to an
+/// XMM later goes through movd/movq, which clears them too.
+inline bool UpperLanesClear(const IR::Value& value, size_t kept_bits) {
+    if (value.IsImmediate() || BaselineCodegen()) {
+        return false;
+    }
+    switch (value.GetInstRecursive()->GetOpcode()) {
+    case IR::Opcode::A64GetS:
+    case IR::Opcode::ZeroExtendWordToLong:
+        return kept_bits >= 32;
+    case IR::Opcode::A64GetD:
+    case IR::Opcode::ZeroExtendLongToQuad:
+        return kept_bits >= 64;
+    default:
+        return false;
+    }
+}
+
+/// True when the value, held in a GPR, already has its upper 32 bits clear: the instruction
+/// that produced it writes a 32-bit register, which zero extends on x64.
+/// This depends on every path of those emitters, fallbacks included, writing a fresh 32-bit
+/// register. An emitter shortcut that returns an input register as the result (x + 0, say)
+/// breaks it, so take the op off this list when adding one.
+inline bool GprZeroExtended32(const IR::Value& value) {
+    if (value.IsImmediate() || BaselineCodegen()) {
+        return false;
+    }
+    switch (value.GetInstRecursive()->GetOpcode()) {
+    case IR::Opcode::A64GetW:
+    case IR::Opcode::A64ReadMemory32:
+    case IR::Opcode::A64ExclusiveReadMemory32:
+    case IR::Opcode::A64ExclusiveWriteMemory8:
+    case IR::Opcode::A64ExclusiveWriteMemory16:
+    case IR::Opcode::A64ExclusiveWriteMemory32:
+    case IR::Opcode::A64ExclusiveWriteMemory64:
+    case IR::Opcode::A64ExclusiveWriteMemory128:
+    case IR::Opcode::ZeroExtendByteToWord:
+    case IR::Opcode::ZeroExtendHalfToWord:
+    case IR::Opcode::SignExtendByteToWord:
+    case IR::Opcode::SignExtendHalfToWord:
+    case IR::Opcode::ConditionalSelect32:
+    case IR::Opcode::Add32:
+    case IR::Opcode::Sub32:
+    case IR::Opcode::And32:
+    case IR::Opcode::AndNot32:
+    case IR::Opcode::Or32:
+        return true;
+    default:
+        return false;
+    }
 }
 
 class EmitX64 {

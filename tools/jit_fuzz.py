@@ -4,7 +4,9 @@
 Random A64 sequences run on two JITs that differ only by UserConfig::test_variant; a difference
 in registers, NZCV, FPSR or memory is a failure. Variant bits: 1 spills values instead of
 moving them to a free callee-saved register (the allocator before, as a baseline), 2 drops the handed-out check (the old bug, for
-checking the tester), 4 writes the IR of each block to jit-ir.txt in the current folder.
+checking the tester), 4 writes the IR of each block to jit-ir.txt in the current folder, 16 turns off
+zero extension tracking, get/set forwarding between register widths, adc for FCMP NZCV and plain
+ordered loads (the code generation before them).
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution

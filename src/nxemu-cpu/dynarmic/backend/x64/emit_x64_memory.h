@@ -201,7 +201,10 @@ template<>
 
 template<std::size_t bitsize>
 const void* EmitReadMemoryMov(BlockOfCode& code, int value_idx, const Xbyak::RegExp& addr, bool ordered) {
-    if (ordered) {
+    // An ordered read up to 64 bits is a plain load. x64 never moves a load before an earlier
+    // load or a later access, and ordered writes use xchg, a full barrier, so a release store
+    // followed by an acquire load stays in order. 128 bits still need cmpxchg16b to be atomic.
+    if (ordered && (bitsize == 128 || BaselineCodegen())) {
         if constexpr (bitsize != 128) {
             code.xor_(Xbyak::Reg32{value_idx}, Xbyak::Reg32{value_idx});
         } else {

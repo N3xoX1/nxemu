@@ -226,6 +226,10 @@ void EmitX64::EmitVectorGetElement32(EmitContext& ctx, IR::Inst* inst) {
     const u8 index = args[1].GetImmediateU8();
 
     if (index == 0) {
+        if (UpperLanesClear(inst->GetArg(0), 32)) {
+            ctx.reg_alloc.DefineValue(inst, args[0]);
+            return;
+        }
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
         // Scalar FP post-processing also inspects upper lanes. Clear them so
         // unrelated signaling NaNs cannot change the guest exception flags.
@@ -5924,6 +5928,10 @@ void EmitX64::EmitVectorZeroExtend64(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitVectorZeroUpper(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    if (args[0].IsInXmm() && UpperLanesClear(inst->GetArg(0), 64)) {  // a spill slot may hold 64 bits only
+        ctx.reg_alloc.DefineValue(inst, args[0]);
+        return;
+    }
     const Xbyak::Xmm a = ctx.reg_alloc.UseScratchXmm(args[0]);
 
     code.movq(a, a);  // TODO: !IsLastUse
