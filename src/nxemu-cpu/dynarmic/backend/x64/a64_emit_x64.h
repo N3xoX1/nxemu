@@ -141,6 +141,26 @@ protected:
     void EmitTerminalImpl(IR::Term::CheckHalt terminal, IR::LocationDescriptor initial_location, bool is_single_step) override;
 
     // Patching
+    // A link site is a jg/jz/jmp whose rel32 is 4-byte aligned, so linking and unlinking is one
+    // aligned store. Unlinked, it jumps to a stub after the block that stores the target PC and
+    // returns to the dispatcher. The imm64 of the RSB mov rcx is 8-byte aligned.
+    struct PendingLinkStub {
+        CodePtr site;
+        u8* rel32;
+        u64 target_pc;
+        bool unlinked;
+    };
+    struct LinkSite {
+        u8* rel32;
+        CodePtr stub;
+    };
+    std::vector<PendingLinkStub> pending_link_stubs;
+    tsl::robin_map<CodePtr, LinkSite> link_sites;
+    bool OldLinkPatching() const { return (conf.test_variant & 128) != 0; }
+    void EmitLinkSite(u8 condition_opcode, const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr);
+    void EmitLinkStubs();
+
+    void Patch(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) override;
     void Unpatch(const IR::LocationDescriptor& target_desc) override;
     void EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr = nullptr) override;
     void EmitPatchJz(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr = nullptr) override;
