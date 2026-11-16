@@ -56,6 +56,11 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
     GenMemory128Accessors();
     GenFastmemFallbacks();
     GenTerminalHandlers();
+    // A quarter of the cache for the cold code of the blocks (the deferred fallback paths).
+    // Test variant bit 32 keeps the old layout, with the cold code after each block.
+    if ((conf.test_variant & 32) == 0) {
+        code.ReserveFarCode(conf.code_cache_size / 4);
+    }
     code.PreludeComplete();
     ClearFastDispatchTable();
 
@@ -142,14 +147,21 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     }
     EmitX64::EmitTerminal(block.GetTerminal(), ctx.Location().SetSingleStepping(false), ctx.IsSingleStep());
     code.int3();
+    const size_t size = static_cast<size_t>(code.getCurr() - entrypoint);
 
+    // The cold code goes to the far area, so the hot code of consecutive blocks stays dense
+    const bool far_code = code.HasFarCode();
+    if (far_code) {
+        code.SwitchToFarCode();
+    }
     for (auto& deferred_emit : ctx.deferred_emits) {
         deferred_emit();
     }
     EmitLinkStubs();
     code.int3();
-
-    const size_t size = static_cast<size_t>(code.getCurr() - entrypoint);
+    if (far_code) {
+        code.SwitchToNearCode();
+    }
 
     const A64::LocationDescriptor descriptor{block.Location()};
     const A64::LocationDescriptor end_location{block.EndLocation()};
