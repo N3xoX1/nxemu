@@ -619,7 +619,7 @@ GraphicsPipeline::GraphicsPipeline(
     auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics, runtime_event=VideoCommon::ShaderProfile::Runtime::current] {
         VideoCommon::ShaderProfile::Runtime::Span runtime_timer(runtime_event,VideoCommon::ShaderProfile::Runtime::Work::Native);
         bool success{};
-        PipelineCrashTrace::BeginNative(key.Hash());
+        PipelineCrashTrace::NativeBuild trace{"graphics", key.Hash()};
         try {
             DescriptorLayoutBuilder builder{MakeBuilder(
                 device, stage_infos, static_cast<u32>(NumAttachments(key.state)))};
@@ -729,7 +729,7 @@ GraphicsPipeline::GraphicsPipeline(
                 stage.module.reset();
             }
         }
-        PipelineCrashTrace::EndNative(key.Hash(), success);
+        trace.Finish(success);
         VideoCommon::ShaderProfile::Runtime::NativeResult(runtime_event,success);
         {
             std::scoped_lock lock{build_mutex};

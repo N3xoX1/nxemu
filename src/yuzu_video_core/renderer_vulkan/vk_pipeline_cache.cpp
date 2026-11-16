@@ -2927,6 +2927,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
     Timing::Timer compiler_timer(Timing::current, Timing::Phase::CompilerWall);
     auto hash = key.Hash();
     LOG_INFO(Render_Vulkan, "0x{:016x}", hash);
+    PipelineCrashTrace::BeginTranslate("graphics", hash);
     PipelineCrashTrace::Stages trace_stages;
     size_t env_index{0};
     std::array<Shader::IR::Program, Maxwell::MaxShaderProgram> programs;
@@ -3263,7 +3264,8 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             if (infos[stage]) audit->interfaces.emplace_back(stage, *infos[stage]);
         }
     }
-    PipelineCrashTrace::Record(hash, key, trace_stages);
+    PipelineCrashTrace::Record(
+        hash, std::span{reinterpret_cast<const u8*>(&key), key.Size()}, trace_stages);
     NativePipelineBuildQueue* const thread_worker{build_in_parallel ? &runtime_builds : nullptr};
     return std::make_unique<GraphicsPipeline>(
         scheduler, buffer_cache, texture_cache, vulkan_pipeline_cache, &shader_notify, device,
@@ -3396,6 +3398,7 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     }
 
     LOG_INFO(Render_Vulkan, "0x{:016x}", hash);
+    PipelineCrashTrace::BeginTranslate("compute", hash);
 
     Timing::Timer translation_timer(Timing::current, Timing::Phase::GuestTranslation);
     Shader::Maxwell::Flow::CFG cfg{env, pools.flow_block, env.StartAddress()};
@@ -3428,6 +3431,9 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
         const auto name{fmt::format("Shader {:016x}", key.unique_hash)};
         spv_module.SetObjectNameEXT(name.c_str());
     }
+    PipelineCrashTrace::Record(hash, std::span{reinterpret_cast<const u8*>(&key), sizeof(key)},
+                               {{"compute", code}});
+    PipelineCrashTrace::pending_compute_hash = hash;
     NativePipelineBuildQueue* const thread_worker{build_in_parallel ? &runtime_builds : nullptr};
     return std::make_unique<ComputePipeline>(device, vulkan_pipeline_cache, descriptor_pool,
                                              guest_descriptor_queue, thread_worker, statistics,
