@@ -52,7 +52,7 @@ FP::FPCR A64EmitContext::FPCR(bool fpcr_controlled) const {
 }
 
 A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_interface)
-        : EmitX64(code), conf(conf), jit_interface{jit_interface} {
+        : EmitX64(code), conf(conf), devirtualize_callbacks(conf.callbacks), jit_interface{jit_interface} {
     GenMemory128Accessors();
     GenFastmemFallbacks();
     GenTerminalHandlers();
@@ -240,8 +240,19 @@ void A64EmitX64::InvalidateCacheRanges(const boost::icl::interval_set<u64>& rang
 
 void A64EmitX64::ClearFastDispatchTable() {
     if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
-        fast_dispatch_table.fill({});
+        for (FastDispatchTable* table : fast_dispatch_tables) {
+            table->fill({});
+        }
     }
+}
+
+void A64EmitX64::AddFastDispatchTable(FastDispatchTable* table) {
+    table->fill({});
+    fast_dispatch_tables.push_back(table);
+}
+
+void A64EmitX64::RemoveFastDispatchTable(FastDispatchTable* table) {
+    std::erase(fast_dispatch_tables, table);
 }
 
 void A64EmitX64::GenTerminalHandlers() {
@@ -282,7 +293,7 @@ void A64EmitX64::GenTerminalHandlers() {
         terminal_handler_fast_dispatch_hint = code.getCurr<const void*>();
         calculate_location_descriptor();
         code.L(rsb_cache_miss);
-        code.mov(r12, reinterpret_cast<u64>(fast_dispatch_table.data()));
+        code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
         code.mov(rbp, rbx);
         if (code.HasHostFeature(HostFeature::SSE42)) {
             code.crc32(rbp, r12);
@@ -300,8 +311,7 @@ void A64EmitX64::GenTerminalHandlers() {
         PerfMapRegister(terminal_handler_fast_dispatch_hint, code.getCurr(), "a64_terminal_handler_fast_dispatch_hint");
 
         code.align();
-        fast_dispatch_table_lookup = code.getCurr<FastDispatchEntry& (*)(u64)>();
-        code.mov(code.ABI_PARAM2, reinterpret_cast<u64>(fast_dispatch_table.data()));
+        fast_dispatch_table_lookup = code.getCurr<FastDispatchEntry& (*)(u64, FastDispatchEntry*)>();
         if (code.HasHostFeature(HostFeature::SSE42)) {
             code.crc32(code.ABI_PARAM1, code.ABI_PARAM2);
         }
@@ -1055,8 +1065,13 @@ void A64EmitX64::Patch(const IR::LocationDescriptor& target_desc, CodePtr target
 void A64EmitX64::Unpatch(const IR::LocationDescriptor& location) {
     EmitX64::Unpatch(location);
     if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
+        // Other cores may be reading their tables: only the location is cleared, with one
+        // aligned store. The old code stays valid until the whole cache is cleared.
         code.DisableWriting();
-        (*fast_dispatch_table_lookup)(location.Value()) = {};
+        for (FastDispatchTable* table : fast_dispatch_tables) {
+            FastDispatchEntry& entry = (*fast_dispatch_table_lookup)(location.Value(), table->data());
+            std::atomic_ref<u64>{entry.location_descriptor}.store(0xFFFF'FFFF'FFFF'FFFFull, std::memory_order_relaxed);
+        }
         code.EnableWriting();
     }
 }

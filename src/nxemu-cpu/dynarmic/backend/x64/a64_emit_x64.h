@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <map>
 #include <optional>
 #include <tuple>
@@ -52,17 +53,6 @@ public:
 
     void InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges);
 
-protected:
-    /// A user callback whose object comes from the running core's JIT state.
-    template<auto mfp>
-    ArgCallback CoreCallback() const {
-        return DevirtualizeFromState<mfp>(conf.callbacks, offsetof(A64JitState, core_callbacks));
-    }
-
-    const A64::UserConfig conf;
-    A64::Jit* jit_interface;
-    BlockRangeInformation<u64> block_ranges;
-
     struct FastDispatchEntry {
         u64 location_descriptor = 0xFFFF'FFFF'FFFF'FFFFull;
         const void* code_ptr = nullptr;
@@ -70,7 +60,49 @@ protected:
     static_assert(sizeof(FastDispatchEntry) == 0x10);
     static constexpr u64 fast_dispatch_table_mask = 0xFFFFF0;
     static constexpr size_t fast_dispatch_table_size = 0x100000;
-    std::array<FastDispatchEntry, fast_dispatch_table_size> fast_dispatch_table;
+    using FastDispatchTable = std::array<FastDispatchEntry, fast_dispatch_table_size>;
+
+    /// Each core has its own table. Invalidation clears the entries of every added table.
+    void AddFastDispatchTable(FastDispatchTable* table);
+    void RemoveFastDispatchTable(FastDispatchTable* table);
+
+    const void* LookupFastDispatch(FastDispatchTable* table, u64 location) const {
+        if (!fast_dispatch_table_lookup) {
+            return nullptr;
+        }
+        FastDispatchEntry& entry = fast_dispatch_table_lookup(location, table->data());
+        // Read without cache_mutex while Unpatch on another core may clear the location
+        const u64 entry_location = std::atomic_ref<u64>{entry.location_descriptor}.load(std::memory_order_relaxed);
+        return entry_location == location ? entry.code_ptr : nullptr;
+    }
+    /// Called by the table's core with cache_mutex held.
+    void InsertFastDispatch(FastDispatchTable* table, u64 location, const void* code_ptr) const {
+        if (!fast_dispatch_table_lookup) {
+            return;
+        }
+        FastDispatchEntry& entry = fast_dispatch_table_lookup(location, table->data());
+        entry.code_ptr = code_ptr;
+        entry.location_descriptor = location;
+    }
+
+    /// Callbacks of a core that still exists, used to resolve the core callbacks when compiling.
+    /// Called with cache_mutex held.
+    void SetDevirtualizeCallbacks(A64::UserCallbacks* callbacks) { devirtualize_callbacks = callbacks; }
+    A64::UserCallbacks* DevirtualizeCallbacks() const { return devirtualize_callbacks; }
+
+protected:
+    /// A user callback whose object comes from the running core's JIT state.
+    template<auto mfp>
+    ArgCallback CoreCallback() const {
+        return DevirtualizeFromState<mfp>(devirtualize_callbacks, offsetof(A64JitState, core_callbacks));
+    }
+
+    const A64::UserConfig conf;
+    A64::UserCallbacks* devirtualize_callbacks;
+    A64::Jit* jit_interface;
+    BlockRangeInformation<u64> block_ranges;
+
+    std::vector<FastDispatchTable*> fast_dispatch_tables;
     void ClearFastDispatchTable();
 
     void (*memory_read_128)();
@@ -85,7 +117,7 @@ protected:
 
     const void* terminal_handler_pop_rsb_hint;
     const void* terminal_handler_fast_dispatch_hint = nullptr;
-    FastDispatchEntry& (*fast_dispatch_table_lookup)(u64) = nullptr;
+    FastDispatchEntry& (*fast_dispatch_table_lookup)(u64, FastDispatchEntry*) = nullptr;
     void GenTerminalHandlers();
 
     // Microinstruction emitters
