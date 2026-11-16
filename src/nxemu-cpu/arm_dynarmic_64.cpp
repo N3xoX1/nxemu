@@ -3,6 +3,7 @@
 
 #include "cpu_settings.h"
 #include <array>
+#include <atomic>
 #include <limits>
 #include "yuzu_common/scope_exit.h"
 #include <yuzu_common/logging/log.h>
@@ -78,13 +79,15 @@ public:
         }
 
         const uint64_t page_addr = vaddr & ~CODE_PAGE_MASK;
-        if (m_last_code_page != page_addr)
+        const uint64_t code_epoch = s_code_epoch.load(std::memory_order_acquire);
+        if (m_last_code_page != page_addr || m_code_epoch != code_epoch)
         {
             if (!m_memory.ReadBlock(page_addr, m_cached_code_page.data(), CODE_PAGE_SIZE))
             {
                 return m_memory.Read32(vaddr);
             }
             m_last_code_page = page_addr;
+            m_code_epoch = code_epoch;
         }
 
         return m_cached_code_page[(vaddr & CODE_PAGE_MASK) / sizeof(u32)];
@@ -252,18 +255,11 @@ public:
         m_last_code_page = INVALID_CODE_PAGE;
     }
 
-    void InvalidateCodePageCacheRange(uint64_t addr, uint64_t size)
+    // The cores of a process share compiled code, so a core must not compile from a page it read
+    // before another core invalidated code
+    static void InvalidateAllCodePageCaches()
     {
-        if (m_last_code_page == INVALID_CODE_PAGE || size == 0)
-        {
-            return;
-        }
-
-        const uint64_t end = addr + size - 1;
-        if (end < addr || (addr <= m_last_code_page + CODE_PAGE_MASK && end >= m_last_code_page))
-        {
-            InvalidateCodePageCache();
-        }
+        s_code_epoch.fetch_add(1, std::memory_order_release);
     }
 
     bool CheckMemoryAccess(uint64_t addr, uint64_t size, CpuDebugWatchpointType /*type*/)
@@ -297,8 +293,11 @@ public:
     static constexpr uint64_t CODE_PAGE_MASK = CODE_PAGE_SIZE - 1;
     static constexpr uint64_t INVALID_CODE_PAGE = std::numeric_limits<uint64_t>::max();
 
+    static inline std::atomic<uint64_t> s_code_epoch{0};
+
     std::array<u32, CODE_PAGE_SIZE / sizeof(u32)> m_cached_code_page{};
     uint64_t m_last_code_page = INVALID_CODE_PAGE;
+    uint64_t m_code_epoch = 0;
 
     ArmDynarmic64 & m_parent;
     IMemory & m_memory;
@@ -329,6 +328,8 @@ ArmDynarmic64::ArmDynarmic64(ICoreSystem & system, bool uses_wall_clock, IKernel
 
 ArmDynarmic64::~ArmDynarmic64()
 {
+    // The shared code cache may still use the callbacks until the jit is detached
+    m_jit.reset();
 }
 
 std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & process) const
@@ -381,6 +382,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
 #else
     config.code_cache_size = 512_MiB;
 #endif
+    config.share_code_cache_key = &process;
 
     // Allow memory fault handling to work
     config.check_halt_on_memory_access = m_cb->m_check_memory_access;
@@ -634,19 +636,13 @@ void ArmDynarmic64::SignalInterrupt(IKernelThread * /*thread*/)
 
 void ArmDynarmic64::ClearInstructionCache()
 {
-    if (m_cb)
-    {
-        m_cb->InvalidateCodePageCache();
-    }
+    DynarmicCallbacks64::InvalidateAllCodePageCaches();
     m_jit->ClearCache();
 }
 
 void ArmDynarmic64::InvalidateCacheRange(uint64_t addr, uint64_t size)
 {
-    if (m_cb)
-    {
-        m_cb->InvalidateCodePageCacheRange(addr, size);
-    }
+    DynarmicCallbacks64::InvalidateAllCodePageCaches();
     m_jit->InvalidateCacheRange(addr, size);
 }
 

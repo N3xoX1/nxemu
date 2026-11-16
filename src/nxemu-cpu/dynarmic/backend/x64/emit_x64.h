@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <shared_mutex>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -164,6 +165,10 @@ public:
 
     /// Invalidates a selection of basic blocks.
     void InvalidateBasicBlocks(const tsl::robin_set<IR::LocationDescriptor>& locations);
+
+    /// Guards the block maps when several cores share this code: shared for lookups, exclusive
+    /// to compile, link, invalidate or handle a fastmem fault.
+    std::shared_mutex cache_mutex;
 
 protected:
     // Microinstruction emitters

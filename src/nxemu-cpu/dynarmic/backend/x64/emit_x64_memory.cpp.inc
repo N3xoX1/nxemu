@@ -35,6 +35,8 @@ std::optional<AxxEmitX64::DoNotFastmemMarker> AxxEmitX64::ShouldFastmem(AxxEmitC
 }
 
 FakeCall AxxEmitX64::FastmemCallback(u64 rip_) {
+    // The fault comes from JIT code, never from code that holds this lock.
+    std::unique_lock lock{cache_mutex};
     const auto iter = fastmem_patch_info.find(rip_);
 
     if (iter == fastmem_patch_info.end()) {
