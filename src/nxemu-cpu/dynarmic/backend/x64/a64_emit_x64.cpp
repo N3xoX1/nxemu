@@ -5,6 +5,8 @@
 
 #include "dynarmic/backend/x64/a64_emit_x64.h"
 
+#include <atomic>
+
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <mcl/assert.hpp>
@@ -144,6 +146,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     for (auto& deferred_emit : ctx.deferred_emits) {
         deferred_emit();
     }
+    EmitLinkStubs();
     code.int3();
 
     const size_t size = static_cast<size_t>(code.getCurr() - entrypoint);
@@ -159,6 +162,8 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
 void A64EmitX64::ClearCache() {
     EmitX64::ClearCache();
+    link_sites.clear();
+    pending_link_stubs.clear();
     block_ranges.ClearCache();
     ClearFastDispatchTable();
     fastmem_patch_info.clear();
@@ -723,7 +728,59 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::CheckHalt terminal, IR::LocationDesc
     EmitTerminal(terminal.else_, initial_location, is_single_step);
 }
 
+namespace {
+// Bytes of padding before an instruction of opcode_size bytes so that the field after the opcode
+// is aligned on `alignment`.
+size_t LinkPadding(const void* site, size_t opcode_size, size_t alignment) {
+    const uintptr_t field = reinterpret_cast<uintptr_t>(site) + opcode_size;
+    return (alignment - field % alignment) % alignment;
+}
+
+void StoreRel32(u8* rel32, CodePtr target) {
+    const s64 displacement = reinterpret_cast<const u8*>(target) - (rel32 + 4);
+    ASSERT(displacement == static_cast<s32>(displacement));
+    ASSERT(reinterpret_cast<uintptr_t>(rel32) % 4 == 0);
+    std::atomic_ref<u32>{*reinterpret_cast<u32*>(rel32)}.store(static_cast<u32>(static_cast<s32>(displacement)), std::memory_order_release);
+}
+}  // namespace
+
+void A64EmitX64::EmitLinkSite(u8 condition_opcode, const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    const CodePtr site = code.getCurr();
+    const size_t opcode_size = condition_opcode ? 2 : 1;
+    code.nop(LinkPadding(site, opcode_size, 4));
+    if (condition_opcode) {
+        code.db(0x0F);
+        code.db(condition_opcode);
+    } else {
+        code.db(0xE9);
+    }
+    u8* const rel32 = code.getCurr<u8*>();
+    code.dd(0);
+    if (target_code_ptr) {
+        StoreRel32(rel32, target_code_ptr);
+    }
+    pending_link_stubs.push_back({site, rel32, A64::LocationDescriptor{target_desc}.PC(), target_code_ptr == nullptr});
+}
+
+void A64EmitX64::EmitLinkStubs() {
+    for (const PendingLinkStub& pending : pending_link_stubs) {
+        const CodePtr stub = code.getCurr();
+        code.mov(rax, pending.target_pc);
+        code.mov(qword[r15 + offsetof(A64JitState, pc)], rax);
+        code.jmp(code.GetReturnFromRunCodeAddress(), code.T_NEAR);
+        link_sites[pending.site] = LinkSite{pending.rel32, stub};
+        if (pending.unlinked) {
+            StoreRel32(pending.rel32, stub);
+        }
+    }
+    pending_link_stubs.clear();
+}
+
 void A64EmitX64::EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    if (!OldLinkPatching()) {
+        EmitLinkSite(0x8F, target_desc, target_code_ptr);
+        return;
+    }
     const CodePtr patch_location = code.getCurr();
     if (target_code_ptr) {
         code.jg(target_code_ptr);
@@ -736,6 +793,10 @@ void A64EmitX64::EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr 
 }
 
 void A64EmitX64::EmitPatchJz(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    if (!OldLinkPatching()) {
+        EmitLinkSite(0x84, target_desc, target_code_ptr);
+        return;
+    }
     const CodePtr patch_location = code.getCurr();
     if (target_code_ptr) {
         code.jz(target_code_ptr);
@@ -748,6 +809,10 @@ void A64EmitX64::EmitPatchJz(const IR::LocationDescriptor& target_desc, CodePtr 
 }
 
 void A64EmitX64::EmitPatchJmp(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    if (!OldLinkPatching()) {
+        EmitLinkSite(0, target_desc, target_code_ptr);
+        return;
+    }
     const CodePtr patch_location = code.getCurr();
     if (target_code_ptr) {
         code.jmp(target_code_ptr);
@@ -763,9 +828,48 @@ void A64EmitX64::EmitPatchMovRcx(CodePtr target_code_ptr) {
     if (!target_code_ptr) {
         target_code_ptr = code.GetReturnFromRunCodeAddress();
     }
+    if (!OldLinkPatching()) {
+        // mov rcx, imm64 in its 10-byte form, imm64 aligned on 8
+        code.nop(LinkPadding(code.getCurr(), 2, 8));
+        code.db(0x48);
+        code.db(0xB9);
+        code.dq(reinterpret_cast<u64>(target_code_ptr));
+        return;
+    }
     const CodePtr patch_location = code.getCurr();
     code.mov(code.rcx, reinterpret_cast<u64>(target_code_ptr));
     code.EnsurePatchLocationSize(patch_location, 10);
+}
+
+void A64EmitX64::Patch(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    if (OldLinkPatching()) {
+        EmitX64::Patch(target_desc, target_code_ptr);
+        return;
+    }
+    const tsl::robin_map<IR::LocationDescriptor, PatchInformation>::const_iterator iter = patch_information.find(target_desc);
+    if (iter == patch_information.end()) {
+        return;
+    }
+    const PatchInformation& patch_info = iter->second;
+    const auto patch_site = [&](CodePtr site) {
+        const tsl::robin_map<CodePtr, LinkSite>::const_iterator link = link_sites.find(site);
+        ASSERT(link != link_sites.end());
+        StoreRel32(link->second.rel32, target_code_ptr ? target_code_ptr : link->second.stub);
+    };
+    for (CodePtr site : patch_info.jg) {
+        patch_site(site);
+    }
+    for (CodePtr site : patch_info.jz) {
+        patch_site(site);
+    }
+    for (CodePtr site : patch_info.jmp) {
+        patch_site(site);
+    }
+    const u64 rcx_value = reinterpret_cast<u64>(target_code_ptr ? target_code_ptr : code.GetReturnFromRunCodeAddress());
+    for (CodePtr site : patch_info.mov_rcx) {
+        u8* const imm64 = const_cast<u8*>(reinterpret_cast<const u8*>(site)) + LinkPadding(site, 2, 8) + 2;
+        std::atomic_ref<u64>{*reinterpret_cast<u64*>(imm64)}.store(rcx_value, std::memory_order_release);
+    }
 }
 
 void A64EmitX64::Unpatch(const IR::LocationDescriptor& location) {
