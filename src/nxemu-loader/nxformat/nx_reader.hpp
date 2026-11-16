@@ -26,9 +26,8 @@ SOFTWARE.
 #ifndef NX_READER_HPP_INCLUDED
 #define NX_READER_HPP_INCLUDED
 
-// Read-only NX 0.2/0.3 reader, adapted to use NXEmu's common SHA-256.
-// All wire values are decoded explicitly.
-#include "common/sha256.h"
+// Portable, read-only NX 0.2/0.3 reader. The distributed header is generated from
+// this file without transformations; all wire values are decoded explicitly.
 #include <atomic>
 #include <algorithm>
 #include <chrono>
@@ -63,6 +62,7 @@ SOFTWARE.
 #include <cpuid.h>
 #endif
 #include <nmmintrin.h>
+#include <immintrin.h>
 #if defined(__GNUC__) || defined(__clang__)
 #define NX_CRC32C_TARGET __attribute__((target("sse4.2")))
 #else
@@ -75,6 +75,9 @@ SOFTWARE.
 #define NX_CRC32C_TARGET
 #else
 #include <arm_acle.h>
+#if defined(__ARM_FEATURE_SHA2)
+#include <arm_neon.h>
+#endif
 #if defined(__clang__)
 #define NX_CRC32C_TARGET __attribute__((target("crc")))
 #else
@@ -262,10 +265,28 @@ struct PartialRead : Status {
 
 // Backing bytes must remain immutable from open() until Archive destruction.
 // File adapters must prevent writes; remote adapters must pin an object version.
+struct ImmutableReadView {
+    const std::uint8_t* data=nullptr;
+    std::shared_ptr<const void> owner;
+    using ReadOperation = void (*)(void*);
+    using Guard = bool (*)(const std::uint8_t*, std::size_t, ReadOperation, void*);
+    // Fallible file mappings supply a guard; ordinary stable RAM leaves it null.
+    Guard guard=nullptr;
+    using Copy = bool (*)(const std::uint8_t*, std::uint8_t*, std::size_t);
+    // Optional leaf copy guard avoids the generic callback on verified hits.
+    Copy guarded_copy=nullptr;
+};
 struct RandomAccessSource {
     virtual ~RandomAccessSource() = default;
     virtual std::uint64_t size() const noexcept = 0;
     virtual bool read_at(std::uint64_t offset, std::uint8_t* destination, std::size_t length) = 0;
+    // Opt-in only for adapters which actually prevent writes for this source's
+    // lifetime (for example an OS file handle denying shared write access).
+    virtual bool immutable_reads() const noexcept { return false; }
+    // Optional stable, read-only view. Bytes must remain immutable and the
+    // pointer valid while owner is held (or until source destruction if owner
+    // is empty). A lease permits bounded providers to evict views safely.
+    virtual ImmutableReadView immutable_view(std::uint64_t, std::size_t) const noexcept { return {}; }
 };
 
 // The callback must decode exactly one standard frame, reject dictionaries,
@@ -316,6 +337,11 @@ struct OpenOptions {
     // Diagnostic clocks require NX_READER_DIAGNOSTICS at build time as well.
     // Normal builds contain no added clock calls or hot copy-path branches.
     bool collect_read_timing = false;
+    // Verification-only RAW caching is opt-in and requires a source which
+    // guarantees immutability. No RAW payload is retained.
+    bool cache_raw_verification = false;
+    std::uint64_t max_raw_verification_bytes = 1024*1024;
+
 };
 
 // Per mounted archive; keys are physical block IDs shared by every file/snapshot.
@@ -325,6 +351,7 @@ struct CacheStats {
     std::uint64_t stored_bytes_read = 0, evictions = 0;
     std::uint64_t bytes = 0, peak_bytes = 0, entries = 0;
     std::uint64_t io_ns = 0, hash_ns = 0, copy_ns = 0;
+    std::uint64_t raw_verification_bytes = 0;
 };
 
 // Source data has independent roots, never executable snapshot ownership.
@@ -381,6 +408,16 @@ struct Snapshot {
     }
 };
 
+// Catalog identity for one explicitly selected executable snapshot, not a
+// game-wide identity or a promise that a third-party patch is compatible.
+struct ProgramFingerprint {
+    std::uint8_t platform = 0;
+    std::uint64_t application_id = 0, program_id = 0;
+    std::uint32_t numeric_version = 0;
+    std::array<std::uint8_t, 32> snapshot_identity{};
+    std::optional<std::array<std::uint8_t, 32>> build_id;
+};
+
 struct Dependency {
     std::uint8_t kind = 0;
     std::optional<std::array<std::uint8_t,16>> content_id;
@@ -416,6 +453,197 @@ struct DirectoryEntryView {
     std::uint64_t size = 0;
 };
 
+namespace detail {
+// SHA-256 compression of whole 64-byte blocks: SHA-NI on x86-64 (selected at
+// run time), the ARMv8 SHA2 extension when the build targets it, else the
+// portable code in Sha256. The Manifest digest dominates mount time.
+using Sha256BlocksFunction = void (*)(std::uint32_t*, const std::uint8_t*, std::size_t);
+alignas(16) inline constexpr std::uint32_t sha256_k[64] = {
+    0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
+    0xd807aa98u,0x12835b01u,0x243185beu,0x550c7dc3u,0x72be5d74u,0x80deb1feu,0x9bdc06a7u,0xc19bf174u,
+    0xe49b69c1u,0xefbe4786u,0x0fc19dc6u,0x240ca1ccu,0x2de92c6fu,0x4a7484aau,0x5cb0a9dcu,0x76f988dau,
+    0x983e5152u,0xa831c66du,0xb00327c8u,0xbf597fc7u,0xc6e00bf3u,0xd5a79147u,0x06ca6351u,0x14292967u,
+    0x27b70a85u,0x2e1b2138u,0x4d2c6dfcu,0x53380d13u,0x650a7354u,0x766a0abbu,0x81c2c92eu,0x92722c85u,
+    0xa2bfe8a1u,0xa81a664bu,0xc24b8b70u,0xc76c51a3u,0xd192e819u,0xd6990624u,0xf40e3585u,0x106aa070u,
+    0x19a4c116u,0x1e376c08u,0x2748774cu,0x34b0bcb5u,0x391c0cb3u,0x4ed8aa4au,0x5b9cca4fu,0x682e6ff3u,
+    0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u
+};
+#if defined(NX_CRC32C_X86)
+#if defined(__GNUC__) || defined(__clang__)
+#define NX_SHA_TARGET __attribute__((target("sha,sse4.1,ssse3")))
+#else
+#define NX_SHA_TARGET
+#endif
+NX_SHA_TARGET inline void sha256_blocks_hardware(std::uint32_t* state, const std::uint8_t* data, std::size_t blocks) {
+    const __m128i mask = _mm_set_epi64x(0x0c0d0e0f08090a0bll, 0x0405060700010203ll);
+    __m128i tmp = _mm_shuffle_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(state)), 0xb1);
+    __m128i state1 = _mm_shuffle_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(state + 4)), 0x1b);
+    __m128i state0 = _mm_alignr_epi8(tmp, state1, 8);   // ABEF
+    state1 = _mm_blend_epi16(state1, tmp, 0xf0);         // CDGH
+    while (blocks--) {
+        const __m128i abef = state0, cdgh = state1;
+        __m128i w[4];
+        for (int i = 0; i < 16; ++i) {
+            if (i < 4) {
+                w[i] = _mm_shuffle_epi8(_mm_loadu_si128(reinterpret_cast<const __m128i*>(data + 16 * i)), mask);
+            } else {
+                __m128i next = _mm_sha256msg1_epu32(w[i & 3], w[(i + 1) & 3]);
+                next = _mm_add_epi32(next, _mm_alignr_epi8(w[(i + 3) & 3], w[(i + 2) & 3], 4));
+                w[i & 3] = _mm_sha256msg2_epu32(next, w[(i + 3) & 3]);
+            }
+            __m128i msg = _mm_add_epi32(w[i & 3], _mm_load_si128(reinterpret_cast<const __m128i*>(sha256_k + 4 * i)));
+            state1 = _mm_sha256rnds2_epu32(state1, state0, msg);
+            msg = _mm_shuffle_epi32(msg, 0x0e);
+            state0 = _mm_sha256rnds2_epu32(state0, state1, msg);
+        }
+        state0 = _mm_add_epi32(state0, abef);
+        state1 = _mm_add_epi32(state1, cdgh);
+        data += 64;
+    }
+    tmp = _mm_shuffle_epi32(state0, 0x1b);       // FEBA
+    state1 = _mm_shuffle_epi32(state1, 0xb1);    // DCHG
+    state0 = _mm_blend_epi16(tmp, state1, 0xf0); // DCBA
+    state1 = _mm_alignr_epi8(state1, tmp, 8);    // HGFE
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(state), state0);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(state + 4), state1);
+}
+inline bool sha256_hardware_available() {
+#if defined(_MSC_VER)
+    int info[4] = {};
+    __cpuid(info, 0);
+    if (info[0] < 7) return false;
+    __cpuid(info, 1);
+    const bool sse = (info[2] & (1 << 9)) && (info[2] & (1 << 19));
+    __cpuidex(info, 7, 0);
+    return sse && (info[1] & (1 << 29));
+#else
+    unsigned a = 0, b = 0, c = 0, d = 0;
+    if (!__get_cpuid(1, &a, &b, &c, &d) || !(c & (1u << 9)) || !(c & (1u << 19))) return false;
+    if (__get_cpuid_max(0, nullptr) < 7) return false;
+    __cpuid_count(7, 0, a, b, c, d);
+    return (b & (1u << 29)) != 0;
+#endif
+}
+#define NX_SHA256_HARDWARE 1
+#elif defined(NX_CRC32C_ARM) && defined(__ARM_FEATURE_SHA2) && !defined(_MSC_VER)
+// Compiled only when the target guarantees the extension (Apple silicon,
+// or -march=armv8-a+crypto); other ARM builds use the portable code.
+inline void sha256_blocks_hardware(std::uint32_t* state, const std::uint8_t* data, std::size_t blocks) {
+    uint32x4_t state0 = vld1q_u32(state), state1 = vld1q_u32(state + 4);
+    while (blocks--) {
+        const uint32x4_t abcd = state0, efgh = state1;
+        uint32x4_t w[4];
+        for (int i = 0; i < 16; ++i) {
+            if (i < 4) w[i] = vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(data + 16 * i)));
+            else w[i & 3] = vsha256su1q_u32(vsha256su0q_u32(w[i & 3], w[(i + 1) & 3]), w[(i + 2) & 3], w[(i + 3) & 3]);
+            const uint32x4_t msg = vaddq_u32(w[i & 3], vld1q_u32(sha256_k + 4 * i));
+            const uint32x4_t previous = state0;
+            state0 = vsha256hq_u32(state0, state1, msg);
+            state1 = vsha256h2q_u32(state1, previous, msg);
+        }
+        state0 = vaddq_u32(state0, abcd);
+        state1 = vaddq_u32(state1, efgh);
+        data += 64;
+    }
+    vst1q_u32(state, state0);
+    vst1q_u32(state + 4, state1);
+}
+inline bool sha256_hardware_available() { return true; }
+#define NX_SHA256_HARDWARE 1
+#endif
+inline Sha256BlocksFunction sha256_blocks_function() {
+#if defined(NX_SHA256_HARDWARE)
+    static const Sha256BlocksFunction selected = sha256_hardware_available() ? &sha256_blocks_hardware : nullptr;
+    return selected;
+#else
+    return nullptr;
+#endif
+}
+}  // namespace detail
+
+class Sha256 {
+public:
+    void update(const std::uint8_t* data, std::size_t size) {
+        total_ += size;
+        if (const auto blocks = detail::sha256_blocks_function()) {
+            if (used_) {
+                const std::size_t take = std::min(size, block_.size() - used_);
+                std::memcpy(block_.data() + used_, data, take);
+                used_ += take; data += take; size -= take;
+                if (used_ < block_.size()) return;
+                blocks(state_.data(), block_.data(), 1); used_ = 0;
+            }
+            blocks(state_.data(), data, size / 64);
+            data += size / 64 * 64; size %= 64;
+            std::memcpy(block_.data(), data, size); used_ = size;
+            return;
+        }
+        while (size) {
+            const std::size_t take = std::min(size, block_.size() - used_);
+            std::memcpy(block_.data() + used_, data, take);
+            used_ += take; data += take; size -= take;
+            if (used_ == block_.size()) { transform(block_.data()); used_ = 0; }
+        }
+    }
+    std::array<std::uint8_t, 32> finish() {
+        const std::uint64_t bits = total_ * 8;
+        block_[used_++] = 0x80;
+        if (used_ > 56) { std::fill(block_.begin() + used_, block_.end(), std::uint8_t{0}); transform(block_.data()); used_ = 0; }
+        std::fill(block_.begin() + used_, block_.begin() + 56, std::uint8_t{0});
+        for (int i = 0; i < 8; ++i) block_[63 - i] = static_cast<std::uint8_t>(bits >> (8 * i));
+        transform(block_.data());
+        std::array<std::uint8_t, 32> out{};
+        for (std::size_t i = 0; i < state_.size(); ++i) {
+            out[4 * i] = static_cast<std::uint8_t>(state_[i] >> 24);
+            out[4 * i + 1] = static_cast<std::uint8_t>(state_[i] >> 16);
+            out[4 * i + 2] = static_cast<std::uint8_t>(state_[i] >> 8);
+            out[4 * i + 3] = static_cast<std::uint8_t>(state_[i]);
+        }
+        return out;
+    }
+    static std::array<std::uint8_t, 32> digest(const std::uint8_t* data, std::size_t size) {
+        Sha256 h; h.update(data, size); return h.finish();
+    }
+private:
+    static constexpr std::array<std::uint32_t, 64> k_ = {
+        0x428a2f98u,0x71374491u,0xb5c0fbcfu,0xe9b5dba5u,0x3956c25bu,0x59f111f1u,0x923f82a4u,0xab1c5ed5u,
+        0xd807aa98u,0x12835b01u,0x243185beu,0x550c7dc3u,0x72be5d74u,0x80deb1feu,0x9bdc06a7u,0xc19bf174u,
+        0xe49b69c1u,0xefbe4786u,0x0fc19dc6u,0x240ca1ccu,0x2de92c6fu,0x4a7484aau,0x5cb0a9dcu,0x76f988dau,
+        0x983e5152u,0xa831c66du,0xb00327c8u,0xbf597fc7u,0xc6e00bf3u,0xd5a79147u,0x06ca6351u,0x14292967u,
+        0x27b70a85u,0x2e1b2138u,0x4d2c6dfcu,0x53380d13u,0x650a7354u,0x766a0abbu,0x81c2c92eu,0x92722c85u,
+        0xa2bfe8a1u,0xa81a664bu,0xc24b8b70u,0xc76c51a3u,0xd192e819u,0xd6990624u,0xf40e3585u,0x106aa070u,
+        0x19a4c116u,0x1e376c08u,0x2748774cu,0x34b0bcb5u,0x391c0cb3u,0x4ed8aa4au,0x5b9cca4fu,0x682e6ff3u,
+        0x748f82eeu,0x78a5636fu,0x84c87814u,0x8cc70208u,0x90befffau,0xa4506cebu,0xbef9a3f7u,0xc67178f2u
+    };
+    static std::uint32_t rotr(std::uint32_t x, unsigned n) { return (x >> n) | (x << (32 - n)); }
+    void transform(const std::uint8_t* p) {
+        if (const auto blocks = detail::sha256_blocks_function()) { blocks(state_.data(), p, 1); return; }
+        std::uint32_t w[64]{};
+        for (int i = 0; i < 16; ++i) w[i] = (std::uint32_t(p[i*4]) << 24) | (std::uint32_t(p[i*4+1]) << 16) | (std::uint32_t(p[i*4+2]) << 8) | p[i*4+3];
+        for (int i = 16; i < 64; ++i) {
+            const auto s0 = rotr(w[i-15],7) ^ rotr(w[i-15],18) ^ (w[i-15] >> 3);
+            const auto s1 = rotr(w[i-2],17) ^ rotr(w[i-2],19) ^ (w[i-2] >> 10);
+            w[i] = w[i-16] + s0 + w[i-7] + s1;
+        }
+        auto a=state_[0], b=state_[1], c=state_[2], d=state_[3], e=state_[4], f=state_[5], g=state_[6], h=state_[7];
+        for (int i = 0; i < 64; ++i) {
+            const auto s1 = rotr(e,6) ^ rotr(e,11) ^ rotr(e,25);
+            const auto ch = (e & f) ^ (~e & g);
+            const auto t1 = h + s1 + ch + k_[i] + w[i];
+            const auto s0 = rotr(a,2) ^ rotr(a,13) ^ rotr(a,22);
+            const auto maj = (a & b) ^ (a & c) ^ (b & c);
+            const auto t2 = s0 + maj;
+            h=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2;
+        }
+        state_[0]+=a; state_[1]+=b; state_[2]+=c; state_[3]+=d;
+        state_[4]+=e; state_[5]+=f; state_[6]+=g; state_[7]+=h;
+    }
+    std::array<std::uint32_t, 8> state_ = {0x6a09e667u,0xbb67ae85u,0x3c6ef372u,0xa54ff53au,0x510e527fu,0x9b05688cu,0x1f83d9abu,0x5be0cd19u};
+    std::array<std::uint8_t, 64> block_{};
+    std::size_t used_ = 0;
+    std::uint64_t total_ = 0;
+};
+
 struct Archive {
     Archive() = default;
 
@@ -444,6 +672,8 @@ struct Archive {
             std::vector<std::uint32_t>().swap(block_logical_sizes_);
             std::vector<std::uint8_t>().swap(index_bytes_);
             block_cache_.reset();
+            raw_verified_.reset();
+            raw_verification_bytes_=0;
         };
         reset_mount();
         try {
@@ -461,6 +691,26 @@ struct Archive {
     const std::vector<Application>& applications() const noexcept { return applications_; }
     const std::vector<Program>& programs() const noexcept { return programs_; }
     const std::vector<Snapshot>& snapshots() const noexcept { return snapshots_; }
+    bool has_extra_files() const noexcept { return extra_root_ != no_index; }
+    // The caller selects the effective executable snapshot. Display metadata
+    // and DLC rows must never select a patch target implicitly.
+    std::optional<ProgramFingerprint> program_fingerprint(std::uint32_t snapshot_index) const noexcept {
+        if (!mounted_ || snapshot_index >= snapshots_.size()) return std::nullopt;
+        const auto& snapshot = snapshots_[snapshot_index];
+        if ((snapshot.type != 0 && snapshot.type != 1 && snapshot.type != 3) ||
+            snapshot.program_index >= programs_.size()) return std::nullopt;
+        const auto& program = programs_[snapshot.program_index];
+        if (program.application_index >= applications_.size()) return std::nullopt;
+        const auto& application = applications_[program.application_index];
+        ProgramFingerprint result;
+        result.platform = application.platform;
+        result.application_id = application.id;
+        result.program_id = program.id;
+        result.numeric_version = snapshot.numeric_version;
+        result.snapshot_identity = snapshot.identity;
+        if (snapshot.flags & 1) result.build_id = snapshot.build_id;
+        return result;
+    }
     const std::vector<SourceResource>& source_resources() const noexcept { return source_resources_; }
     Result<FileInfo> source_resource_file(std::uint32_t index, std::string_view name) const {
         if (!mounted_) return Result<FileInfo>::failure(ErrorCode::invalid_argument,"mount() must succeed before resource access");
@@ -492,7 +742,7 @@ struct Archive {
             bytes(directories_)+bytes(entries_)+bytes(files_)+bytes(block_refs_)+bytes(block_logical_sizes_);
     }
     CacheStats cache_stats() const {
-        if (!block_cache_) return {};
+        if (!block_cache_) { CacheStats result; result.raw_verification_bytes=raw_verification_bytes_; return result; }
         std::lock_guard<std::shared_mutex> lock(block_cache_->mutex);
         auto result = block_cache_->stats;
         for (const auto& slot : block_cache_->counters) {
@@ -505,6 +755,7 @@ struct Archive {
         }
         result.bytes = block_cache_->bytes;
         result.entries = block_cache_->entries.size();
+        result.raw_verification_bytes=raw_verification_bytes_;
         return result;
     }
     // Relationships may refer to omitted provenance snapshots. A native loader
@@ -549,13 +800,31 @@ struct Archive {
         return Result<DirectoryHandle>::success({snapshot_index, snapshots_[snapshot_index].root_directory});
     }
 
+    // Optional archive-wide file tree. The absent snapshot sentinel keeps
+    // extras independent of executable snapshots and their identities.
+    Result<DirectoryHandle> extra_root_directory() const {
+        if (!mounted_) return Result<DirectoryHandle>::failure(ErrorCode::invalid_argument,"mount() must succeed before extra file access");
+        if (extra_root_==no_index) return Result<DirectoryHandle>::failure(ErrorCode::not_found,"archive has no extra files");
+        return Result<DirectoryHandle>::success({no_index,extra_root_});
+    }
+    Result<FileInfo> resolve_extra_file(std::string_view path) const {
+        if (!mounted_) return Result<FileInfo>::failure(ErrorCode::invalid_argument,"mount() must succeed before extra file access");
+        if (extra_root_==no_index) return Result<FileInfo>::failure(ErrorCode::not_found,"archive has no extra files");
+        std::uint32_t file_id=no_index;
+        Status st=find_file_in_directory(extra_root_,path,file_id);
+        if (!st) return Result<FileInfo>::failure(st.error.code,st.error.message);
+        return file_info({file_id});
+    }
+
     // The callback receives string_views into Manifest storage owned by this
     // Archive. Enumeration itself allocates no memory. Return false to stop.
     // All views and handles expire when this Archive is destroyed.
     template<class Visitor>
     Status enumerate(DirectoryHandle directory, Visitor&& visitor) const {
         if (!mounted_) return fail_status(ErrorCode::invalid_argument, "mount() must succeed before directory enumeration");
-        if (directory.snapshot_index >= snapshots_.size() || directory.directory_index >= directories_.size())
+        if ((directory.snapshot_index >= snapshots_.size() &&
+             !(directory.snapshot_index==no_index && extra_root_!=no_index)) ||
+            directory.directory_index >= directories_.size())
             return fail_status(ErrorCode::bounds, "directory handle is out of range");
         const auto& row = directories_[directory.directory_index];
         for (std::uint32_t i = 0; i < row.count; ++i) {
@@ -580,7 +849,9 @@ struct Archive {
     Result<DirectoryEntryView> lookup(DirectoryHandle directory, std::string_view name) const {
         using R = Result<DirectoryEntryView>;
         if (!mounted_) return R::failure(ErrorCode::invalid_argument, "mount() must succeed before directory lookup");
-        if (directory.snapshot_index >= snapshots_.size() || directory.directory_index >= directories_.size())
+        if ((directory.snapshot_index >= snapshots_.size() &&
+             !(directory.snapshot_index==no_index && extra_root_!=no_index)) ||
+            directory.directory_index >= directories_.size())
             return R::failure(ErrorCode::bounds, "directory handle is out of range");
         const auto index = find_entry(directory.directory_index, name);
         if (index == no_index) return R::failure(ErrorCode::not_found, "directory entry was not found");
@@ -610,6 +881,40 @@ struct Archive {
         if (id.value >= files_.size()) return Result<FileInfo>::failure(ErrorCode::bounds, "file ID is out of range");
         const auto& file = files_[id.value];
         return Result<FileInfo>::success({id, EntryType::file, file.size, file.chunk_log2});
+    }
+
+    // A scheduling hint only: true when every requested slice can reuse its
+    // verification state (RAW bitmap or a verified decoded Zstd cache entry).
+    // It performs no IO, retains no payload and never replaces read checks.
+    // Zstd entries may be evicted immediately after this hint is returned.
+    bool range_verification_cached(FileId id, std::uint64_t offset, std::size_t length) const {
+        if (!mounted_ || !options_.verify_read_blocks || id.value>=files_.size()) return false;
+        const auto& file=files_[id.value];
+        if (offset>file.size || length>file.size-offset) return false;
+        while (length) {
+            const auto in_chunk=static_cast<std::size_t>(offset&((1ull<<file.chunk_log2)-1));
+            const auto block_id=block_refs_[file.first+static_cast<std::uint32_t>(offset>>file.chunk_log2)];
+            Block block;
+            if (!block_record(block_id,block) || in_chunk>=block.logical) return false;
+            const auto amount=std::min<std::size_t>(length,block.logical-in_chunk);
+            if (block.codec==0) {
+                if (!raw_verified_) return false;
+                auto index=std::size_t(block.first_check)+in_chunk/check_size;
+                auto remaining=(in_chunk+amount-1)/check_size-in_chunk/check_size+1;
+                while (remaining) {
+                    const auto bit=index%64, n=std::min<std::size_t>(remaining,64-bit);
+                    const auto mask=(n==64 ? ~0ull : ((1ull<<n)-1))<<bit;
+                    if ((raw_verified_[index/64].load(std::memory_order_acquire)&mask)!=mask) return false;
+                    index+=n; remaining-=n;
+                }
+            } else {
+                if (!block_cache_) return false;
+                std::shared_lock<std::shared_mutex> lock(block_cache_->mutex);
+                if (block_cache_->entries.find(block_id)==block_cache_->entries.end()) return false;
+            }
+            offset+=amount; length-=amount;
+        }
+        return true;
     }
 
     // True when the block holding `offset` is Zstandard and not cached yet,
@@ -659,6 +964,15 @@ struct Archive {
         catch (const std::bad_alloc&) { return failed_read(ErrorCode::resource_limit, "read allocation failed"); }
         return read_file(FileId{file_id}, offset, length, output, output_capacity);
     }
+    PartialRead read_extra_file(std::string_view path, std::uint64_t offset,
+                                std::size_t length, std::uint8_t* output,
+                                std::size_t capacity) {
+        try {
+            auto file=resolve_extra_file(path);
+            if (!file) return PartialRead(fail_status(file.error.code,file.error.message),0);
+            return read_file(file.value->id,offset,length,output,capacity);
+        } catch (const std::bad_alloc&) { return failed_read(ErrorCode::resource_limit,"extra read allocation failed"); }
+    }
 
     // Resolve once with resolve_file(), then use this overload for repeated
     // random reads without repeating path-component binary searches.
@@ -702,7 +1016,7 @@ struct Archive {
             detail::LogicalBytes logical;
             ReadBuffer stored;
             for (const auto& file : files_) {
-                SHA256 hash; hash.init();
+                Sha256 hash;
                 for (std::uint32_t j = 0; j < file.count; ++j) {
                     const std::uint32_t id = block_refs_[file.first + j];
                     Status st = load_block(id, checked[id] == 0, logical, nullptr, &stored);
@@ -710,9 +1024,7 @@ struct Archive {
                     checked[id] = 1;
                     hash.update(logical.data(), logical.size());
                 }
-                std::array<std::uint8_t,32> actual_hash_digest{};
-                hash.final(actual_hash_digest.data());
-                if (actual_hash_digest!=file.digest) return fail_status(ErrorCode::integrity, "file SHA-256 mismatch");
+                if (hash.finish() != file.digest) return fail_status(ErrorCode::integrity, "file SHA-256 mismatch");
             }
             // Full verification also covers physical blocks not referenced by files.
             for (std::uint64_t i = 0; i < block_count_; ++i) {
@@ -807,9 +1119,12 @@ private:
         std::list<std::uint32_t> spare_position;
         // Counters not in CounterSlot; written under the exclusive lock.
         CacheStats stats;
+
     };
     std::shared_ptr<BlockCache> block_cache_;
     std::vector<std::uint8_t> index_bytes_;
+    std::shared_ptr<std::atomic<std::uint64_t>[]> raw_verified_;
+    std::uint64_t raw_verification_bytes_=0;
     Status check_cancelled() const {
         return options_.is_cancelled && options_.is_cancelled(options_.cancellation_context)
             ? fail(ErrorCode::cancelled,"archive operation cancelled") : ok_status();
@@ -829,6 +1144,7 @@ private:
     std::vector<Program> programs_;
     std::vector<Snapshot> snapshots_;
     std::vector<SourceResource> source_resources_;
+    std::uint32_t extra_root_ = no_index;
     std::uint16_t format_minor_ = 2;
     std::vector<LocalizedEntry> localized_;
     std::vector<std::uint32_t> snapshot_owner_;
@@ -912,6 +1228,7 @@ private:
     Status parse_catalog();
     Status mount_impl();
     Status parse_manifest();
+    Status validate_extra_tree(std::uint64_t& nodes, std::uint64_t& paths);
     Status validate_snapshot_identities(std::uint64_t total_nodes, std::uint64_t total_paths);
     Status validate_media();
     Result<std::vector<std::uint8_t>> read_media_impl(std::uint32_t index);
@@ -920,11 +1237,17 @@ private:
     // `verified`, when given, receives how many leading bytes passed before a mismatch.
     Status verify_slices(const Block& block, const std::uint8_t* bytes, std::size_t first_slice, std::size_t size,
                          std::size_t* verified = nullptr) const;
+    enum class Sink { caller, staging, partial };
+    void remember_raw_verification(const Block& block, std::size_t first_slice, std::size_t size) const;
+    void forget_raw_verification(const Block& block, std::size_t first_slice, std::size_t size) const;
+    Status read_immutable_raw(const Block& block, std::size_t offset, std::size_t wanted,
+                              std::uint8_t* output, std::size_t& copied, ReadBuffer& stored, Sink sink, const ImmutableReadView& pinned) const;
     Status read_cached_slice(std::uint32_t id, std::size_t offset, std::size_t wanted,
                              std::uint8_t* output, std::size_t& copied, ReadBuffer& stored) const;
     Status load_block(std::uint32_t id, bool verify, detail::LogicalBytes& logical,
                       const Block* known_record = nullptr, ReadBuffer* stored_scratch = nullptr) const;
     Status find_file(std::uint32_t snapshot_index, std::string_view path, std::uint32_t& file_id) const;
+    Status find_file_in_directory(std::uint32_t directory, std::string_view path, std::uint32_t& file_id) const;
     std::uint32_t find_entry(std::uint32_t directory, std::string_view name) const;
     Status read_file_impl(std::uint32_t file_id, std::uint64_t offset,
                           std::size_t length, std::uint8_t* output);
@@ -935,12 +1258,12 @@ private:
     // piece (single-block read_file). `staging`: private memory, so RAW
     // slices may be read and verified in place. `partial`: the caller's
     // buffer, committed block by block, with a RAW slice-prefix on mismatch.
-    enum class Sink { caller, staging, partial };
     struct RawPiece { Block block; std::size_t in_chunk = 0, amount = 0, begin = 0, span = 0; };
     static constexpr std::size_t max_raw_run = 64;
     static constexpr std::size_t raw_run_bytes = 1024 * 1024;
     Status read_range(std::uint32_t file_id, std::uint64_t offset, std::size_t length,
                       std::uint8_t* destination, Sink sink, std::size_t& done);
+
 };
 
 inline Status Archive::parse_catalog() {
@@ -1196,6 +1519,15 @@ inline Status Archive::parse_catalog() {
                 if (kind>1 || (j && !(prior<row))) return fail(ErrorCode::format,"invalid or unsorted source resource");
                 source_resources_.push_back({owner_index,kind,root}); prior=row;
             }
+        }
+        if (type==0x00010009) {
+            if (flags || owner!=0 || data_size!=16 ||
+                std::memcmp(catalog_bytes_.data()+data_off,"NXEX",4) ||
+                u16(catalog_bytes_.data()+data_off+4)!=1 ||
+                u16(catalog_bytes_.data()+data_off+6)!=16 ||
+                cat32(data_off+12)!=0 || cat32(data_off+8)==no_index)
+                return fail(ErrorCode::format,"invalid optional extra file tree");
+            extra_root_=cat32(data_off+8);
         }
         if (type==0x00010005) {
             if (owner!=1 || flags!=1 || data_size<16) return fail(ErrorCode::format,"invalid Snapshot Native Metadata descriptor");
@@ -1457,11 +1789,7 @@ inline Status Archive::open_slot(const std::uint8_t* header, std::uint64_t physi
     if (!read(catalog_offset_, catalog_bytes_.data(), catalog_bytes_.size())) return fail(ErrorCode::io, "failed to read Catalog");
     std::array<std::uint8_t,32> catalog_digest{};
     std::copy(h.begin()+120,h.begin()+152,catalog_digest.begin());
-    SHA256 catalog_hash; catalog_hash.init();
-    catalog_hash.update(catalog_bytes_.data(), catalog_bytes_.size());
-    std::array<std::uint8_t,32> actual_catalog_digest{};
-    catalog_hash.final(actual_catalog_digest.data());
-    if (actual_catalog_digest != catalog_digest)
+    if (Sha256::digest(catalog_bytes_.data(), catalog_bytes_.size()) != catalog_digest)
         return fail(ErrorCode::integrity, "Catalog SHA-256 mismatch");
     return parse_catalog();
 }
@@ -1595,7 +1923,7 @@ inline Status Archive::check_mount_limits() const {
 inline Status Archive::check_tail_digests() const {
     auto st = check_mount_limits(); if (!st) return st;
     std::array<std::uint8_t, 64*1024> buffer;
-    auto hash_region = [&](SHA256& hash, std::uint64_t at, std::uint64_t size) -> Status {
+    auto hash_region = [&](Sha256& hash, std::uint64_t at, std::uint64_t size) -> Status {
         while (size) {
             auto cancelled = check_cancelled(); if (!cancelled) return cancelled;
             const auto n = static_cast<std::size_t>(std::min<std::uint64_t>(size, buffer.size()));
@@ -1606,17 +1934,13 @@ inline Status Archive::check_tail_digests() const {
         }
         return ok_status();
     };
-    SHA256 manifest_hash; manifest_hash.init();
+    Sha256 manifest_hash;
     st = hash_region(manifest_hash, manifest_offset_, manifest_size_); if (!st) return st;
-    std::array<std::uint8_t,32> actual_manifest_hash_digest{};
-    manifest_hash.final(actual_manifest_hash_digest.data());
-    if (actual_manifest_hash_digest!=manifest_digest_) return fail(ErrorCode::integrity, "Manifest SHA-256 mismatch");
-    SHA256 index_hash; index_hash.init();
+    if (manifest_hash.finish() != manifest_digest_) return fail(ErrorCode::integrity, "Manifest SHA-256 mismatch");
+    Sha256 index_hash;
     st = hash_region(index_hash, index_offset_, block_count_*24ull); if (!st) return st;
     st = hash_region(index_hash, integrity_offset_, integrity_size_); if (!st) return st;
-    std::array<std::uint8_t,32> actual_index_hash_digest{};
-    index_hash.final(actual_index_hash_digest.data());
-    if (actual_index_hash_digest!=index_digest_) return fail(ErrorCode::integrity, "index_sha256 mismatch");
+    if (index_hash.finish() != index_digest_) return fail(ErrorCode::integrity, "index_sha256 mismatch");
     return ok_status();
 }
 
@@ -1624,7 +1948,7 @@ inline Status Archive::mount_impl() {
     Status limits = check_mount_limits(); if (!limits) return limits;
     const std::uint64_t index_size=block_count_*24ull+integrity_size_;
     index_bytes_.resize(static_cast<std::size_t>(index_size));
-    SHA256 index_hash; index_hash.init();
+    Sha256 index_hash;
     auto capture=[&](std::uint64_t at,std::uint64_t size,std::uint64_t destination)->Status {
         while (size) {
             auto st=check_cancelled(); if (!st) return st;
@@ -1637,24 +1961,29 @@ inline Status Archive::mount_impl() {
     };
     Status st=capture(index_offset_,block_count_*24ull,0); if (!st) return st;
     st=capture(integrity_offset_,integrity_size_,block_count_*24ull); if (!st) return st;
-    std::array<std::uint8_t,32> actual_index_hash_digest{};
-    index_hash.final(actual_index_hash_digest.data());
-    if (actual_index_hash_digest!=index_digest_) return fail(ErrorCode::integrity,"index_sha256 mismatch");
+    if (index_hash.finish()!=index_digest_) return fail(ErrorCode::integrity,"index_sha256 mismatch");
+    if (options_.cache_raw_verification && options_.verify_read_blocks && source_->immutable_reads()) {
+        const auto words=(integrity_size_/4+63)/64;
+        const auto bytes=words*sizeof(std::atomic<std::uint64_t>);
+        if (bytes && bytes<=options_.max_raw_verification_bytes) {
+            raw_verified_.reset(new std::atomic<std::uint64_t>[static_cast<std::size_t>(words)],
+                                std::default_delete<std::atomic<std::uint64_t>[]>());
+            for (std::size_t i=0;i<words;++i) raw_verified_[i].store(0,std::memory_order_relaxed);
+            raw_verification_bytes_=bytes;
+        }
+    }
     if (options_.collect_read_stats || options_.collect_read_timing || (options_.max_cached_block_bytes && options_.max_cached_blocks)) {
         block_cache_=std::make_shared<BlockCache>();
         // No rehash while filling the cache up to its entry limit.
         block_cache_->entries.reserve(static_cast<std::size_t>(std::min<std::uint64_t>(options_.max_cached_blocks,65536)));
+
     }
 
     manifest_bytes_.resize(static_cast<std::size_t>(manifest_size_));
     if (!read(manifest_offset_,manifest_bytes_.data(),manifest_bytes_.size())) return fail(ErrorCode::io,"failed to read Manifest");
     // Use the digest captured from the validated header during open().
     // Never trust a second, unchecked header read.
-    SHA256 manifest_hash; manifest_hash.init();
-    manifest_hash.update(manifest_bytes_.data(),manifest_bytes_.size());
-    std::array<std::uint8_t,32> actual_manifest_digest{};
-    manifest_hash.final(actual_manifest_digest.data());
-    if (actual_manifest_digest!=manifest_digest_)
+    if (Sha256::digest(manifest_bytes_.data(),manifest_bytes_.size())!=manifest_digest_)
         return fail(ErrorCode::integrity,"Manifest SHA-256 mismatch");
     st=parse_manifest(); if (!st) return st;
     std::vector<std::uint32_t> roots;
@@ -1689,8 +2018,65 @@ inline Status Archive::mount_impl() {
         for (const auto& entry:entries_) if (entry.kind==1 && std::binary_search(roots.begin(),roots.end(),entry.target))
             return fail(ErrorCode::format,"source resource root is a child directory");
     }
+    if (extra_root_!=no_index) { st=validate_extra_tree(resource_nodes,resource_paths); if (!st) return st; }
     st=validate_media(); if (!st) return st;
     return validate_snapshot_identities(resource_nodes,resource_paths);
+}
+
+inline Status Archive::validate_extra_tree(std::uint64_t& nodes, std::uint64_t& paths) {
+    if (extra_root_==no_index) return ok_status();
+    if (extra_root_>=directories_.size() || !directories_[extra_root_].count)
+        return fail(ErrorCode::bounds,"extra file root is missing or empty");
+    for (const auto& snapshot:snapshots_)
+        if (snapshot.root_directory==extra_root_) return fail(ErrorCode::format,"extra file root belongs to a snapshot");
+    for (const auto& source:source_resources_)
+        if (source.root_directory==extra_root_) return fail(ErrorCode::format,"extra file root belongs to source resources");
+    struct Frame { std::uint32_t next,end; std::uint64_t prefix; };
+    std::vector<Frame> stack;
+    std::vector<std::uint8_t> visited(directories_.size(),0), used(files_.size(),0);
+    auto charge=[&](std::uint64_t length)->Status {
+        if (nodes>=options_.max_total_snapshot_nodes || length>options_.max_total_snapshot_path_bytes-paths)
+            return fail(ErrorCode::resource_limit,"extra file traversal budget exceeded");
+        ++nodes; paths+=length; return ok_status();
+    };
+    auto enter=[&](std::uint32_t id,std::uint64_t length)->Status {
+        if (id>=directories_.size() || visited[id]) return fail(ErrorCode::format,"extra file directory is repeated or cyclic");
+        if (stack.size()>max_directory_depth) return fail(ErrorCode::resource_limit,"extra file directory depth exceeded");
+        Status st=charge(length); if (!st) return st;
+        visited[id]=1;
+        const auto& d=directories_[id]; stack.push_back({d.first,d.first+d.count,length});
+        return ok_status();
+    };
+    Status st=enter(extra_root_,0); if (!st) return st;
+    while (!stack.empty()) {
+        st=check_cancelled(); if (!st) return st;
+        auto& frame=stack.back();
+        if (frame.next==frame.end) {stack.pop_back(); continue;}
+        const auto& entry=entries_[frame.next++];
+        const auto length=frame.prefix ? frame.prefix+1+entry.name_length : entry.name_length;
+        if (entry.kind==1) {st=enter(entry.target,length); if (!st) return st;}
+        else {
+            if (entry.target>=files_.size() || used[entry.target]) return fail(ErrorCode::format,"extra file record is repeated");
+            st=charge(length); if (!st) return st;
+            used[entry.target]=1;
+        }
+    }
+    for (const auto& snapshot:snapshots_)
+        if (snapshot.root_directory>=directories_.size() || visited[snapshot.root_directory])
+            return fail(ErrorCode::format,"extra files overlap a snapshot tree or snapshot root is invalid");
+    for (const auto& source:source_resources_)
+        if (visited[source.root_directory]) return fail(ErrorCode::format,"extra files overlap source resources");
+    // A separate root must not be spliced into a game's or another resource's tree.
+    for (std::uint32_t i=0;i<directories_.size();++i) {
+        if (visited[i]) continue;
+        st=check_cancelled(); if (!st) return st;
+        const auto& dir=directories_[i];
+        for (std::uint32_t j=dir.first;j<dir.first+dir.count;++j)
+            if ((entries_[j].kind==1 && visited[entries_[j].target]) ||
+                (entries_[j].kind==2 && used[entries_[j].target]))
+                return fail(ErrorCode::format,"extra file tree is referenced from another tree");
+    }
+    return ok_status();
 }
 
 // Recomputes every snapshot identity (§12) without materializing paths: a
@@ -1768,7 +2154,7 @@ inline Status Archive::validate_snapshot_identities(std::uint64_t total_nodes, s
             }
         }
         if (logical_size!=snapshot.logical_size) return fail(ErrorCode::format,"snapshot logical size mismatch");
-        SHA256 identity; identity.init();
+        Sha256 identity;
         static constexpr std::uint8_t tag[]={'N','X','-','S','N','A','P','S','H','O','T','-','I','D',0};
         identity.update(tag,sizeof(tag));
         auto put_u8=[&](std::uint8_t v){ identity.update(&v,1); };
@@ -1823,9 +2209,7 @@ inline Status Archive::validate_snapshot_identities(std::uint64_t total_nodes, s
             }
             path.resize(mark);
         }
-        std::array<std::uint8_t,32> actual_identity_digest{};
-        identity.final(actual_identity_digest.data());
-        if (actual_identity_digest!=snapshot.identity) return fail(ErrorCode::integrity,"snapshot identity mismatch");
+        if (identity.finish()!=snapshot.identity) return fail(ErrorCode::integrity,"snapshot identity mismatch");
     }
     return ok_status();
 }
@@ -1850,8 +2234,11 @@ inline std::uint32_t Archive::find_entry(std::uint32_t directory,std::string_vie
 
 inline Status Archive::find_file(std::uint32_t snapshot_index,std::string_view path,std::uint32_t& file_id) const {
     if (snapshot_index>=snapshots_.size()) return fail(ErrorCode::bounds,"snapshot index is out of range");
+    return find_file_in_directory(snapshots_[snapshot_index].root_directory,path,file_id);
+}
+
+inline Status Archive::find_file_in_directory(std::uint32_t directory,std::string_view path,std::uint32_t& file_id) const {
     if (path.empty() || !utf8_valid(reinterpret_cast<const std::uint8_t*>(path.data()),path.size())) return fail(ErrorCode::invalid_argument,"path is empty or invalid UTF-8");
-    std::uint32_t directory=snapshots_[snapshot_index].root_directory;
     std::size_t start=0;
     for (;;) {
         const auto slash=path.find('/',start);
@@ -1927,9 +2314,25 @@ inline Status Archive::read_range(std::uint32_t file_id, std::uint64_t offset, s
         Block block;
         st=block_record(block_id,block); if (!st) return st;
         if (block.codec==0) {
+            if (in_chunk>=block.logical) return fail(ErrorCode::format,"file offset maps outside RAW block");
+            if (raw_verified_) {
+                const auto amount=std::min<std::size_t>(length-done,block.logical-in_chunk);
+                const auto begin=in_chunk/check_size*check_size;
+                const auto end=std::min<std::size_t>(block.logical,((in_chunk+amount-1)/check_size+1)*check_size);
+                const auto pinned=source_->immutable_view(block.offset+begin,end-begin);
+                // Without direct views, preserve multi-block positional IO
+                // coalescing. A direct view is passed through, never probed
+                // twice (which would serialize a second mapping lookup).
+                if (pinned.data || amount==length-done) {
+                    std::size_t copied=0;
+                    st=read_immutable_raw(block,in_chunk,length-done,target,copied,stored,sink,pinned);
+                    done+=copied;
+                    if (!st) return st;
+                    continue;
+                }
+            }
             // RAW: read and verify only the 16 KiB slices covering the request.
             // Bytes reach the caller only after their slices have verified.
-            if (in_chunk>=block.logical) return fail(ErrorCode::format,"file offset maps outside RAW block");
             const auto amount=std::min<std::size_t>(length-done,block.logical-in_chunk);
             if (options_.verify_read_blocks) {
                 // A run of RAW blocks stored back to back is fetched with one
@@ -1983,7 +2386,8 @@ inline Status Archive::read_range(std::uint32_t file_id, std::uint64_t offset, s
                     const auto& piece=pieces[i];
                     std::uint8_t* const out=destination+done;
                     std::size_t verified=0;
-                    st=verify_slices(piece.block,bytes,piece.begin/check_size,piece.span,sink==Sink::partial ? &verified : nullptr);
+                    const bool known=raw_verified_ && range_verification_cached(FileId{file_id},offset+done,piece.amount);
+                    st=known ? ok_status() : verify_slices(piece.block,bytes,piece.begin/check_size,piece.span,sink==Sink::partial ? &verified : nullptr);
                     if (!st) {
                         // Partial reads keep the verified slices in front of the bad one.
                         if (sink==Sink::partial && piece.begin+verified>piece.in_chunk) {
@@ -1994,6 +2398,7 @@ inline Status Archive::read_range(std::uint32_t file_id, std::uint64_t offset, s
                         scrub();
                         return st;
                     }
+                    if (raw_verified_ && !known) remember_raw_verification(piece.block,piece.begin/check_size,piece.span);
                     if (!direct) std::memcpy(out,bytes+(piece.in_chunk-piece.begin),piece.amount);
                     done+=piece.amount;
                     bytes+=piece.span;
@@ -2068,8 +2473,7 @@ inline Result<std::vector<std::uint8_t>> Archive::read_media_impl(std::uint32_t 
         return Result<std::vector<std::uint8_t>>::failure(ErrorCode::format,"Media owner/type mismatch");
     std::vector<std::uint8_t> bytes(static_cast<std::size_t>(stored));
     if (!read(media_offset_+offset,bytes.data(),bytes.size())) return Result<std::vector<std::uint8_t>>::failure(ErrorCode::io,"failed to read media payload");
-    SHA256 hash; hash.init(); hash.update(bytes.data(),bytes.size());
-    std::array<std::uint8_t,32> digest{}; hash.final(digest.data());
+    const auto digest=Sha256::digest(bytes.data(),bytes.size());
     if (!std::equal(digest.begin(),digest.end(),row.begin()+28)) return Result<std::vector<std::uint8_t>>::failure(ErrorCode::integrity,"media SHA-256 mismatch");
     return Result<std::vector<std::uint8_t>>::success(std::move(bytes));
 }
@@ -2123,6 +2527,146 @@ inline Status Archive::verify_slices(const Block& block, const std::uint8_t* byt
         std::lock_guard<std::shared_mutex> lock(block_cache_->mutex); block_cache_->stats.hash_ns+=static_cast<std::uint64_t>(ns);
     }
 #endif
+    return ok_status();
+}
+
+inline void Archive::remember_raw_verification(const Block& block, std::size_t first_slice, std::size_t size) const {
+    auto index=std::size_t(block.first_check)+first_slice;
+    auto remaining=(size+check_size-1)/check_size;
+    while (remaining) {
+        const auto bit=index%64, n=std::min<std::size_t>(remaining,64-bit);
+        const auto mask=(n==64 ? ~0ull : ((1ull<<n)-1))<<bit;
+        raw_verified_[index/64].fetch_or(mask,std::memory_order_release);
+        index+=n; remaining-=n;
+    }
+}
+
+inline void Archive::forget_raw_verification(const Block& block, std::size_t first_slice, std::size_t size) const {
+    auto index=std::size_t(block.first_check)+first_slice;
+    auto remaining=(size+check_size-1)/check_size;
+    while (remaining) {
+        const auto bit=index%64, n=std::min<std::size_t>(remaining,64-bit);
+        const auto mask=(n==64 ? ~0ull : ((1ull<<n)-1))<<bit;
+        raw_verified_[index/64].fetch_and(~mask,std::memory_order_release);
+        index+=n; remaining-=n;
+    }
+}
+
+// Cache verification state, never RAW payload. This is safe only for sources
+// which pin their bytes immutable; all other adapters retain normal verification.
+inline Status Archive::read_immutable_raw(const Block& block, std::size_t offset, std::size_t wanted,
+                                         std::uint8_t* output, std::size_t& copied, ReadBuffer& stored, Sink sink, const ImmutableReadView& pinned) const {
+    copied=0;
+    if (offset>=block.logical) return fail(ErrorCode::format,"RAW offset outside block");
+    const auto amount=std::min<std::size_t>(wanted,block.logical-offset);
+    const auto first=offset/check_size, last=(offset+amount-1)/check_size;
+    const auto begin=first*check_size;
+    const auto end=std::min<std::size_t>(block.logical,(last+1)*check_size);
+    const auto first_index=static_cast<std::size_t>(block.first_check)+first;
+    const auto count=last-first+1;
+    const auto visit_words=[&]() {
+        bool complete=true;
+        auto index=first_index, remaining=count;
+        while (remaining) {
+            const auto bit=index%64, n=std::min<std::size_t>(remaining,64-bit);
+            const auto mask=(n==64 ? ~0ull : ((1ull<<n)-1))<<bit;
+            auto& word=raw_verified_[index/64];
+            if ((word.load(std::memory_order_acquire)&mask)!=mask) complete=false;
+            index+=n; remaining-=n;
+        }
+        return complete;
+    };
+    const bool verified=visit_words();
+    const bool partial=sink==Sink::partial;
+    const auto* view=pinned.data;
+    if (view && pinned.guard) {
+        // Keep all RAII state outside the SEH callback. Atomic single-block
+        // output is staged: a mapping can fault during copying after its CRC.
+        const bool atomic_output=sink==Sink::caller;
+        if (atomic_output) stored.reserve(amount);
+        if (verified) {
+            auto status=check_cancelled(); if (!status) return status;
+            struct Copy { const std::uint8_t* source; std::uint8_t* target; std::size_t length; };
+            Copy copy{view+(offset-begin),atomic_output?stored.bytes.get():output,amount};
+            const auto operation=[](void* context) {
+                const auto& c=*static_cast<const Copy*>(context);
+                std::memcpy(c.target,c.source,c.length);
+            };
+            const bool complete=pinned.guarded_copy
+                ? pinned.guarded_copy(copy.source,copy.target,copy.length)
+                : pinned.guard(view,end-begin,operation,&copy);
+            if (!complete) {
+                forget_raw_verification(block,first,end-begin);
+                if (partial) std::memset(output,0,amount);
+                return fail(ErrorCode::io,"mapped RAW read failed");
+            }
+            if (atomic_output) std::memcpy(output,stored.bytes.get(),amount);
+            copied=amount;
+            return ok_status();
+        }
+        struct Access {
+            const Archive* archive; const Block* block;
+            const std::uint8_t* bytes; std::uint8_t* target;
+            std::size_t first, span, relative, amount, good=0, copied=0;
+            bool verified, partial;
+            Status status;
+        } access{this,&block,view,atomic_output?stored.bytes.get():output,
+                 first,end-begin,offset-begin,amount,0,0,verified,partial,ok_status()};
+        const auto operation=[](void* context) {
+            auto& a=*static_cast<Access*>(context);
+            if (!a.verified) {
+                a.status=a.archive->verify_slices(*a.block,a.bytes,a.first,a.span,a.partial?&a.good:nullptr);
+                if (!a.status) {
+                    if (a.partial && a.good>a.relative) {
+                        a.copied=std::min(a.amount,a.good-a.relative);
+                        std::memcpy(a.target,a.bytes+a.relative,a.copied);
+                    }
+                    return;
+                }
+            }
+            a.status=a.archive->check_cancelled(); if (!a.status) return;
+            std::memcpy(a.target,a.bytes+a.relative,a.amount);
+            a.copied=a.amount;
+        };
+        if (!pinned.guard(view,end-begin,operation,&access)) {
+            forget_raw_verification(block,first,end-begin);
+            // Partial reads may have received bytes before a page fault. Scrub
+            // this attempted block, without touching previously committed data.
+            if (partial) std::memset(output,0,amount);
+            return fail(ErrorCode::io,"mapped RAW read failed");
+        }
+        copied=access.copied;
+        if (access.status) {
+            if (!verified) remember_raw_verification(block,first,end-begin);
+            if (atomic_output) std::memcpy(output,stored.bytes.get(),amount);
+        }
+        return std::move(access.status);
+    }
+    const std::uint8_t* bytes=view;
+    std::size_t origin=begin;
+    if (!view) {
+        const auto n=verified ? amount : end-begin;
+        origin=verified ? offset : begin;
+        stored.reserve(n);
+        if (!read(block.offset+origin,stored.bytes.get(),n)) return fail(ErrorCode::io,"immutable RAW read failed");
+        bytes=stored.bytes.get();
+        if (block_cache_) { BlockCache::add(block_cache_->counter().raw_reads); BlockCache::add(block_cache_->counter().raw_bytes,n); }
+    }
+    if (!verified) {
+        std::size_t good=0;
+        auto checked=verify_slices(block,bytes+(begin-origin),first,end-begin,partial?&good:nullptr);
+        if (!checked) {
+            if (partial && begin+good>offset) {
+                copied=std::min(amount,begin+good-offset);
+                std::memcpy(output,bytes+(offset-origin),copied);
+            }
+            return checked;
+        }
+        remember_raw_verification(block,first,end-begin);
+    }
+    auto status=check_cancelled(); if (!status) return status;
+    std::memcpy(output,bytes+(offset-origin),amount);
+    copied=amount;
     return ok_status();
 }
 
@@ -2182,7 +2726,9 @@ inline Status Archive::read_cached_slice(std::uint32_t id, std::size_t offset, s
         reuse=std::move(cache.spare);
         if (reuse) logical.swap(reuse->bytes);
     }
-    status=load_block(id,true,logical,nullptr,&stored); if (!status) return status;
+    Block record;
+    status=block_record(id,record); if (!status) return status;
+    status=load_block(id,true,logical,&record,&stored); if (!status) return status;
     status=check_cancelled(); if (!status) return status;
     if (offset>=logical.size()) return fail(ErrorCode::format,"file offset maps outside decoded block");
     if (options_.max_cached_blocks && logical.size()<=options_.max_cached_block_bytes) {
