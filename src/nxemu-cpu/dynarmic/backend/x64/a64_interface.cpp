@@ -16,6 +16,7 @@
 #include "dynarmic/backend/x64/a64_jitstate.h"
 #include "dynarmic/backend/x64/block_of_code.h"
 #include "dynarmic/backend/x64/devirtualize.h"
+#include "dynarmic/backend/x64/exclusive_monitor_friend.h"
 #include "dynarmic/backend/x64/jitstate_info.h"
 #include "dynarmic/common/atomic.h"
 #include "dynarmic/common/x64_disassemble.h"
@@ -28,11 +29,13 @@ namespace Dynarmic::A64 {
 
 using namespace Backend::X64;
 
+// The dispatcher reads the core's Jit::Impl and callbacks from the JIT state, so the run code
+// does not depend on the core.
 static RunCodeCallbacks GenRunCodeCallbacks(A64::UserCallbacks* cb, CodePtr (*LookupBlock)(void* lookup_block_arg), void* arg, const A64::UserConfig& conf) {
     return RunCodeCallbacks{
-        std::make_unique<ArgCallback>(LookupBlock, reinterpret_cast<u64>(arg)),
-        std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::AddTicks>(cb)),
-        std::make_unique<ArgCallback>(Devirtualize<&A64::UserCallbacks::GetTicksRemaining>(cb)),
+        std::make_unique<ArgCallback>(ArgCallback{LookupBlock, reinterpret_cast<u64>(arg)}.WithArgFromState(offsetof(A64JitState, core_lookup_arg))),
+        std::make_unique<ArgCallback>(DevirtualizeFromState<&A64::UserCallbacks::AddTicks>(cb, offsetof(A64JitState, core_callbacks))),
+        std::make_unique<ArgCallback>(DevirtualizeFromState<&A64::UserCallbacks::GetTicksRemaining>(cb, offsetof(A64JitState, core_callbacks))),
         conf.enable_cycle_counting,
     };
 }
@@ -63,6 +66,7 @@ public:
             , emitter(block_of_code, conf, jit)
             , polyfill_options(GenPolyfillOptions(block_of_code)) {
         ASSERT(conf.page_table_address_space_bits >= 12 && conf.page_table_address_space_bits <= 64);
+        SetCoreContext();
     }
 
     ~Impl() = default;
@@ -129,6 +133,7 @@ public:
     void Reset() {
         ASSERT(!is_executing);
         jit_state = {};
+        SetCoreContext();
     }
 
     void HaltExecution(HaltReason hr) {
@@ -245,6 +250,19 @@ public:
     }
 
 private:
+    void SetCoreContext() {
+        jit_state.core_callbacks = reinterpret_cast<u64>(conf.callbacks);
+        jit_state.core_lookup_arg = reinterpret_cast<u64>(this);
+        jit_state.core_monitor = reinterpret_cast<u64>(conf.global_monitor);
+        if (conf.global_monitor) {
+            jit_state.core_excl_addr_ptr = reinterpret_cast<u64>(GetExclusiveMonitorAddressPointer(conf.global_monitor, conf.processor_id));
+            jit_state.core_excl_value_ptr = reinterpret_cast<u64>(GetExclusiveMonitorValuePointer(conf.global_monitor, conf.processor_id));
+        }
+        jit_state.core_tpidr_el0_ptr = reinterpret_cast<u64>(conf.tpidr_el0);
+        jit_state.core_tpidrro_el0_ptr = reinterpret_cast<u64>(conf.tpidrro_el0);
+        jit_state.core_processor_id = conf.processor_id;
+    }
+
     static CodePtr GetCurrentBlockThunk(void* thisptr) {
         Jit::Impl* this_ = static_cast<Jit::Impl*>(thisptr);
         return this_->GetCurrentBlock();
