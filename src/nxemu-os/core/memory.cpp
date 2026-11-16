@@ -1082,6 +1082,12 @@ struct Memory::Impl {
                 flush();
                 continue;
             }
+            if (!cached && write_protected_counts.contains(page >> YUZU_PAGEBITS))
+            {
+                flush();
+                buffer->Protect(page, YUZU_PAGESIZE, Common::MemoryPermission::Read);
+                continue;
+            }
             if (run_begin == run_end)
             {
                 run_begin = page;
@@ -1247,8 +1253,9 @@ struct Memory::Impl {
             if (protect && current_page_table->pointers[index].Type() == Common::PageType::RasterizerCachedMemory)
             {
                 const auto perm = now_cached ? Common::MemoryPermission{}
-                                  : WriteTracking() ? Common::MemoryPermission::ReadWrite
-                                                    : Common::MemoryPermission::Read;
+                                  : WriteTracking() && !write_protected_counts.contains(index)
+                                      ? Common::MemoryPermission::ReadWrite
+                                      : Common::MemoryPermission::Read;
                 if (run_begin != run_end && (run_end != page || run_perm != perm))
                 {
                     flush();
@@ -1266,6 +1273,62 @@ struct Memory::Impl {
             }
         }
         flush();
+    }
+
+    // Pages the GPU reads in place deny CPU writes until that GPU work is done, so a write
+    // faults and waits for it. Reads stay native: under write tracking cached pages are
+    // writable, and the read-cached path would make every read fault too. Without write
+    // tracking cached pages already deny writes.
+    void RasterizerMarkRegionWriteProtected(u64 vaddr, u64 size, s32 delta)
+    {
+        if (size == 0 || delta == 0 || !AddressSpaceContains(*current_page_table, vaddr, size))
+        {
+            return;
+        }
+        std::scoped_lock lk{read_cached_mutex};
+        const bool protect = WriteTracking();
+        const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
+        for (u64 page = Common::AlignDown(vaddr, YUZU_PAGESIZE); page < end; page += YUZU_PAGESIZE)
+        {
+            const u64 index = page >> YUZU_PAGEBITS;
+            bool was_protected{};
+            bool now_protected{};
+            auto it = write_protected_counts.find(index);
+            if (delta > 0)
+            {
+                was_protected = it != write_protected_counts.end();
+                if (!was_protected)
+                {
+                    it = write_protected_counts.emplace(index, 0).first;
+                }
+                it->second += static_cast<u32>(delta);
+                now_protected = true;
+            }
+            else if (it != write_protected_counts.end())
+            {
+                was_protected = true;
+                if (it->second <= static_cast<u32>(-delta))
+                {
+                    write_protected_counts.erase(it);
+                }
+                else
+                {
+                    it->second -= static_cast<u32>(-delta);
+                    now_protected = true;
+                }
+            }
+            // Read-cached pages deny every access already, and keep this on release
+            if (!protect || was_protected == now_protected || IsReadCachedPage(index))
+            {
+                continue;
+            }
+            if (current_page_table->pointers[index].Type() != Common::PageType::RasterizerCachedMemory)
+            {
+                continue;
+            }
+            buffer->Protect(page, YUZU_PAGESIZE,
+                            now_protected ? Common::MemoryPermission::Read : Common::MemoryPermission::ReadWrite);
+        }
     }
 #endif
 
@@ -1734,6 +1797,7 @@ struct Memory::Impl {
 #if !defined(__APPLE__)
     std::mutex read_cached_mutex;
     std::unordered_map<u64, u32> read_cached_counts;
+    std::unordered_map<u64, u32> write_protected_counts;
     std::unique_ptr<u64[], FreeBits> read_cached_storage;
     std::atomic<u64 *> read_cached_bits{};
     size_t read_cached_page_count{};
@@ -1980,6 +2044,15 @@ Result Memory::FlushDataCache(Common::ProcessAddress dest_addr, const std::size_
 
 void Memory::RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) {
     impl->RasterizerMarkRegionReadCached(vaddr, size, delta);
+}
+
+void Memory::RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) {
+#if defined(__APPLE__)
+    // The NCE path tracks in-place reads with the read-cached pages
+    impl->RasterizerMarkRegionReadCached(vaddr, size, delta);
+#else
+    impl->RasterizerMarkRegionWriteProtected(vaddr, size, delta);
+#endif
 }
 
 bool Memory::ProtectsReadCachedRegions() {

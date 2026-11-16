@@ -790,6 +790,43 @@ void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t 
 }
 
 template <typename Traits>
+void DeviceMemoryManager<Traits>::UpdatePagesWriteProtectedCount(DAddr addr, size_t size, s32 delta)
+{
+    if (size == 0) return;
+    Common::ScopedRangeLock lk(counter_guard, addr, size);
+    std::atomic_thread_fence(std::memory_order_acquire);
+    const size_t page_end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
+    size_t page = addr >> DEVICE_PAGEBITS;
+    IMemory* memory = nullptr;
+    Asid current_asid{};
+    VAddr begin{};
+    size_t bytes{};
+    const auto flush = [&] {
+        if (bytes && memory) memory->RasterizerMarkRegionWriteProtected(begin, bytes, delta);
+        bytes = 0;
+    };
+    for (; page < page_end; ++page)
+    {
+        const auto [asid, address] = ExtractCPUBacking(page);
+        if (address == 0)
+        {
+            flush();
+            continue;
+        }
+        const VAddr base = Common::AlignDown(address, DEVICE_PAGESIZE);
+        if (!bytes || asid.id != current_asid.id || base != begin + bytes)
+        {
+            flush();
+            current_asid = asid;
+            memory = GetRegisteredProcess(asid);
+            begin = base;
+        }
+        bytes += DEVICE_PAGESIZE;
+    }
+    flush();
+}
+
+template <typename Traits>
 void DeviceMemoryManager<Traits>::UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta)
 {
     Common::ScopedRangeLock lk(counter_guard, addr, size);

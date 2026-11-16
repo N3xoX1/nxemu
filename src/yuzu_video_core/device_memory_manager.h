@@ -115,6 +115,7 @@ public:
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
     void UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta);
+    void UpdatePagesWriteProtectedCount(DAddr addr, size_t size, s32 delta);
     // Append the ranges of pending query results the GPU already copied into its buffers.
     void GpuWrittenResults(DAddr address, size_t size, std::vector<std::pair<DAddr, u64>>& ranges);
     // Whether read-cached pages fault on CPU access in every registered process.
@@ -185,10 +186,13 @@ public:
             const u64 bit = u64{1} << (page & 63);
             if ((word.load(std::memory_order_relaxed) & bit) == 0) {
                 word.fetch_or(bit, std::memory_order_release);
-                // The ordinary cached-page count is not enforced under write tracking (the
-                // JIT marks writes instead): use the read-cached path, which still denies
-                // access there, like a pending query result does.
-                UpdatePagesReadCachedCount(page << page_bits, page_size, 1);
+                // A buffer read in place is never uploaded, so its pages are not cached:
+                // cache them so the guest CPU writes reach the GPU caches. Under write
+                // tracking cached pages stay writable (the JIT marks writes instead), so
+                // also deny writes: a write must wait for the GPU work reading the page.
+                // Reads stay native.
+                UpdatePagesCachedCount(page << page_bits, page_size, 1);
+                UpdatePagesWriteProtectedCount(page << page_bits, page_size, 1);
             }
         }
     }
@@ -213,7 +217,8 @@ public:
                     continue;
                 }
                 word.fetch_and(~bit, std::memory_order_release);
-                UpdatePagesReadCachedCount(page << page_bits, page_size, -1);
+                UpdatePagesWriteProtectedCount(page << page_bits, page_size, -1);
+                UpdatePagesCachedCount(page << page_bits, page_size, -1);
                 // The guest rewrites this page while the GPU reads it: from now on it takes
                 // the copy path, so this wait happens once per page
                 MarkPages(timeline_pages, page << page_bits, page_size);

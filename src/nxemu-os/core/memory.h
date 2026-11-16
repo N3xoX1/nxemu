@@ -162,6 +162,7 @@ public:
     // Reports the cached pages the JIT wrote since the last call, as a write fault would
     void HarvestCpuWrites();
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override;
+    void RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) override;
     bool ProtectsReadCachedRegions() override;
 
     template <typename T>
