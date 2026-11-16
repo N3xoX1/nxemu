@@ -35,6 +35,10 @@ struct TranslationOptions {
     /// If this is false, we treat the instruction as a NOP.
     /// If this is true, we emit an ExceptionRaised instruction.
     bool hook_hint_instructions = true;
+
+    /// This lets the translator go on after a forward conditional branch. The taken path
+    /// becomes an A64SideExit instruction, so the backend must support it.
+    bool side_exits = false;
 };
 
 /**

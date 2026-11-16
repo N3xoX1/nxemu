@@ -64,6 +64,7 @@ A64OPC(SetSP,                                               Void,           U64 
 A64OPC(SetFPCR,                                             Void,           U32                                                             )
 A64OPC(SetFPSR,                                             Void,           U32                                                             )
 A64OPC(SetPC,                                               Void,           U64                                                             )
+A64OPC(SideExit,                                            Void,           Cond,           U1,             U64,            U64             )
 A64OPC(CallSupervisor,                                      Void,           U32                                                             )
 A64OPC(ExceptionRaised,                                     Void,           U64,            U64                                             )
 A64OPC(DataCacheOperationRaised,                            Void,           U64,            U64,            U64                             )

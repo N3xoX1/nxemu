@@ -175,6 +175,19 @@ void A64GetSetElimination(IR::Block& block, bool forward_conversions) {
             do_set(nzcv_info, inst->GetArg(0), inst, TrackingType::NZCVRaw);
             break;
         }
+        case IR::Opcode::A64SideExit: {
+            // The guest state must be complete when the block leaves here, so earlier sets
+            // stay. The values are still the same, so later gets can still be forwarded.
+            for (auto& info : reg_info) {
+                info.set_instruction_present = false;
+            }
+            sp_info.set_instruction_present = false;
+            for (auto& info : vec_info) {
+                info.set_instruction_present = false;
+            }
+            nzcv_info.set_instruction_present = false;
+            break;
+        }
         default: {
             if (inst->ReadsFromCPSR() || inst->WritesToCPSR()) {
                 nzcv_info = {};

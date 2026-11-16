@@ -376,6 +376,11 @@ void EmitIR<IR::Opcode::A64SetFPSR>(oaknut::CodeGenerator& code, EmitContext& ct
 }
 
 template<>
+void EmitIR<IR::Opcode::A64SideExit>(oaknut::CodeGenerator&, EmitContext&, IR::Inst*) {
+    ASSERT_FALSE("A64SideExit is not supported by this backend; side_exits is never set here.");
+}
+
+template<>
 void EmitIR<IR::Opcode::A64SetPC>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     auto Xvalue = ctx.reg_alloc.ReadX(args[0]);

@@ -35,6 +35,10 @@ public:
     u64 AlignPC(size_t alignment) const;
 
     void SetCheckBit(const IR::U1& value);
+    /// Leaves the block to target_pc when the condition holds. cond is a flag condition,
+    /// or AL to exit when bit is set and NV to exit when bit is clear. cycles is the cycle
+    /// count of the block up to and including the branch.
+    void SideExit(IR::Cond cond, const IR::U1& bit, u64 target_pc, u64 cycles);
     IR::U1 GetCFlag();
     IR::U32 GetNZCVRaw();
     void SetNZCVRaw(IR::U32 value);

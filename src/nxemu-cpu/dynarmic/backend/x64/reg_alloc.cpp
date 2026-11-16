@@ -610,7 +610,9 @@ HostLoc RegAlloc::LoadImmediate(IR::Value imm, HostLoc host_loc) {
     if (HostLocIsGPR(host_loc)) {
         const Xbyak::Reg64 reg = HostLocToReg64(host_loc);
         const u64 imm_value = imm.GetImmediateAsU64();
-        if (imm_value == 0) {
+        if (imm_value == 0 && preserve_host_flags) {
+            code.mov(reg.cvt32(), 0);
+        } else if (imm_value == 0) {
             code.xor_(reg.cvt32(), reg.cvt32());
         } else {
             code.mov(reg, imm_value);

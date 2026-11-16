@@ -22,6 +22,10 @@ u64 IREmitter::AlignPC(size_t alignment) const {
     return static_cast<u64>(pc - pc % alignment);
 }
 
+void IREmitter::SideExit(IR::Cond cond, const IR::U1& bit, u64 target_pc, u64 cycles) {
+    Inst(Opcode::A64SideExit, IR::Value{cond}, bit, Imm64(target_pc), Imm64(cycles));
+}
+
 void IREmitter::SetCheckBit(const IR::U1& value) {
     Inst(Opcode::A64SetCheckBit, value);
 }
