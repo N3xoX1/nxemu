@@ -25,6 +25,8 @@ Bit 2048 stores every guest register write on the hot path (the code generation 
 of leaving a write that a later write of the same register replaces to the side exits before it.
 Bit 8192 makes FRECPE call the FP code for every input (the code generation before) instead of
 the inline estimate for normal inputs.
+With FASTMEM = 1 each JIT also gets a write tracking map, and an arena page written without its
+mark is a failure.
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution

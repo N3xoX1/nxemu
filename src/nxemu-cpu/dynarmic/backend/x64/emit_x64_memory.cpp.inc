@@ -214,6 +214,14 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
 
     const auto wrapped_fn = write_fallbacks[std::make_tuple(ordered, bitsize, vaddr.getIdx(), value_idx)];
 
+    std::optional<Xbyak::Reg64> track_page, track_map;
+    if (fastmem_marker && conf.write_track_map && !ctx.write_track_skip.contains(inst)) {
+        track_page = ctx.reg_alloc.ScratchGpr();
+        if (!WriteTrackMapIsLow(conf)) {
+            track_map = ctx.reg_alloc.ScratchGpr();
+        }
+    }
+
     SharedLabel abort = GenSharedLabel(), end = GenSharedLabel();
 
     if (fastmem_marker) {
@@ -222,6 +230,18 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
         const auto dest_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
 
         const auto location = EmitWriteMemoryMov<bitsize>(code, dest_ptr, value_idx, ordered);
+        // The last write of a group also marks the earlier writes, so its fallback comes back
+        // for the marks
+        const auto group = track_page ? ctx.write_track_group.find(inst) : ctx.write_track_group.end();
+        const bool marks_group = group != ctx.write_track_group.end();
+        SharedLabel track = GenSharedLabel();
+        code.L(*track);
+        if (marks_group) {
+            EmitWriteTrack(code, ctx, vaddr, *track_page, track_map, group->second.first, true);
+            EmitWriteTrack(code, ctx, vaddr, *track_page, track_map, group->second.second, true);
+        } else if (track_page) {
+            EmitWriteTrackAccess<bitsize>(code, ctx, vaddr, *track_page, track_map);
+        }
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
             code.L(*abort);
@@ -236,8 +256,8 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
                     conf.recompile_on_fastmem_failure,
                 });
 
-            EmitCheckMemoryAbort(ctx, inst, end.get());
-            code.jmp(*end, code.T_NEAR);
+            EmitCheckMemoryAbort(ctx, inst, marks_group ? track.get() : end.get());
+            code.jmp(marks_group ? *track : *end, code.T_NEAR);
         });
     } else {
         // Use page table
@@ -471,6 +491,14 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
     const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(args[1]);
     const Xbyak::Reg32 status = ctx.reg_alloc.ScratchGpr().cvt32();
     const Xbyak::Reg64 tmp = ctx.reg_alloc.ScratchGpr();
+    const auto fastmem_marker = ShouldFastmem(ctx, inst);
+    std::optional<Xbyak::Reg64> track_page, track_map;
+    if (fastmem_marker && conf.write_track_map) {
+        track_page = ctx.reg_alloc.ScratchGpr();
+        if (!WriteTrackMapIsLow(conf)) {
+            track_map = ctx.reg_alloc.ScratchGpr();
+        }
+    }
 
     const auto wrapped_fn = exclusive_write_fallbacks[std::make_tuple(ordered, bitsize, vaddr.getIdx(), value.getIdx())];
 
@@ -506,7 +534,6 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
         EmitReadMemoryMov<bitsize>(code, rax.getIdx(), tmp, false);
     }
 
-    const auto fastmem_marker = ShouldFastmem(ctx, inst);
     if (fastmem_marker) {
         SharedLabel abort = GenSharedLabel();
         bool require_abort_handling = false;
@@ -542,6 +569,9 @@ void AxxEmitX64::EmitExclusiveWriteMemoryInline(AxxEmitContext& ctx, IR::Inst* i
         }
 
         code.setnz(status.cvt8());
+        if (track_page) {
+            EmitWriteTrackAccess<bitsize>(code, ctx, vaddr, *track_page, track_map);
+        }
 
         ctx.deferred_emits.emplace_back([=, this] {
             code.L(*abort);

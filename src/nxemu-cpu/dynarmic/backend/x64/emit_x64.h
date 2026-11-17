@@ -109,6 +109,12 @@ struct EmitContext {
         IR::Value value;     // an immediate, or an instruction that is still live at the exits
     };
     tsl::robin_map<const IR::Inst*, std::vector<SetAtExit>> sets_at_exits;  // by A64SideExit
+
+    /// Fastmem writes whose write tracking mark is done by the last write of their group
+    tsl::robin_set<const IR::Inst*> write_track_skip;
+    /// Last write of a group -> offsets from its address to the first and the last byte the
+    /// group writes
+    tsl::robin_map<const IR::Inst*, std::pair<s32, s32>> write_track_group;
 };
 
 using SharedLabel = std::shared_ptr<Xbyak::Label>;

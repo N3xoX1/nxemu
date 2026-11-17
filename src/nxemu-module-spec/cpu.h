@@ -135,6 +135,7 @@ nxinterface IKProcessPageTable
 {
     virtual uint32_t GetAddressSpaceWidth() const = 0;
     virtual uint8_t * FastmemArena() const = 0;
+    virtual uint8_t * WriteTrackMap(uint32_t & l2_offset, uint32_t & l1_offset) const = 0;
     virtual void ** PageTable() const = 0;
     virtual uint32_t GetNceWindows(uint64_t * starts, uint64_t * ends, uint32_t max) const = 0;
     virtual uint64_t GetNceAtomicTable() const = 0;
