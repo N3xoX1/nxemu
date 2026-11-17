@@ -6,6 +6,7 @@
 #include "dynarmic/backend/x64/a64_emit_x64.h"
 
 #include <atomic>
+#include <utility>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -72,8 +73,8 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
 A64EmitX64::~A64EmitX64() = default;
 
 // The emitted code of these leaves EFLAGS alone: moves only. The host flag tracking in Emit and
-// PlanNZCVAtExits both use this list.
-static bool IsHostFlagNeutral(const IR::Inst& inst) {
+// PlanNZCVAtExits both use this list. vector_moves is false for test variant bit 512.
+static bool IsHostFlagNeutral(const IR::Inst& inst, bool vector_moves) {
     switch (inst.GetOpcode()) {
     case IR::Opcode::Void:
     case IR::Opcode::A64SetNZCVAtExits:
@@ -85,6 +86,22 @@ static bool IsHostFlagNeutral(const IR::Inst& inst) {
     case IR::Opcode::A64SetSP:
     case IR::Opcode::Identity:
         return true;
+    // Vector register moves and zero extensions: SSE moves, lane extracts and mov r32, r32,
+    // which leave EFLAGS alone. An immediate is loaded into an XMM with xorps or movaps, but
+    // into a GPR with xor.
+    case IR::Opcode::A64GetS:
+    case IR::Opcode::A64GetD:
+    case IR::Opcode::A64GetQ:
+    case IR::Opcode::A64SetS:
+    case IR::Opcode::A64SetD:
+    case IR::Opcode::A64SetQ:
+    case IR::Opcode::VectorGetElement32:
+    case IR::Opcode::VectorGetElement64:
+    case IR::Opcode::VectorZeroUpper:
+    case IR::Opcode::ZeroExtendLongToQuad:
+        return vector_moves;
+    case IR::Opcode::ZeroExtendWordToLong:
+        return vector_moves && !inst.GetArg(0).IsImmediate();
     default:
         return false;
     }
@@ -99,6 +116,7 @@ static bool IsHostFlagNeutral(const IR::Inst& inst) {
 // Only GetNZCVFromOp values (Add/Sub, or a test of a result) qualify, not FCMP's.
 void A64EmitX64::PlanNZCVAtExits(A64EmitContext& ctx) const {
     IR::Block& block = ctx.block;
+    const bool vector_moves = (conf.test_variant & 512) == 0;
     for (auto it = block.begin(); it != block.end(); ++it) {
         IR::Inst& set = *it;
         if (set.GetOpcode() != IR::Opcode::A64SetNZCV || set.GetArg(0).IsImmediate()) {
@@ -123,7 +141,7 @@ void A64EmitX64::PlanNZCVAtExits(A64EmitContext& ctx) const {
                 ok = true;
                 continue;
             }
-            if (found_start && &*back != get && !IsHostFlagNeutral(*back)) {
+            if (found_start && &*back != get && !IsHostFlagNeutral(*back, vector_moves)) {
                 ok = false;
             }
         }
@@ -161,7 +179,7 @@ void A64EmitX64::PlanNZCVAtExits(A64EmitContext& ctx) const {
                 ok = false;  // reads NZCV from the guest state, or something may look at it
                 continue;
             }
-            if (!IsHostFlagNeutral(inst)) {
+            if (!IsHostFlagNeutral(inst, vector_moves)) {
                 flags_valid = false;
             }
         }
@@ -222,6 +240,12 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     if (ctx.reuse_host_flags && (conf.test_variant & 1024) == 0 && !conf.check_halt_on_memory_access) {
         PlanNZCVAtExits(ctx);
     }
+    // Test variant bit 512: block ends reload NZCV and the check bit, and vector moves count as
+    // changing the host flags (the code generation before)
+    const bool flags_to_block_end = (conf.test_variant & 512) == 0;
+    const IR::Terminal terminal = block.GetTerminal();
+    ctx.check_bit_exit_on_flags = flags_to_block_end && !conf.enable_cycle_counting && boost::get<IR::Term::CheckBit>(&terminal) != nullptr;
+    terminal_check_bit_in_zf = false;
 
     // Start emitting.
     code.align();
@@ -297,7 +321,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
             }
             break;
         default:
-            if (!IsHostFlagNeutral(*inst)) {
+            if (!IsHostFlagNeutral(*inst, flags_to_block_end)) {
                 ctx.host_flags_nzcv = nullptr;
                 ctx.host_flags_are_cpsr = false;
                 ctx.host_flags_fcmp = false;
@@ -321,7 +345,13 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     if (conf.enable_cycle_counting) {
         EmitAddCycles(block.CycleCount());
     }
-    EmitX64::EmitTerminal(block.GetTerminal(), ctx.Location().SetSingleStepping(false), ctx.IsSingleStep());
+    // The If exit tests the host flags when they still hold the stored NZCV; the cycle count
+    // update would change them, and only an If at the top tests before emitting other code.
+    if (flags_to_block_end && !conf.enable_cycle_counting && ctx.host_flags_are_cpsr && boost::get<IR::Term::If>(&terminal) != nullptr) {
+        terminal_flags = ctx.host_flags_fcmp ? TerminalFlags::FCompare : TerminalFlags::Guest;
+    }
+    EmitX64::EmitTerminal(terminal, ctx.Location().SetSingleStepping(false), ctx.IsSingleStep());
+    terminal_flags.reset();
     code.int3();
     const size_t size = static_cast<size_t>(code.getCurr() - entrypoint);
 
@@ -455,6 +485,11 @@ void A64EmitX64::EmitPushRSB(EmitContext& ctx, IR::Inst* inst) {
 
 void A64EmitX64::EmitA64SetCheckBit(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    if (!inst->GetArg(0).IsImmediate() && ctx.zero_flag_for == inst->GetArg(0).GetInst()) {
+        // ZF holds the bit (EmitIsZero fused): the block's CheckBit exit jumps on it.
+        terminal_check_bit_in_zf = true;
+        return;
+    }
     const Xbyak::Reg8 to_store = ctx.reg_alloc.UseGpr(args[0]).cvt8();
     code.mov(code.byte[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, check_bit)], to_store);
 }
@@ -628,11 +663,48 @@ void A64EmitX64::EmitA64SetX(A64EmitContext& ctx, IR::Inst* inst) {
     }
 }
 
+// The 128-bit value is zero above bit 31: UpperLanesClear, or a word zero-extended twice (the
+// value an LDR S or LDP S writes).
+static bool ZeroAbove32(const IR::Value& value) {
+    if (BaselineLoadsAndImmediates()) {
+        return false;
+    }
+    if (UpperLanesClear(value, 32)) {
+        return true;
+    }
+    if (value.IsImmediate()) {
+        return false;
+    }
+    const IR::Inst* inst = value.GetInstRecursive();
+    if (inst->GetOpcode() != IR::Opcode::ZeroExtendLongToQuad || inst->GetArg(0).IsImmediate()) {
+        return false;
+    }
+    return inst->GetArg(0).GetInstRecursive()->GetOpcode() == IR::Opcode::ZeroExtendWordToLong;
+}
+
+// The 128-bit value is zero above bit 63: as above, UpperLanesClear, or a VectorZeroUpper (the
+// translator wraps every SetD value in one).
+static bool ZeroAbove64(const IR::Value& value) {
+    if (BaselineLoadsAndImmediates()) {
+        return false;
+    }
+    if (ZeroAbove32(value) || UpperLanesClear(value, 64)) {
+        return true;
+    }
+    return !value.IsImmediate() && value.GetInstRecursive()->GetOpcode() == IR::Opcode::VectorZeroUpper;
+}
+
 void A64EmitX64::EmitA64SetS(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const A64::Vec vec = inst->GetArg(0).GetA64VecRef();
     const auto addr = xword[r15 + offsetof(A64JitState, vec) + sizeof(u64) * 2 * static_cast<size_t>(vec)];
 
+    if (ZeroAbove32(inst->GetArg(1))) {
+        // Already zero above the written word: a plain store.
+        const Xbyak::Xmm to_store = ctx.reg_alloc.UseXmm(args[1]);
+        code.movaps(addr, to_store);
+        return;
+    }
     const Xbyak::Xmm to_store = ctx.reg_alloc.UseXmm(args[1]);
     const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
     // TODO: Optimize
@@ -646,6 +718,12 @@ void A64EmitX64::EmitA64SetD(A64EmitContext& ctx, IR::Inst* inst) {
     const A64::Vec vec = inst->GetArg(0).GetA64VecRef();
     const auto addr = xword[r15 + offsetof(A64JitState, vec) + sizeof(u64) * 2 * static_cast<size_t>(vec)];
 
+    if (ZeroAbove64(inst->GetArg(1))) {
+        // Already zero above the written doubleword: a plain store.
+        const Xbyak::Xmm to_store = ctx.reg_alloc.UseXmm(args[1]);
+        code.movaps(addr, to_store);
+        return;
+    }
     const Xbyak::Xmm to_store = ctx.reg_alloc.UseScratchXmm(args[1]);
     code.movq(to_store, to_store);  // TODO: Remove when able
     code.movaps(addr, to_store);
@@ -682,6 +760,10 @@ void A64EmitX64::EmitA64SetFPCR(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(nullptr, {}, args[0]);
     code.mov(code.ABI_PARAM1, code.r15);
+    // Save the exception flags raised so far: SetFpcr rebuilds guest_MXCSR keeping only its flag
+    // bits, and the ldmxcsr below would otherwise drop the ones still in the host MXCSR (FPSR was
+    // lost across an FPCR write).
+    code.stmxcsr(code.dword[code.r15 + offsetof(A64JitState, guest_MXCSR)]);
     code.CallFunction(SetFPCRImpl);
     code.ldmxcsr(code.dword[code.r15 + offsetof(A64JitState, guest_MXCSR)]);
 }
@@ -696,6 +778,72 @@ void A64EmitX64::EmitA64SetFPSR(A64EmitContext& ctx, IR::Inst* inst) {
     code.mov(code.ABI_PARAM1, code.r15);
     code.CallFunction(SetFPSRImpl);
     code.ldmxcsr(code.dword[code.r15 + offsetof(A64JitState, guest_MXCSR)]);
+}
+
+// Jumps to `target` when `cond` holds, on the host flags of the ucomis that made NZCV:
+// unordered ZF PF CF = 1 1 1, equal ZF, less CF, greater none. Guest NZCV: unordered 0011,
+// equal 0110, less 1000, greater 0010. Some conditions need PF to tell unordered apart. `type`
+// is the jump type to `target`.
+static void JumpOnFCompareFlags(BlockOfCode& code, IR::Cond cond, Xbyak::Label& target, Xbyak::CodeGenerator::LabelType type) {
+    Xbyak::Label skip;
+    switch (cond) {
+    case IR::Cond::EQ:  // equal
+        code.jp(skip);
+        code.jz(target, type);
+        break;
+    case IR::Cond::NE:  // not equal
+        code.jnz(target, type);
+        code.jp(target, type);
+        break;
+    case IR::Cond::CS:  // not less
+    case IR::Cond::PL:
+        code.jae(target, type);
+        code.jp(target, type);
+        break;
+    case IR::Cond::CC:  // less
+    case IR::Cond::MI:
+        code.jp(skip);
+        code.jb(target, type);
+        break;
+    case IR::Cond::VS: code.jp(target, type); break;   // unordered
+    case IR::Cond::VC: code.jnp(target, type); break;  // ordered
+    case IR::Cond::HI:  // greater or unordered
+        code.ja(target, type);
+        code.jp(target, type);
+        break;
+    case IR::Cond::LS:  // less or equal
+        code.jp(skip);
+        code.jbe(target, type);
+        break;
+    case IR::Cond::GE: code.jae(target, type); break;  // greater or equal
+    case IR::Cond::LT: code.jb(target, type); break;   // less or unordered
+    case IR::Cond::GT: code.ja(target, type); break;   // greater
+    case IR::Cond::LE: code.jbe(target, type); break;  // less, equal or unordered
+    default: ASSERT_MSG(false, "Unknown cond {}", static_cast<size_t>(cond)); break;
+    }
+    code.L(skip);
+}
+
+// Jumps to `target` when `cond` holds, on host flags that hold the guest NZCV (SF ZF CF OF),
+// with CF already inverted for HI and LS. `type` is the jump type to `target`.
+static void JumpOnNZCVFlags(BlockOfCode& code, IR::Cond cond, Xbyak::Label& target, Xbyak::CodeGenerator::LabelType type) {
+    switch (cond) {
+    case IR::Cond::EQ: code.jz(target, type); break;
+    case IR::Cond::NE: code.jnz(target, type); break;
+    case IR::Cond::CS: code.jc(target, type); break;
+    case IR::Cond::CC: code.jnc(target, type); break;
+    case IR::Cond::MI: code.js(target, type); break;
+    case IR::Cond::PL: code.jns(target, type); break;
+    case IR::Cond::VS: code.jo(target, type); break;
+    case IR::Cond::VC: code.jno(target, type); break;
+    case IR::Cond::HI: code.ja(target, type); break;
+    case IR::Cond::LS: code.jna(target, type); break;
+    case IR::Cond::GE: code.jge(target, type); break;
+    case IR::Cond::LT: code.jl(target, type); break;
+    case IR::Cond::GT: code.jg(target, type); break;
+    case IR::Cond::LE: code.jle(target, type); break;
+    default: ASSERT_MSG(false, "Unknown cond {}", static_cast<size_t>(cond)); break;
+    }
 }
 
 void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
@@ -733,46 +881,7 @@ void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
             }
         }
     } else if (ctx.host_flags_are_cpsr && ctx.host_flags_fcmp) {
-        // The host flags are those of the ucomis that made NZCV: unordered ZF PF CF = 1 1 1,
-        // equal ZF, less CF, greater none. Guest NZCV: unordered 0011, equal 0110, less 1000,
-        // greater 0010. Some conditions need PF to tell unordered apart.
-        Xbyak::Label skip;
-        switch (cond) {
-        case IR::Cond::EQ:  // equal
-            code.jp(skip);
-            code.jz(*exit, code.T_NEAR);
-            break;
-        case IR::Cond::NE:  // not equal
-            code.jnz(*exit, code.T_NEAR);
-            code.jp(*exit, code.T_NEAR);
-            break;
-        case IR::Cond::CS:  // not less
-        case IR::Cond::PL:
-            code.jae(*exit, code.T_NEAR);
-            code.jp(*exit, code.T_NEAR);
-            break;
-        case IR::Cond::CC:  // less
-        case IR::Cond::MI:
-            code.jp(skip);
-            code.jb(*exit, code.T_NEAR);
-            break;
-        case IR::Cond::VS: code.jp(*exit, code.T_NEAR); break;   // unordered
-        case IR::Cond::VC: code.jnp(*exit, code.T_NEAR); break;  // ordered
-        case IR::Cond::HI:  // greater or unordered
-            code.ja(*exit, code.T_NEAR);
-            code.jp(*exit, code.T_NEAR);
-            break;
-        case IR::Cond::LS:  // less or equal
-            code.jp(skip);
-            code.jbe(*exit, code.T_NEAR);
-            break;
-        case IR::Cond::GE: code.jae(*exit, code.T_NEAR); break;  // greater or equal
-        case IR::Cond::LT: code.jb(*exit, code.T_NEAR); break;   // less or unordered
-        case IR::Cond::GT: code.ja(*exit, code.T_NEAR); break;   // greater
-        case IR::Cond::LE: code.jbe(*exit, code.T_NEAR); break;  // less, equal or unordered
-        default: ASSERT_MSG(false, "Unknown cond {}", static_cast<size_t>(cond)); break;
-        }
-        code.L(skip);
+        JumpOnFCompareFlags(code, cond, *exit, code.T_NEAR);
     } else {
         if (ctx.host_flags_are_cpsr) {
             // The host flags already hold the guest NZCV. Only HI and LS need CF inverted.
@@ -789,23 +898,7 @@ void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
             code.mov(eax, dword[r15 + offsetof(A64JitState, cpsr_nzcv)]);
             code.LoadRequiredFlagsForCondFromRax(cond);
         }
-        switch (cond) {
-        case IR::Cond::EQ: code.jz(*exit, code.T_NEAR); break;
-        case IR::Cond::NE: code.jnz(*exit, code.T_NEAR); break;
-        case IR::Cond::CS: code.jc(*exit, code.T_NEAR); break;
-        case IR::Cond::CC: code.jnc(*exit, code.T_NEAR); break;
-        case IR::Cond::MI: code.js(*exit, code.T_NEAR); break;
-        case IR::Cond::PL: code.jns(*exit, code.T_NEAR); break;
-        case IR::Cond::VS: code.jo(*exit, code.T_NEAR); break;
-        case IR::Cond::VC: code.jno(*exit, code.T_NEAR); break;
-        case IR::Cond::HI: code.ja(*exit, code.T_NEAR); break;
-        case IR::Cond::LS: code.jna(*exit, code.T_NEAR); break;
-        case IR::Cond::GE: code.jge(*exit, code.T_NEAR); break;
-        case IR::Cond::LT: code.jl(*exit, code.T_NEAR); break;
-        case IR::Cond::GT: code.jg(*exit, code.T_NEAR); break;
-        case IR::Cond::LE: code.jle(*exit, code.T_NEAR); break;
-        default: ASSERT_MSG(false, "Unknown cond {}", static_cast<size_t>(cond)); break;
-        }
+        JumpOnNZCVFlags(code, cond, *exit, code.T_NEAR);
         if (exit_cmc && ctx.nzcv_pending) {
             code.cmc();  // the host flags stay the guest NZCV for the exits after this one
         }
@@ -1051,7 +1144,21 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::If terminal, IR::LocationDescriptor 
         EmitTerminal(terminal.then_, initial_location, is_single_step);
         break;
     default:
-        Xbyak::Label pass = EmitCond(terminal.if_);
+        Xbyak::Label pass;
+        if (terminal_flags == TerminalFlags::FCompare) {
+            // The host flags are still those of the FCMP that made the stored NZCV: no reload
+            JumpOnFCompareFlags(code, terminal.if_, pass, code.T_AUTO);
+            terminal_flags.reset();
+        } else if (terminal_flags == TerminalFlags::Guest) {
+            // The host flags still hold the stored NZCV: no reload
+            if (terminal.if_ == IR::Cond::HI || terminal.if_ == IR::Cond::LS) {
+                code.cmc();  // x64's carry is the inverse of Arm's for these
+            }
+            JumpOnNZCVFlags(code, terminal.if_, pass, code.T_AUTO);
+            terminal_flags.reset();
+        } else {
+            pass = EmitCond(terminal.if_);
+        }
         EmitTerminal(terminal.else_, initial_location, is_single_step);
         code.L(pass);
         EmitTerminal(terminal.then_, initial_location, is_single_step);
@@ -1061,8 +1168,12 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::If terminal, IR::LocationDescriptor 
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::CheckBit terminal, IR::LocationDescriptor initial_location, bool is_single_step) {
     Xbyak::Label fail;
-    code.cmp(code.byte[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, check_bit)], u8(0));
-    code.jz(fail);
+    if (std::exchange(terminal_check_bit_in_zf, false)) {
+        code.jnz(fail);  // ZF = the bit
+    } else {
+        code.cmp(code.byte[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, check_bit)], u8(0));
+        code.jz(fail);
+    }
     EmitTerminal(terminal.then_, initial_location, is_single_step);
     code.L(fail);
     EmitTerminal(terminal.else_, initial_location, is_single_step);

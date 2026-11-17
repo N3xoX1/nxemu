@@ -25,6 +25,7 @@ struct alignas(16) StackLayout {
     std::array<std::array<u64, 2>, SpillCount> spill;
 
     u32 save_host_MXCSR;
+    u32 scratch_MXCSR;  // keeps the MXCSR flags across host operations that must not raise them
 
     bool check_bit;
 };

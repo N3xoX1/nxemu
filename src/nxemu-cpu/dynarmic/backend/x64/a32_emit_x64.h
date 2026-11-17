@@ -82,6 +82,9 @@ protected:
     void (*memory_write_128)() = nullptr;  // Dummy
 
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks;
+    // Vector loads into XMM are A64 only. The map is never filled; EmitMemoryRead names it
+    std::map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks_xmm;
+    static constexpr bool has_xmm_read_fallbacks = false;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> write_fallbacks;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> exclusive_write_fallbacks;
     void GenFastmemFallbacks();

@@ -11,6 +11,14 @@ widths, adc for FCMP NZCV and plain ordered loads (the code generation before th
 the cold code of each block right after it instead of in the far area of the code cache (the
 layout before), 64 turns off side exits (each forward branch ends the block). Bit 128 patches
 block links by rewriting the whole jump in place (the way before) instead of one aligned store.
+Bit 256 turns off 64-bit immediates for ADD/SUB/CMP, plain stores for SetS/SetD, 32/64-bit
+vector loads straight into XMM registers, lane inserts (VectorSetElement32/64) from an XMM
+register and the zero extension of LeastSignificantWord, MostSignificantWord and loads (the code
+generation before them).
+Bit 512 makes the If and CheckBit exits at the end of a block reload NZCV and the check bit
+instead of using the host flags, and counts vector register moves as changing the host flags (the
+code generation before). Most forward branches are side exits, so add 64 to both variants to
+test the block ends.
 Bit 1024 stores NZCV at every flag-setting instruction (the code generation before) instead of
 leaving it in the host flags for the side exits and the block end to store.
 
@@ -23,7 +31,16 @@ JIT_FUZZ_FOCUS=FCMP_float,B_cond picks these instructions (decoder names) half o
   jit_fuzz.py DLL replay SEED ITERATION VARIANT_A VARIANT_B FASTMEM KEEP [REPORT]
 
 shrink turns instructions of one failing sequence into NOPs while it still fails; KEEP is the
-0/1 string it prints (1 = instruction kept). The exit code is the number of failures."""
+0/1 string it prints (1 = instruction kept).
+
+  jit_fuzz.py DLL stress SEED ROUNDS CORES VARIANT CLEAR_PERMILLE [REPORT]
+
+stress runs CORES threads on JITs that share one code cache, each round a random program of
+nested calls and forward branches, while the main thread invalidates its functions, clears the
+cache (CLEAR_PERMILLE of the time, 20 is a good value) and halts cores. Each core must end with
+the registers of a JIT of its own run alone. Odd rounds count cycles. Bit 128 is not safe with
+several cores (it rewrites jumps another core may be running). The exit code is the number of
+failures."""
 import ctypes, os, sys
 
 
@@ -42,6 +59,8 @@ def load(dll):
     lib.nxemu_jit_fuzz_replay.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
     lib.nxemu_jit_fuzz_bench.argtypes = [ctypes.c_int]
     lib.nxemu_jit_fuzz_focus.argtypes = [ctypes.c_char_p]
+    lib.nxemu_jit_stress.argtypes = [ctypes.c_uint64, ctypes.c_int, ctypes.c_int, ctypes.c_uint32, ctypes.c_int, ctypes.c_char_p]
+    lib.nxemu_jit_stress.restype = ctypes.c_int
     lib.nxemu_jit_fuzz_focus(os.environ.get('JIT_FUZZ_FOCUS', '').encode())
     return lib
 
@@ -52,7 +71,10 @@ def main():
         return 2
     lib, cmd = load(sys.argv[1]), sys.argv[2]
     seed, n, va, vb, fm = (int(x) for x in sys.argv[3:8])
-    if cmd in ('run', 'bench'):
+    if cmd == 'stress':
+        report = sys.argv[8] if len(sys.argv) > 8 else 'jit-stress.txt'
+        failed = lib.nxemu_jit_stress(*(int(x) for x in sys.argv[3:8]), report.encode())
+    elif cmd in ('run', 'bench'):
         report = sys.argv[8] if len(sys.argv) > 8 else 'jit-fuzz.txt'
         lib.nxemu_jit_fuzz_replay(-1, 0, b'')
         lib.nxemu_jit_fuzz_bench(int(os.environ.get('JIT_FUZZ_REPS', '200')) if cmd == 'bench' else 0)

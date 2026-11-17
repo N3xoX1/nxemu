@@ -85,6 +85,14 @@ public:
 
     void ReinterpretImage(Image& dst, Image& src, std::span<const VideoCommon::ImageCopy> copies);
 
+    /// True when alias copies of freshly cleared images must go through a buffer (NVIDIA)
+    bool NeedsAliasCopyThroughBuffer() const noexcept;
+
+    /// Copies through a scratch buffer instead of an image-to-image copy.
+    /// Returns false when the images can't take this path.
+    bool CopyImageThroughBuffer(Image& dst, Image& src,
+                                std::span<const VideoCommon::ImageCopy> copies);
+
     void ConvertImage(Framebuffer* dst, ImageView& dst_view, ImageView& src_view);
 
     bool CanAccelerateImageUpload(Image&) const noexcept {

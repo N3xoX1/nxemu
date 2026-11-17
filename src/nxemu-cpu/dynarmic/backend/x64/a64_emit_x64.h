@@ -101,6 +101,12 @@ protected:
     A64::UserCallbacks* devirtualize_callbacks;
     A64::Jit* jit_interface;
     BlockRangeInformation<u64> block_ranges;
+    /// Set while the block's If exit is emitted when the host flags hold the stored NZCV: as the
+    /// guest's, or as the FCMP's ucomis left them
+    enum class TerminalFlags { Guest, FCompare };
+    std::optional<TerminalFlags> terminal_flags;
+    /// The block's CheckBit exit tests ZF (set by a fused IsZero) instead of the stack byte
+    bool terminal_check_bit_in_zf = false;
 
     std::vector<FastDispatchTable*> fast_dispatch_tables;
     void ClearFastDispatchTable();
@@ -114,6 +120,9 @@ protected:
     void GenMemory128Accessors();
 
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks;
+    // 32/64-bit reads into an XMM register (vector loads), by (ordered, bitsize, vaddr, xmm)
+    std::map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks_xmm;
+    static constexpr bool has_xmm_read_fallbacks = true;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> write_fallbacks;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> exclusive_write_fallbacks;
     void GenFastmemFallbacks();

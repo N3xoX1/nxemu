@@ -24,6 +24,7 @@
 #include "dynarmic/backend/x64/block_of_code.h"
 #include "dynarmic/backend/x64/constants.h"
 #include "dynarmic/backend/x64/emit_x64.h"
+#include "dynarmic/backend/x64/stack_layout.h"
 #include "dynarmic/common/fp/fpcr.h"
 #include "dynarmic/common/fp/info.h"
 #include "dynarmic/common/fp/op.h"
@@ -970,13 +971,19 @@ static void EmitFPVectorMinMax(BlockOfCode& code, EmitContext& ctx, IR::Inst* in
             } else if (code.HasHostFeature(HostFeature::AVX)) {
                 FCODE(vcmpeqp)(mask, result, xmm_b);
                 FCODE(vcmpunordp)(nan_mask, result, xmm_b);
+                // x86 max/min raise IE for a quiet NaN: keep NaNs out of them, the NaN lanes get the
+                // default NaN below
+                const Xbyak::Xmm b = ctx.reg_alloc.ScratchXmm();
+                FCODE(vandnp)(result, nan_mask, result);
+                FCODE(vandnp)(b, nan_mask, xmm_b);
                 if constexpr (is_max) {
-                    FCODE(vandp)(eq, result, xmm_b);
-                    FCODE(vmaxp)(result, result, xmm_b);
+                    FCODE(vandp)(eq, result, b);
+                    FCODE(vmaxp)(result, result, b);
                 } else {
-                    FCODE(vorp)(eq, result, xmm_b);
-                    FCODE(vminp)(result, result, xmm_b);
+                    FCODE(vorp)(eq, result, b);
+                    FCODE(vminp)(result, result, b);
                 }
+                ctx.reg_alloc.Release(b);
                 FCODE(blendvp)(result, eq);
                 FCODE(vblendvp)(result, result, GetNaNVector<fsize>(code), nan_mask);
             } else {
@@ -1029,14 +1036,25 @@ static void EmitFPVectorMinMax(BlockOfCode& code, EmitContext& ctx, IR::Inst* in
 
             if (code.HasHostFeature(HostFeature::AVX)) {
                 FCODE(vcmpeqp)(mask, result, xmm_b);
+                // x86 max/min raise IE for a quiet NaN (AArch64 only for a signalling NaN, which the
+                // compare above raises): keep NaNs out of them. NaN lanes then get operand b, as x86
+                // max/min give, which HandleNaNs replaces (Unsafe_InaccurateNaN skips it).
+                const Xbyak::Xmm b = ctx.reg_alloc.ScratchXmm();
+                const Xbyak::Xmm nan = ctx.reg_alloc.ScratchXmm();
+                FCODE(vcmpunordp)(nan, result, xmm_b);
+                FCODE(vandnp)(b, nan, xmm_b);
+                FCODE(vandnp)(result, nan, result);
                 if constexpr (is_max) {
-                    FCODE(vandp)(eq, result, xmm_b);
-                    FCODE(vmaxp)(result, result, xmm_b);
+                    FCODE(vandp)(eq, result, b);
+                    FCODE(vmaxp)(result, result, b);
                 } else {
-                    FCODE(vorp)(eq, result, xmm_b);
-                    FCODE(vminp)(result, result, xmm_b);
+                    FCODE(vorp)(eq, result, b);
+                    FCODE(vminp)(result, result, b);
                 }
                 FCODE(blendvp)(result, eq);
+                FCODE(vblendvp)(result, result, xmm_b, nan);
+                ctx.reg_alloc.Release(nan);
+                ctx.reg_alloc.Release(b);
             } else {
                 code.movaps(mask, result);
                 code.movaps(eq, result);
@@ -1118,17 +1136,29 @@ static void EmitFPVectorMinMaxNumeric(BlockOfCode& code, EmitContext& ctx, IR::I
                 const Xbyak::Xmm eq_mask = tmp1;
                 const Xbyak::Xmm eq = tmp2;
 
+                // x86 max/min raise IE for a quiet NaN (AArch64 only for a signalling NaN, which the
+                // compares above raise): NaN lanes are zeroed for them and take op2 after, which is
+                // what the remaining rows of the table above want.
+                const Xbyak::Xmm nan = ctx.reg_alloc.ScratchXmm();
+                const Xbyak::Xmm b = ctx.reg_alloc.ScratchXmm();
+                FCODE(vcmpunordp)(nan, xmm_a, xmm_b);
+                FCODE(vandnp)(intermediate_result, nan, xmm_a);
+                FCODE(vandnp)(b, nan, xmm_b);
+
                 FCODE(vcmpeqp)(eq_mask, xmm_a, xmm_b);
 
                 if constexpr (is_max) {
-                    code.vandps(eq, xmm_a, xmm_b);
-                    FCODE(vmaxp)(intermediate_result, xmm_a, xmm_b);
+                    code.vandps(eq, intermediate_result, b);
+                    FCODE(vmaxp)(intermediate_result, intermediate_result, b);
                 } else {
-                    code.vorps(eq, xmm_a, xmm_b);
-                    FCODE(vminp)(intermediate_result, xmm_a, xmm_b);
+                    code.vorps(eq, intermediate_result, b);
+                    FCODE(vminp)(intermediate_result, intermediate_result, b);
                 }
 
                 code.blendvps(intermediate_result, eq);  // eq_mask is in xmm0
+                code.vblendvps(intermediate_result, intermediate_result, xmm_b, nan);
+                ctx.reg_alloc.Release(b);
+                ctx.reg_alloc.Release(nan);
             }
 
             {
@@ -1625,6 +1655,7 @@ static void EmitRecipStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* in
 
             MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
                 code.movaps(result, GetVectorOf<fsize, false, 0, 2>(code));
+                code.stmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
                 FCODE(vfnmadd231p)(result, operand1, operand2);
 
                 FCODE(vcmpunordp)(tmp, result, result);
@@ -1635,6 +1666,10 @@ static void EmitRecipStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* in
 
             ctx.deferred_emits.emplace_back([=, &code, &ctx] {
                 code.L(*fallback);
+                // The FP code recomputes every lane with its flags, so the host FMA's are dropped: IE
+                // for inf * 0, which FRECPS and FRSQRTS define as exact, and OE from before FRSQRTS
+                // halves the result.
+                code.ldmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
                 code.sub(rsp, 8);
                 ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
                 EmitThreeOpFallbackWithoutRegAlloc(code, ctx, result, operand1, operand2, fallback_fn, fpcr_controlled);
@@ -1700,8 +1735,9 @@ void EmitFPVectorRoundInt(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
                 }
             }();
 
+            // Bit 3 suppresses the precision exception: only FRINTX (exact) raises IXC
             EmitTwoOpVectorOperation<fsize, DefaultIndexer, 3>(code, ctx, inst, [&](const Xbyak::Xmm& result, const Xbyak::Xmm& xmm_a) {
-                FCODE(roundp)(result, xmm_a, round_imm);
+                FCODE(roundp)(result, xmm_a, static_cast<u8>(round_imm | 0b1000));
             });
 
             return;
@@ -1789,6 +1825,19 @@ static void EmitRSqrtEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
             const Xbyak::Xmm value = ctx.reg_alloc.ScratchXmm();
 
             SharedLabel bad_values = GenSharedLabel(), end = GenSharedLabel();
+            SharedLabel restore_mxcsr = GenSharedLabel(), mxcsr_restored = GenSharedLabel();
+
+            // Detect NaNs, negatives, zeros, denormals and infinities with signed integer compares
+            // (positive normal: smallest normal <= bits <= largest normal). An FP compare of the
+            // rounded value below raised IE for +inf, which the rounding turns into a signalling NaN.
+            constexpr FPT smallest_normal = FPT(1) << FP::FPInfo<FPT>::explicit_mantissa_width;
+            constexpr FPT largest_normal = FP::FPInfo<FPT>::exponent_mask - smallest_normal + (smallest_normal - 1);
+            code.vmovaps(result, GetVectorOf<fsize, smallest_normal>(code));
+            ICODE(vpcmpgt)(result, result, operand);
+            ICODE(vpcmpgt)(value, operand, GetVectorOf<fsize, largest_normal>(code));
+            code.vpor(result, result, value);
+            code.vptest(result, result);
+            code.jnz(*bad_values, code.T_NEAR);
 
             code.movaps(value, operand);
 
@@ -1796,19 +1845,26 @@ static void EmitRSqrtEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
             code.pand(value, xmm0);
             code.por(value, GetVectorOf<fsize, (fsize == 32 ? 0x00008000 : 0x0000'1000'0000'0000)>(code));
 
-            // Detect NaNs, negatives, zeros, denormals and infinities
-            FCODE(vcmpnge_uqp)(result, value, GetVectorOf<fsize, (FPT(1) << FP::FPInfo<FPT>::explicit_mantissa_width)>(code));
-            code.vptest(result, result);
-            code.jnz(*bad_values, code.T_NEAR);
-
+            // As in the scalar version: the host sqrt/div raise inexact, FRSQRTE raises nothing for
+            // normal positive inputs, and MXCSR is only restored when inexact was clear before.
+            code.stmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
             FCODE(sqrtp)(value, value);
             code.vmovaps(result, GetVectorOf<fsize, FP::FPValue<FPT, false, 0, 1>()>(code));
             FCODE(divp)(result, value);
+            code.test(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)], 0x20);  // PE
+            code.jz(*restore_mxcsr, code.T_NEAR);
+            code.L(*mxcsr_restored);
 
             ICODE(padd)(result, GetVectorOf<fsize, (fsize == 32 ? 0x00004000 : 0x0000'0800'0000'0000)>(code));
             code.pand(result, xmm0);
 
             code.L(*end);
+
+            ctx.deferred_emits.emplace_back([=, &code] {
+                code.L(*restore_mxcsr);
+                code.ldmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
+                code.jmp(*mxcsr_restored, code.T_NEAR);
+            });
 
             ctx.deferred_emits.emplace_back([=, &code, &ctx] {
                 code.L(*bad_values);
@@ -1883,6 +1939,7 @@ static void EmitRSqrtStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* in
 
             MaybeStandardFPSCRValue(code, ctx, fpcr_controlled, [&] {
                 code.vmovaps(result, GetVectorOf<fsize, false, 0, 3>(code));
+                code.stmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
                 FCODE(vfnmadd231p)(result, operand1, operand2);
 
                 // An explanation for this is given in EmitFPRSqrtStepFused.
@@ -1898,6 +1955,10 @@ static void EmitRSqrtStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* in
 
             ctx.deferred_emits.emplace_back([=, &code, &ctx] {
                 code.L(*fallback);
+                // The FP code recomputes every lane with its flags, so the host FMA's are dropped: IE
+                // for inf * 0, which FRECPS and FRSQRTS define as exact, and OE from before FRSQRTS
+                // halves the result.
+                code.ldmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
                 code.sub(rsp, 8);
                 ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
                 EmitThreeOpFallbackWithoutRegAlloc(code, ctx, result, operand1, operand2, fallback_fn, fpcr_controlled);
@@ -2067,7 +2128,38 @@ void EmitFPVectorToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
                     FCODE(mulp)(src, GetVectorOf<fsize>(code, scale_factor));
                 }
 
-                FCODE(roundp)(src, src, static_cast<u8>(round_imm));
+                // IOC for the lanes the code below never hands to an x86 conversion (quiet NaN, and
+                // negative after rounding for unsigned): converting all-ones (a NaN) in those lanes
+                // sets MXCSR.IE. FPToFixed raises IXC only for a result that did not saturate. A
+                // saturating signed lane is already an integer, but an unsigned one can be -1.5, so
+                // unsigned rounds without PE and rounds again, with the invalid lanes zeroed, for it.
+                const auto convert_raises_ie = [&](const Xbyak::Xmm& mask) {
+                    if constexpr (fsize == 32) {
+                        code.cvttps2dq(mask, mask);
+                    } else {
+                        code.cvttpd2dq(mask, mask);
+                    }
+                };
+                if constexpr (unsigned_) {
+                    const Xbyak::Xmm invalid = ctx.reg_alloc.ScratchXmm();
+                    const Xbyak::Xmm unrounded = ctx.reg_alloc.ScratchXmm();
+                    code.movaps(unrounded, src);
+                    FCODE(roundp)(src, src, static_cast<u8>(round_imm | 0b1000));
+                    code.xorps(invalid, invalid);
+                    FCODE(cmpnlep)(invalid, src);  // !(0 <= src)
+                    code.movaps(xmm0, invalid);
+                    convert_raises_ie(xmm0);
+                    FCODE(andnp)(invalid, unrounded);
+                    FCODE(roundp)(invalid, invalid, static_cast<u8>(round_imm));  // PE: in-range lanes only
+                    ctx.reg_alloc.Release(unrounded);
+                    ctx.reg_alloc.Release(invalid);
+                } else {
+                    FCODE(roundp)(src, src, static_cast<u8>(round_imm));
+                    code.movaps(xmm0, src);
+                    FCODE(cmpunordp)(xmm0, xmm0);
+                    convert_raises_ie(xmm0);
+                }
+
                 ZeroIfNaN<fsize>(code, src);
 
                 constexpr u64 float_upper_limit_signed = fsize == 32 ? 0x4f000000 : 0x43e0000000000000;

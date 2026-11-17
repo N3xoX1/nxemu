@@ -107,6 +107,10 @@ struct ImageBase {
     VAddr cpu_addr_end = 0;
 
     u64 modification_tick = 0;
+    /// Host command buffer tick of the last GPU write
+    u64 host_write_tick = 0;
+    /// Host command buffer tick of the last attachment clear
+    u64 host_clear_tick = 0;
     /// Modification tick of the contents last written back to guest memory
     u64 published_tick = 0;
     /// The last write back only covered the pages the CPU observed

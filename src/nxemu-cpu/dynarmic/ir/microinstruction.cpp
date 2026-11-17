@@ -299,6 +299,15 @@ bool Inst::ReadsFromAndWritesToFPSRCumulativeExceptionBits() const {
     case Opcode::FPDiv64:
     case Opcode::FPMax32:
     case Opcode::FPMax64:
+    // These raise exceptions too. Left out, dead code elimination dropped their flags
+    case Opcode::FPMulX32:
+    case Opcode::FPMulX64:
+    case Opcode::FPDoubleToFixedS16:
+    case Opcode::FPDoubleToFixedU16:
+    case Opcode::FPHalfToFixedS16:
+    case Opcode::FPHalfToFixedU16:
+    case Opcode::FPSingleToFixedS16:
+    case Opcode::FPSingleToFixedU16:
     case Opcode::FPMaxNumeric32:
     case Opcode::FPMaxNumeric64:
     case Opcode::FPMin32:
@@ -365,6 +374,20 @@ bool Inst::ReadsFromAndWritesToFPSRCumulativeExceptionBits() const {
     case Opcode::FPVectorAdd64:
     case Opcode::FPVectorDiv32:
     case Opcode::FPVectorDiv64:
+    // These raise exceptions too. Left out, dead code elimination dropped their flags (an FMIN
+    // whose result a load overwrote lost IOC)
+    case Opcode::FPVectorFromHalf32:
+    case Opcode::FPVectorMax32:
+    case Opcode::FPVectorMax64:
+    case Opcode::FPVectorMaxNumeric32:
+    case Opcode::FPVectorMaxNumeric64:
+    case Opcode::FPVectorMin32:
+    case Opcode::FPVectorMin64:
+    case Opcode::FPVectorMinNumeric32:
+    case Opcode::FPVectorMinNumeric64:
+    case Opcode::FPVectorMulX32:
+    case Opcode::FPVectorMulX64:
+    case Opcode::FPVectorToHalf32:
     case Opcode::FPVectorEqual16:
     case Opcode::FPVectorEqual32:
     case Opcode::FPVectorEqual64:

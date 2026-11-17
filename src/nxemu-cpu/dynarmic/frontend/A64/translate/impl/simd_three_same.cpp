@@ -6,6 +6,13 @@
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
 namespace Dynarmic::A64 {
+
+// A 64-bit vector operand reads as zero in its upper lanes, and 0/0 there raised IOC for lanes
+// AArch64 never computes. 1.0 raises nothing.
+static IR::U128 UpperLanesOne(IR::IREmitter& ir, const IR::U128& operand) {
+    return ir.VectorInterleaveLower(64, operand, ir.VectorBroadcast(32, ir.Imm32(0x3F800000)));
+}
+
 namespace {
 enum class Operation {
     Add,
@@ -1191,7 +1198,7 @@ bool TranslatorVisitor::FDIV_2(bool Q, bool sz, Vec Vm, Vec Vn, Vec Vd) {
     const size_t datasize = Q ? 128 : 64;
 
     const IR::U128 operand1 = V(datasize, Vn);
-    const IR::U128 operand2 = V(datasize, Vm);
+    const IR::U128 operand2 = datasize == 64 ? UpperLanesOne(ir, V(datasize, Vm)) : V(datasize, Vm);
     IR::U128 result = ir.FPVectorDiv(esize, operand1, operand2);
     if (datasize == 64) {
         result = ir.VectorZeroUpper(result);

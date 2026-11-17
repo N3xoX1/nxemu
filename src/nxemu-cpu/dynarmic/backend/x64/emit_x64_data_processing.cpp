@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <iterator>
+#include <optional>
 #include <type_traits>
 
 #include <mcl/assert.hpp>
@@ -112,8 +113,16 @@ static bool FuseIsZeroWithSideExit(EmitContext& ctx, IR::Inst* inst) {
         return false;
     }
     auto next = std::next(IR::Block::iterator(inst));
-    return next != ctx.block.end() && next->GetOpcode() == IR::Opcode::A64SideExit &&
-           !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
+    if (next == ctx.block.end()) {
+        return false;
+    }
+    if (next->GetOpcode() == IR::Opcode::A64SideExit) {
+        return !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
+    }
+    // The SetCheckBit that ends a block with a CheckBit exit (CBZ/CBNZ/TBZ/TBNZ at the end of
+    // a block): the exit jumps on ZF.
+    return ctx.check_bit_exit_on_flags && next->GetOpcode() == IR::Opcode::A64SetCheckBit && std::next(next) == ctx.block.end() &&
+           !next->GetArg(0).IsImmediate() && next->GetArg(0).GetInst() == inst;
 }
 
 void EmitX64::EmitIsZero32(EmitContext& ctx, IR::Inst* inst) {
@@ -1008,6 +1017,21 @@ static Xbyak::Reg64 DoNZCV(BlockOfCode& code, RegAlloc& reg_alloc, IR::Inst* nzc
     return nzcv;
 }
 
+// An immediate second operand x64 can encode: any 32-bit one, or a 64-bit one that is a
+// sign-extended 32-bit value (x64 sign-extends imm32 for 64-bit operations).
+static std::optional<u32> ImmediateOperand(Argument& arg) {
+    if (!arg.IsImmediate()) {
+        return std::nullopt;
+    }
+    if (arg.GetType() == IR::Type::U32) {
+        return arg.GetImmediateU32();
+    }
+    if (arg.GetType() == IR::Type::U64 && arg.FitsInImmediateS32() && !BaselineLoadsAndImmediates()) {
+        return static_cast<u32>(arg.GetImmediateS32());
+    }
+    return std::nullopt;
+}
+
 static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bitsize) {
     const auto carry_inst = inst->GetAssociatedPseudoOperation(IR::Opcode::GetCarryFromOp);
     const auto overflow_inst = inst->GetAssociatedPseudoOperation(IR::Opcode::GetOverflowFromOp);
@@ -1044,8 +1068,8 @@ static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
     const Xbyak::Reg8 carry = DoCarry(ctx.reg_alloc, carry_in, carry_inst);
     const Xbyak::Reg8 overflow = overflow_inst ? ctx.reg_alloc.ScratchGpr().cvt8() : Xbyak::Reg8{-1};
 
-    if (args[1].IsImmediate() && args[1].GetType() == IR::Type::U32) {
-        const u32 op_arg = args[1].GetImmediateU32();
+    if (const auto imm = ImmediateOperand(args[1])) {
+        const u32 op_arg = *imm;
         if (carry_in.IsImmediate()) {
             if (carry_in.GetImmediateU1()) {
                 code.stc();
@@ -1133,16 +1157,15 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
     bool invert_output_carry = true;
 
     if (is_cmp) {
-        if (args[1].IsImmediate() && args[1].GetType() == IR::Type::U32) {
-            const u32 op_arg = args[1].GetImmediateU32();
-            code.cmp(result, op_arg);
+        if (const auto imm = ImmediateOperand(args[1])) {
+            code.cmp(result, *imm);
         } else {
             OpArg op_arg = ctx.reg_alloc.UseOpArg(args[1]);
             op_arg.setBit(bitsize);
             code.cmp(result, *op_arg);
         }
-    } else if (args[1].IsImmediate() && args[1].GetType() == IR::Type::U32) {
-        const u32 op_arg = args[1].GetImmediateU32();
+    } else if (const auto imm = ImmediateOperand(args[1])) {
+        const u32 op_arg = *imm;
         if (carry_in.IsImmediate()) {
             if (carry_in.GetImmediateU1()) {
                 code.sub(result, op_arg);
@@ -1616,6 +1639,10 @@ void EmitX64::EmitZeroExtendHalfToLong(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitZeroExtendWordToLong(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    if (args[0].IsInXmm() && UpperLanesClear(inst->GetArg(0), 32) && !BaselineLoadsAndImmediates()) {
+        ctx.reg_alloc.DefineValue(inst, args[0]);  // e.g. a movd load: nothing above 32 bits
+        return;
+    }
     if (args[0].IsInXmm() && code.HasHostFeature(HostFeature::SSE41)) {
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
         // Copy lane zero and clear lanes 1..3. Integer-domain bit operation;
