@@ -43,17 +43,25 @@ public:
     bool IsValid() const { return timer && wake; }
     void Notify() { SetEvent(wake); }
     bool WaitForNotification() { return WaitForSingleObject(wake, INFINITE) == WAIT_OBJECT_0; }
-    bool Wait(s64 ns) {
+    // late_ns is how long after its due time the timer fired, or -1 if woken by Notify
+    bool Wait(s64 ns, s64& late_ns) {
         // Round up to the API's 100 ns units. The caller always rechecks the
         // emulated clock; a host timeout alone never makes an event due.
         LARGE_INTEGER due{.QuadPart = -(ns / 100 + (ns % 100 != 0))};
+        const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
         if (!SetWaitableTimerEx(timer, &due, 0, nullptr, nullptr, nullptr, 0)) return false;
         const HANDLE handles[]{wake, timer};
-        return WaitForMultipleObjects(2, handles, FALSE, INFINITE) != WAIT_FAILED;
+        const DWORD result = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+        late_ns = result == WAIT_OBJECT_0 + 1
+                      ? std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count() - ns
+                      : -1;
+        return result != WAIT_FAILED;
     }
 private:
     HANDLE timer{}, wake{};
 };
+
+constexpr s64 min_timer_wait_margin_ns = 100'000;
 #endif
 
 
@@ -354,10 +362,15 @@ void CoreTiming::ThreadLoop() {
                             bool ok = true;
                             if (blocked) {
                                 ok = windows_timer_wait->WaitForNotification();
-                            } else if (wait_time > timer_resolution_ns) {
-                                // The timer fires on the first system tick after its due time.
-                                // Stop one tick early and finish below the resolution here.
-                                ok = windows_timer_wait->Wait(wait_time - timer_resolution_ns);
+                            } else if (wait_time > timer_wait_margin_ns) {
+                                // Stop as early as the timer has recently fired late, and finish
+                                // below that here. A timer bound to the system tick needs one tick.
+                                s64 late_ns;
+                                ok = windows_timer_wait->Wait(wait_time - timer_wait_margin_ns, late_ns);
+                                if (ok && late_ns >= 0) {
+                                    const s64 late = std::max(min_timer_wait_margin_ns, std::min(late_ns, timer_resolution_ns));
+                                    timer_wait_margin_ns = late > timer_wait_margin_ns ? late : timer_wait_margin_ns - (timer_wait_margin_ns - late) / 256;
+                                }
                             } else {
 #if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
                                 Common::X64::MicroSleep();
@@ -456,6 +469,7 @@ std::chrono::microseconds CoreTiming::GetGlobalTimeUs() const {
 #ifdef _WIN32
 void CoreTiming::SetTimerResolutionNs(std::chrono::nanoseconds ns) {
     timer_resolution_ns = ns.count();
+    timer_wait_margin_ns = timer_resolution_ns;
 }
 #endif
 
