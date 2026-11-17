@@ -536,6 +536,9 @@ private:
     RenderTargets render_targets;
 
     std::unordered_map<RenderTargets, FramebufferId> framebuffers;
+    /// Last framebuffer found by GetFramebuffer, cleared when framebuffers are removed
+    RenderTargets last_framebuffer_key{};
+    FramebufferId last_framebuffer_id{};
 
     std::unordered_map<u64, std::vector<ImageMapId>, Common::IdentityHash<u64>> page_table;
     std::unordered_map<ImageId, boost::container::small_vector<ImageViewId, 16>> sparse_views;

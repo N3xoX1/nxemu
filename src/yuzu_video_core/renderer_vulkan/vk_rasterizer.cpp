@@ -1004,7 +1004,15 @@ void RasterizerVulkan::InvalidateRegion(DAddr addr, u64 size, VideoCommon::Cache
 }
 
 void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) {
-    {
+    // Mostly constant buffer data written before a draw: skip the caches with nothing in those pages
+    VideoCommon::CacheType caches = VideoCommon::CacheType::None;
+    for (const auto& [addr, size] : sequences) {
+        caches |= device_memory.FilterFlushCaches(
+            addr, size,
+            VideoCommon::CacheType::TextureCache | VideoCommon::CacheType::QueryCache |
+                VideoCommon::CacheType::ShaderCache);
+    }
+    if (True(caches & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         for (const auto& [addr, size] : sequences) {
             texture_cache.WriteMemory(addr, size);
@@ -1016,10 +1024,17 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
             buffer_cache.WriteMemory(addr, size);
         }
     }
-    for (const auto& [addr, size] : sequences) {
-        query_cache.InvalidateRegion(addr, size);
+    if (True(caches & VideoCommon::CacheType::QueryCache)) {
+        for (const auto& [addr, size] : sequences) {
+            query_cache.InvalidateRegion(addr, size);
+        }
     }
-    pipeline_cache.InvalidateRegions(sequences);
+    if (True(caches & VideoCommon::CacheType::ShaderCache)) {
+        pipeline_cache.InvalidateRegions(sequences);
+    } else {
+        // Shaders marked for removal by an unmap still leave the lookup cache here
+        pipeline_cache.SyncGuestHost();
+    }
 }
 
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
@@ -2034,12 +2049,17 @@ void RasterizerVulkan::RefreshVertexInput(Tegra::Engines::Maxwell3D::Regs& regs)
         if (attribute.constant || binding >= max_bindings) {
             continue;
         }
+        VkFormat& format = vertex_format_cache[(static_cast<u32>(attribute.type.Value()) << 6) |
+                                               static_cast<u32>(attribute.size.Value())];
+        if (format == VK_FORMAT_UNDEFINED) [[unlikely]] {
+            format = MaxwellToVK::VertexFormat(device, attribute.type, attribute.size);
+        }
         attributes.push_back({
             .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
             .pNext = nullptr,
             .location = index,
             .binding = binding,
-            .format = MaxwellToVK::VertexFormat(device, attribute.type, attribute.size),
+            .format = format,
             .offset = attribute.offset,
         });
         used_bindings |= u32{1} << binding;
