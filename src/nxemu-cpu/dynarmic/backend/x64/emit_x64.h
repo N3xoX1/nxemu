@@ -95,6 +95,14 @@ inline bool BaselineCodegen() {
     return (jit_test_variant & 16) != 0;
 }
 
+/// Test variant bit 256: the code generation before 64-bit immediates for ADD/SUB/CMP, plain
+/// SetS/SetD stores, 32/64-bit vector loads into XMM registers, lane inserts from an XMM register
+/// and the zero extension of LeastSignificantWord, MostSignificantWord and loads, for
+/// differential tests
+inline bool BaselineLoadsAndImmediates() {
+    return (jit_test_variant & 256) != 0;
+}
+
 /// True when the value is known to have every bit above `kept_bits` clear, wherever it lives:
 /// the loads below and the zero extensions clear them in an XMM, and a GPR value moved to an
 /// XMM later goes through movd/movq, which clears them too.
@@ -109,6 +117,10 @@ inline bool UpperLanesClear(const IR::Value& value, size_t kept_bits) {
     case IR::Opcode::A64GetD:
     case IR::Opcode::ZeroExtendLongToQuad:
         return kept_bits >= 64;
+    case IR::Opcode::A64ReadMemory32:  // a zero-extending GPR load, or movd into an XMM
+        return kept_bits >= 32 && !BaselineLoadsAndImmediates();
+    case IR::Opcode::A64ReadMemory64:  // a GPR load, or movq into an XMM
+        return kept_bits >= 64 && !BaselineLoadsAndImmediates();
     default:
         return false;
     }
@@ -143,6 +155,9 @@ inline bool GprZeroExtended32(const IR::Value& value) {
     case IR::Opcode::AndNot32:
     case IR::Opcode::Or32:
         return true;
+    case IR::Opcode::LeastSignificantWord:  // mov r32, r32
+    case IR::Opcode::MostSignificantWord:   // shr r64, 32
+        return !BaselineLoadsAndImmediates();
     default:
         return false;
     }

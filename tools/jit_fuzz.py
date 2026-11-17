@@ -11,6 +11,10 @@ widths, adc for FCMP NZCV and plain ordered loads (the code generation before th
 the cold code of each block right after it instead of in the far area of the code cache (the
 layout before), 64 turns off side exits (each forward branch ends the block). Bit 128 patches
 block links by rewriting the whole jump in place (the way before) instead of one aligned store.
+Bit 256 turns off 64-bit immediates for ADD/SUB/CMP, plain stores for SetS/SetD, 32/64-bit
+vector loads straight into XMM registers, lane inserts (VectorSetElement32/64) from an XMM
+register and the zero extension of LeastSignificantWord, MostSignificantWord and loads (the code
+generation before them).
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution
