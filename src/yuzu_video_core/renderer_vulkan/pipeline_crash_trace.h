@@ -20,6 +20,7 @@
 #include "yuzu_common/fs/fs_util.h"
 #include "yuzu_common/fs/path_util.h"
 #include "yuzu_common/logging/log.h"
+#include "yuzu_video_core/renderer_vulkan/pipeline_replay_capture.h"
 
 #ifdef _WIN32
 extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId(void);
@@ -29,7 +30,10 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId(void
 //
 // log/pipeline_trace/<pipeline hash>/  key.bin, one .spv per stage, and status.txt
 //                                      ("translating", "building", "built <ms>", "failed <ms>")
+//                                      graphics pipelines also get pipeline.txt and vk_stage_*.spv,
+//                                      the exact vkCreateGraphicsPipelines input for pipeline_probe
 // log/pipeline_trace/thread_<id>.txt   what that worker thread is doing right now
+// log/pipeline_trace/device.txt        enabled device extensions and features for pipeline_probe
 //
 // Nothing is deleted on success. After a crash, the logged "Unhandled exception ... on thread N"
 // names thread_N.txt, which names the pipeline (or untraced work) that thread was running.
@@ -101,6 +105,10 @@ inline void BeginTranslate(std::string_view kind, u64 hash) {
     SetThreadState(fmt::format("translating {}", kind), hash);
 }
 
+inline void RecordDevice(const PipelineReplay::Device& device) {
+    PipelineReplay::Capture::WriteText(Root() / "device.txt", PipelineReplay::Serialize(device));
+}
+
 inline void Record(u64 hash, std::span<const u8> key, const Stages& stages) {
     const auto dir{Directory(hash)};
     std::error_code ec;
@@ -120,6 +128,9 @@ public:
         : kind{kind_}, hash{hash_}, start{std::chrono::steady_clock::now()} {
         SetStatus(hash, "building");
         SetThreadState(fmt::format("building {}", kind), hash);
+        if (kind == "graphics") {
+            PipelineReplay::Capture::output_directory = Directory(hash);
+        }
         LOG_INFO(Render_Vulkan, "Native {} pipeline build begin 0x{:016x} thread {}", kind, hash,
                  ThreadId());
     }
@@ -128,6 +139,7 @@ public:
         const auto ms{std::chrono::duration_cast<std::chrono::milliseconds>(
                           std::chrono::steady_clock::now() - start)
                           .count()};
+        PipelineReplay::Capture::output_directory.clear();
         SetStatus(hash, fmt::format("{} {}ms", success ? "built" : "failed", ms));
         SetThreadState(fmt::format("idle after {}", kind), hash);
         LOG_INFO(Render_Vulkan, "Native {} pipeline build end 0x{:016x} thread {} {} {}ms", kind,

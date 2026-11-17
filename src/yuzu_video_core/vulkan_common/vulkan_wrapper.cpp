@@ -10,6 +10,7 @@
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
+#include "yuzu_video_core/renderer_vulkan/pipeline_replay_capture.h"
 #include "yuzu_video_core/vulkan_common/vk_enum_string_helper.h"
 #include "yuzu_video_core/vulkan_common/vma.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
@@ -736,6 +737,7 @@ DescriptorPool Device::CreateDescriptorPool(const VkDescriptorPoolCreateInfo& ci
 RenderPass Device::CreateRenderPass(const VkRenderPassCreateInfo& ci) const {
     VkRenderPass object;
     Check(dld->vkCreateRenderPass(handle, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnRenderPass(object, ci);
     return RenderPass(object, handle, *dld);
 }
 
@@ -750,6 +752,7 @@ DescriptorSetLayout Device::CreateDescriptorSetLayout(
     const VkDescriptorSetLayoutCreateInfo& ci) const {
     VkDescriptorSetLayout object;
     Check(dld->vkCreateDescriptorSetLayout(handle, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnDescriptorSetLayout(object, ci);
     return DescriptorSetLayout(object, handle, *dld);
 }
 
@@ -762,20 +765,26 @@ PipelineCache Device::CreatePipelineCache(const VkPipelineCacheCreateInfo& ci) c
 PipelineLayout Device::CreatePipelineLayout(const VkPipelineLayoutCreateInfo& ci) const {
     VkPipelineLayout object;
     Check(dld->vkCreatePipelineLayout(handle, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnPipelineLayout(object, ci);
     return PipelineLayout(object, handle, *dld);
 }
 
 Pipeline Device::CreateGraphicsPipeline(const VkGraphicsPipelineCreateInfo& ci,
                                         VkPipelineCache cache) const {
     VkPipeline object;
-    Check(dld->vkCreateGraphicsPipelines(handle, cache, 1, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnGraphicsPipeline(ci);
+    const VkResult result{dld->vkCreateGraphicsPipelines(handle, cache, 1, &ci, nullptr, &object)};
+    PipelineReplay::Capture::ForgetModules(ci.pStages, ci.stageCount);
+    Check(result);
     return Pipeline(object, handle, *dld);
 }
 
 Pipeline Device::CreateComputePipeline(const VkComputePipelineCreateInfo& ci,
                                        VkPipelineCache cache) const {
     VkPipeline object;
-    Check(dld->vkCreateComputePipelines(handle, cache, 1, &ci, nullptr, &object));
+    const VkResult result{dld->vkCreateComputePipelines(handle, cache, 1, &ci, nullptr, &object)};
+    PipelineReplay::Capture::ForgetModules(&ci.stage, 1);
+    Check(result);
     return Pipeline(object, handle, *dld);
 }
 
@@ -813,6 +822,7 @@ QueryPool Device::CreateQueryPool(const VkQueryPoolCreateInfo& ci) const {
 ShaderModule Device::CreateShaderModule(const VkShaderModuleCreateInfo& ci) const {
     VkShaderModule object;
     Check(dld->vkCreateShaderModule(handle, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnShaderModule(object, ci);
     return ShaderModule(object, handle, *dld);
 }
 
