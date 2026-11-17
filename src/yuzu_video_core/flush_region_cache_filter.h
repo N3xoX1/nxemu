@@ -16,7 +16,7 @@ class FlushRegionCacheFilter {
     static constexpr u64 AddressLimit = u64{1} << AddressBits;
     static constexpr size_t WordCount = ((AddressLimit >> PageBits) + 63) / 64;
     static constexpr std::array Types{CacheType::TextureCache, CacheType::QueryCache,
-                                      CacheType::BufferCache};
+                                      CacheType::BufferCache, CacheType::ShaderCache};
 
 public:
     void Register(DAddr addr, u64 size, CacheType types) noexcept {
