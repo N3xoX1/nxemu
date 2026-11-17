@@ -105,6 +105,9 @@ protected:
     std::vector<FastDispatchTable*> fast_dispatch_tables;
     void ClearFastDispatchTable();
 
+    void PlanNZCVAtExits(A64EmitContext& ctx) const;
+    void EmitStoreNZCVFromHostFlags();
+
     void (*memory_read_128)();
     void (*memory_write_128)();
     void (*memory_exclusive_write_128)();

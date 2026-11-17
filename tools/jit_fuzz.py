@@ -11,6 +11,8 @@ widths, adc for FCMP NZCV and plain ordered loads (the code generation before th
 the cold code of each block right after it instead of in the far area of the code cache (the
 layout before), 64 turns off side exits (each forward branch ends the block). Bit 128 patches
 block links by rewriting the whole jump in place (the way before) instead of one aligned store.
+Bit 1024 stores NZCV at every flag-setting instruction (the code generation before) instead of
+leaving it in the host flags for the side exits and the block end to store.
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution
