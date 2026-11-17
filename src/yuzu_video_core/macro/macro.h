@@ -132,6 +132,13 @@ public:
     virtual std::span<const u32> FrontEffectRegisters() const {
         return {};
     }
+
+    /// HLE macros only. Decode side: when Execute only writes plain registers, queues them as
+    /// register writes instead of a macro call and returns true. The parameters are final.
+    /// Returning false must leave nothing queued, so decide before the first write.
+    virtual bool LowerToWrites([[maybe_unused]] const std::vector<u32>& parameters) {
+        return false;
+    }
 };
 
 class MacroEngine {

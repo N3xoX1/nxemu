@@ -650,6 +650,11 @@ void Maxwell3D::FrontMethodCall(u32 method, u32 argument, u32 nonshadow_argument
 void Maxwell3D::FrontHLEMacro(CachedMacro * program, const std::vector<u32> & parameters,
                               u32 method)
 {
+    // Parameters the GPU may still write are read again later, so those keep the macro call
+    if (!current_macro_dirty && !current_macro_payload && program->LowerToWrites(parameters))
+    {
+        return;
+    }
     if (hle_count == hle_calls.size())
     {
         hle_calls.emplace_back();
