@@ -3,6 +3,7 @@
 #include "yuzu_video_core/dma_pusher.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/engines/puller.h"
+#include "yuzu_video_core/macro/macro.h"
 #include <algorithm>
 #include <array>
 #include <bitset>
@@ -21,6 +22,7 @@ void Check(bool v, const char *s) {
     throw std::runtime_error(s);
 }
 using Regs = Maxwell3D::Regs;
+using Tegra::CachedMacro;
 struct Memory {
   std::map<GPUVAddr, Regs::ReportSemaphore::Compare> values;
   unsigned reads{};
@@ -55,7 +57,9 @@ struct Macro {
 struct Upload {
   void ProcessExec(bool) {}
   void ProcessData(u32) {}
+  void ProcessData(const u32 *, size_t) {}
 };
+#include "stream.inc"
 struct Fixture : Engines::EngineInterface {
   using DirtyState = Maxwell3D::DirtyState;
   DirtyState dirty;
@@ -73,6 +77,27 @@ struct Fixture : Engines::EngineInterface {
   Upload upload_state;
   bool execute_on = true;
   u32 executing_macro{};
+  // Decode side state; without a decode thread the stream runs on DrainStream
+  using HLECall = Maxwell3D::HLECall;
+  static constexpr size_t PublishWords = 4096;
+  Regs front_regs{};
+  std::vector<u32> stream;
+  size_t stream_run_pos{};
+  u32 stream_run_next{};
+  bool stream_run_open{};
+  bool stream_writes_memory{};
+  std::vector<HLECall> hle_calls;
+  HLECall *back_hle{};
+  size_t hle_count{};
+  std::vector<std::pair<GPUVAddr, size_t>> macro_segments;
+  std::vector<GPUVAddr> macro_addresses;
+  bool current_macro_dirty{}, current_macro_payload{};
+  unsigned refreshes{};
+  struct Back {
+    template <typename F> void RunExclusive(F&& f) { f(); }
+  } back;
+  Back* back_queue = &back;
+  void FrontHLEMacro(CachedMacro*, const std::vector<u32>&, u32);
 
   Fixture() {
     draw.on_method = [this](u32 m, u32 a) {
@@ -107,8 +132,29 @@ struct Fixture : Engines::EngineInterface {
   void ProcessQueryGet() {}
   void ProcessCounterReset() {}
   void ProcessSyncPoint() {}
+  void ProcessCBMultiData(const u32 *, u32) {}
+  bool AnySegmentDirty(const std::vector<std::pair<GPUVAddr, size_t>> &) const {
+    return false;
+  }
+  void RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>> &,
+                             std::vector<u32> &) { ++refreshes; }
+  void FrontWrite(u32, u32);
+  void StreamHeader(StreamKind, u32);
+  void FrontMethodCall(u32, u32, u32);
+  void RunWords(const u32 *, size_t, std::vector<HLECall> &);
+  bool IsThreaded() const { return false; }
+  void DrainStream() {
+    stream_run_open = false;
+    RunWords(stream.data(), stream.size(), hle_calls);
+    stream.clear();
+    stream_writes_memory = false;
+    hle_count = 0;
+  }
+  void Publish(bool = true) { DrainStream(); }
+  void SyncBack() { DrainStream(); }
 };
 
+using Tegra::BufferMethods;
 using Tegra::CommandHeader;
 using Tegra::SubmissionMode;
 struct Dma {
@@ -126,6 +172,12 @@ struct Dma {
     void CallPullerMethod(Engines::Puller::MethodCall) const {}
     void CallMultiMethod(u32, u32, const u32 *, u32, u32) const {}
   } puller;
+  mutable std::array<std::vector<std::pair<u32, u32>>, 8> front_sinks;
+  mutable std::vector<Engines::Puller::MethodCall> pending_puller;
+  bool IsThreaded() const { return false; }
+  void DrainMaxwell3D() const {}
+  void PostBack(std::function<void()> &&work) const { work(); }
+  std::vector<std::pair<u32, u32>> &SinkFor(u32) const;
   void ProcessCommands(std::span<const CommandHeader>);
   void SetState(const CommandHeader &);
   void CallMethod(u32) const;
@@ -164,6 +216,8 @@ void Append(std::vector<CommandHeader> &c, u32 m, std::initializer_list<u32> a,
 void Compare(Fixture &a, Fixture &b) {
   a.ConsumeSink();
   b.ConsumeSink();
+  a.DrainStream();
+  b.DrainStream();
   Check(a.regs.reg_array == b.regs.reg_array, "register mismatch");
   Check(a.shadow_state.reg_array == b.shadow_state.reg_array,
         "shadow mismatch");
@@ -173,6 +227,43 @@ void Compare(Fixture &a, Fixture &b) {
   Check(a.observed == b.observed, "register state at executable mismatch");
   Check(a.effects == b.effects, "executable effects/order/address mismatch");
 }
+// A backend can reject indirect drawing even for a safe topology. The real
+// stream dispatcher must retain the fallback's register effects on both sides.
+void MacroStreamTests() {
+  struct Fallback : CachedMacro {
+    Fixture& f;
+    explicit Fallback(Fixture& f_) : f(f_) {}
+    void Execute(const std::vector<u32>&, u32) override {
+      f.regs.reg_array[0x700] = 42;
+    }
+    std::span<const u32> FrontEffectRegisters() const override {
+      static constexpr std::array<u32, 1> registers{0x700};
+      return registers;
+    }
+  };
+  Fixture f;
+  Fallback fallback(f);
+  f.FrontHLEMacro(&fallback, {}, 0);
+  Check(f.regs.reg_array[0x700] == 42 && f.front_regs.reg_array[0x700] == 42,
+        "fallback effects must propagate to decode, not be overwritten");
+  f.FrontWrite(0x700, 0);
+  f.DrainStream();
+  Check(f.regs.reg_array[0x700] == 0, "write after fallback was incorrectly elided");
+
+  // Dirty indirect arguments stay on the GPU unless Execute needs a fallback.
+  f.hle_calls.resize(1);
+  auto& call = f.hle_calls[0];
+  call.program = &fallback;
+  call.recheck = true;
+  call.dirty = true;
+  const std::array<u32, 1> words{StreamHLE};
+  f.RunWords(words.data(), words.size(), f.hle_calls);
+  Check(f.refreshes == 0, "indirect execution forced a GPU argument readback");
+  call.dirty = false;
+  f.RunWords(words.data(), words.size(), f.hle_calls);
+  Check(f.refreshes == 1, "CPU-written parameters were not refreshed");
+}
+
 void Tests() {
   size_t cases = 0;
   for (u32 control = 0; control < 4; ++control) {
@@ -210,6 +301,7 @@ void Tests() {
         ref.ProcessCommands(part);
       }
       Compare(a, b);
+      Check(!a.observed.empty(), "queued executable methods did not run");
       Check(d.dma_state.method == ref.dma_state.method &&
                 d.dma_state.method_count == ref.dma_state.method_count &&
                 d.dma_state.non_incrementing == ref.dma_state.non_incrementing,
@@ -321,6 +413,7 @@ double Bench(size_t run, bool changed, u32 control) {
       c[1].argument = u32(i);
     d.ProcessCommands(c);
     f.ConsumeSink();
+    f.DrainStream();
   }
   const auto end = std::chrono::steady_clock::now();
   Check(f.regs.reg_array[0x700] ==
@@ -364,8 +457,11 @@ template <class Engine> double DirtyBench(u8 first, u8 second) {
   return std::chrono::duration<double, std::nano>(end - start).count() /
          2000000;
 }
+void QueueTests();
 int main(int argc, char **) {
   Tests();
+  MacroStreamTests();
+  QueueTests();
   if (argc < 2)
     return 0;
   std::puts("run,changed,shadow,sample,baseline_ns,candidate_ns");

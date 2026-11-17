@@ -10,6 +10,7 @@
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/engines/maxwell_dma.h"
 #include "yuzu_video_core/engines/puller.h"
+#include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/memory_manager.h"
 
 namespace Tegra::Control {
@@ -21,6 +22,7 @@ void ChannelState::Init(GPU& gpu, u64 program_id_) {
     program_id = program_id_;
     dma_pusher = std::make_unique<Tegra::DmaPusher>(gpu, *memory_manager, *this);
     maxwell_3d = std::make_unique<Engines::Maxwell3D>(*memory_manager);
+    maxwell_3d->SetBackQueue(&gpu.BackQueue());
     fermi_2d = std::make_unique<Engines::Fermi2D>(*memory_manager);
     kepler_compute = std::make_unique<Engines::KeplerCompute>(*memory_manager);
     maxwell_dma = std::make_unique<Engines::MaxwellDMA>(*memory_manager);
