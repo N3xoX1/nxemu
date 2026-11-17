@@ -15,6 +15,10 @@ Bit 256 turns off 64-bit immediates for ADD/SUB/CMP, plain stores for SetS/SetD,
 vector loads straight into XMM registers, lane inserts (VectorSetElement32/64) from an XMM
 register and the zero extension of LeastSignificantWord, MostSignificantWord and loads (the code
 generation before them).
+Bit 512 makes the If and CheckBit exits at the end of a block reload NZCV and the check bit
+instead of using the host flags, and counts vector register moves as changing the host flags (the
+code generation before). Most forward branches are side exits, so add 64 to both variants to
+test the block ends.
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution

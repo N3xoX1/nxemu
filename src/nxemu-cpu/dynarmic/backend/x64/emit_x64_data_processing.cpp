@@ -113,8 +113,16 @@ static bool FuseIsZeroWithSideExit(EmitContext& ctx, IR::Inst* inst) {
         return false;
     }
     auto next = std::next(IR::Block::iterator(inst));
-    return next != ctx.block.end() && next->GetOpcode() == IR::Opcode::A64SideExit &&
-           !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
+    if (next == ctx.block.end()) {
+        return false;
+    }
+    if (next->GetOpcode() == IR::Opcode::A64SideExit) {
+        return !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
+    }
+    // The SetCheckBit that ends a block with a CheckBit exit (CBZ/CBNZ/TBZ/TBNZ at the end of
+    // a block): the exit jumps on ZF.
+    return ctx.check_bit_exit_on_flags && next->GetOpcode() == IR::Opcode::A64SetCheckBit && std::next(next) == ctx.block.end() &&
+           !next->GetArg(0).IsImmediate() && next->GetArg(0).GetInst() == inst;
 }
 
 void EmitX64::EmitIsZero32(EmitContext& ctx, IR::Inst* inst) {
