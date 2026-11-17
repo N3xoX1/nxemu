@@ -7,6 +7,15 @@
 #include "dynarmic/frontend/A64/translate/impl/impl.h"
 
 namespace Dynarmic::A64 {
+
+// A 64-bit vector operand reads as zero in its upper lanes, and 1/0 there (FRECPE, FRSQRTE)
+// raised DZC for lanes AArch64 never computes, and sent the inline estimate to the FP code. 1.0
+// raises nothing.
+static IR::U128 UpperLanesOne(IR::IREmitter& ir, size_t esize, const IR::U128& operand) {
+    const IR::U128 one = esize == 16 ? ir.VectorBroadcast(16, ir.Imm16(0x3C00)) : ir.VectorBroadcast(32, ir.Imm32(0x3F800000));
+    return ir.VectorInterleaveLower(64, operand, one);
+}
+
 namespace {
 enum class ComparisonType {
     EQ,
@@ -530,7 +539,7 @@ bool TranslatorVisitor::FRECPE_3(bool Q, Vec Vn, Vec Vd) {
     const size_t datasize = Q ? 128 : 64;
     const size_t esize = 16;
 
-    const IR::U128 operand = V(datasize, Vn);
+    const IR::U128 operand = datasize == 64 ? UpperLanesOne(ir, esize, V(datasize, Vn)) : V(datasize, Vn);
     const IR::U128 result = ir.FPVectorRecipEstimate(esize, operand);
 
     V(datasize, Vd, result);
@@ -545,7 +554,7 @@ bool TranslatorVisitor::FRECPE_4(bool Q, bool sz, Vec Vn, Vec Vd) {
     const size_t datasize = Q ? 128 : 64;
     const size_t esize = sz ? 64 : 32;
 
-    const IR::U128 operand = V(datasize, Vn);
+    const IR::U128 operand = datasize == 64 ? UpperLanesOne(ir, esize, V(datasize, Vn)) : V(datasize, Vn);
     const IR::U128 result = ir.FPVectorRecipEstimate(esize, operand);
 
     V(datasize, Vd, result);
@@ -571,7 +580,7 @@ bool TranslatorVisitor::FRSQRTE_3(bool Q, Vec Vn, Vec Vd) {
     const size_t datasize = Q ? 128 : 64;
     const size_t esize = 16;
 
-    const IR::U128 operand = V(datasize, Vn);
+    const IR::U128 operand = datasize == 64 ? UpperLanesOne(ir, esize, V(datasize, Vn)) : V(datasize, Vn);
     const IR::U128 result = ir.FPVectorRSqrtEstimate(esize, operand);
 
     V(datasize, Vd, result);
@@ -586,7 +595,7 @@ bool TranslatorVisitor::FRSQRTE_4(bool Q, bool sz, Vec Vn, Vec Vd) {
     const size_t datasize = Q ? 128 : 64;
     const size_t esize = sz ? 64 : 32;
 
-    const IR::U128 operand = V(datasize, Vn);
+    const IR::U128 operand = datasize == 64 ? UpperLanesOne(ir, esize, V(datasize, Vn)) : V(datasize, Vn);
     const IR::U128 result = ir.FPVectorRSqrtEstimate(esize, operand);
 
     V(datasize, Vd, result);

@@ -543,6 +543,10 @@ void A64EmitX64::EmitA64SetFPCR(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(nullptr, {}, args[0]);
     code.mov(code.ABI_PARAM1, code.r15);
+    // Save the exception flags raised so far: SetFpcr rebuilds guest_MXCSR keeping only its flag
+    // bits, and the ldmxcsr below would otherwise drop the ones still in the host MXCSR (FPSR was
+    // lost across an FPCR write).
+    code.stmxcsr(code.dword[code.r15 + offsetof(A64JitState, guest_MXCSR)]);
     code.CallFunction(SetFPCRImpl);
     code.ldmxcsr(code.dword[code.r15 + offsetof(A64JitState, guest_MXCSR)]);
 }

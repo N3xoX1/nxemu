@@ -38,11 +38,6 @@ u64 FPToFixed(size_t ibits, FPT op, size_t fbits, bool unsigned_, FPCR fpcr, Rou
         return 0;
     }
 
-    if (sign && unsigned_) {
-        FPProcessException(FPExc::InvalidOp, fpcr, fpsr);
-        return 0;
-    }
-
     // value *= 2.0^fbits and reshift the decimal point back to bit zero.
     int exponent = value.exponent + static_cast<int>(fbits) - normalized_point_position;
 
@@ -73,6 +68,21 @@ u64 FPToFixed(size_t ibits, FPT op, size_t fbits, bool unsigned_, FPCR fpcr, Rou
 
     if (round_up) {
         int_result++;
+    }
+
+    // Negative input, unsigned result. As in the Arm ARM's FPToFixed, round first: only a result
+    // below zero saturates (IOC); one that rounds to zero, such as -0.5 towards zero, is 0 and
+    // only inexact. With exponent >= 0 the value is at least 1 in magnitude, so the result is below
+    // zero (and the shift may have lost it).
+    if (sign && unsigned_) {
+        if (exponent >= 0 || int_result != 0) {
+            FPProcessException(FPExc::InvalidOp, fpcr, fpsr);
+            return 0;
+        }
+        if (error != ResidualError::Zero) {
+            FPProcessException(FPExc::Inexact, fpcr, fpsr);
+        }
+        return 0;
     }
 
     // Detect Overflow
