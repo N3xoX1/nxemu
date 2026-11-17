@@ -29,7 +29,8 @@ void A64CallbackConfigPass(IR::Block& block, const A64::UserConfig& conf) {
             ir.SetInsertionPointBefore(&inst);
 
             size_t bytes = 4 << static_cast<size_t>(conf.dczid_el0 & 0b1111);
-            IR::U64 addr{inst.GetArg(2)};
+            // DC ZVA zeroes the whole block containing the address: align down to the block size
+            IR::U64 addr{ir.And(IR::U64{inst.GetArg(2)}, ir.Imm64(~static_cast<u64>(bytes - 1)))};
 
             const IR::U128 zero_u128 = ir.ZeroExtendToQuad(ir.Imm64(0));
             while (bytes >= 16) {
