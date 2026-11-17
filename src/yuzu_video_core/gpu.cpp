@@ -994,6 +994,11 @@ void GPU::WaitInPlaceReads(DAddr addr, uint64_t size)
     impl->WaitInPlaceReads(addr, size);
 }
 
+void GPU::WakeGpuThread()
+{
+    impl->gpu_thread.WakeForService();
+}
+
 void GPU::FlushAndInvalidateRegion(DAddr addr, uint64_t size)
 {
     impl->FlushAndInvalidateRegion(addr, size);

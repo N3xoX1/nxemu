@@ -224,7 +224,12 @@ public:
 
     /// Called on the guest CPU thread before it writes the range, without the cache lock:
     /// waits for queued GPU work that reads it in place.
-    void WaitInPlaceReads(DAddr device_addr, u64 size);
+    template <typename Wait>
+    void WaitInPlaceReads(DAddr device_addr, u64 size, Wait&& wait) {
+        if constexpr (!IS_OPENGL) {
+            device_memory.ReleaseInPlaceReads(device_addr, size, std::forward<Wait>(wait));
+        }
+    }
 
     void DownloadMemory(DAddr device_addr, u64 size);
 

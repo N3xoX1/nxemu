@@ -143,9 +143,6 @@ public:
         return in_place_tick;
     }
 
-    /// Waits until the host GPU ran the work of `tick`. Safe from any thread.
-    void WaitInPlaceTick(u64 tick);
-
     bool HasHostMappedGuestMemory() const noexcept {
         return host_mapped_size != 0;
     }

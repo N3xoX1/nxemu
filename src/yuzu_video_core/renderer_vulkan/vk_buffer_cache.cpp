@@ -578,23 +578,6 @@ void BufferCacheRuntime::ReleasePrefetch(u64 position) {
     prefetch_releases.emplace_back(position, tick);
 }
 
-void BufferCacheRuntime::WaitInPlaceTick(u64 tick) {
-    MasterSemaphore& master = scheduler.GetMasterSemaphore();
-    if (master.IsFree(tick)) {
-        return;
-    }
-    // The tick may still be recorded and not submitted: the GPU thread submits it on its own,
-    // so poll rather than wait on the semaphore. Give up after a while, never deadlock.
-    const auto give_up = std::chrono::steady_clock::now() + std::chrono::milliseconds{20};
-    while (true) {
-        master.Refresh();
-        if (master.IsFree(tick) || std::chrono::steady_clock::now() > give_up) {
-            return;
-        }
-        std::this_thread::yield();
-    }
-}
-
 bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, size_t size) {
     if (host_mapped_size != 0) {
         return true;

@@ -15,7 +15,6 @@
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
-#include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_video_core/buffer_cache/buffer_cache.h"
@@ -1165,12 +1164,86 @@ void RasterizerVulkan::InnerInvalidationImpl(
 }
 
 void RasterizerVulkan::WaitInPlaceReads(DAddr addr, u64 size) {
-    buffer_cache.WaitInPlaceReads(addr, size);
+    buffer_cache.WaitInPlaceReads(addr, size, [this](u64 tick) { WaitInPlaceTick(tick); });
 }
 
 void RasterizerVulkan::WaitInPlaceReadsForEngineWrite(DAddr addr, u64 size) {
-    // Bounded: a blocking wait here could outlive the Vulkan worker on shutdown
-    buffer_cache.WaitInPlaceReads(addr, size);
+    buffer_cache.WaitInPlaceReads(addr, size, [this](u64 tick) { WaitInPlaceTick(tick); });
+}
+
+void RasterizerVulkan::WaitInPlaceTick(u64 tick) {
+    if (scheduler.IsFree(tick)) {
+        return;
+    }
+    if (tick >= scheduler.CurrentTick()) {
+        // The work is still recorded: only the thread that records may submit it
+        switch (VideoCore::gpu_thread_role) {
+        case VideoCore::GpuThreadRole::Draw:
+            scheduler.Flush();
+            break;
+        case VideoCore::GpuThreadRole::Decode: {
+            // Excludes the GPU thread once it ran the queued work
+            const Tegra::ExecutionLock lock = gpu.LockExecution();
+            if (tick >= scheduler.CurrentTick()) {
+                scheduler.Flush();
+            }
+            break;
+        }
+        case VideoCore::GpuThreadRole::None:
+            if (!RequestInPlaceSubmit(tick)) {
+                return;
+            }
+            break;
+        }
+    }
+    // Submitted: the GPU signals it, or the device is lost and the wait returns
+    scheduler.GetMasterSemaphore().Wait(tick);
+}
+
+bool RasterizerVulkan::RequestInPlaceSubmit(u64 tick) {
+    std::unique_lock lock{in_place_wait_mutex};
+    if (in_place_waits_stopped) {
+        return false;
+    }
+    in_place_submit_tick = std::max(in_place_submit_tick, tick);
+    in_place_submit_requested.store(true, std::memory_order_release);
+    gpu.WakeGpuThread();
+    in_place_wait_cv.wait(lock, [this, tick] {
+        return in_place_waits_stopped || tick < scheduler.CurrentTick();
+    });
+    return !in_place_waits_stopped;
+}
+
+void RasterizerVulkan::ServiceInPlaceWaits() {
+    // Only the thread that records submits: a puller method can run on the decode thread
+    if (VideoCore::gpu_thread_role != VideoCore::GpuThreadRole::Draw) {
+        return;
+    }
+    if (!in_place_submit_requested.load(std::memory_order_acquire)) [[likely]] {
+        return;
+    }
+    u64 tick;
+    {
+        std::scoped_lock lock{in_place_wait_mutex};
+        in_place_submit_requested.store(false, std::memory_order_relaxed);
+        tick = std::exchange(in_place_submit_tick, 0);
+    }
+    if (tick >= scheduler.CurrentTick()) {
+        scheduler.Flush();
+    }
+    {
+        // The waiters check the tick under the lock: none misses the notification
+        std::scoped_lock lock{in_place_wait_mutex};
+    }
+    in_place_wait_cv.notify_all();
+}
+
+void RasterizerVulkan::StopInPlaceWaits() {
+    {
+        std::scoped_lock lock{in_place_wait_mutex};
+        in_place_waits_stopped = true;
+    }
+    in_place_wait_cv.notify_all();
 }
 
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {

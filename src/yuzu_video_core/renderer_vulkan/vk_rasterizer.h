@@ -142,6 +142,8 @@ public:
     bool OnCPUWrite(DAddr addr, u64 size) override;
     void WaitInPlaceReads(DAddr addr, u64 size) override;
     void WaitInPlaceReadsForEngineWrite(DAddr addr, u64 size) override;
+    void ServiceInPlaceWaits() override;
+    void StopInPlaceWaits() override;
     void InvalidateGPUCache() override;
     void UnmapMemory(DAddr addr, u64 size) override;
     void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size, bool preserve_contents = false) override;
@@ -293,6 +295,19 @@ private:
     /// Changes each time guest memory is written, invalidated or unmapped. Constant buffer
     /// uploads leave it when only buffers held their pages: Maxwell3D::BufferChanges has them.
     std::atomic<u64> memory_epoch{};
+
+    /// Waits until the host GPU ran the work of `tick`, which reads guest memory in place
+    void WaitInPlaceTick(u64 tick);
+    /// Another thread than the GPU thread: has the GPU thread submit `tick`, false when the
+    /// GPU thread stopped
+    bool RequestInPlaceSubmit(u64 tick);
+
+    /// Ticks other threads wait for, that only the GPU thread can submit
+    std::mutex in_place_wait_mutex;
+    std::condition_variable in_place_wait_cv;
+    u64 in_place_submit_tick{};
+    bool in_place_waits_stopped{};
+    std::atomic<bool> in_place_submit_requested{};
     /// The buffer and texture cache locks, kept from one draw to the next
     bool draw_locks_held{};
     u32 draws_under_locks{};
