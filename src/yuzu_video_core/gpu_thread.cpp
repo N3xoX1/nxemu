@@ -140,6 +140,12 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
         {
             std::scoped_lock execution_lock{state.execution_mutex};
             for (BackQueue::Work& work : batch) {
+                // On exit the guest memory is unmapped before the GPU stops: the rest of the
+                // batch would decode shaders and buffers from unmapped memory and keep the
+                // exit waiting for a long time
+                if (stop_token.stop_requested()) {
+                    break;
+                }
                 work();
                 rasterizer->ReleaseDrawLocks();
                 rasterizer->ServiceInPlaceWaits();
