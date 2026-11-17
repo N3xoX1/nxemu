@@ -1,6 +1,11 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <chrono>
+#include <thread>
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
+#include <immintrin.h>
+#endif
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "core/core.h"
@@ -237,6 +242,16 @@ void PhysicalCore::LogBacktrace()
 
 void PhysicalCore::Idle()
 {
+    // Waking a sleeping host thread costs tens of microseconds, and guest threads wake each other often
+    const std::chrono::steady_clock::time_point spin_end = std::chrono::steady_clock::now() + std::chrono::microseconds(50);
+    while (!m_is_interrupted.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < spin_end)
+    {
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
+        _mm_pause();
+#else
+        std::this_thread::yield();
+#endif
+    }
     std::unique_lock lk{m_guard};
     m_on_interrupt.wait(lk, [this] {
         return m_is_interrupted.load(std::memory_order_acquire);
