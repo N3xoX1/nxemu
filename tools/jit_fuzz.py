@@ -11,6 +11,10 @@ widths, adc for FCMP NZCV and plain ordered loads (the code generation before th
 the cold code of each block right after it instead of in the far area of the code cache (the
 layout before), 64 turns off side exits (each forward branch ends the block). Bit 128 patches
 block links by rewriting the whole jump in place (the way before) instead of one aligned store.
+Bit 512 makes the If and CheckBit exits at the end of a block reload NZCV and the check bit
+instead of using the host flags, and counts vector register moves as changing the host flags (the
+code generation before). Most forward branches are side exits, so add 64 to both variants to
+test the block ends.
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution
