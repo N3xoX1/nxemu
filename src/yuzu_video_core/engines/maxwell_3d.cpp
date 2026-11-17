@@ -365,7 +365,7 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
 }
 
 void Maxwell3D::RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>> & segments,
-                                      std::vector<u32> & params)
+                                      std::vector<u32> & params, bool flush)
 {
     size_t current_index = 0;
     for (auto & segment : segments)
@@ -375,8 +375,16 @@ void Maxwell3D::RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size
             current_index += segment.second;
             continue;
         }
-        memory_manager.ReadBlock(segment.first, &params[current_index],
-                                 sizeof(u32) * segment.second);
+        if (flush)
+        {
+            memory_manager.ReadBlock(segment.first, &params[current_index],
+                                     sizeof(u32) * segment.second);
+        }
+        else
+        {
+            memory_manager.ReadBlockUnsafe(segment.first, &params[current_index],
+                                           sizeof(u32) * segment.second);
+        }
         current_index += segment.second;
     }
 }
@@ -1123,15 +1131,12 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             HLECall & call = calls[count];
             if (call.recheck)
             {
-                // The decode thread fetched the parameters before the queued work ran. GPU
-                // written ones are read on demand by the macro (RefreshParameters), as without
-                // the thread: reading them here would wait for the host GPU even when the draw
-                // is indirect.
+                // The decode thread fetched the parameters before the queued work ran, so read
+                // them again. GPU written ones are read without a flush, as DmaPusher does
+                // without the thread: a flush would wait for the host GPU even when the draw is
+                // indirect. The macro flushes them itself when it needs them (RefreshParameters).
                 call.dirty = call.dirty || AnySegmentDirty(call.segments);
-                if (!call.dirty)
-                {
-                    RefreshParametersImpl(call.segments, call.params);
-                }
+                RefreshParametersImpl(call.segments, call.params, !call.dirty);
             }
             back_hle = &call;
             call.program->Execute(call.params, call.method);
