@@ -527,11 +527,48 @@ void A64EmitX64::EmitA64SetX(A64EmitContext& ctx, IR::Inst* inst) {
     }
 }
 
+// The 128-bit value is zero above bit 31: UpperLanesClear, or a word zero-extended twice (the
+// value an LDR S or LDP S writes).
+static bool ZeroAbove32(const IR::Value& value) {
+    if (BaselineLoadsAndImmediates()) {
+        return false;
+    }
+    if (UpperLanesClear(value, 32)) {
+        return true;
+    }
+    if (value.IsImmediate()) {
+        return false;
+    }
+    const IR::Inst* inst = value.GetInstRecursive();
+    if (inst->GetOpcode() != IR::Opcode::ZeroExtendLongToQuad || inst->GetArg(0).IsImmediate()) {
+        return false;
+    }
+    return inst->GetArg(0).GetInstRecursive()->GetOpcode() == IR::Opcode::ZeroExtendWordToLong;
+}
+
+// The 128-bit value is zero above bit 63: as above, UpperLanesClear, or a VectorZeroUpper (the
+// translator wraps every SetD value in one).
+static bool ZeroAbove64(const IR::Value& value) {
+    if (BaselineLoadsAndImmediates()) {
+        return false;
+    }
+    if (ZeroAbove32(value) || UpperLanesClear(value, 64)) {
+        return true;
+    }
+    return !value.IsImmediate() && value.GetInstRecursive()->GetOpcode() == IR::Opcode::VectorZeroUpper;
+}
+
 void A64EmitX64::EmitA64SetS(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const A64::Vec vec = inst->GetArg(0).GetA64VecRef();
     const auto addr = xword[r15 + offsetof(A64JitState, vec) + sizeof(u64) * 2 * static_cast<size_t>(vec)];
 
+    if (ZeroAbove32(inst->GetArg(1))) {
+        // Already zero above the written word: a plain store.
+        const Xbyak::Xmm to_store = ctx.reg_alloc.UseXmm(args[1]);
+        code.movaps(addr, to_store);
+        return;
+    }
     const Xbyak::Xmm to_store = ctx.reg_alloc.UseXmm(args[1]);
     const Xbyak::Xmm tmp = ctx.reg_alloc.ScratchXmm();
     // TODO: Optimize
@@ -545,6 +582,12 @@ void A64EmitX64::EmitA64SetD(A64EmitContext& ctx, IR::Inst* inst) {
     const A64::Vec vec = inst->GetArg(0).GetA64VecRef();
     const auto addr = xword[r15 + offsetof(A64JitState, vec) + sizeof(u64) * 2 * static_cast<size_t>(vec)];
 
+    if (ZeroAbove64(inst->GetArg(1))) {
+        // Already zero above the written doubleword: a plain store.
+        const Xbyak::Xmm to_store = ctx.reg_alloc.UseXmm(args[1]);
+        code.movaps(addr, to_store);
+        return;
+    }
     const Xbyak::Xmm to_store = ctx.reg_alloc.UseScratchXmm(args[1]);
     code.movq(to_store, to_store);  // TODO: Remove when able
     code.movaps(addr, to_store);
@@ -581,6 +624,10 @@ void A64EmitX64::EmitA64SetFPCR(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     ctx.reg_alloc.HostCall(nullptr, {}, args[0]);
     code.mov(code.ABI_PARAM1, code.r15);
+    // Save the exception flags raised so far: SetFpcr rebuilds guest_MXCSR keeping only its flag
+    // bits, and the ldmxcsr below would otherwise drop the ones still in the host MXCSR (FPSR was
+    // lost across an FPCR write).
+    code.stmxcsr(code.dword[code.r15 + offsetof(A64JitState, guest_MXCSR)]);
     code.CallFunction(SetFPCRImpl);
     code.ldmxcsr(code.dword[code.r15 + offsetof(A64JitState, guest_MXCSR)]);
 }

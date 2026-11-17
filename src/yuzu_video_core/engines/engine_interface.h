@@ -54,6 +54,8 @@ public:
     std::bitset<std::numeric_limits<u16>::max()> execution_mask{};
     std::vector<std::pair<u32, u32>> method_sink{};
     bool current_dirty{};
+    /// The parameters of the current call come from their own GP entry
+    bool current_payload{};
     GPUVAddr current_dma_segment;
 
 protected:

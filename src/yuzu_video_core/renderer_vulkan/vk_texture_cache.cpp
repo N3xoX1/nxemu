@@ -1039,6 +1039,25 @@ u64 TextureCacheRuntime::AttachmentBarrierTick() const noexcept {
     return scheduler.RenderPassEndTick();
 }
 
+bool TextureCacheRuntime::NeedsAliasCopyThroughBuffer() const noexcept {
+    return device.GetDriverID() == VK_DRIVER_ID_NVIDIA_PROPRIETARY;
+}
+
+bool TextureCacheRuntime::CopyImageThroughBuffer(Image& dst, Image& src,
+                                                 std::span<const VideoCommon::ImageCopy> copies) {
+    if (dst.info.num_samples != 1 || src.info.num_samples != 1 ||
+        dst.AspectMask() != VK_IMAGE_ASPECT_COLOR_BIT ||
+        src.AspectMask() != VK_IMAGE_ASPECT_COLOR_BIT ||
+        DefaultBlockWidth(src.info.format) != 1 || DefaultBlockHeight(src.info.format) != 1 ||
+        DefaultBlockWidth(dst.info.format) != 1 || DefaultBlockHeight(dst.info.format) != 1 ||
+        BytesPerBlock(dst.info.format) != BytesPerBlock(src.info.format)) {
+        return false;
+    }
+    // The buffer holds raw texels, so formats of the same texel size copy as they are
+    ReinterpretImage(dst, src, copies);
+    return true;
+}
+
 void TextureCacheRuntime::ReinterpretImage(Image& dst, Image& src,
                                            std::span<const VideoCommon::ImageCopy> copies) {
     if (copies.empty()) {
