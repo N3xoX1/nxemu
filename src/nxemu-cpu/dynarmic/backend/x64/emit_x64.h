@@ -85,6 +85,20 @@ struct EmitContext {
     /// cycle count update before it): an IsZero feeding the block's last instruction,
     /// SetCheckBit, then only sets ZF
     bool check_bit_exit_on_flags = false;
+    /// GetNZCVFromOp values kept in the host flags only. Their SetNZCV became A64SetNZCVAtExits
+    /// (the A64 emitter's PlanNZCVAtExits): the producer leaves NZCV in the host flags, and the
+    /// side exits and the block end store it.
+    std::vector<std::pair<const IR::Inst*, const IR::Inst*>> nzcv_at_exits;  // {SetNZCVAtExits, GetNZCVFromOp}
+    bool IsNzcvInFlagsOnly(const IR::Inst* get_nzcv) const {
+        for (const auto& [set, get] : nzcv_at_exits) {
+            if (get == get_nzcv) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /// The guest NZCV is in the host flags and not yet in cpsr_nzcv
+    bool nzcv_pending = false;
 };
 
 using SharedLabel = std::shared_ptr<Xbyak::Label>;

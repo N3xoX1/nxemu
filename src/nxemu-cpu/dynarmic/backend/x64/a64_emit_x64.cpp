@@ -72,6 +72,137 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
 
 A64EmitX64::~A64EmitX64() = default;
 
+// The emitted code of these leaves EFLAGS alone: moves only. The host flag tracking in Emit and
+// PlanNZCVAtExits both use this list. vector_moves is false for test variant bit 512.
+static bool IsHostFlagNeutral(const IR::Inst& inst, bool vector_moves) {
+    switch (inst.GetOpcode()) {
+    case IR::Opcode::Void:
+    case IR::Opcode::A64SetNZCVAtExits:
+    case IR::Opcode::A64GetW:
+    case IR::Opcode::A64GetX:
+    case IR::Opcode::A64GetSP:
+    case IR::Opcode::A64SetW:
+    case IR::Opcode::A64SetX:
+    case IR::Opcode::A64SetSP:
+    case IR::Opcode::Identity:
+        return true;
+    // Vector register moves and zero extensions: SSE moves, lane extracts and mov r32, r32,
+    // which leave EFLAGS alone. An immediate is loaded into an XMM with xorps or movaps, but
+    // into a GPR with xor.
+    case IR::Opcode::A64GetS:
+    case IR::Opcode::A64GetD:
+    case IR::Opcode::A64GetQ:
+    case IR::Opcode::A64SetS:
+    case IR::Opcode::A64SetD:
+    case IR::Opcode::A64SetQ:
+    case IR::Opcode::VectorGetElement32:
+    case IR::Opcode::VectorGetElement64:
+    case IR::Opcode::VectorZeroUpper:
+    case IR::Opcode::ZeroExtendLongToQuad:
+        return vector_moves;
+    case IR::Opcode::ZeroExtendWordToLong:
+        return vector_moves && !inst.GetArg(0).IsImmediate();
+    default:
+        return false;
+    }
+}
+
+// The NZCV a SetNZCV stores is often overwritten before anything but a side exit reads
+// it. Look ahead from each SetNZCV (the block is known in full): if every later reader before
+// the next NZCV write is a side exit or a conditional select that finds the value still in the
+// host flags, and the flags also survive to the block end when nothing overwrites NZCV first,
+// the producer leaves NZCV in the host flags only and the side exits and the block end store
+// it (EmitStoreNZCVFromHostFlags). An NZCV overwritten before the next exit is never stored.
+// Only GetNZCVFromOp values (Add/Sub, or a test of a result) qualify, not FCMP's.
+void A64EmitX64::PlanNZCVAtExits(A64EmitContext& ctx) const {
+    IR::Block& block = ctx.block;
+    const bool vector_moves = (conf.test_variant & 512) == 0;
+    for (auto it = block.begin(); it != block.end(); ++it) {
+        IR::Inst& set = *it;
+        if (set.GetOpcode() != IR::Opcode::A64SetNZCV || set.GetArg(0).IsImmediate()) {
+            continue;
+        }
+        IR::Inst* const get = set.GetArg(0).GetInst();
+        if (get->GetOpcode() != IR::Opcode::GetNZCVFromOp || get->UseCount() != 1) {
+            continue;
+        }
+        IR::Inst* const producer = get->GetArg(0).GetInst();
+        const bool pseudo_of_producer = producer->GetAssociatedPseudoOperation(IR::Opcode::GetNZCVFromOp) == get
+                                        && (producer->GetOpcode() == IR::Opcode::Add32 || producer->GetOpcode() == IR::Opcode::Add64
+                                            || producer->GetOpcode() == IR::Opcode::Sub32 || producer->GetOpcode() == IR::Opcode::Sub64);
+
+        // The flags must survive from where they are made (the producer, or the test that
+        // GetNZCVFromOp emits) to the SetNZCV.
+        bool ok = false;
+        bool found_start = false;
+        for (auto back = block.begin(); back != it; ++back) {
+            if (&*back == (pseudo_of_producer ? producer : get)) {
+                found_start = true;
+                ok = true;
+                continue;
+            }
+            if (found_start && &*back != get && !IsHostFlagNeutral(*back, vector_moves)) {
+                ok = false;
+            }
+        }
+        if (!ok) {
+            continue;
+        }
+
+        // Look ahead to the next NZCV write
+        bool flags_valid = true;
+        bool overwritten = false;
+        for (auto next = std::next(it); next != block.end() && ok; ++next) {
+            const IR::Inst& inst = *next;
+            const IR::Opcode op = inst.GetOpcode();
+            if (op == IR::Opcode::A64SetNZCV || op == IR::Opcode::A64SetNZCVRaw || op == IR::Opcode::A64SetNZCVAtExits) {
+                overwritten = true;
+                break;
+            }
+            if (op == IR::Opcode::A64SideExit) {
+                const IR::Cond cond = inst.GetArg(0).GetCond();
+                // AL/NV exits test a bit (a test, or IsZero's ZF): the flags are gone at the exit
+                const bool unconditional = (cond == IR::Cond::AL || cond == IR::Cond::NV) && inst.GetArg(1).IsImmediate();
+                ok = flags_valid && (unconditional || (cond != IR::Cond::AL && cond != IR::Cond::NV));
+                continue;
+            }
+            if (op == IR::Opcode::ConditionalSelect32 || op == IR::Opcode::ConditionalSelect64 || op == IR::Opcode::ConditionalSelectNZCV) {
+                const IR::Cond cond = inst.GetArg(0).GetCond();
+                ok = flags_valid && cond != IR::Cond::AL && cond != IR::Cond::NV;
+                if (cond == IR::Cond::HI || cond == IR::Cond::LS) {
+                    flags_valid = false;  // the select inverts CF for these
+                }
+                continue;
+            }
+            if (inst.ReadsFromCPSR() || inst.CausesCPUException() || op == IR::Opcode::CallHostFunction
+                || op == IR::Opcode::A64DataCacheOperationRaised || op == IR::Opcode::A64InstructionCacheOperationRaised) {
+                ok = false;  // reads NZCV from the guest state, or something may look at it
+                continue;
+            }
+            if (!IsHostFlagNeutral(inst, vector_moves)) {
+                flags_valid = false;
+            }
+        }
+        if (!ok || (!overwritten && !flags_valid)) {
+            continue;  // a reader would not find it, or the block end could not store it
+        }
+
+        set.Invalidate();
+        set.ReplaceOpcode(IR::Opcode::A64SetNZCVAtExits);
+        ctx.nzcv_at_exits.emplace_back(&set, get);
+    }
+}
+
+// Store the guest NZCV that the host flags hold (CF = guest C) in the layout cpsr_nzcv keeps:
+// the lahf byte in bits 8-15 and OF in bit 0. Clobbers RAX, keeps the flags. mov eax, 0 (not
+// xor, which would change the flags) breaks the dependency on RAX's last writer for lahf.
+void A64EmitX64::EmitStoreNZCVFromHostFlags() {
+    code.mov(eax, 0);
+    code.lahf();
+    code.seto(code.al);
+    code.mov(dword[r15 + offsetof(A64JitState, cpsr_nzcv)], eax);
+}
+
 A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     if (conf.very_verbose_debugging_output) {
         std::puts(IR::DumpBlock(block).c_str());
@@ -103,6 +234,12 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     RegAlloc reg_alloc{code, gpr_order, any_xmm};
     A64EmitContext ctx{conf, reg_alloc, block};
     ctx.reuse_host_flags = (conf.test_variant & 8) == 0 && !conf.very_verbose_debugging_output;
+    // Test variant bit 1024 stores NZCV at every flag-setting instruction (the code generation before).
+    // A memory access that halts on an abort leaves the block in the middle, so the guest state must
+    // hold NZCV at every memory access: no plan then.
+    if (ctx.reuse_host_flags && (conf.test_variant & 1024) == 0 && !conf.check_halt_on_memory_access) {
+        PlanNZCVAtExits(ctx);
+    }
     // Test variant bit 512: block ends reload NZCV and the check bit, and vector moves count as
     // changing the host flags (the code generation before)
     const bool flags_to_block_end = (conf.test_variant & 512) == 0;
@@ -172,6 +309,9 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
         case IR::Opcode::A64SetNZCV:
             ctx.host_flags_are_cpsr = ctx.reuse_host_flags && ctx.host_flags_nzcv && !inst->GetArg(0).IsImmediate() && inst->GetArg(0).GetInst() == ctx.host_flags_nzcv;
             break;
+        case IR::Opcode::A64SetNZCVAtExits:
+            ctx.host_flags_are_cpsr = true;  // EmitA64SetNZCVAtExits checked host_flags_nzcv
+            break;
         case IR::Opcode::A64SideExit:
         case IR::Opcode::ConditionalSelect32:
         case IR::Opcode::ConditionalSelect64:
@@ -180,38 +320,12 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
                 ctx.host_flags_nzcv = nullptr;
             }
             break;
-        case IR::Opcode::A64GetW:
-        case IR::Opcode::A64GetX:
-        case IR::Opcode::A64GetSP:
-        case IR::Opcode::A64SetW:
-        case IR::Opcode::A64SetX:
-        case IR::Opcode::A64SetSP:
-        case IR::Opcode::Identity:
-            break;
-        // Vector register moves and zero extensions: SSE moves, lane extracts and mov r32, r32,
-        // which leave EFLAGS alone. An immediate is loaded into an XMM with xorps or movaps, but
-        // into a GPR with xor.
-        case IR::Opcode::A64GetS:
-        case IR::Opcode::A64GetD:
-        case IR::Opcode::A64GetQ:
-        case IR::Opcode::A64SetS:
-        case IR::Opcode::A64SetD:
-        case IR::Opcode::A64SetQ:
-        case IR::Opcode::VectorGetElement32:
-        case IR::Opcode::VectorGetElement64:
-        case IR::Opcode::VectorZeroUpper:
-        case IR::Opcode::ZeroExtendLongToQuad:
-        case IR::Opcode::ZeroExtendWordToLong:
-            if (!flags_to_block_end || (op == IR::Opcode::ZeroExtendWordToLong && inst->GetArg(0).IsImmediate())) {
+        default:
+            if (!IsHostFlagNeutral(*inst, flags_to_block_end)) {
                 ctx.host_flags_nzcv = nullptr;
                 ctx.host_flags_are_cpsr = false;
                 ctx.host_flags_fcmp = false;
             }
-            break;
-        default:
-            ctx.host_flags_nzcv = nullptr;
-            ctx.host_flags_are_cpsr = false;
-            ctx.host_flags_fcmp = false;
             break;
         }
 
@@ -222,6 +336,12 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
     reg_alloc.AssertNoMoreUses();
 
+    if (ctx.nzcv_pending) {
+        // The last NZCV of the block is still only in the host flags (PlanNZCVAtExits)
+        ASSERT_MSG(ctx.host_flags_are_cpsr, "NZCV left in the host flags, but they changed before the block end");
+        EmitStoreNZCVFromHostFlags();
+        ctx.nzcv_pending = false;
+    }
     if (conf.enable_cycle_counting) {
         EmitAddCycles(block.CycleCount());
     }
@@ -383,6 +503,7 @@ void A64EmitX64::EmitA64GetCFlag(A64EmitContext& ctx, IR::Inst* inst) {
 }
 
 void A64EmitX64::EmitA64GetNZCVRaw(A64EmitContext& ctx, IR::Inst* inst) {
+    ASSERT_MSG(!ctx.nzcv_pending, "GetNZCVRaw while NZCV is only in the host flags");
     const Xbyak::Reg32 nzcv_raw = ctx.reg_alloc.ScratchGpr().cvt32();
 
     code.mov(nzcv_raw, dword[r15 + offsetof(A64JitState, cpsr_nzcv)]);
@@ -415,12 +536,27 @@ void A64EmitX64::EmitA64SetNZCVRaw(A64EmitContext& ctx, IR::Inst* inst) {
         code.and_(nzcv_raw, NZCV::x64_mask);
     }
     code.mov(dword[r15 + offsetof(A64JitState, cpsr_nzcv)], nzcv_raw);
+    ctx.nzcv_pending = false;
 }
 
 void A64EmitX64::EmitA64SetNZCV(A64EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     const Xbyak::Reg32 to_store = ctx.reg_alloc.UseScratchGpr(args[0]).cvt32();
     code.mov(dword[r15 + offsetof(A64JitState, cpsr_nzcv)], to_store);
+    ctx.nzcv_pending = false;
+}
+
+// A SetNZCV that PlanNZCVAtExits moved to the side exits and the block end. Nothing to
+// emit; from here the host flags are the guest NZCV until they are stored.
+void A64EmitX64::EmitA64SetNZCVAtExits(A64EmitContext& ctx, IR::Inst* inst) {
+    const IR::Inst* get = nullptr;
+    for (const auto& [set, value] : ctx.nzcv_at_exits) {
+        if (set == inst) {
+            get = value;
+        }
+    }
+    ASSERT_MSG(get && ctx.host_flags_nzcv == get && !ctx.host_flags_fcmp, "NZCV planned for the host flags is not in them");
+    ctx.nzcv_pending = true;
 }
 
 void A64EmitX64::EmitA64GetW(A64EmitContext& ctx, IR::Inst* inst) {
@@ -719,8 +855,10 @@ void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
     const bool is_single_step = ctx.IsSingleStep();
 
     SharedLabel exit = GenSharedLabel();
+    bool exit_cmc = false;  // the exit's jump runs with CF inverted (HI, LS)
     if (cond == IR::Cond::AL || cond == IR::Cond::NV) {
         const bool exit_when_set = cond == IR::Cond::AL;
+        ASSERT_MSG(!ctx.nzcv_pending || args[1].IsImmediate(), "a bit test exit while NZCV is only in the host flags");
         if (!inst->GetArg(1).IsImmediate() && ctx.zero_flag_for == inst->GetArg(1).GetInst()) {
             // ZF holds the bit
             if (exit_when_set) {
@@ -749,20 +887,35 @@ void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
             // The host flags already hold the guest NZCV. Only HI and LS need CF inverted.
             if (cond == IR::Cond::HI || cond == IR::Cond::LS) {
                 code.cmc();
-                ctx.host_flags_are_cpsr = false;
+                exit_cmc = true;
+                if (!ctx.nzcv_pending) {
+                    ctx.host_flags_are_cpsr = false;
+                }
             }
         } else {
+            ASSERT_MSG(!ctx.nzcv_pending, "a side exit reloads NZCV that is still only in the host flags");
             ctx.reg_alloc.ScratchGpr(HostLoc::RAX);
             code.mov(eax, dword[r15 + offsetof(A64JitState, cpsr_nzcv)]);
             code.LoadRequiredFlagsForCondFromRax(cond);
         }
         JumpOnNZCVFlags(code, cond, *exit, code.T_NEAR);
+        if (exit_cmc && ctx.nzcv_pending) {
+            code.cmc();  // the host flags stay the guest NZCV for the exits after this one
+        }
     }
 
     // The guest registers are already stored, so the exit only has to count its cycles
-    // and link to the target block.
+    // and link to the target block, and store NZCV if it is still only in the host
+    // flags (PlanNZCVAtExits); nothing is live once the block is left, so RAX is free.
+    const bool store_nzcv = ctx.nzcv_pending;
     ctx.deferred_emits.emplace_back([=, this] {
         code.L(*exit);
+        if (store_nzcv) {
+            if (exit_cmc) {
+                code.cmc();
+            }
+            EmitStoreNZCVFromHostFlags();
+        }
         if (conf.enable_cycle_counting) {
             EmitAddCycles(cycles);
         }

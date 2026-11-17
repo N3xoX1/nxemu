@@ -184,6 +184,7 @@ bool Inst::WritesToCPSR() const {
     case Opcode::A32UpdateUpperLocationDescriptor:
     case Opcode::A64SetNZCVRaw:
     case Opcode::A64SetNZCV:
+    case Opcode::A64SetNZCVAtExits:
         return true;
 
     default:

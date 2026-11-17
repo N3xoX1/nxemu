@@ -19,6 +19,8 @@ Bit 512 makes the If and CheckBit exits at the end of a block reload NZCV and th
 instead of using the host flags, and counts vector register moves as changing the host flags (the
 code generation before). Most forward branches are side exits, so add 64 to both variants to
 test the block ends.
+Bit 1024 stores NZCV at every flag-setting instruction (the code generation before) instead of
+leaving it in the host flags for the side exits and the block end to store.
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution

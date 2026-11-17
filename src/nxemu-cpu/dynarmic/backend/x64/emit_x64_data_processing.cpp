@@ -236,6 +236,7 @@ static void EmitConditionalSelect(BlockOfCode& code, EmitContext& ctx, IR::Inst*
         return;
     }
 
+    ASSERT_MSG(!ctx.nzcv_pending, "ConditionalSelect reloads NZCV that is still only in the host flags");
     const Xbyak::Reg32 nzcv = ctx.reg_alloc.ScratchGpr(HostLoc::RAX).cvt32();
     const Xbyak::Reg then_ = ctx.reg_alloc.UseGpr(args[1]).changeBit(bitsize);
     const Xbyak::Reg else_ = ctx.reg_alloc.UseScratchGpr(args[2]).changeBit(bitsize);
@@ -1060,7 +1061,9 @@ static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         return;
     }
 
-    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_inst);
+    // NZCV kept in the host flags only (see EmitContext::nzcv_at_exits): no RAX, no lahf
+    const bool nzcv_in_flags = nzcv_inst && ctx.IsNzcvInFlagsOnly(nzcv_inst);
+    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_in_flags ? nullptr : nzcv_inst);
     const Xbyak::Reg result = ctx.reg_alloc.UseScratchGpr(args[0]).changeBit(bitsize);
     const Xbyak::Reg8 carry = DoCarry(ctx.reg_alloc, carry_in, carry_inst);
     const Xbyak::Reg8 overflow = overflow_inst ? ctx.reg_alloc.ScratchGpr().cvt8() : Xbyak::Reg8{-1};
@@ -1094,7 +1097,9 @@ static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         }
     }
 
-    if (nzcv_inst) {
+    if (nzcv_in_flags) {
+        ctx.host_flags_nzcv = nzcv_inst;
+    } else if (nzcv_inst) {
         code.lahf();
         code.seto(code.al);
         ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
@@ -1140,7 +1145,9 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         return;
     }
 
-    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_inst);
+    // NZCV kept in the host flags only (see EmitContext::nzcv_at_exits): no RAX, no lahf
+    const bool nzcv_in_flags = nzcv_inst && ctx.IsNzcvInFlagsOnly(nzcv_inst);
+    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_in_flags ? nullptr : nzcv_inst);
     const Xbyak::Reg result = (is_cmp ? ctx.reg_alloc.UseGpr(args[0]) : ctx.reg_alloc.UseScratchGpr(args[0])).changeBit(bitsize);
     const Xbyak::Reg8 carry = DoCarry(ctx.reg_alloc, carry_in, carry_inst);
     const Xbyak::Reg8 overflow = overflow_inst ? ctx.reg_alloc.ScratchGpr().cvt8() : Xbyak::Reg8{-1};
@@ -1192,9 +1199,11 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         if (invert_output_carry) {
             code.cmc();
         }
-        code.lahf();
-        code.seto(code.al);
-        ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
+        if (!nzcv_in_flags) {
+            code.lahf();
+            code.seto(code.al);
+            ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
+        }
         ctx.host_flags_nzcv = nzcv_inst;
     }
     if (carry_inst) {
