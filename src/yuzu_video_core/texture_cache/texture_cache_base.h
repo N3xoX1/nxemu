@@ -170,6 +170,9 @@ public:
     template <bool has_blacklists>
     void FillGraphicsImageViews(std::span<ImageViewInOut> views);
 
+    /// Keeps blacklisted images from scaling up while a draw reuses its resolved views
+    void ResetBlacklistedScaleRatings(std::span<const ImageViewInOut> views);
+
     /// Fill image_view_ids with the compute images in indices
     void FillComputeImageViews(std::span<ImageViewInOut> views);
 
@@ -205,6 +208,15 @@ public:
 
     /// Refresh the state for graphics image view and sampler descriptors
     void SynchronizeGraphicsDescriptors();
+
+    /// Changes whenever graphics descriptors may resolve or need preparing differently, zero when the tables can't be tracked
+    [[nodiscard]] u64 GraphicsDescriptorEpoch() const noexcept {
+        return tables_tracked ? descriptor_epoch : 0;
+    }
+
+    /// Guest memory written without WriteMemory: bumps the descriptor epoch when the write
+    /// reaches the descriptor tables
+    void NotifyUnsafeWrite(GPUVAddr gpu_addr, size_t size);
 
     /// Refresh the state for compute image view and sampler descriptors
     void SynchronizeComputeDescriptors();
@@ -641,6 +653,26 @@ private:
 
     u64 modification_tick = 0;
     u64 frame_tick = 0;
+
+    void BumpDescriptorEpoch() noexcept {
+        ++descriptor_epoch;
+    }
+    void TrackGraphicsDescriptorTables(GPUVAddr tic_addr, u32 tic_limit, GPUVAddr tsc_addr,
+                                       u32 tsc_limit);
+    void UntrackGraphicsDescriptorTables();
+    [[nodiscard]] bool OverlapsDescriptorTables(DAddr addr, size_t size) const noexcept;
+    [[nodiscard]] bool OverlapsDescriptorTablesGPU(GPUVAddr gpu_addr, size_t size) const noexcept;
+
+    // The descriptor table pages are counted as cached so that writes to them reach WriteMemory
+    u64 descriptor_epoch = 1;
+    const void* tracked_channel{};
+    GPUVAddr tracked_tic_addr{};
+    GPUVAddr tracked_tsc_addr{};
+    u32 tracked_tic_limit{};
+    u32 tracked_tsc_limit{};
+    bool tables_tracked{};
+    bool tables_checked{};
+    std::vector<std::pair<DAddr, size_t>> table_ranges;
     std::vector<ImageViewId> gc_removed_views;
     bool gc_descriptor_tables_dirty = false;
     struct GCReadback {

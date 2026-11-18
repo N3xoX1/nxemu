@@ -450,6 +450,8 @@ set_tests_properties(test_gpu_commands PROPERTIES TIMEOUT 30)
 set(_texture_hotpaths_generated "${CMAKE_CURRENT_BINARY_DIR}/texture_hotpaths")
 add_custom_command(
     OUTPUT "${_texture_hotpaths_generated}/regions.inc" "${_texture_hotpaths_generated}/pages.inc"
+        "${_texture_hotpaths_generated}/descriptors.inc"
+        "${_texture_hotpaths_generated}/descriptor_members.inc"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/texture_hotpaths/extract.py"
         "${CMAKE_SOURCE_DIR}" "${_texture_hotpaths_generated}"
     DEPENDS texture_hotpaths/extract.py
@@ -469,6 +471,19 @@ if(NOT MSVC)
     target_link_options(test_texture_regions PRIVATE -fsanitize=address,undefined)
 endif()
 nxemu_unit_test(test_texture_regions)
+
+add_executable(test_texture_descriptors texture_hotpaths/descriptors.cpp
+    "${_texture_hotpaths_generated}/descriptors.inc"
+    "${_texture_hotpaths_generated}/descriptor_members.inc")
+target_include_directories(test_texture_descriptors PRIVATE "${_texture_hotpaths_generated}"
+    "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(test_texture_descriptors PRIVATE nxemu_test_support)
+if(NOT MSVC)
+    target_compile_options(test_texture_descriptors PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_texture_descriptors PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_texture_descriptors)
 
 add_executable(test_mapping_continuity mapping_continuity/mapping.cpp)
 target_include_directories(test_mapping_continuity PRIVATE "${CMAKE_SOURCE_DIR}/src"
