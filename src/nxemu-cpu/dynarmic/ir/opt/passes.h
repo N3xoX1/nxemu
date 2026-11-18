@@ -36,7 +36,9 @@ void PolyfillPass(IR::Block& block, const PolyfillOptions& opt);
 void A32ConstantMemoryReads(IR::Block& block, A32::UserCallbacks* cb);
 void A32GetSetElimination(IR::Block& block, A32GetSetEliminationOptions opt);
 void A64CallbackConfigPass(IR::Block& block, const A64::UserConfig& conf);
-void A64GetSetElimination(IR::Block& block);
+/// forward_conversions: a get of another width of a tracked register (W of X, D of Q...) uses
+/// the tracked value, and a vector register read only for lane 0 of 32 bits loads that lane
+void A64GetSetElimination(IR::Block& block, bool forward_conversions = true);
 void A64MergeInterpretBlocksPass(IR::Block& block, A64::UserCallbacks* cb);
 void ConstantPropagation(IR::Block& block);
 void DeadCodeElimination(IR::Block& block);

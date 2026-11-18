@@ -264,7 +264,7 @@ const void* EmitReadMemoryMov(BlockOfCode& code, int value_idx, const Xbyak::Reg
     // An ordered read up to 64 bits is a plain load. x64 never moves a load before an earlier
     // load or a later access, and ordered writes use xchg, a full barrier, so a release store
     // followed by an acquire load stays in order. 128 bits still need cmpxchg16b to be atomic.
-    if (ordered && bitsize == 128) {
+    if (ordered && (bitsize == 128 || BaselineCodegen())) {
         if constexpr (bitsize != 128) {
             code.xor_(Xbyak::Reg32{value_idx}, Xbyak::Reg32{value_idx});
         } else {
@@ -427,9 +427,9 @@ void EmitExclusiveTestAndClear(BlockOfCode& code, const UserConfig& conf, Xbyak:
         return;
     }
 
-    // Every slot is tested, the running core's included: the emitted code does not depend on the
-    // core. The running core's own reservation ends with this store anyway.
     code.mov(tmp, 0xDEAD'DEAD'DEAD'DEAD);
+    // Every slot is tested, the running core's included: the emitted code does not depend on the
+    // core. The running core's own slot holds vaddr here, and its reservation ends with this store.
     const size_t processor_count = GetExclusiveMonitorProcessorCount(conf.global_monitor);
     for (size_t processor_index = 0; processor_index < processor_count; processor_index++) {
         Xbyak::Label ok;

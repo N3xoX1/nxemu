@@ -192,6 +192,7 @@ private:
     class WindowsTimerWait;
     std::unique_ptr<WindowsTimerWait> windows_timer_wait;
     s64 timer_resolution_ns{1'000'000};
+    s64 timer_wait_margin_ns{1'000'000};
 #endif
 
     using heap_t =

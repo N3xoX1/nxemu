@@ -19,7 +19,6 @@ void Scheduler::Push(s32 channel, CommandList&& entries) {
     auto it = channels.find(channel);
     ASSERT(it != channels.end());
     auto channel_state = it->second;
-    // The rasterizer runs on the GPU thread, see DESIGN-gpu-split.md
     gpu.BackQueue().Push([this, bind_id = channel_state->bind_id] { gpu.BindChannel(bind_id); });
     channel_state->dma_pusher->Push(std::move(entries));
     channel_state->dma_pusher->DispatchCalls();

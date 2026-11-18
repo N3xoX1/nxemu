@@ -7,6 +7,7 @@
 
 #include <array>
 #include <atomic>
+#include <functional>
 #include <span>
 #include <vector>
 #include <boost/container/small_vector.hpp>
@@ -121,6 +122,7 @@ public:
 
     void BindSubchannel(Engines::EngineInterface* engine, u32 subchannel_id,
                         Engines::EngineTypes engine_type) {
+        FlushFrontSink(subchannel_id);
         subchannels[subchannel_id] = engine;
         subchannel_type[subchannel_id] = engine_type;
         if (engine_type == Engines::EngineTypes::Maxwell3D) {
@@ -148,7 +150,7 @@ private:
 
     void SetState(const CommandHeader& command_header);
 
-    /// Runs the methods Maxwell3D queued, see DESIGN-gpu-split.md
+    /// Hands the queued Maxwell3D methods to the GPU thread
     void DrainMaxwell3D() const;
     void DrainMaxwell3DMemoryWrites() const;
 
@@ -157,6 +159,7 @@ private:
     /// Runs `work` on the GPU thread after the queued Maxwell3D methods
     void PostBack(std::function<void()>&& work) const;
     std::vector<std::pair<u32, u32>>& SinkFor(u32 subchannel_id) const;
+    void FlushFrontSink(u32 subchannel_id) const;
 
     void CallMethod(u32 argument) const;
     void CallMultiMethod(const u32* base_start, u32 num_methods) const;

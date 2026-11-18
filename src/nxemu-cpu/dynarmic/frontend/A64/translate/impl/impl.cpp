@@ -41,10 +41,12 @@ bool TranslatorVisitor::RaiseException(Exception exception) {
     return false;
 }
 
+// Side exits and followed branches stop once the block has this many instructions
+constexpr size_t max_trace_instructions = 64;
+
 // Turns a forward conditional branch into a side exit and keeps translating the
 // fall-through path in the same block. Returns false when the block has to end here.
 bool TranslatorVisitor::SideExit(IR::Cond cond, IR::U1 bit, u64 target) {
-    constexpr size_t max_trace_instructions = 64;
     if (!options.side_exits || ir.current_location->SingleStepping() || target <= ir.PC()
         || ir.block.CycleCount() + 1 >= max_trace_instructions) {
         return false;
@@ -56,7 +58,6 @@ bool TranslatorVisitor::SideExit(IR::Cond cond, IR::U1 bit, u64 target) {
 // Follows a short forward unconditional branch inside the block. The block range then
 // also covers the skipped instructions, which only makes invalidation a bit wider.
 bool TranslatorVisitor::FollowBranch(u64 target) {
-    constexpr size_t max_trace_instructions = 64;
     constexpr u64 max_skip = 64 * 4;
     if (!options.side_exits || ir.current_location->SingleStepping()
         || ir.block.CycleCount() + 1 >= max_trace_instructions) {

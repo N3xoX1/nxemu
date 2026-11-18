@@ -3,7 +3,7 @@
 
 #include <chrono>
 #include <thread>
-#if defined(_M_X64) || defined(__x86_64__)
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
 #include <immintrin.h>
 #endif
 #include "yuzu_common/scope_exit.h"
@@ -242,34 +242,20 @@ void PhysicalCore::LogBacktrace()
 
 void PhysicalCore::Idle()
 {
-    // Spin a little before sleeping: waking a sleeping host thread costs tens of
-    // microseconds, and guest threads wake each other very often.
-    constexpr auto spin_time = std::chrono::microseconds(50);
-    if (!m_is_interrupted.load(std::memory_order_acquire))
+    // Waking a sleeping host thread costs tens of microseconds, and guest threads wake each other often
+    const std::chrono::steady_clock::time_point spin_end = std::chrono::steady_clock::now() + std::chrono::microseconds(50);
+    while (!m_is_interrupted.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < spin_end)
     {
-        const auto deadline = std::chrono::steady_clock::now() + spin_time;
-        do
-        {
-            for (int i = 0; i < 16; ++i)
-            {
-                if (m_is_interrupted.load(std::memory_order_acquire))
-                {
-                    break;
-                }
-#if defined(_M_X64) || defined(__x86_64__)
-                _mm_pause();
+#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
+        _mm_pause();
 #else
-                std::this_thread::yield();
+        std::this_thread::yield();
 #endif
-            }
-        } while (!m_is_interrupted.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline);
     }
-    {
-        std::unique_lock lk{m_guard};
-        m_on_interrupt.wait(lk, [this] {
-            return m_is_interrupted.load(std::memory_order_acquire);
-        });
-    }
+    std::unique_lock lk{m_guard};
+    m_on_interrupt.wait(lk, [this] {
+        return m_is_interrupted.load(std::memory_order_acquire);
+    });
 }
 
 bool PhysicalCore::IsInterrupted() const

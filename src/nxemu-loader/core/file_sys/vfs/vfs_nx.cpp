@@ -95,6 +95,10 @@ public:
         if (ok) bytes_+=length;
         return ok;
     }
+    bool immutable_reads() const noexcept override { return source_->immutable_reads(); }
+    nx::ImmutableReadView immutable_view(uint64_t offset,size_t length) const noexcept override {
+        return source_->immutable_view(offset,length);
+    }
     NxRuntimeStats stats() {
         auto result=decoder.stats(); result.source_read_calls=calls_.load(); result.source_read_bytes=bytes_.load();
         return result;
@@ -213,12 +217,17 @@ nx::Result<std::shared_ptr<nx::Session>> OpenNxSession(VirtualFile file,std::str
     std::shared_ptr<nx::RandomAccessSource> source;
     // Android content:// URIs have no host path to pin: read through the VFS file.
     if (!host_path.empty() && host_path.rfind("content://",0)!=0) {
+        // Positional reads, not open_mapped(): mapped views were 17-43 % slower cold and
+        // 2-4x slower warm (first touch of each page faults), and they remap constantly
+        // once a game is larger than the 1 GiB of views. On Windows open() still denies
+        // writers, so the RAW verification cache stays on.
         auto pinned=nx::DiskSource::open(std::filesystem::path(Common::FS::ToU8String(host_path)));
         if (!pinned) return nx::Result<std::shared_ptr<nx::Session>>::failure(pinned.error.code,pinned.error.message);
         source=std::move(*pinned.value);
     } else source=std::make_shared<Source>(std::move(file));
     auto codec=std::make_shared<CodecSource>(std::move(source),options.parallel_reads);
     options.reader.zstd=&Decode; options.reader.zstd_context=&codec->decoder;
+    options.reader.cache_raw_verification=codec->immutable_reads();
     return nx::Session::open(std::move(codec),options);
     } catch (const std::bad_alloc&) {
         return nx::Result<std::shared_ptr<nx::Session>>::failure(nx::ErrorCode::resource_limit,"NX codec source allocation failed");

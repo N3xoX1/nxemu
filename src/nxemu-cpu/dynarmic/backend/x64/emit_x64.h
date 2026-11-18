@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <shared_mutex>
 #include <string>
@@ -67,6 +68,10 @@ struct EmitContext {
 
     std::vector<std::function<void()>> deferred_emits;
 
+    /// Host flags may be used across IR instructions: side exits, CSEL and FCMP on live flags,
+    /// IsZero fused into the side exit. Off for A32, for test variant bit 8 and with verbose
+    /// debugging output, which changes the flags between instructions.
+    bool reuse_host_flags = false;
     /// NZCV value that the host flags hold right now (SF, ZF, CF = guest C, OF), or null
     const IR::Inst* host_flags_nzcv = nullptr;
     /// The host flags hold the same NZCV as cpsr_nzcv, so a condition needs no reload
@@ -77,6 +82,24 @@ struct EmitContext {
     /// IsZero whose only use is the side exit right after it: ZF holds the result, the
     /// value itself is never written
     const IR::Inst* zero_flag_for = nullptr;
+    /// The block ends in a CheckBit exit that can test the host flags (a top-level CheckBit, no
+    /// cycle count update before it): an IsZero feeding the block's last instruction,
+    /// SetCheckBit, then only sets ZF
+    bool check_bit_exit_on_flags = false;
+    /// GetNZCVFromOp values kept in the host flags only. Their SetNZCV became A64SetNZCVAtExits
+    /// (the A64 emitter's PlanNZCVAtExits): the producer leaves NZCV in the host flags, and the
+    /// side exits and the block end store it.
+    std::vector<std::pair<const IR::Inst*, const IR::Inst*>> nzcv_at_exits;  // {SetNZCVAtExits, GetNZCVFromOp}
+    bool IsNzcvInFlagsOnly(const IR::Inst* get_nzcv) const {
+        for (const auto& [set, get] : nzcv_at_exits) {
+            if (get == get_nzcv) {
+                return true;
+            }
+        }
+        return false;
+    }
+    /// The guest NZCV is in the host flags and not yet in cpsr_nzcv
+    bool nzcv_pending = false;
 
     /// Fastmem writes whose write tracking mark is done by a later write of the same group
     tsl::robin_set<const IR::Inst*> write_track_skip;
@@ -91,11 +114,25 @@ inline SharedLabel GenSharedLabel() {
     return std::make_shared<Xbyak::Label>();
 }
 
+/// Test variant bit 16: the code generation before zero extension tracking, adc for FCMP NZCV
+/// and plain ordered loads, for differential tests
+inline bool BaselineCodegen() {
+    return (jit_test_variant & 16) != 0;
+}
+
+/// Test variant bit 256: the code generation before 64-bit immediates for ADD/SUB/CMP, plain
+/// SetS/SetD stores, 32/64-bit vector loads into XMM registers, lane inserts from an XMM register
+/// and the zero extension of LeastSignificantWord, MostSignificantWord and loads, for
+/// differential tests
+inline bool BaselineLoadsAndImmediates() {
+    return (jit_test_variant & 256) != 0;
+}
+
 /// True when the value is known to have every bit above `kept_bits` clear, wherever it lives:
 /// the loads below and the zero extensions clear them in an XMM, and a GPR value moved to an
 /// XMM later goes through movd/movq, which clears them too.
 inline bool UpperLanesClear(const IR::Value& value, size_t kept_bits) {
-    if (value.IsImmediate()) {
+    if (value.IsImmediate() || BaselineCodegen()) {
         return false;
     }
     switch (value.GetInstRecursive()->GetOpcode()) {
@@ -105,6 +142,10 @@ inline bool UpperLanesClear(const IR::Value& value, size_t kept_bits) {
     case IR::Opcode::A64GetD:
     case IR::Opcode::ZeroExtendLongToQuad:
         return kept_bits >= 64;
+    case IR::Opcode::A64ReadMemory32:  // a zero-extending GPR load, or movd into an XMM
+        return kept_bits >= 32 && !BaselineLoadsAndImmediates();
+    case IR::Opcode::A64ReadMemory64:  // a GPR load, or movq into an XMM
+        return kept_bits >= 64 && !BaselineLoadsAndImmediates();
     default:
         return false;
     }
@@ -112,8 +153,11 @@ inline bool UpperLanesClear(const IR::Value& value, size_t kept_bits) {
 
 /// True when the value, held in a GPR, already has its upper 32 bits clear: the instruction
 /// that produced it writes a 32-bit register, which zero extends on x64.
+/// This depends on every path of those emitters, fallbacks included, writing a fresh 32-bit
+/// register. An emitter shortcut that returns an input register as the result (x + 0, say)
+/// breaks it, so take the op off this list when adding one.
 inline bool GprZeroExtended32(const IR::Value& value) {
-    if (value.IsImmediate()) {
+    if (value.IsImmediate() || BaselineCodegen()) {
         return false;
     }
     switch (value.GetInstRecursive()->GetOpcode()) {
@@ -136,6 +180,9 @@ inline bool GprZeroExtended32(const IR::Value& value) {
     case IR::Opcode::AndNot32:
     case IR::Opcode::Or32:
         return true;
+    case IR::Opcode::LeastSignificantWord:  // mov r32, r32
+    case IR::Opcode::MostSignificantWord:   // shr r64, 32
+        return !BaselineLoadsAndImmediates();
     default:
         return false;
     }
@@ -145,7 +192,7 @@ class EmitX64 {
 public:
     struct BlockDescriptor {
         CodePtr entrypoint;  // Entrypoint of emitted code
-        size_t size;         // Length in bytes of emitted code
+        size_t size;         // Length in bytes of emitted code, without the cold code in the far area
     };
 
     explicit EmitX64(BlockOfCode& code);
@@ -160,8 +207,8 @@ public:
     /// Invalidates a selection of basic blocks.
     void InvalidateBasicBlocks(const tsl::robin_set<IR::LocationDescriptor>& locations);
 
-    /// Guards the block maps when several cores share this code: held shared for lookups and
-    /// exclusive to compile, link, invalidate or handle a fastmem fault.
+    /// Guards the block maps when several cores share this code: shared for lookups, exclusive
+    /// to compile, link, invalidate or handle a fastmem fault.
     std::shared_mutex cache_mutex;
 
 protected:

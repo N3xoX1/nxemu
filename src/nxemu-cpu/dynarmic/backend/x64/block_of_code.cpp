@@ -253,6 +253,7 @@ void BlockOfCode::ReserveFarCode(size_t size) {
 void BlockOfCode::SwitchToFarCode() {
     ASSERT(far_begin != nullptr && near_saved == nullptr);
     near_saved = getCurr<u8*>();
+    ASSERT(near_saved <= far_begin);  // the hot code ran into the cold area
     SetCodePtr(far_current);
     EnsureFarMemoryCommitted(1 * 1024 * 1024);
 }
@@ -293,6 +294,9 @@ void BlockOfCode::EnableWriting() {
 #ifdef DYNARMIC_ENABLE_NO_EXECUTE_SUPPORT
 #    ifdef _WIN32
     ProtectMemory(getCode(), committed_size, false);
+    if (far_committed_size != 0) {
+        ProtectMemory(far_begin, far_committed_size, false);
+    }
 #    else
     ProtectMemory(getCode(), maxSize_, false);
 #    endif
@@ -303,6 +307,9 @@ void BlockOfCode::DisableWriting() {
 #ifdef DYNARMIC_ENABLE_NO_EXECUTE_SUPPORT
 #    ifdef _WIN32
     ProtectMemory(getCode(), committed_size, true);
+    if (far_committed_size != 0) {
+        ProtectMemory(far_begin, far_committed_size, true);
+    }
 #    else
     ProtectMemory(getCode(), maxSize_, true);
 #    endif

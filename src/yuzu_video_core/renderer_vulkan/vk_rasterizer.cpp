@@ -757,6 +757,7 @@ void RasterizerVulkan::Clear(u32 layer_count) {
             device.GetDriverID() == VK_DRIVER_ID_MOLTENVK && is_integer;
         if (regs.clear_surface.R && regs.clear_surface.G && regs.clear_surface.B &&
             regs.clear_surface.A && !integer_shader_clear) {
+            texture_cache.MarkColorTargetCleared(color_attachment);
             scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
             scheduler.Record([color_attachment, clear_value, clear_rect](vk::CommandBuffer cmdbuf) {
                 const VkClearAttachment attachment{
@@ -1160,6 +1161,9 @@ void RasterizerVulkan::InnerInvalidationImpl(
     }
     if (True(caches & VideoCommon::CacheType::ShaderCache)) {
         pipeline_cache.InvalidateRegions(sequences);
+    } else {
+        // Shaders marked for removal by an unmap still leave the lookup cache here
+        pipeline_cache.SyncGuestHost();
     }
 }
 

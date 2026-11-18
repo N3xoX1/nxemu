@@ -198,6 +198,22 @@ void EmitX64::EmitGetNZCVFromOp(EmitContext& ctx, IR::Inst* inst) {
         return;
     }
 
+    // NZCV kept in the host flags only (see EmitContext::nzcv_at_exits). Add and Sub
+    // left it there already; for the other producers test the value (C and V clear, as here).
+    const bool in_flags_only = ctx.IsNzcvInFlagsOnly(inst);
+    if (in_flags_only) {
+        switch (inst->GetArg(0).GetInst()->GetOpcode()) {
+        case IR::Opcode::Add32:
+        case IR::Opcode::Add64:
+        case IR::Opcode::Sub32:
+        case IR::Opcode::Sub64:
+            ctx.reg_alloc.RegisterPseudoOperation(inst);
+            return;
+        default:
+            break;
+        }
+    }
+
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
 
     const int bitsize = [&] {
@@ -214,6 +230,14 @@ void EmitX64::EmitGetNZCVFromOp(EmitContext& ctx, IR::Inst* inst) {
             UNREACHABLE();
         }
     }();
+
+    if (in_flags_only) {
+        const Xbyak::Reg value = ctx.reg_alloc.UseGpr(args[0]).changeBit(bitsize);
+        code.test(value, value);
+        ctx.host_flags_nzcv = inst;
+        ctx.host_flags_are_cpsr = false;
+        return;
+    }
 
     const Xbyak::Reg64 nzcv = ctx.reg_alloc.ScratchGpr(HostLoc::RAX);
     const Xbyak::Reg value = ctx.reg_alloc.UseGpr(args[0]).changeBit(bitsize);

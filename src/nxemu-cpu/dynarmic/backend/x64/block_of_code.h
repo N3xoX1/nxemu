@@ -60,9 +60,10 @@ public:
     /// Ensure at least codesize bytes of code cache memory are committed at the current code_ptr.
     void EnsureMemoryCommitted(size_t codesize);
 
-    /// Keeps the last `size` bytes of the cache for cold code (fallback paths, link stubs), so
+    /// Keeps the last `size` bytes of the cache for cold code (the fallback paths), so
     /// the hot code of consecutive blocks stays dense. Call before PreludeComplete.
     void ReserveFarCode(size_t size);
+    bool HasFarCode() const { return far_begin != nullptr; }
     /// Emission continues in the cold area. Labels and rel32 jumps work across both areas.
     void SwitchToFarCode();
     /// Emission continues in the hot area where SwitchToFarCode left it.

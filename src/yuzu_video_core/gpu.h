@@ -303,7 +303,7 @@ public:
     /// Never hold this lock while enqueueing and waiting for a GPU-thread request.
     ExecutionLock LockExecution();
 
-    /// Work queue to the GPU thread, see DESIGN-gpu-split.md
+    /// Work queue from the decode thread to the GPU thread
     VideoCommon::GPUThread::BackQueue& BackQueue();
 
     /// Register a host thread as an auxiliary thread.

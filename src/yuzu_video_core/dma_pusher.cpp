@@ -88,6 +88,21 @@ std::vector<std::pair<u32, u32>> & DmaPusher::SinkFor(u32 subchannel_id) const
     return subchannels[subchannel_id]->method_sink;
 }
 
+void DmaPusher::FlushFrontSink(u32 subchannel_id) const
+{
+    std::vector<std::pair<u32, u32>> & sink = front_sinks[subchannel_id];
+    if (sink.empty() || subchannels[subchannel_id] == nullptr)
+    {
+        return;
+    }
+    // The writes belong to the engine bound before
+    PostBack([engine = subchannels[subchannel_id], writes = std::move(sink)]() {
+        engine->method_sink.insert(engine->method_sink.end(), writes.begin(), writes.end());
+        engine->ConsumeSink();
+    });
+    sink.clear();
+}
+
 bool DmaPusher::Step()
 {
     if (!ib_enable || dma_pushbuffer.empty())

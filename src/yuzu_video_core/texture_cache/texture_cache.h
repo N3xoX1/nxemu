@@ -495,6 +495,16 @@ void TextureCache<P>::MarkRenderTargetsWritten(u32 color_mask, bool depth) {
 }
 
 template <class P>
+void TextureCache<P>::MarkColorTargetCleared(size_t index) {
+    if constexpr (requires { runtime.GetReadbackTick(); }) {
+        if (const ImageViewId view_id = render_targets.color_buffer_ids[index]) {
+            slot_images[slot_image_views[view_id].image_id].host_clear_tick =
+                runtime.GetReadbackTick();
+        }
+    }
+}
+
+template <class P>
 typename P::Sampler* TextureCache<P>::GetGraphicsSampler(u32 index) {
     return &slot_samplers[GetGraphicsSamplerId(index)];
 }
@@ -3664,6 +3674,9 @@ void TextureCache<P>::MarkModification(ImageBase& image, ImageId image_id) noexc
     image.flags |= ImageFlagBits::GpuModified;
     image.modification_tick = ++modification_tick;
     image.gpu_write_tick = modification_tick;
+    if constexpr (requires { runtime.GetReadbackTick(); }) {
+        image.host_write_tick = runtime.GetReadbackTick();
+    }
     NotifyNativeImageModification(image, image_id);
     UpdateNativeReadTracking(image, image_id);
 }
@@ -3706,20 +3719,45 @@ void TextureCache<P>::SynchronizeAliases(ImageId image_id) {
         const ImageBase& rhs_image = slot_images[rhs->id];
         return lhs_image.modification_tick < rhs_image.modification_tick;
     });
+    // NVIDIA can drop an image-to-image copy whose source was cleared and then rendered in
+    // the command buffer being recorded, even with a full barrier between them. Copy those
+    // sources through a buffer instead. This never submits: render targets are synchronized
+    // here in the middle of a draw, after its buffers were bound.
+    // Sources that were only drawn to copy fine, so they don't pay for it.
+    const auto copy_alias = [&](const AliasedImage* aliased) {
+        if constexpr (requires {
+                          runtime.GetReadbackTick();
+                          runtime.NeedsAliasCopyThroughBuffer();
+                          runtime.CopyImageThroughBuffer(image, image, aliased->copies);
+                      }) {
+            Image& source = slot_images[aliased->id];
+            const u64 host_tick = runtime.GetReadbackTick();
+            if (source.host_clear_tick == host_tick && source.host_write_tick == host_tick &&
+                True(source.flags & ImageFlagBits::GpuModified) &&
+                runtime.NeedsAliasCopyThroughBuffer()) {
+                std::vector<ImageCopy> copies = aliased->copies;
+                ScaleImageCopies(image, source, copies);
+                if (runtime.CopyImageThroughBuffer(image, source, copies)) {
+                    return;
+                }
+            }
+        }
+        CopyImage(image_id, aliased->id, aliased->copies);
+    };
     const auto& resolution = videoSettings.resolution_info;
     for (const AliasedImage* const aliased : aliased_images) {
         if (!resolution.active || !any_rescaled) {
-            CopyImage(image_id, aliased->id, aliased->copies);
+            copy_alias(aliased);
             continue;
         }
         Image& aliased_image = slot_images[aliased->id];
         if (!can_rescale) {
             ScaleDown(aliased_image);
-            CopyImage(image_id, aliased->id, aliased->copies);
+            copy_alias(aliased);
             continue;
         }
         ScaleUp(aliased_image);
-        CopyImage(image_id, aliased->id, aliased->copies);
+        copy_alias(aliased);
     }
 }
 
@@ -3761,25 +3799,32 @@ void TextureCache<P>::PrepareImageView(ImageViewId image_view_id, bool is_modifi
 }
 
 template <class P>
+void TextureCache<P>::ScaleImageCopies(const ImageBase& dst, const ImageBase& src,
+                                       std::vector<ImageCopy>& copies) const {
+    if (False(src.flags & ImageFlagBits::Rescaled)) {
+        return;
+    }
+    ASSERT(True(dst.flags & ImageFlagBits::Rescaled));
+    const bool both_2d{src.info.type == ImageType::e2D && dst.info.type == ImageType::e2D};
+    const auto& resolution = videoSettings.resolution_info;
+    for (auto& copy : copies) {
+        copy.src_offset.x = resolution.ScaleUp(copy.src_offset.x);
+        copy.dst_offset.x = resolution.ScaleUp(copy.dst_offset.x);
+        copy.extent.width = resolution.ScaleUp(copy.extent.width);
+        if (both_2d) {
+            copy.src_offset.y = resolution.ScaleUp(copy.src_offset.y);
+            copy.dst_offset.y = resolution.ScaleUp(copy.dst_offset.y);
+            copy.extent.height = resolution.ScaleUp(copy.extent.height);
+        }
+    }
+}
+
+template <class P>
 void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<ImageCopy> copies) {
     Image& dst = slot_images[dst_id];
     Image& src = slot_images[src_id];
     const bool is_rescaled = True(src.flags & ImageFlagBits::Rescaled);
-    if (is_rescaled) {
-        ASSERT(True(dst.flags & ImageFlagBits::Rescaled));
-        const bool both_2d{src.info.type == ImageType::e2D && dst.info.type == ImageType::e2D};
-        const auto& resolution = videoSettings.resolution_info;
-        for (auto& copy : copies) {
-            copy.src_offset.x = resolution.ScaleUp(copy.src_offset.x);
-            copy.dst_offset.x = resolution.ScaleUp(copy.dst_offset.x);
-            copy.extent.width = resolution.ScaleUp(copy.extent.width);
-            if (both_2d) {
-                copy.src_offset.y = resolution.ScaleUp(copy.src_offset.y);
-                copy.dst_offset.y = resolution.ScaleUp(copy.dst_offset.y);
-                copy.extent.height = resolution.ScaleUp(copy.extent.height);
-            }
-        }
-    }
+    ScaleImageCopies(dst, src, copies);
     const auto dst_format_type = GetFormatType(dst.info.format);
     const auto src_format_type = GetFormatType(src.info.format);
     if (src_format_type == dst_format_type) {

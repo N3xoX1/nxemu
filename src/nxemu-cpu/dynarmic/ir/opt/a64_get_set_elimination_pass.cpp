@@ -15,7 +15,7 @@
 
 namespace Dynarmic::Optimization {
 
-void A64GetSetElimination(IR::Block& block) {
+void A64GetSetElimination(IR::Block& block, bool forward_conversions) {
     using Iterator = IR::Block::iterator;
 
     enum class TrackingType {
@@ -57,7 +57,10 @@ void A64GetSetElimination(IR::Block& block) {
 
     // Returns the opcode that turns a value tracked as `from` into a get of `to`, or Void
     // when the register has to be read
-    const auto conversion = [](const RegisterInfo& info, TrackingType to) {
+    const auto conversion = [forward_conversions](const RegisterInfo& info, TrackingType to) {
+        if (!forward_conversions) {
+            return IR::Opcode::Void;
+        }
         const TrackingType from = info.tracking_type;
         if (from == TrackingType::X && to == TrackingType::W) {
             return IR::Opcode::LeastSignificantWord;
@@ -197,6 +200,10 @@ void A64GetSetElimination(IR::Block& block) {
             break;
         }
         }
+    }
+
+    if (!forward_conversions) {
+        return;
     }
 
     // A vector register read whose only use is lane 0 of 32 bits loads just that lane. The

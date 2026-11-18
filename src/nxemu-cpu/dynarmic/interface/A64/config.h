@@ -301,6 +301,12 @@ struct UserConfig {
     // Maximum size is limited by the maximum length of a x86_64 / arm64 jump.
     size_t code_cache_size = 128 * 1024 * 1024;  // bytes
 
+    /// Jits with the same non-null key and the same configuration (apart from callbacks,
+    /// processor_id and the TPIDR pointers) share one code cache. The key names the guest memory,
+    /// like the process of the cores, and must not be reused while a Jit with it exists. The
+    /// callbacks must be of the same class.
+    const void* share_code_cache_key = nullptr;
+
     /// Internal use only
     bool very_verbose_debugging_output = false;
 

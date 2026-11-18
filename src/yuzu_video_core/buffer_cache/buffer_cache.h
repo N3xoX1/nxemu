@@ -1228,7 +1228,6 @@ void BufferCache<P>::BindHostVertexBuffers() {
     auto& flags = maxwell3d->dirty.flags;
     for (u32 index = 0; index < NUM_VERTEX_BUFFERS; ++index) {
         const Binding& binding = channel_state->vertex_buffers[index];
-        // Unused slots hold the null binding: nothing to touch or upload
         if (binding.buffer_id != NULL_BUFFER_ID && binding.size != 0) {
             Buffer& buffer = slot_buffers[binding.buffer_id];
             TouchBuffer(buffer, binding.buffer_id);
@@ -2147,7 +2146,7 @@ void BufferCache<P>::ChangeRegister(BufferId buffer_id) {
 
 template <class P>
 void BufferCache<P>::TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept {
-    // Same check as the LRU entry, without reaching the pool for buffers touched this frame
+    // A buffer already touched this frame skips the LRU pool
     if (buffer_id != NULL_BUFFER_ID && buffer.LRUTick() < frame_tick) {
         buffer.SetLRUTick(frame_tick);
         lru_cache.Touch(buffer.getLRUID(), frame_tick);

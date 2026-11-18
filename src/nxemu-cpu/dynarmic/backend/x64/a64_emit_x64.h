@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <map>
 #include <optional>
 #include <tuple>
@@ -61,20 +62,20 @@ public:
     static constexpr size_t fast_dispatch_table_size = 0x100000;
     using FastDispatchTable = std::array<FastDispatchEntry, fast_dispatch_table_size>;
 
-    /// Each core that runs this code has its own fast dispatch table (its address is in the
-    /// core's JIT state). Invalidation clears the entries of every registered table.
+    /// Each core has its own table. Invalidation clears the entries of every added table.
     void AddFastDispatchTable(FastDispatchTable* table);
     void RemoveFastDispatchTable(FastDispatchTable* table);
 
-    /// Code of `location` in a core's table, or null. Called by that core only.
     const void* LookupFastDispatch(FastDispatchTable* table, u64 location) const {
         if (!fast_dispatch_table_lookup) {
             return nullptr;
         }
-        const FastDispatchEntry& entry = fast_dispatch_table_lookup(location, table->data());
-        return entry.location_descriptor == location ? entry.code_ptr : nullptr;
+        FastDispatchEntry& entry = fast_dispatch_table_lookup(location, table->data());
+        // Read without cache_mutex while Unpatch on another core may clear the location
+        const u64 entry_location = std::atomic_ref<u64>{entry.location_descriptor}.load(std::memory_order_relaxed);
+        return entry_location == location ? entry.code_ptr : nullptr;
     }
-    /// Called by the table's core while it holds cache_mutex, so no invalidation runs meanwhile.
+    /// Called by the table's core with cache_mutex held.
     void InsertFastDispatch(FastDispatchTable* table, u64 location, const void* code_ptr) const {
         if (!fast_dispatch_table_lookup) {
             return;
@@ -84,19 +85,34 @@ public:
         entry.location_descriptor = location;
     }
 
+    /// Callbacks of a core that still exists, used to resolve the core callbacks when compiling.
+    /// Called with cache_mutex held.
+    void SetDevirtualizeCallbacks(A64::UserCallbacks* callbacks) { devirtualize_callbacks = callbacks; }
+    A64::UserCallbacks* DevirtualizeCallbacks() const { return devirtualize_callbacks; }
+
 protected:
     /// A user callback whose object comes from the running core's JIT state.
     template<auto mfp>
     ArgCallback CoreCallback() const {
-        return DevirtualizeFromState<mfp>(conf.callbacks, offsetof(A64JitState, core_callbacks));
+        return DevirtualizeFromState<mfp>(devirtualize_callbacks, offsetof(A64JitState, core_callbacks));
     }
 
     const A64::UserConfig conf;
+    A64::UserCallbacks* devirtualize_callbacks;
     A64::Jit* jit_interface;
     BlockRangeInformation<u64> block_ranges;
+    /// Set while the block's If exit is emitted when the host flags hold the stored NZCV: as the
+    /// guest's, or as the FCMP's ucomis left them
+    enum class TerminalFlags { Guest, FCompare };
+    std::optional<TerminalFlags> terminal_flags;
+    /// The block's CheckBit exit tests ZF (set by a fused IsZero) instead of the stack byte
+    bool terminal_check_bit_in_zf = false;
 
     std::vector<FastDispatchTable*> fast_dispatch_tables;
     void ClearFastDispatchTable();
+
+    void PlanNZCVAtExits(A64EmitContext& ctx) const;
+    void EmitStoreNZCVFromHostFlags();
 
     void (*memory_read_128)();
     void (*memory_write_128)();
@@ -104,6 +120,9 @@ protected:
     void GenMemory128Accessors();
 
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks;
+    // 32/64-bit reads into an XMM register (vector loads), by (ordered, bitsize, vaddr, xmm)
+    std::map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks_xmm;
+    static constexpr bool has_xmm_read_fallbacks = true;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> write_fallbacks;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> exclusive_write_fallbacks;
     void GenFastmemFallbacks();
@@ -171,10 +190,9 @@ protected:
     void EmitTerminalImpl(IR::Term::CheckHalt terminal, IR::LocationDescriptor initial_location, bool is_single_step) override;
 
     // Patching
-    // Block links are changed while the code may run (on another core once the cache is
-    // shared). A link site is one jg/jz/jmp rel32 whose rel32 is 4-byte aligned, so linking and
-    // unlinking is one aligned store. Unlinked, it goes to a stub after the block that stores the
-    // target PC and returns to the dispatcher. The RSB `mov rcx, imm64` has its imm64 8-byte aligned.
+    // A link site is a jg/jz/jmp whose rel32 is 4-byte aligned, so linking and unlinking is one
+    // aligned store. Unlinked, it jumps to a stub after the block that stores the target PC and
+    // returns to the dispatcher. The imm64 of the RSB mov rcx is 8-byte aligned.
     struct PendingLinkStub {
         CodePtr site;
         u8* rel32;
@@ -187,6 +205,7 @@ protected:
     };
     std::vector<PendingLinkStub> pending_link_stubs;
     tsl::robin_map<CodePtr, LinkSite> link_sites;
+    bool OldLinkPatching() const { return (conf.test_variant & 128) != 0; }
     void EmitLinkSite(u8 condition_opcode, const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr);
     void EmitLinkStubs();
 

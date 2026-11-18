@@ -3459,7 +3459,7 @@ private:
 
     void VerifyRegisters();
 
-    /// Queued methods for the execute side, see DESIGN-gpu-split.md
+    /// Queued methods for the execute side
     std::vector<u32> stream;
     size_t stream_run_pos{};
     u32 stream_run_next{};

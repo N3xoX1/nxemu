@@ -183,6 +183,9 @@ public:
     /// Marks the render targets a draw writes, for the feedback loop checks of later draws.
     void MarkRenderTargetsWritten(u32 color_mask, bool depth);
 
+    /// Marks the color render target at `index` as cleared in the command buffer being recorded
+    void MarkColorTargetCleared(size_t index);
+
     /// Get the sampler from the graphics descriptor table in the specified index
     Sampler* GetGraphicsSampler(u32 index);
 
@@ -496,6 +499,10 @@ private:
     /// Execute copies from one image to the other, even if they are incompatible
     void CopyImage(ImageId dst_id, ImageId src_id, std::vector<ImageCopy> copies);
 
+    /// Scale copy regions to the host size when the source image is rescaled
+    void ScaleImageCopies(const ImageBase& dst, const ImageBase& src,
+                          std::vector<ImageCopy>& copies) const;
+
     /// Bind an image view as render target, downloading resources preemtively if needed
     void BindRenderTarget(ImageViewId* old_id, ImageViewId new_id);
 
@@ -537,8 +544,7 @@ private:
     RenderTargets render_targets;
 
     std::unordered_map<RenderTargets, FramebufferId> framebuffers;
-    /// Last framebuffer found by GetFramebuffer. Draws mostly keep their render targets,
-    /// so this skips the hash lookup. Cleared when framebuffers are removed.
+    /// Last framebuffer found by GetFramebuffer, cleared when framebuffers are removed
     RenderTargets last_framebuffer_key{};
     FramebufferId last_framebuffer_id{};
 

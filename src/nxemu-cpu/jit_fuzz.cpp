@@ -1,8 +1,10 @@
 // Differential test of the A64 JIT: random instruction sequences run on two JITs whose configs
 // differ only by UserConfig::test_variant; registers, flags, FPSR and memory writes must match.
-// Called from a script through the exported nxemu_jit_fuzz (no emulator needed).
+// Called from a script through the exported nxemu_jit_fuzz (no emulator needed). nxemu_jit_stress
+// runs cores that share a code cache while another thread invalidates their code.
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -12,6 +14,7 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -492,6 +495,259 @@ extern "C"
     for (size_t i = 0; i < top.size() && i < 25; i++) {
         std::fprintf(rep, "skip %6d %s\n", top[i].first, top[i].second.c_str());
     }
+    if (rep != stdout) {
+        std::fclose(rep);
+    }
+    return failed;
+}
+
+namespace {
+
+using s64 = std::int64_t;
+
+u32 EncAddImm(u32 rd, u32 rn, u32 imm) { return 0x91000000u | (imm & 0xFFF) << 10 | rn << 5 | rd; }
+u32 EncSubImm(u32 rd, u32 rn, u32 imm) { return 0xD1000000u | (imm & 0xFFF) << 10 | rn << 5 | rd; }
+u32 EncSubsImm(u32 rd, u32 rn, u32 imm) { return 0xF1000000u | (imm & 0xFFF) << 10 | rn << 5 | rd; }
+u32 EncAddShift(u32 rd, u32 rn, u32 rm, u32 shift, u32 amount) { return 0x8B000000u | shift << 22 | rm << 16 | amount << 10 | rn << 5 | rd; }
+u32 EncEorShift(u32 rd, u32 rn, u32 rm, u32 shift, u32 amount) { return 0xCA000000u | shift << 22 | rm << 16 | amount << 10 | rn << 5 | rd; }
+u32 EncMadd(u32 rd, u32 rn, u32 rm, u32 ra) { return 0x9B000000u | rm << 16 | ra << 10 | rn << 5 | rd; }
+u32 EncMovz(u32 rd, u32 imm, u32 hw) { return 0xD2800000u | hw << 21 | (imm & 0xFFFF) << 5 | rd; }
+u32 EncCbz(u32 rt, bool nz) { return (nz ? 0xB5000000u : 0xB4000000u) | rt; }
+u32 EncTbz(u32 rt, u32 bit, bool nz) { return (nz ? 0x37000000u : 0x36000000u) | (bit >> 5) << 31 | (bit & 31) << 19 | rt; }
+u32 EncBcond(u32 cond) { return 0x54000000u | cond; }
+u32 EncBl(s64 offset) { return 0x94000000u | (static_cast<u32>(offset / 4) & 0x3FFFFFF); }
+u32 EncAdr(u32 rd, s64 offset) {
+    const u32 imm = static_cast<u32>(offset) & 0x1FFFFF;
+    return 0x10000000u | (imm & 3) << 29 | (imm >> 2) << 5 | rd;
+}
+u32 EncBlr(u32 rn) { return 0xD63F0000u | rn << 5; }
+constexpr u32 ret_inst = 0xD65F03C0u;
+constexpr u32 cond_ne = 1;
+
+enum class StressOpKind { Plain, Call, Adr, Branch };
+
+struct StressOp {
+    StressOpKind kind;
+    u32 inst;    // Branch: CBZ, CBNZ, TBZ, TBNZ or B.cond with a zero offset
+    s64 target;  // Call, Adr: function; Branch: instructions forward
+};
+
+// main calls the functions X19 times; a function may call a later one and keeps its LR in
+// X(19 + function), so the calls nest without a stack
+struct StressProgram {
+    std::vector<u32> code;
+    std::vector<std::pair<u64, u64>> functions;  // start, size in bytes
+};
+
+StressProgram MakeStressProgram(std::mt19937_64& rng) {
+    const auto rnd = [&](u32 n) { return static_cast<u32>(rng() % n); };
+    const u32 function_count = 4 + rnd(5);
+    std::vector<std::vector<StressOp>> bodies(function_count + 1);
+    std::vector<size_t> limits(function_count + 1);  // last instruction a branch may reach
+
+    std::vector<StressOp>& main_body = bodies[0];
+    for (u32 i = 0, calls = 3 + rnd(6); i < calls; i++) {
+        const s64 function = 1 + rnd(function_count);
+        switch (rnd(3)) {
+        case 0:
+            main_body.push_back({StressOpKind::Call, 0, function});
+            break;
+        case 1:
+            main_body.push_back({StressOpKind::Adr, 0, function});
+            main_body.push_back({StressOpKind::Plain, EncBlr(13), 0});
+            break;
+        case 2:
+            main_body.push_back({StressOpKind::Branch, EncTbz(rnd(8), rnd(64), rnd(2) != 0), 2});
+            main_body.push_back({StressOpKind::Call, 0, function});
+            break;
+        }
+    }
+    limits[0] = main_body.size();
+    main_body.push_back({StressOpKind::Plain, EncSubsImm(19, 19, 1), 0});
+    main_body.push_back({StressOpKind::Plain, EncBcond(cond_ne) | (static_cast<u32>(-static_cast<s64>(main_body.size())) & 0x7FFFF) << 5, 0});
+    main_body.push_back({StressOpKind::Plain, svc0, 0});
+
+    for (u32 k = 1; k <= function_count; k++) {
+        std::vector<StressOp>& body = bodies[k];
+        const u32 lr_save = 19 + k;
+        const bool calls = k < function_count && rnd(2) != 0;
+        if (calls) {
+            body.push_back({StressOpKind::Plain, EncAddImm(lr_save, 30, 0), 0});
+        }
+        const u32 count = 3 + rnd(8);
+        const u32 call_at = calls ? rnd(count) : count;
+        for (u32 i = 0; i < count; i++) {
+            if (i == call_at) {
+                body.push_back({StressOpKind::Call, 0, k + 1 + rnd(function_count - k)});
+            }
+            const u32 rd = rnd(8), rn = rnd(8), rm = rnd(8);
+            const s64 skip = 2 + rnd(3);
+            switch (rnd(9)) {
+            case 0: body.push_back({StressOpKind::Plain, EncAddImm(rd, rn, rnd(4096)), 0}); break;
+            case 1: body.push_back({StressOpKind::Plain, EncSubImm(rd, rn, rnd(4096)), 0}); break;
+            case 2: body.push_back({StressOpKind::Plain, EncAddShift(rd, rn, rm, rnd(2), rnd(64)), 0}); break;
+            case 3: body.push_back({StressOpKind::Plain, EncEorShift(rd, rn, rm, rnd(2), rnd(64)), 0}); break;
+            case 4: body.push_back({StressOpKind::Plain, EncMadd(rd, rn, rm, rnd(8)), 0}); break;
+            case 5: body.push_back({StressOpKind::Plain, EncMovz(rd, rnd(65536), rnd(4)), 0}); break;
+            case 6: body.push_back({StressOpKind::Branch, EncCbz(rd, rnd(2) != 0), skip}); break;
+            case 7: body.push_back({StressOpKind::Branch, EncTbz(rd, rnd(64), rnd(2) != 0), skip}); break;
+            case 8:
+                body.push_back({StressOpKind::Plain, EncSubsImm(8, rn, rnd(4096)), 0});
+                body.push_back({StressOpKind::Branch, EncBcond(rnd(14)), skip});
+                break;
+            }
+        }
+        limits[k] = body.size();
+        if (calls) {
+            body.push_back({StressOpKind::Plain, EncAddImm(30, lr_save, 0), 0});
+        }
+        body.push_back({StressOpKind::Plain, ret_inst, 0});
+    }
+
+    std::vector<u64> starts(function_count + 1);
+    u64 address = code_base;
+    for (size_t k = 0; k < bodies.size(); k++) {
+        starts[k] = address;
+        address += 4 * bodies[k].size();
+    }
+    StressProgram program;
+    for (size_t k = 0; k < bodies.size(); k++) {
+        for (size_t i = 0; i < bodies[k].size(); i++) {
+            const StressOp& op = bodies[k][i];
+            const s64 here = static_cast<s64>(starts[k] + 4 * i);
+            u32 inst = op.inst;
+            if (op.kind == StressOpKind::Call) {
+                inst = EncBl(static_cast<s64>(starts[op.target]) - here);
+            } else if (op.kind == StressOpKind::Adr) {
+                inst = EncAdr(13, static_cast<s64>(starts[op.target]) - here);
+            } else if (op.kind == StressOpKind::Branch) {
+                const u32 offset = static_cast<u32>(std::min<s64>(op.target, static_cast<s64>(limits[k] - i)));
+                const bool test_bit = (inst & 0x7E000000u) == 0x36000000u;
+                inst |= (offset & (test_bit ? 0x3FFFu : 0x7FFFFu)) << 5;
+            }
+            program.code.push_back(inst);
+        }
+        if (k > 0) {
+            program.functions.push_back({starts[k], 4 * bodies[k].size()});
+        }
+    }
+    return program;
+}
+
+struct StressCore {
+    Env env;
+    u64 tpidr = 0, tpidrro = 0;
+    std::unique_ptr<A64::Jit> jit;
+
+    StressCore(const StressProgram& program, const void* share_key, u32 variant, bool cycle_counting, size_t processor_id) {
+        env.code = program.code;
+        A64::UserConfig conf;
+        conf.callbacks = &env;
+        conf.tpidr_el0 = &tpidr;
+        conf.tpidrro_el0 = &tpidrro;
+        conf.define_unpredictable_behaviour = true;
+        conf.enable_cycle_counting = cycle_counting;
+        conf.code_cache_size = 32 * 1024 * 1024;
+        conf.test_variant = variant;
+        conf.share_code_cache_key = share_key;
+        conf.processor_id = processor_id;
+        jit = std::make_unique<A64::Jit>(conf);
+        env.jit = jit.get();
+    }
+    void Start(u64 seed, u64 loops) {
+        for (size_t r = 0; r < 31; r++) {
+            jit->SetRegister(r, (seed + r) * 0x9E3779B97F4A7C15ull);
+        }
+        jit->SetRegister(19, loops);
+        jit->SetSP(0x80000);
+        jit->SetPC(code_base);
+    }
+    void RunToEnd() {
+        while (!env.done) {
+            jit->Run();
+        }
+    }
+    std::string Result() const {
+        std::string result;
+        for (size_t r = 0; r < 31; r++) {
+            result += std::to_string(jit->GetRegister(r)) + ",";
+        }
+        return result + std::to_string(jit->GetPC()) + "," + std::to_string(jit->GetPstate() >> 28) + (env.bad ? ",bad" : "");
+    }
+};
+
+}  // namespace
+
+// Cores sharing one code cache run the same program while this thread invalidates its functions,
+// clears the cache and halts cores; each core must end like a JIT of its own left alone.
+extern "C"
+#ifdef _WIN32
+    __declspec(dllexport)
+#endif
+        int nxemu_jit_stress(u64 seed, int rounds, int core_count, u32 variant, int clear_permille, const char* report_path) {
+    FILE* rep = report_path && *report_path ? std::fopen(report_path, "w") : stdout;
+    if (!rep) {
+        return -1;
+    }
+    static const int share_key = 0;
+    int failed = 0;
+    u64 invalidations = 0, clears = 0;
+    for (int round = 0; round < rounds; round++) {
+        std::mt19937_64 rng(seed * 0x9E3779B97F4A7C15ull + static_cast<u64>(round));
+        const StressProgram program = MakeStressProgram(rng);
+        const u64 loops = 50000 + rng() % 200000;
+        const bool cycle_counting = (round & 1) != 0;
+
+        std::vector<std::unique_ptr<StressCore>> cores;
+        for (int c = 0; c < core_count; c++) {
+            cores.push_back(std::make_unique<StressCore>(program, &share_key, variant, cycle_counting, c));
+            cores.back()->Start(seed + round * 16 + c, loops);
+        }
+        std::atomic<int> running{core_count};
+        std::vector<std::thread> threads;
+        for (int c = 0; c < core_count; c++) {
+            threads.emplace_back([&running, &core = *cores[c]] {
+                core.RunToEnd();
+                running--;
+            });
+        }
+        while (running.load() > 0) {
+            static const u64 spin_limits[] = {1000, 20000, 300000};
+            for (volatile u64 i = 0, spin = rng() % spin_limits[rng() % 3]; i < spin; i = i + 1) {
+            }
+            StressCore& target = *cores[rng() % core_count];
+            if (static_cast<int>(rng() % 1000) < clear_permille) {
+                target.jit->ClearCache();
+                clears++;
+            } else {
+                const std::pair<u64, u64>& function = program.functions[rng() % program.functions.size()];
+                target.jit->InvalidateCacheRange(function.first, function.second);
+                invalidations++;
+            }
+            if (rng() % 4 == 0) {
+                target.jit->HaltExecution(HaltReason::UserDefined1);
+            }
+        }
+        for (std::thread& thread : threads) {
+            thread.join();
+        }
+        for (int c = 0; c < core_count; c++) {
+            StressCore reference(program, nullptr, variant, cycle_counting, 0);
+            reference.Start(seed + round * 16 + c, loops);
+            reference.RunToEnd();
+            const std::string want = reference.Result(), got = cores[c]->Result();
+            if (want == got) {
+                continue;
+            }
+            failed++;
+            if (failed <= 20) {
+                std::fprintf(rep, "FAIL round %d core %d\n  want %s\n  got  %s\n", round, c, want.c_str(), got.c_str());
+                std::fflush(rep);
+            }
+        }
+    }
+    std::fprintf(rep, "stress seed %llu rounds %d cores %d variant %u clear %d: %d failed, %llu invalidations, %llu clears\n", (unsigned long long)seed,
+                 rounds, core_count, variant, clear_permille, failed, (unsigned long long)invalidations, (unsigned long long)clears);
     if (rep != stdout) {
         std::fclose(rep);
     }

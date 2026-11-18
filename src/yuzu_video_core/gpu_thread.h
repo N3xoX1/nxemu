@@ -95,7 +95,7 @@ struct CommandDataContainer {
 };
 
 /**
- * Work queue from the decode thread to the GPU thread, see DESIGN-gpu-split.md. The decode
+ * Work queue from the decode thread to the GPU thread. The decode
  * thread runs DmaPusher and the Maxwell3D decode side, everything that touches the rasterizer
  * runs on the GPU thread in queue order. Without the decode thread the work runs at once.
  */

@@ -902,11 +902,35 @@ void Maxwell3D::FrontHLEMacro(CachedMacro * program, const std::vector<u32> & pa
     ++hle_count;
     stream_writes_memory = true;
 
+    const auto effect_registers = program->FrontEffectRegisters();
+    if (!effect_registers.empty())
+    {
+        // Only execution knows whether an indirect draw falls back. Preserve its actual
+        // register effects rather than overwriting them with the decoder's prediction.
+        Publish(false);
+        auto copy_effects = [&] {
+            for (const u32 reg : effect_registers)
+            {
+                front_regs.reg_array[reg] = regs.reg_array[reg];
+            }
+        };
+        if (IsThreaded())
+        {
+            back_queue->RunExclusive(copy_effects);
+        }
+        else
+        {
+            copy_effects();
+        }
+        return;
+    }
+
     const bool threaded = IsThreaded();
     if ((threaded ? current_macro_payload : current_macro_dirty) &&
         program->FrontEffectsUseParameters())
     {
-        // The register effects need the parameters the GPU wrote
+        // The register effects need the parameters the GPU wrote. The call is published here.
+        ASSERT(program->FrontEffectRegisters().empty());
         Publish(false);
         std::vector<u32> refreshed(parameters.begin(), parameters.end());
         bool dirty = current_macro_dirty;

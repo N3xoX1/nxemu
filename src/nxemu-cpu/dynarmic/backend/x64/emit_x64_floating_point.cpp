@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <bit>
+#include <cmath>
 #include <cstdlib>
 #include <optional>
 #include <type_traits>
@@ -22,9 +24,8 @@
 #include "dynarmic/backend/x64/abi.h"
 #include "dynarmic/backend/x64/block_of_code.h"
 #include "dynarmic/backend/x64/constants.h"
-#include <cstdlib>
-
 #include "dynarmic/backend/x64/emit_x64.h"
+#include "dynarmic/backend/x64/stack_layout.h"
 #include "dynarmic/common/cast_util.h"
 #include "dynarmic/common/fp/fpcr.h"
 #include "dynarmic/common/fp/fpsr.h"
@@ -54,14 +55,6 @@ constexpr u64 f64_negative_zero = 0x8000000000000000u;
 constexpr u64 f64_nan = 0x7ff8000000000000u;
 constexpr u64 f64_non_sign_mask = 0x7fffffffffffffffu;
 constexpr u64 f64_smallest_normal = 0x0010000000000000u;
-
-constexpr u64 f64_min_s16 = 0xc0e0000000000000u;      // -32768 as a double
-constexpr u64 f64_max_s16 = 0x40dfffc000000000u;      // 32767 as a double
-constexpr u64 f64_min_u16 = 0x0000000000000000u;      // 0 as a double
-constexpr u64 f64_max_u16 = 0x40efffe000000000u;      // 65535 as a double
-constexpr u64 f64_max_s32 = 0x41dfffffffc00000u;      // 2147483647 as a double
-constexpr u64 f64_max_u32 = 0x41efffffffe00000u;      // 4294967295 as a double
-constexpr u64 f64_max_s64_lim = 0x43e0000000000000u;  // 2^63 as a double (actual maximum unrepresentable)
 
 #define FCODE(NAME)                  \
     [&code](auto... args) {          \
@@ -122,22 +115,6 @@ template<size_t fsize>
 void DenormalsAreZero(BlockOfCode& code, EmitContext& ctx, std::initializer_list<Xbyak::Xmm> to_daz) {
     if (ctx.FPCR().FZ()) {
         ForceDenormalsToZero<fsize>(code, to_daz);
-    }
-}
-
-template<size_t fsize>
-void ZeroIfNaN(BlockOfCode& code, Xbyak::Xmm xmm_value, Xbyak::Xmm xmm_scratch) {
-    if (code.HasHostFeature(HostFeature::AVX512_OrthoFloat)) {
-        constexpr u32 nan_to_zero = FixupLUT(FpFixup::PosZero,
-                                             FpFixup::PosZero);
-        FCODE(vfixupimms)(xmm_value, xmm_value, code.Const(ptr, u64(nan_to_zero)), u8(0));
-    } else if (code.HasHostFeature(HostFeature::AVX)) {
-        FCODE(vcmpords)(xmm_scratch, xmm_value, xmm_value);
-        FCODE(vandp)(xmm_value, xmm_value, xmm_scratch);
-    } else {
-        code.xorps(xmm_scratch, xmm_scratch);
-        FCODE(cmpords)(xmm_scratch, xmm_value);  // true mask when ordered (i.e.: when not an NaN)
-        code.pand(xmm_value, xmm_scratch);
     }
 }
 
@@ -1073,6 +1050,7 @@ static void EmitFPRecipStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* 
             const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
 
             code.movaps(result, code.Const(xword, FP::FPValue<FPT, false, 0, 2>()));
+            code.stmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
             FCODE(vfnmadd231s)(result, operand1, operand2);
             FCODE(ucomis)(result, result);
             code.jp(*fallback, code.T_NEAR);
@@ -1080,6 +1058,9 @@ static void EmitFPRecipStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* 
 
             ctx.deferred_emits.emplace_back([=, &code, &ctx] {
                 code.L(*fallback);
+                // The FP code sets the flags, so the host FMA's are dropped: IE for inf * 0, which
+                // FRECPS defines as exact, and OE.
+                code.ldmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
 
                 code.sub(rsp, 8);
                 ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
@@ -1137,13 +1118,14 @@ static void EmitFPRound(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, siz
     const auto round_imm = ConvertRoundingModeToX64Immediate(rounding_mode);
 
     if (fsize != 16 && code.HasHostFeature(HostFeature::SSE41) && round_imm && !exact) {
+        // Bit 3 suppresses the precision exception: only FRINTX (exact) raises IXC
         if (fsize == 64) {
             FPTwoOp<64>(code, ctx, inst, [&](Xbyak::Xmm result) {
-                code.roundsd(result, result, *round_imm);
+                code.roundsd(result, result, *round_imm | 0b1000);
             });
         } else {
             FPTwoOp<32>(code, ctx, inst, [&](Xbyak::Xmm result) {
-                code.roundss(result, result, *round_imm);
+                code.roundss(result, result, *round_imm | 0b1000);
             });
         }
 
@@ -1264,9 +1246,26 @@ static void EmitFPRSqrtEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* i
         const Xbyak::Xmm operand = ctx.reg_alloc.UseXmm(args[0]);
         const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
         const Xbyak::Xmm value = ctx.reg_alloc.ScratchXmm();
-        [[maybe_unused]] const Xbyak::Reg32 tmp = ctx.reg_alloc.ScratchGpr().cvt32();
+        const Xbyak::Reg64 tmp = ctx.reg_alloc.ScratchGpr();
 
         SharedLabel bad_values = GenSharedLabel(), end = GenSharedLabel();
+        SharedLabel restore_mxcsr = GenSharedLabel(), mxcsr_restored = GenSharedLabel();
+
+        // Detect NaNs, negatives, zeros, denormals and infinities: positive with an exponent in
+        // [1, max - 1]. An integer test: an FP compare of the rounded value below raised IE for
+        // +inf, which the rounding turns into a signalling NaN.
+        if constexpr (fsize == 32) {
+            code.movd(tmp.cvt32(), operand);
+            code.shr(tmp.cvt32(), 23);
+            code.sub(tmp.cvt32(), 1);
+            code.cmp(tmp.cvt32(), 0xFE - 1);
+        } else {
+            code.movq(tmp, operand);
+            code.shr(tmp, 52);
+            code.sub(tmp.cvt32(), 1);
+            code.cmp(tmp.cvt32(), 0x7FE - 1);
+        }
+        code.ja(*bad_values, code.T_NEAR);
 
         code.movaps(value, operand);
 
@@ -1274,120 +1273,43 @@ static void EmitFPRSqrtEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* i
         code.pand(value, xmm0);
         code.por(value, code.Const(xword, fsize == 32 ? 0x00008000 : 0x0000'1000'0000'0000));
 
-        // Detect NaNs, negatives, zeros, denormals and infinities
-        FCODE(ucomis)(value, code.Const(xword, FPT(1) << FP::FPInfo<FPT>::explicit_mantissa_width));
-        code.jna(*bad_values, code.T_NEAR);
-
+        // The host sqrt/div raise inexact, but FPRSqrtEstimate raises nothing for a normal positive
+        // input. Normal inputs cannot overflow or underflow here, so inexact is the only flag. It is
+        // sticky, so MXCSR is only restored (in cold code) when inexact was clear before.
+        code.stmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
         FCODE(sqrts)(value, value);
         ICODE(mov)(result, code.Const(xword, FP::FPValue<FPT, false, 0, 1>()));
         FCODE(divs)(result, value);
+        code.test(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)], 0x20);  // PE
+        code.jz(*restore_mxcsr, code.T_NEAR);
+        code.L(*mxcsr_restored);
 
         ICODE(padd)(result, code.Const(xword, fsize == 32 ? 0x00004000 : 0x0000'0800'0000'0000));
         code.pand(result, xmm0);
 
         code.L(*end);
 
+        // Zeros, negatives, NaNs, infinities and denormals call the FP code. Built inline they
+        // missed DZC for a zero, IOC for a negative or a signalling NaN, and IDC under FZ
+        // (rsqrtss raises nothing).
+        ctx.deferred_emits.emplace_back([=, &code] {
+            code.L(*restore_mxcsr);
+            code.ldmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
+            code.jmp(*mxcsr_restored, code.T_NEAR);
+        });
+
         ctx.deferred_emits.emplace_back([=, &code, &ctx] {
-            Xbyak::Label fallback, default_nan;
-            bool needs_fallback = false;
-
             code.L(*bad_values);
-            if constexpr (fsize == 32) {
-                code.movd(tmp, operand);
-
-                if (!ctx.FPCR().FZ()) {
-                    if (ctx.FPCR().DN()) {
-                        // a > 0x80000000
-                        code.cmp(tmp, 0x80000000);
-                        code.ja(default_nan, code.T_NEAR);
-                    }
-
-                    // a > 0 && a < 0x00800000;
-                    code.sub(tmp, 1);
-                    code.cmp(tmp, 0x007FFFFF);
-                    code.jb(fallback);
-                    needs_fallback = true;
-                }
-
-                code.rsqrtss(result, operand);
-
-                if (ctx.FPCR().DN()) {
-                    code.ucomiss(result, result);
-                    code.jnp(*end, code.T_NEAR);
-                } else {
-                    // FZ ? (a >= 0x80800000 && a <= 0xFF800000) : (a >= 0x80000001 && a <= 0xFF800000)
-                    // !FZ path takes into account the subtraction by one from the earlier block
-                    code.add(tmp, ctx.FPCR().FZ() ? 0x7F800000 : 0x80000000);
-                    code.cmp(tmp, ctx.FPCR().FZ() ? 0x7F000001 : 0x7F800000);
-                    code.jnb(*end, code.T_NEAR);
-                }
-
-                code.L(default_nan);
-                code.movd(result, code.Const(xword, 0x7FC00000));
-                code.jmp(*end, code.T_NEAR);
-            } else {
-                Xbyak::Label nan, zero;
-
-                code.movaps(value, operand);
-                DenormalsAreZero<fsize>(code, ctx, {value});
-                code.pxor(result, result);
-
-                code.ucomisd(value, result);
-                if (ctx.FPCR().DN()) {
-                    code.jc(default_nan);
-                    code.je(zero);
-                } else {
-                    code.jp(nan);
-                    code.je(zero);
-                    code.jc(default_nan);
-                }
-
-                if (!ctx.FPCR().FZ()) {
-                    needs_fallback = true;
-                    code.jmp(fallback);
-                } else {
-                    // result = 0
-                    code.jmp(*end, code.T_NEAR);
-                }
-
-                code.L(zero);
-                if (code.HasHostFeature(HostFeature::AVX)) {
-                    code.vpor(result, value, code.Const(xword, 0x7FF0'0000'0000'0000));
-                } else {
-                    code.movaps(result, value);
-                    code.por(result, code.Const(xword, 0x7FF0'0000'0000'0000));
-                }
-                code.jmp(*end, code.T_NEAR);
-
-                code.L(nan);
-                if (!ctx.FPCR().DN()) {
-                    if (code.HasHostFeature(HostFeature::AVX)) {
-                        code.vpor(result, operand, code.Const(xword, 0x0008'0000'0000'0000));
-                    } else {
-                        code.movaps(result, operand);
-                        code.por(result, code.Const(xword, 0x0008'0000'0000'0000));
-                    }
-                    code.jmp(*end, code.T_NEAR);
-                }
-
-                code.L(default_nan);
-                code.movq(result, code.Const(xword, 0x7FF8'0000'0000'0000));
-                code.jmp(*end, code.T_NEAR);
-            }
-
-            code.L(fallback);
-            if (needs_fallback) {
-                code.sub(rsp, 8);
-                ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
-                code.movq(code.ABI_PARAM1, operand);
-                code.mov(code.ABI_PARAM2.cvt32(), ctx.FPCR().Value());
-                code.lea(code.ABI_PARAM3, code.ptr[code.r15 + code.GetJitStateInfo().offsetof_fpsr_exc]);
-                code.CallFunction(&FP::FPRSqrtEstimate<FPT>);
-                code.movq(result, rax);
-                ABI_PopCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
-                code.add(rsp, 8);
-                code.jmp(*end, code.T_NEAR);
-            }
+            code.sub(rsp, 8);
+            ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
+            code.movq(code.ABI_PARAM1, operand);
+            code.mov(code.ABI_PARAM2.cvt32(), ctx.FPCR().Value());
+            code.lea(code.ABI_PARAM3, code.ptr[code.r15 + code.GetJitStateInfo().offsetof_fpsr_exc]);
+            code.CallFunction(&FP::FPRSqrtEstimate<FPT>);
+            code.movq(result, rax);
+            ABI_PopCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
+            code.add(rsp, 8);
+            code.jmp(*end, code.T_NEAR);
         });
 
         ctx.reg_alloc.DefineValue(inst, result);
@@ -1440,6 +1362,7 @@ static void EmitFPRSqrtStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* 
             const Xbyak::Xmm result = ctx.reg_alloc.ScratchXmm();
 
             code.vmovaps(result, code.Const(xword, FP::FPValue<FPT, false, 0, 3>()));
+            code.stmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
             FCODE(vfnmadd231s)(result, operand1, operand2);
 
             // Detect if the intermediate result is infinity or NaN or nearly an infinity.
@@ -1459,6 +1382,9 @@ static void EmitFPRSqrtStepFused(BlockOfCode& code, EmitContext& ctx, IR::Inst* 
 
             ctx.deferred_emits.emplace_back([=, &code, &ctx] {
                 code.L(*fallback);
+                // The FP code sets the flags, so the host FMA's are dropped: IE for inf * 0, which
+                // FRSQRTS defines as exact, and OE from before FRSQRTS halves the result.
+                code.ldmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
 
                 code.sub(rsp, 8);
                 ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(result.getIdx()));
@@ -1528,7 +1454,7 @@ void EmitX64::EmitFPSub64(EmitContext& ctx, IR::Inst* inst) {
 }
 
 static Xbyak::Reg64 SetFpscrNzcvFromFlags(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
-    if ((jit_test_variant & 8) == 0) {
+    if (ctx.reuse_host_flags) {
         // Picks the NZCV with moves and cmovs, which leave the host flags as ucomis set
         // them: a side exit or CSEL on this NZCV right after can jump on them directly.
         //   unordered ZF PF CF = 1 1 1 -> 0x0101, equal ZF -> 0x4100, less CF -> 0x8000,
@@ -1567,9 +1493,13 @@ static Xbyak::Reg64 SetFpscrNzcvFromFlags(BlockOfCode& code, EmitContext& ctx, I
 
     code.mov(nzcv, 0x0101'4100'8000'0100);
     code.sete(cl);
-    // rcl with a count above 1 is microcoded; adc + shl are simple ops.
-    code.adc(cl, cl);  // cl = ZF:CF
-    code.shl(cl, 4);   // cl = ZF:CF:0000
+    if (BaselineCodegen()) {
+        code.rcl(cl, 5);  // cl = ZF:CF:0000
+    } else {
+        // rcl with a count above 1 is microcoded; adc + shl are simple ops.
+        code.adc(cl, cl);  // cl = ZF:CF
+        code.shl(cl, 4);   // cl = ZF:CF:0000
+    }
     code.shr(nzcv, cl);
 
     return nzcv;
@@ -1754,6 +1684,30 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
     const size_t fbits = args[1].GetImmediateU8();
     const auto rounding_mode = static_cast<FP::RoundingMode>(args[2].GetImmediateU8());
 
+    using fbits_list = mp::lift_sequence<std::make_index_sequence<isize + 1>>;
+    using rounding_list = mp::list<
+        mp::lift_value<FP::RoundingMode::ToNearest_TieEven>,
+        mp::lift_value<FP::RoundingMode::TowardsPlusInfinity>,
+        mp::lift_value<FP::RoundingMode::TowardsMinusInfinity>,
+        mp::lift_value<FP::RoundingMode::TowardsZero>,
+        mp::lift_value<FP::RoundingMode::ToNearest_TieAwayFromZero>>;
+
+    static const auto lut = Common::GenerateLookupTableFromList(
+        []<typename I>(I) {
+            return std::pair{
+                mp::lower_to_tuple_v<I>,
+                Common::FptrCast(
+                    [](u64 input, FP::FPSR& fpsr, FP::FPCR fpcr) {
+                        constexpr size_t fbits = mp::get<0, I>::value;
+                        constexpr FP::RoundingMode rounding_mode = mp::get<1, I>::value;
+                        using FPT = mcl::unsigned_integer_of_size<fsize>;
+
+                        return FP::FPToFixed<FPT>(isize, static_cast<FPT>(input), fbits, unsigned_, fpcr, rounding_mode, fpsr);
+                    })};
+        },
+        mp::cartesian_product<fbits_list, rounding_list>{});
+    const auto fallback = lut.at(std::make_tuple(fbits, rounding_mode));
+
     if constexpr (fsize != 16) {
         const auto round_imm = ConvertRoundingModeToX64Immediate(rounding_mode);
 
@@ -1761,8 +1715,33 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
         const bool truncating = rounding_mode == FP::RoundingMode::TowardsZero;
 
         if (round_imm && (truncating || code.HasHostFeature(HostFeature::SSE41))) {
+            // The fast path takes only inputs whose result is in range in every rounding mode,
+            // lo <= x <= hi (the integer limits scaled by 2^-fbits and rounded inwards to
+            // representable values). There the host conversion is exact and raises only inexact,
+            // which becomes IXC, as in FPToFixed. NaN, out of range values and negative values for
+            // unsigned go to the FP code, which saturates and sets IOC (clamping inline set no
+            // flags). Unsigned 64-bit results of 2^63 or more also take the FP code, so cvttsd2si
+            // never raises a spurious invalid.
+            using FPT = mcl::unsigned_integer_of_size<fsize>;
+            using F = std::conditional_t<fsize == 64, double, float>;
+            constexpr int precision = fsize == 64 ? 53 : 24;
+            constexpr int k = unsigned_ ? (isize == 64 ? 63 : int(isize)) : int(isize) - 1;  // fast results below 2^k
+            const int scale = -static_cast<int>(fbits);
+            const F lo = unsigned_ ? F(0) : std::ldexp(F(-1), k + scale);
+            const F hi = k <= precision ? std::ldexp(static_cast<F>((u64(1) << k) - 1), scale)
+                                        : std::nextafter(std::ldexp(F(1), k + scale), F(0));
+
             const Xbyak::Xmm src = ctx.reg_alloc.UseScratchXmm(args[0]);
+            const Xbyak::Xmm original = ctx.reg_alloc.ScratchXmm();
             const Xbyak::Reg64 result = ctx.reg_alloc.ScratchGpr().cvt64();
+            const u32 fpcr_value = ctx.FPCR().Value();
+            SharedLabel slow = GenSharedLabel(), end = GenSharedLabel();
+
+            code.movaps(original, src);
+            FCODE(ucomis)(src, code.Const(xword, std::bit_cast<FPT>(lo)));
+            code.jb(*slow, code.T_NEAR);  // below lo, or unordered (NaN)
+            FCODE(ucomis)(src, code.Const(xword, std::bit_cast<FPT>(hi)));
+            code.ja(*slow, code.T_NEAR);
 
             if constexpr (fsize == 64) {
                 if (fbits != 0) {
@@ -1786,72 +1765,30 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
                 code.cvtss2sd(src, src);
             }
 
-            if constexpr (isize == 64) {
-                const Xbyak::Xmm scratch = ctx.reg_alloc.ScratchXmm();
-
-                if (!unsigned_) {
-                    SharedLabel saturate_max = GenSharedLabel(), end = GenSharedLabel();
-
-                    ZeroIfNaN<64>(code, src, scratch);
-
-                    code.movsd(scratch, code.Const(xword, f64_max_s64_lim));
-                    code.comisd(scratch, src);
-                    code.jna(*saturate_max, code.T_NEAR);
-                    code.cvttsd2si(result, src);  // 64 bit gpr
-                    code.L(*end);
-
-                    ctx.deferred_emits.emplace_back([=, &code] {
-                        code.L(*saturate_max);
-                        code.mov(result, 0x7FFF'FFFF'FFFF'FFFF);
-                        code.jmp(*end, code.T_NEAR);
-                    });
-                } else {
-                    Xbyak::Label below_max;
-
-                    const Xbyak::Reg64 result2 = ctx.reg_alloc.ScratchGpr().cvt64();
-
-                    code.pxor(xmm0, xmm0);
-
-                    code.movaps(scratch, src);
-                    code.subsd(scratch, code.Const(xword, f64_max_s64_lim));
-
-                    // these both result in zero if src/scratch are NaN
-                    code.maxsd(src, xmm0);
-                    code.maxsd(scratch, xmm0);
-
-                    code.cvttsd2si(result, src);
-                    code.cvttsd2si(result2, scratch);
-                    code.or_(result, result2);
-
-                    // when src < 2^63, result2 == 0, and result contains the final result
-                    // when src >= 2^63, result contains 0x800.... and result2 contains the non-MSB bits
-                    // MSB if result2 is 1 when src >= 2^64
-
-                    code.sar(result2, 63);
-                    code.or_(result, result2);
-                }
-            } else if constexpr (isize == 32) {
-                if (!unsigned_) {
-                    const Xbyak::Xmm scratch = ctx.reg_alloc.ScratchXmm();
-
-                    ZeroIfNaN<64>(code, src, scratch);
-                    code.minsd(src, code.Const(xword, f64_max_s32));
-                    // maxsd not required as cvttsd2si results in 0x8000'0000 when out of range
-                    code.cvttsd2si(result.cvt32(), src);  // 32 bit gpr
-                } else {
-                    code.pxor(xmm0, xmm0);
-                    code.maxsd(src, xmm0);  // results in a zero if src is NaN
-                    code.minsd(src, code.Const(xword, f64_max_u32));
-                    code.cvttsd2si(result, src);  // 64 bit gpr
-                }
+            if constexpr (isize == 32 && !unsigned_) {
+                code.cvttsd2si(result.cvt32(), src);  // 32 bit gpr
             } else {
-                const Xbyak::Xmm scratch = ctx.reg_alloc.ScratchXmm();
-
-                ZeroIfNaN<64>(code, src, scratch);
-                code.maxsd(src, code.Const(xword, unsigned_ ? f64_min_u16 : f64_min_s16));
-                code.minsd(src, code.Const(xword, unsigned_ ? f64_max_u16 : f64_max_s16));
                 code.cvttsd2si(result, src);  // 64 bit gpr
             }
+            code.L(*end);
+
+            ctx.deferred_emits.emplace_back([=, &code] {
+                code.L(*slow);
+                code.sub(rsp, 8);
+                ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocRegIdx(result.getIdx()));
+                if constexpr (fsize == 64) {
+                    code.movq(code.ABI_PARAM1, original);
+                } else {
+                    code.movd(code.ABI_PARAM1.cvt32(), original);
+                }
+                code.lea(code.ABI_PARAM2, code.ptr[code.r15 + code.GetJitStateInfo().offsetof_fpsr_exc]);
+                code.mov(code.ABI_PARAM3.cvt32(), fpcr_value);
+                code.CallFunction(fallback);
+                code.mov(result, code.ABI_RETURN);
+                ABI_PopCallerSaveRegistersAndAdjustStackExcept(code, HostLocRegIdx(result.getIdx()));
+                code.add(rsp, 8);
+                code.jmp(*end, code.T_NEAR);
+            });
 
             ctx.reg_alloc.DefineValue(inst, result);
 
@@ -1859,33 +1796,10 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
         }
     }
 
-    using fbits_list = mp::lift_sequence<std::make_index_sequence<isize + 1>>;
-    using rounding_list = mp::list<
-        mp::lift_value<FP::RoundingMode::ToNearest_TieEven>,
-        mp::lift_value<FP::RoundingMode::TowardsPlusInfinity>,
-        mp::lift_value<FP::RoundingMode::TowardsMinusInfinity>,
-        mp::lift_value<FP::RoundingMode::TowardsZero>,
-        mp::lift_value<FP::RoundingMode::ToNearest_TieAwayFromZero>>;
-
-    static const auto lut = Common::GenerateLookupTableFromList(
-        []<typename I>(I) {
-            return std::pair{
-                mp::lower_to_tuple_v<I>,
-                Common::FptrCast(
-                    [](u64 input, FP::FPSR& fpsr, FP::FPCR fpcr) {
-                        constexpr size_t fbits = mp::get<0, I>::value;
-                        constexpr FP::RoundingMode rounding_mode = mp::get<1, I>::value;
-                        using FPT = mcl::unsigned_integer_of_size<fsize>;
-
-                        return FP::FPToFixed<FPT>(isize, static_cast<FPT>(input), fbits, unsigned_, fpcr, rounding_mode, fpsr);
-                    })};
-        },
-        mp::cartesian_product<fbits_list, rounding_list>{});
-
     ctx.reg_alloc.HostCall(inst, args[0]);
     code.lea(code.ABI_PARAM2, code.ptr[code.r15 + code.GetJitStateInfo().offsetof_fpsr_exc]);
     code.mov(code.ABI_PARAM3.cvt32(), ctx.FPCR().Value());
-    code.CallFunction(lut.at(std::make_tuple(fbits, rounding_mode)));
+    code.CallFunction(fallback);
 }
 
 void EmitX64::EmitFPDoubleToFixedS16(EmitContext& ctx, IR::Inst* inst) {

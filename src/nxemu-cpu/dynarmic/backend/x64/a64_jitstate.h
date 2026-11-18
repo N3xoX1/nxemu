@@ -68,7 +68,7 @@ struct A64JitState {
     void SetFpcr(u32 value);
     void SetFpsr(u32 value);
 
-    // Per-core context read by run code, so emitted code does not embed one core's objects.
+    // Per-core context read by the emitted code, so it does not embed one core's objects.
     // Set by Jit::Impl and kept across Reset.
     u64 core_callbacks = 0;            // A64::UserCallbacks*
     u64 core_lookup_arg = 0;           // Jit::Impl*, argument of the dispatcher's LookupBlock

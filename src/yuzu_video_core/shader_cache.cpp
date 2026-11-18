@@ -140,7 +140,7 @@ void ShaderCache::Register(std::unique_ptr<ShaderInfo> data, VAddr addr, size_t 
     std::scoped_lock lock{invalidation_mutex, lookup_mutex};
 
     const VAddr addr_end = addr + size;
-    // Before the entry is visible: invalidations skip the pages without a shader
+    // Before the entry is visible, so an invalidation never skips its pages
     device_memory.RegisterFlushCacheRegion(addr, size, VideoCommon::CacheType::ShaderCache);
     Entry* const entry = NewEntry(addr, addr_end, data.get());
 
