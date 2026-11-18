@@ -316,19 +316,36 @@ void BlockOfCode::ClearCache() {
     far_current = far_begin;
 }
 
-size_t BlockOfCode::SpaceRemaining() const {
+size_t BlockOfCode::NearSpaceRemaining() const {
     ASSERT(prelude_complete);
     const u8* current_ptr = near_saved ? near_saved : getCurr<const u8*>();
     const u8* const near_end = far_begin ? far_begin : &top_[maxSize_];
-    if (current_ptr >= near_end)
-        return 0;
-    const size_t near_remaining = static_cast<size_t>(near_end - current_ptr);
+    return current_ptr >= near_end ? 0 : static_cast<size_t>(near_end - current_ptr);
+}
+
+size_t BlockOfCode::FarSpaceRemaining() const {
+    ASSERT(prelude_complete);
     if (!far_begin) {
-        return near_remaining;
+        return 0;
     }
     const u8* const far_ptr = near_saved ? getCurr<const u8*>() : far_current;
-    const size_t far_remaining = far_ptr >= &top_[maxSize_] ? 0 : static_cast<size_t>(&top_[maxSize_] - far_ptr);
-    return std::min(near_remaining, far_remaining);
+    return far_ptr >= &top_[maxSize_] ? 0 : static_cast<size_t>(&top_[maxSize_] - far_ptr);
+}
+
+size_t BlockOfCode::SpaceRemaining() const {
+    const size_t near_remaining = NearSpaceRemaining();
+    return far_begin ? std::min(near_remaining, FarSpaceRemaining()) : near_remaining;
+}
+
+bool BlockOfCode::SpaceLow(size_t divisor) const {
+    // Each area against its own size: the cold one fills at its own pace, and running out of
+    // it alone must not empty a hot area that still has room.
+    const u8* const near_end = far_begin ? far_begin : &top_[maxSize_];
+    const size_t near_size = static_cast<size_t>(near_end - code_begin);
+    if (NearSpaceRemaining() < near_size / divisor) {
+        return true;
+    }
+    return far_begin && FarSpaceRemaining() < far_size / divisor;
 }
 
 void BlockOfCode::EnsureMemoryCommitted([[maybe_unused]] size_t codesize) {

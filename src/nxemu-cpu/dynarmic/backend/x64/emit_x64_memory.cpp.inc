@@ -105,12 +105,27 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
 
     if (fastmem_marker) {
         // Use fastmem
-        bool require_abort_handling;
+        bool require_abort_handling = false;
         const auto src_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
 
         const auto location = EmitReadMemoryMov<bitsize>(code, value_idx, src_ptr, ordered);
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
+            if (!require_abort_handling && !conf.check_halt_on_memory_access) {
+                // Only a fault reaches the fallback: the handler calls it and returns straight
+                // to the hot code, so the access needs nothing in the cold area
+                const Xbyak::Label& resume = *end;
+                ASSERT(resume.getAddress() != nullptr);
+                fastmem_patch_info.emplace(
+                    mcl::bit_cast<u64>(location),
+                    FastmemPatchInfo{
+                        mcl::bit_cast<u64>(resume.getAddress()),
+                        mcl::bit_cast<u64>(wrapped_fn),
+                        *fastmem_marker,
+                        conf.recompile_on_fastmem_failure,
+                    });
+                return;
+            }
             code.L(*abort);
             code.call(wrapped_fn);
 
@@ -200,7 +215,7 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
 
     if (fastmem_marker) {
         // Use fastmem
-        bool require_abort_handling;
+        bool require_abort_handling = false;
         const auto dest_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
 
         const auto location = EmitWriteMemoryMov<bitsize>(code, dest_ptr, value_idx, ordered);
@@ -218,6 +233,21 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
         }
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
+            if (!require_abort_handling && !conf.check_halt_on_memory_access) {
+                // Only a fault reaches the fallback: the handler calls it and returns straight
+                // to the hot code, so the access needs nothing in the cold area
+                const Xbyak::Label& resume = marks_group ? *track : *end;
+                ASSERT(resume.getAddress() != nullptr);
+                fastmem_patch_info.emplace(
+                    mcl::bit_cast<u64>(location),
+                    FastmemPatchInfo{
+                        mcl::bit_cast<u64>(resume.getAddress()),
+                        mcl::bit_cast<u64>(wrapped_fn),
+                        *fastmem_marker,
+                        conf.recompile_on_fastmem_failure,
+                    });
+                return;
+            }
             code.L(*abort);
             code.call(wrapped_fn);
 

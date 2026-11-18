@@ -237,6 +237,11 @@ void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xby
 
     ctx.deferred_emits.emplace_back([=, &code] {
         code.L(*mark);
+        if (const void* thunk = code.write_mark_thunks[page.getIdx() * 17 + (map ? map->getIdx() : 16)]) {
+            code.call(thunk);
+            code.jmp(*marked, code.T_NEAR);
+            return;
+        }
         if (map) {
             code.mov(code.byte[*map + page], 1);
             code.shr(page, 9);

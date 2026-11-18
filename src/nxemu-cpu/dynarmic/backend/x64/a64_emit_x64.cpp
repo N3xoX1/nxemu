@@ -57,8 +57,10 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
     GenMemory128Accessors();
     GenFastmemFallbacks();
     GenTerminalHandlers();
-    // A quarter of the cache for the cold code of the blocks (fallbacks and link stubs)
-    code.ReserveFarCode(conf.code_cache_size / 4);
+    GenWriteMarkThunks();
+    // Half of the cache for the cold code of the blocks (fallbacks and link stubs): in TOTK
+    // it emptied the whole cache when it held a quarter
+    code.ReserveFarCode(conf.code_cache_size / 2);
     code.PreludeComplete();
     ClearFastDispatchTable();
 
@@ -335,6 +337,46 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     block_ranges.AddRange(range, descriptor);
 
     return RegisterBlock(descriptor, entrypoint, size);
+}
+
+// The marking of a page is rare and the same for every write of a register pair: the cold
+// code of a write only calls it.
+void A64EmitX64::GenWriteMarkThunks() {
+    if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
+        return;
+    }
+    // As WriteTrackMapIsLow: the whole map below 2 GiB, addressed without a base register
+    const bool low = reinterpret_cast<u64>(conf.write_track_map) + conf.write_track_l1_offset + (u64{1} << 20) < (u64{1} << 31);
+    const u32 l2_offset = conf.write_track_l2_offset;
+    const u32 l1_offset = conf.write_track_l1_offset;
+    const u32 low_base = static_cast<u32>(reinterpret_cast<u64>(conf.write_track_map));
+    for (int p = 0; p < 16; ++p) {
+        if (p == 4) {
+            continue;  // rsp
+        }
+        const Xbyak::Reg64 page{p};
+        for (int m = 0; m <= 16; ++m) {
+            if (m == 16 ? !low : (low || m == p || m == 4)) {
+                continue;
+            }
+            code.write_mark_thunks[p * 17 + m] = code.getCurr();
+            if (m == 16) {
+                code.mov(code.byte[page + low_base], 1);
+                code.shr(page, 9);
+                code.mov(code.byte[page + (low_base + l2_offset)], 1);
+                code.shr(page, 9);
+                code.mov(code.byte[page + (low_base + l1_offset)], 1);
+            } else {
+                const Xbyak::Reg64 map{m};
+                code.mov(code.byte[map + page], 1);
+                code.shr(page, 9);
+                code.mov(code.byte[map + page + l2_offset], 1);
+                code.shr(page, 9);
+                code.mov(code.byte[map + page + l1_offset], 1);
+            }
+            code.ret();
+        }
+    }
 }
 
 void A64EmitX64::ClearCache() {

@@ -380,7 +380,9 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     config.code_cache_size = 128_MiB;
 #else
-    config.code_cache_size = 512_MiB;
+    // Only the emitted code takes memory. A full cache is emptied, and every core then
+    // compiles its code again: a second or more at a few fps. Jumps inside it stay in rel32.
+    config.code_cache_size = 1024_MiB;
 #endif
 
     // Allow memory fault handling to work

@@ -115,6 +115,7 @@ protected:
     void EmitInlineLocationDescriptor();
     FastDispatchEntry& (*fast_dispatch_table_lookup)(u64, FastDispatchEntry*) = nullptr;
     void GenTerminalHandlers();
+    void GenWriteMarkThunks();
 
     // Microinstruction emitters
     void EmitPushRSB(EmitContext& ctx, IR::Inst* inst);

@@ -447,7 +447,7 @@ private:
         // The cache can only be cleared once every core is out of JIT code, so the clear is
         // requested early and the compilation goes on in the space that is left.
         constexpr size_t MINIMUM_REMAINING_CODESIZE = 1 * 1024 * 1024;
-        if (block_of_code.SpaceRemaining() < shared->conf.code_cache_size / 8 && !shared->clear_pending.load()) {
+        if (block_of_code.SpaceLow(8) && !shared->clear_pending.load()) {
             shared->RequestClear();
         }
         ASSERT_MSG(block_of_code.SpaceRemaining() >= MINIMUM_REMAINING_CODESIZE, "JIT code cache full");
