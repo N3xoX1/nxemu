@@ -259,7 +259,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, DrawArguments arguments, Fun
             return;
         }
         // Skipping a draw whose pipeline is still compiling only hides it until a later frame
-        // draws it again. A target never drawn in an earlier frame may be drawn only this once
+        // draws it again. A target not drawn in most recent frames may be drawn only this once
         // (a texture the game renders once and keeps), so the draw waits for its pipeline.
         bool drawn_before{};
         {
