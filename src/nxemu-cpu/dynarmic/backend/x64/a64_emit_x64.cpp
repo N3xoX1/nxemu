@@ -78,6 +78,7 @@ static bool IsHostFlagNeutral(const IR::Inst& inst, bool vector_moves) {
     switch (inst.GetOpcode()) {
     case IR::Opcode::Void:
     case IR::Opcode::A64SetNZCVAtExits:
+    case IR::Opcode::A64SetRegAtExits:
     case IR::Opcode::A64GetW:
     case IR::Opcode::A64GetX:
     case IR::Opcode::A64GetSP:
@@ -193,6 +194,78 @@ void A64EmitX64::PlanNZCVAtExits(A64EmitContext& ctx) const {
     }
 }
 
+// A block that runs past conditional branches (side exits) stores every write of a guest
+// register before each exit, so a register written between several exits is stored several
+// times on the hot path. A SetW/SetX followed by a later write of the same register, with only
+// side exits in between that could see it, becomes A64SetRegAtExits: the hot path stores just
+// the last write, and each side exit in between stores the value from wherever it is at that
+// exit. The value stays live until after the last of those exits (A64SetRegAtExits uses it
+// there), so its host location is still its own at every exit.
+void A64EmitX64::PlanRegistersAtExits(A64EmitContext& ctx) const {
+    IR::Block& block = ctx.block;
+    const auto is_set = [](const IR::Inst& inst) {
+        return inst.GetOpcode() == IR::Opcode::A64SetW || inst.GetOpcode() == IR::Opcode::A64SetX;
+    };
+    const auto is_get = [](const IR::Inst& inst) {
+        return inst.GetOpcode() == IR::Opcode::A64GetW || inst.GetOpcode() == IR::Opcode::A64GetX;
+    };
+    for (auto it = block.begin(); it != block.end(); ++it) {
+        IR::Inst& set = *it;
+        if (!is_set(set)) {
+            continue;
+        }
+        const A64::Reg reg = set.GetArg(0).GetA64RegRef();
+        std::vector<const IR::Inst*> exits;
+        bool ok = true;
+        bool replaced = false;
+        for (auto next = std::next(it); next != block.end(); ++next) {
+            const IR::Inst& inst = *next;
+            const IR::Opcode op = inst.GetOpcode();
+            if (is_set(inst) && inst.GetArg(0).GetA64RegRef() == reg) {
+                replaced = true;
+                break;
+            }
+            if (is_get(inst) && inst.GetArg(0).GetA64RegRef() == reg) {
+                ok = false;  // reads it back from the JIT state
+                break;
+            }
+            if (op == IR::Opcode::A64SideExit) {
+                exits.push_back(&inst);
+                continue;
+            }
+            if (inst.CausesCPUException() || op == IR::Opcode::A64CallSupervisor || op == IR::Opcode::A64ExceptionRaised
+                || op == IR::Opcode::CallHostFunction || op == IR::Opcode::A64DataCacheOperationRaised
+                || op == IR::Opcode::A64InstructionCacheOperationRaised) {
+                ok = false;  // something outside the block may look at the guest state
+                break;
+            }
+        }
+        if (!ok || !replaced || exits.empty()) {
+            continue;
+        }
+
+        const IR::Value value = set.GetArg(1);
+        const bool is_w = set.GetOpcode() == IR::Opcode::A64SetW;
+        const EmitContext::SetAtExit pending{
+            offsetof(A64JitState, reg) + sizeof(u64) * static_cast<size_t>(reg),
+            is_w,
+            is_w && GprZeroExtended32(value),
+            value.IsImmediate() ? value : IR::Value(value.GetInstRecursive()),
+        };
+        for (const IR::Inst* exit : exits) {
+            ctx.sets_at_exits[exit].push_back(pending);
+        }
+        // The write moves to just after the last of its exits, as A64SetRegAtExits: its use of
+        // the value keeps the value's host location until then, and it emits nothing.
+        auto after_last = block.begin();
+        while (&*after_last != exits.back()) {
+            ++after_last;
+        }
+        block.PrependNewInst(std::next(after_last), IR::Opcode::A64SetRegAtExits, {pending.value});
+        set.Invalidate();
+    }
+}
+
 // Store the guest NZCV that the host flags hold (CF = guest C) in the layout cpsr_nzcv keeps:
 // the lahf byte in bits 8-15 and OF in bit 0. Clobbers RAX, keeps the flags. mov eax, 0 (not
 // xor, which would change the flags) breaks the dependency on RAX's last writer for lahf.
@@ -239,6 +312,11 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     // hold NZCV at every memory access: no plan then.
     if (ctx.reuse_host_flags && (conf.test_variant & 1024) == 0 && !conf.check_halt_on_memory_access) {
         PlanNZCVAtExits(ctx);
+    }
+    // Test variant bit 2048 stores every guest register write on the hot path (the code
+    // generation before). Not with the memory-abort check either, for the same reason.
+    if ((conf.test_variant & 2048) == 0 && !conf.check_halt_on_memory_access) {
+        PlanRegistersAtExits(ctx);
     }
     // Test variant bit 512: block ends reload NZCV and the check bit, and vector moves count as
     // changing the host flags (the code generation before)
@@ -557,6 +635,12 @@ void A64EmitX64::EmitA64SetNZCVAtExits(A64EmitContext& ctx, IR::Inst* inst) {
     }
     ASSERT_MSG(get && ctx.host_flags_nzcv == get && !ctx.host_flags_fcmp, "NZCV planned for the host flags is not in them");
     ctx.nzcv_pending = true;
+}
+
+// A register write that PlanRegistersAtExits moved to the side exits, placed after the last of
+// them. Nothing to emit; reading the argument ends the value's use here.
+void A64EmitX64::EmitA64SetRegAtExits(A64EmitContext& ctx, IR::Inst* inst) {
+    ctx.reg_alloc.GetArgumentInfo(inst);
 }
 
 void A64EmitX64::EmitA64GetW(A64EmitContext& ctx, IR::Inst* inst) {
@@ -908,13 +992,92 @@ void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
     // and link to the target block, and store NZCV if it is still only in the host
     // flags (PlanNZCVAtExits); nothing is live once the block is left, so RAX is free.
     const bool store_nzcv = ctx.nzcv_pending;
+
+    // Register writes only the side exits store (PlanRegistersAtExits), from where each value
+    // is now. Values in registers are stored first, with moves (the flags may still hold NZCV);
+    // spilled values and 64-bit immediates go through RAX once NZCV is stored.
+    struct ExitStore {
+        size_t offset;
+        bool is_w;
+        bool zero_extended;
+        bool immediate;
+        u64 imm;
+        HostLoc loc;
+        std::optional<Xbyak::Address> spill;
+        bool FitsMove() const {  // a mov of a sign-extended 32-bit immediate stores it
+            const u64 stored = is_w ? (imm & 0xFFFFFFFF) : imm;
+            return static_cast<u64>(static_cast<s64>(static_cast<s32>(stored))) == stored;
+        }
+    };
+    std::vector<ExitStore> exit_stores;
+    if (const auto found = ctx.sets_at_exits.find(inst); found != ctx.sets_at_exits.end()) {
+        for (const auto& pending : found->second) {
+            ExitStore store{pending.offset, pending.is_w, pending.zero_extended, pending.value.IsImmediate(), 0, HostLoc::RAX, std::nullopt};
+            if (store.immediate) {
+                store.imm = pending.is_w ? pending.value.GetImmediateAsU64() & 0xFFFFFFFF : pending.value.GetImmediateAsU64();
+            } else {
+                const auto loc = ctx.reg_alloc.CurrentLocation(pending.value.GetInst());
+                ASSERT_MSG(loc, "a register write planned for the side exits is no longer live");
+                store.loc = *loc;
+                if (HostLocIsSpill(store.loc)) {
+                    store.spill = ctx.reg_alloc.SpillAddress(store.loc);
+                }
+            }
+            exit_stores.push_back(store);
+        }
+    }
+
     ctx.deferred_emits.emplace_back([=, this] {
         code.L(*exit);
+        for (const ExitStore& store : exit_stores) {
+            const auto addr = qword[r15 + store.offset];
+            if (store.immediate) {
+                if (store.FitsMove()) {
+                    code.mov(addr, static_cast<s32>(store.imm));
+                }
+            } else if (HostLocIsGPR(store.loc)) {
+                const Xbyak::Reg64 reg = HostLocToReg64(store.loc);
+                if (store.is_w && !store.zero_extended) {
+                    code.mov(dword[r15 + store.offset], reg.cvt32());
+                    code.mov(dword[r15 + store.offset + 4], 0);
+                } else {
+                    code.mov(addr, reg);
+                }
+            } else if (HostLocIsXMM(store.loc)) {
+                const Xbyak::Xmm xmm = HostLocToXmm(store.loc);
+                if (store.is_w) {
+                    code.movd(dword[r15 + store.offset], xmm);
+                    code.mov(dword[r15 + store.offset + 4], 0);
+                } else {
+                    code.movq(addr, xmm);
+                }
+            }
+        }
         if (store_nzcv) {
             if (exit_cmc) {
                 code.cmc();
             }
             EmitStoreNZCVFromHostFlags();
+        }
+        for (const ExitStore& store : exit_stores) {
+            const auto addr = qword[r15 + store.offset];
+            if (store.immediate) {
+                if (!store.FitsMove()) {
+                    if (store.is_w) {
+                        code.mov(eax, static_cast<u32>(store.imm));
+                    } else {
+                        code.mov(rax, store.imm);
+                    }
+                    code.mov(addr, rax);
+                }
+            } else if (HostLocIsSpill(store.loc)) {
+                if (store.is_w) {
+                    code.mov(eax, dword[store.spill->getRegExp()]);
+                } else {
+                    code.mov(rax, qword[store.spill->getRegExp()]);
+                }
+                code.mov(addr, rax);
+            }
         }
         if (conf.enable_cycle_counting) {
             EmitAddCycles(cycles);
