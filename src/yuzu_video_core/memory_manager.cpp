@@ -579,8 +579,15 @@ void MemoryManager::ReadBlockImpl(GPUVAddr gpu_src_addr, void * dest_buffer, std
         {
             rasterizer->FlushRegion(dev_addr_base, copy_amount, which);
         }
-        u8 * physical = memory.GetPointer<u8>(dev_addr_base);
-        std::memcpy(dest_buffer, physical, copy_amount);
+        if (const u8 * physical = memory.GetPointer<u8>(dev_addr_base)) [[likely]]
+        {
+            std::memcpy(dest_buffer, physical, copy_amount);
+        }
+        else
+        {
+            // The device page was unmapped: zero fill like the unsafe read
+            memory.ReadBlockUnsafe(dev_addr_base, dest_buffer, copy_amount);
+        }
         dest_buffer = static_cast<u8 *>(dest_buffer) + copy_amount;
     };
     auto mapped_big = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
@@ -595,8 +602,14 @@ void MemoryManager::ReadBlockImpl(GPUVAddr gpu_src_addr, void * dest_buffer, std
         }
         else
         {
-            u8 * physical = memory.GetPointer<u8>(dev_addr_base);
-            std::memcpy(dest_buffer, physical, copy_amount);
+            if (const u8 * physical = memory.GetPointer<u8>(dev_addr_base)) [[likely]]
+            {
+                std::memcpy(dest_buffer, physical, copy_amount);
+            }
+            else
+            {
+                memory.ReadBlockUnsafe(dev_addr_base, dest_buffer, copy_amount);
+            }
         }
         dest_buffer = static_cast<u8 *>(dest_buffer) + copy_amount;
     };

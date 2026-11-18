@@ -127,6 +127,10 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
         {
             std::scoped_lock execution_lock{state.execution_mutex};
             for (BackQueue::Work& work : batch) {
+                // On exit the guest memory is unmapped before the GPU stops
+                if (stop_token.stop_requested()) {
+                    break;
+                }
                 work();
             }
             batch.clear();

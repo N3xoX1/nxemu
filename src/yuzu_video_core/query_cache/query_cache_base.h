@@ -180,6 +180,8 @@ protected:
     using ContentCache = std::unordered_map<u64, std::unordered_map<u32, QueryLocation>>;
 
     void InvalidateQuery(QueryLocation location);
+    /// Marks the older query cached at `address` as replaced by `new_query`
+    void MarkRewritten(QueryBase* old_query, const QueryBase* new_query, DAddr address);
     bool IsQueryDirty(QueryLocation location);
     bool SemiFlushQueryDirty(QueryLocation location);
     void RequestGuestHostSync();
