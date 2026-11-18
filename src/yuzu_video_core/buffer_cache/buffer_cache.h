@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <memory>
 #include <numeric>
 
@@ -262,7 +263,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         const u64 size = base_address_end - base_address;
         const DAddr diff = base_address - *cpu_src_address;
         const DAddr new_base_address = *cpu_dest_address + diff;
-        gpu_write_history.Mark(new_base_address, size);
+        MarkGpuWriteHistory(new_base_address, size);
         tmp_intervals.push_back({new_base_address, size});
         uncommitted_gpu_modified_ranges.Add(new_base_address, size);
         untracked_gpu_writes.Add(new_base_address, size);
@@ -281,6 +282,8 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
     MarkBufferContentChanged(dest_buffer, *cpu_dest_address, amount);
     if (has_new_downloads) {
+        // The tracker marks the whole copy, so the history must cover it too
+        MarkGpuWriteHistory(*cpu_dest_address, amount);
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
 
@@ -378,6 +381,72 @@ void BufferCache<P>::DisableGraphicsUniformBuffer(size_t stage, u32 index) {
 }
 
 template <class P>
+bool BufferCache<P>::PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                     DAddr& out_addr, u32& out_size, u32& out_offset) {
+    if constexpr (IS_OPENGL || !UniformPrefetchable<Runtime>) {
+        return false;
+    } else {
+        if (stage >= NUM_STAGES || index >= NUM_GRAPHICS_UNIFORM_BUFFERS) {
+            return false;
+        }
+        const u32 size =
+            std::min(prefetch_hints[stage][index].load(std::memory_order_relaxed), max_size);
+        if (size == 0) {
+            return false;
+        }
+        // Large ranges without a timeline mark are read in place. Engine written ranges
+        // change in the GPU timeline, after this point of the stream.
+        if (device_memory.HasEngineWrite(device_addr, size) ||
+            (size > channel_state->uniform_buffer_skip_cache_size &&
+             !device_memory.HasTimelineWrite(device_addr, size))) {
+            return false;
+        }
+        u8* pointer{};
+        u32 offset{};
+        if (!runtime.AllocatePrefetch(size, offset, pointer)) {
+            return false;
+        }
+        if (const u8* const guest = device_memory.GetSpan(device_addr, size)) {
+            std::memcpy(pointer, guest, size);
+        } else {
+            device_memory.ReadBlockUnsafe(device_addr, pointer, size);
+        }
+        out_addr = device_addr;
+        out_size = size;
+        out_offset = offset;
+        return true;
+    }
+}
+
+template <class P>
+void BufferCache<P>::ApplyUniformPrefetch(size_t stage, u32 index, DAddr device_addr, u32 size,
+                                          u32 offset) {
+    if (stage >= NUM_STAGES || index >= NUM_GRAPHICS_UNIFORM_BUFFERS) {
+        return;
+    }
+    if (prefetch_channel != channel_state) {
+        // Copies are per command list of one channel
+        ResetUniformPrefetch(0);
+        prefetch_channel = channel_state;
+    }
+    prefetch_slots[stage][index] = {device_addr, size, offset};
+    prefetch_live = true;
+}
+
+template <class P>
+void BufferCache<P>::ResetUniformPrefetch(u64 position) {
+    if (prefetch_live) {
+        prefetch_slots = {};
+        prefetch_live = false;
+    }
+    if constexpr (!IS_OPENGL && UniformPrefetchable<Runtime>) {
+        if (position != 0) {
+            runtime.ReleasePrefetch(position);
+        }
+    }
+}
+
+template <class P>
 void BufferCache<P>::UpdateGraphicsBuffers(bool is_indexed) {
     do {
         channel_state->has_deleted_buffers = false;
@@ -410,6 +479,46 @@ void BufferCache<P>::BindHostGeometryBuffers(bool is_indexed) {
     if (current_draw_indirect) {
         BindHostDrawIndirectBuffers();
     }
+}
+
+template <class P>
+bool BufferCache<P>::RebindIndexBuffer() {
+    const u64 epoch = deleted_buffers_epoch;
+    maxwell3d->dirty.flags[Dirty::IndexBuffer] = true;
+    BufferOperations([&] { UpdateIndexBuffer(); });
+    if (deleted_buffers_epoch != epoch || channel_state->is_index_buffer_sparse) {
+        return false;
+    }
+    BindHostIndexBuffer();
+    return true;
+}
+
+template <class P>
+bool BufferCache<P>::UpdateKeptDrawBuffers(bool is_indexed) {
+    const u64 epoch = deleted_buffers_epoch;
+    if (is_indexed) {
+        maxwell3d->dirty.flags[Dirty::IndexBuffer] = true;
+    }
+    BufferOperations([&] {
+        if (is_indexed) {
+            UpdateIndexBuffer();
+        }
+        UpdateVertexBuffers();
+        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
+            UpdateUniformBuffers(stage);
+        }
+    });
+    return deleted_buffers_epoch == epoch && !(is_indexed && channel_state->is_index_buffer_sparse);
+}
+
+template <class P>
+void BufferCache<P>::BindKeptUniformBuffer(size_t stage, u32 index) {
+    u32 binding_index = 0;
+    if constexpr (NEEDS_BIND_UNIFORM_INDEX) {
+        binding_index = static_cast<u32>(
+            std::popcount(channel_state->enabled_uniform_buffer_masks[stage] & ((1U << index) - 1)));
+    }
+    BindHostGraphicsUniformBuffer(stage, index, binding_index, true);
 }
 
 template <class P>
@@ -1190,6 +1299,30 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
+    // Every GPU modified mark is recorded in the history first, which is cheaper to test
+    const bool gpu_modified = gpu_write_history.MayHaveWrites(device_addr, size) &&
+                              memory_tracker.IsRegionGpuModified(device_addr, size);
+    if constexpr (!IS_OPENGL) {
+        // The guest RAM is device memory: a range that no GPU engine wrote (inline data,
+        // I2M, DMA, shader writes) is read by the GPU in place, as on the console.
+        if (!host_mapped_tried) [[unlikely]] {
+            host_mapped_tried = true;
+            host_mapped_ready = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
+                                                                  device_memory.PhysicalSize());
+        }
+        // Small buffers are rewritten almost every draw: protecting them now actually faults
+        // (see HoldInPlaceRead), so only the rarer-written, larger ones are worth the zero-copy.
+        if (host_mapped_ready && binding.buffer_id != NULL_BUFFER_ID &&
+            size > channel_state->uniform_buffer_skip_cache_size) {
+            if (!gpu_modified && !device_memory.HasTimelineWrite(device_addr, size)) {
+                if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
+                    pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
+                    device_memory.HoldInPlaceRead(device_addr, size, runtime.InPlaceTick());
+                    return;
+                }
+            }
+        }
+    }
     Buffer& buffer = slot_buffers[binding.buffer_id];
     TouchBuffer(buffer, binding.buffer_id);
     bool stream_modified_uniform{};
@@ -1203,7 +1336,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
                                  (size <= channel_state->uniform_buffer_skip_cache_size ||
                                   stream_modified_uniform) &&
-                                 !memory_tracker.IsRegionGpuModified(device_addr, size);
+                                 !gpu_modified;
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {
             if (runtime.HasFastBufferSubData()) {
@@ -1225,6 +1358,19 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
         if constexpr (IS_OPENGL) {
             channel_state->fast_bound_uniform_buffers[stage] |= 1U << binding_index;
             channel_state->uniform_buffer_binding_sizes[stage][binding_index] = size;
+        }
+        if constexpr (!IS_OPENGL && UniformPrefetchable<Runtime>) {
+            if (prefetch_hints[stage][index].load(std::memory_order_relaxed) < size) {
+                prefetch_hints[stage][index].store(size, std::memory_order_relaxed);
+            }
+            // Copied by the decode thread for this command list, see PrefetchUniform
+            const PrefetchSlot& slot = prefetch_slots[stage][index];
+            if (slot.size != 0 && slot.size >= size && slot.device_addr == device_addr &&
+                prefetch_channel == channel_state &&
+                !device_memory.HasEngineWrite(device_addr, size)) {
+                runtime.BindPrefetchedUniform(slot.offset, size);
+                return;
+            }
         }
         // A same-tick allocation can serve repeated, byte-identical small uniforms. On
         // changing data the adaptive helper falls back to the normal streaming cost.
@@ -1793,7 +1939,7 @@ void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u3
         untracked_gpu_writes.Add(device_addr, size);
     }
     device_memory.InvalidateNativeReadRegion(device_addr, size);
-    gpu_write_history.Mark(device_addr, size);
+    MarkGpuWriteHistory(device_addr, size);
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
@@ -2354,6 +2500,7 @@ void BufferCache<P>::DeleteBuffer(BufferId buffer_id, bool do_not_mark) {
         }
     }
     channel_state->has_deleted_buffers = true;
+    ++deleted_buffers_epoch;
 }
 
 template <class P>
@@ -2712,7 +2859,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
         device_memory.InvalidateNativeReadRegion(device_addr, write_size);
-        gpu_write_history.Mark(device_addr, write_size);
+        MarkGpuWriteHistory(device_addr, write_size);
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);
         uncommitted_gpu_modified_ranges.Add(device_addr, write_size);

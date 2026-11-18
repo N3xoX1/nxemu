@@ -117,6 +117,8 @@ public:
         lru_id = lru_id_;
     }
 
+    /// Copy of the LRU entry's tick, so a buffer touched again in the same frame
+    /// skips the LRU pool, which is slow to reach
     u64 LRUTick() const noexcept {
         return lru_tick;
     }

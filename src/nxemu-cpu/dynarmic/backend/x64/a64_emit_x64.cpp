@@ -5,6 +5,7 @@
 
 #include "dynarmic/backend/x64/a64_emit_x64.h"
 
+#include <algorithm>
 #include <atomic>
 #include <utility>
 
@@ -57,10 +58,12 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
     GenMemory128Accessors();
     GenFastmemFallbacks();
     GenTerminalHandlers();
-    // A quarter of the cache for the cold code of the blocks (the deferred fallback paths).
-    // Test variant bit 32 keeps the old layout, with the cold code after each block.
+    GenWriteMarkThunks();
+    // Half of the cache for the cold code of the blocks (fallbacks and link stubs): in TOTK
+    // it emptied the whole cache when it held a quarter. Test variant bit 32 keeps the old
+    // layout, with the cold code after each block.
     if ((conf.test_variant & 32) == 0) {
-        code.ReserveFarCode(conf.code_cache_size / 4);
+        code.ReserveFarCode(conf.code_cache_size / 2);
     }
     code.PreludeComplete();
     ClearFastDispatchTable();
@@ -71,6 +74,110 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
 }
 
 A64EmitX64::~A64EmitX64() = default;
+
+namespace {
+bool IsPlainWrite(IR::Opcode op) {
+    switch (op) {
+    case IR::Opcode::A64WriteMemory8:
+    case IR::Opcode::A64WriteMemory16:
+    case IR::Opcode::A64WriteMemory32:
+    case IR::Opcode::A64WriteMemory64:
+    case IR::Opcode::A64WriteMemory128:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Ops after which the block may stop before its end: a write before them must be marked
+// before them
+bool MayLeaveBlock(IR::Opcode op) {
+    switch (op) {
+    case IR::Opcode::A64CallSupervisor:
+    case IR::Opcode::A64SideExit:
+    case IR::Opcode::A64ExceptionRaised:
+    case IR::Opcode::A64DataCacheOperationRaised:
+    case IR::Opcode::A64InstructionCacheOperationRaised:
+    case IR::Opcode::A64DataSynchronizationBarrier:
+    case IR::Opcode::A64DataMemoryBarrier:
+    case IR::Opcode::A64InstructionSynchronizationBarrier:
+    case IR::Opcode::A64ClearExclusive:
+    case IR::Opcode::A64ExclusiveReadMemory8:
+    case IR::Opcode::A64ExclusiveReadMemory16:
+    case IR::Opcode::A64ExclusiveReadMemory32:
+    case IR::Opcode::A64ExclusiveReadMemory64:
+    case IR::Opcode::A64ExclusiveReadMemory128:
+    case IR::Opcode::A64ExclusiveWriteMemory8:
+    case IR::Opcode::A64ExclusiveWriteMemory16:
+    case IR::Opcode::A64ExclusiveWriteMemory32:
+    case IR::Opcode::A64ExclusiveWriteMemory64:
+    case IR::Opcode::A64ExclusiveWriteMemory128:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Splits an address into an IR base value and a constant offset
+std::pair<const IR::Inst*, s64> SplitAddress(const IR::Value& address) {
+    if (address.IsImmediate()) {
+        return {nullptr, 0};
+    }
+    const IR::Inst* inst = address.GetInstRecursive();
+    const auto op = inst->GetOpcode();
+    if ((op == IR::Opcode::Add64 || op == IR::Opcode::Sub64) && !inst->GetArg(0).IsImmediate() && inst->GetArg(1).IsImmediate()
+        && inst->GetArg(2).IsImmediate() && !inst->GetArg(2).GetU1()) {
+        const s64 imm = static_cast<s64>(inst->GetArg(1).GetU64());
+        return {inst->GetArg(0).GetInstRecursive(), op == IR::Opcode::Add64 ? imm : -imm};
+    }
+    return {inst, 0};
+}
+}  // namespace
+
+// Fastmem writes off the same base value with offsets less than a page apart touch at
+// most two pages. In a group of three or more, only the last write marks the write map,
+// for the lowest and highest address of the group. The group ends before anything that may
+// leave the block, so no write is left unmarked.
+void A64EmitX64::PlanWriteTracking(A64EmitContext& ctx) const {
+    if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
+        return;
+    }
+    std::vector<std::pair<IR::Inst*, s64>> group;
+    const IR::Inst* base = nullptr;
+    s64 lowest = 0, highest = 0;
+    const auto close = [&] {
+        if (group.size() >= 3) {
+            const s64 last = group.back().second;
+            for (size_t i = 0; i + 1 < group.size(); ++i) {
+                ctx.write_track_skip.insert(group[i].first);
+            }
+            ctx.write_track_group.emplace(group.back().first, std::make_pair(static_cast<s32>(lowest - last), static_cast<s32>(highest - last)));
+        }
+        group.clear();
+        base = nullptr;
+    };
+    for (auto& inst : ctx.block) {
+        const auto op = inst.GetOpcode();
+        if (IsPlainWrite(op)) {
+            const auto [write_base, offset] = SplitAddress(inst.GetArg(1));
+            if (write_base == nullptr || !ShouldFastmem(ctx, &inst)) {
+                close();
+                continue;
+            }
+            if (write_base != base || std::max(highest, offset) - std::min(lowest, offset) >= 4096) {
+                close();
+                base = write_base;
+                lowest = highest = offset;
+            }
+            lowest = std::min(lowest, offset);
+            highest = std::max(highest, offset);
+            group.emplace_back(&inst, offset);
+        } else if (MayLeaveBlock(op)) {
+            close();
+        }
+    }
+    close();
+}
 
 // The emitted code of these leaves EFLAGS alone: moves only. The host flag tracking in Emit and
 // PlanNZCVAtExits both use this list. vector_moves is false for test variant bit 512.
@@ -228,11 +335,27 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
         if (conf.fastmem_pointer) {
             gprs.erase(std::find(gprs.begin(), gprs.end(), HostLoc::R13));
         }
+        // Callee-saved registers first: they survive host calls. RAX, RCX and RDX last: many
+        // emitters ask for them by name.
+        std::stable_partition(gprs.begin(), gprs.end(), [](HostLoc loc) {
+            return std::find(ABI_ALL_CALLEE_SAVE.begin(), ABI_ALL_CALLEE_SAVE.end(), loc) != ABI_ALL_CALLEE_SAVE.end();
+        });
+        std::stable_partition(gprs.begin(), gprs.end(), [](HostLoc loc) {
+            return loc != HostLoc::RAX && loc != HostLoc::RCX && loc != HostLoc::RDX;
+        });
         return gprs;
     }();
 
-    RegAlloc reg_alloc{code, gpr_order, any_xmm};
+    static const std::vector<HostLoc> xmm_order = [] {
+        std::vector<HostLoc> xmms{any_xmm};
+        std::stable_partition(xmms.begin(), xmms.end(), [](HostLoc loc) {
+            return std::find(ABI_ALL_CALLEE_SAVE.begin(), ABI_ALL_CALLEE_SAVE.end(), loc) != ABI_ALL_CALLEE_SAVE.end();
+        });
+        return xmms;
+    }();
+    RegAlloc reg_alloc{code, gpr_order, xmm_order};
     A64EmitContext ctx{conf, reg_alloc, block};
+    PlanWriteTracking(ctx);
     ctx.reuse_host_flags = (conf.test_variant & 8) == 0 && !conf.very_verbose_debugging_output;
     // Test variant bit 1024 stores NZCV at every flag-setting instruction (the code generation before).
     // A memory access that halts on an abort leaves the block in the middle, so the guest state must
@@ -378,6 +501,46 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     return RegisterBlock(descriptor, entrypoint, size);
 }
 
+// The marking of a page is rare and the same for every write of a register pair: the cold
+// code of a write only calls it.
+void A64EmitX64::GenWriteMarkThunks() {
+    if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
+        return;
+    }
+    // As WriteTrackMapIsLow: the whole map below 2 GiB, addressed without a base register
+    const bool low = reinterpret_cast<u64>(conf.write_track_map) + conf.write_track_l1_offset + (u64{1} << 20) < (u64{1} << 31);
+    const u32 l2_offset = conf.write_track_l2_offset;
+    const u32 l1_offset = conf.write_track_l1_offset;
+    const u32 low_base = static_cast<u32>(reinterpret_cast<u64>(conf.write_track_map));
+    for (int p = 0; p < 16; ++p) {
+        if (p == 4) {
+            continue;  // rsp
+        }
+        const Xbyak::Reg64 page{p};
+        for (int m = 0; m <= 16; ++m) {
+            if (m == 16 ? !low : (low || m == p || m == 4)) {
+                continue;
+            }
+            code.write_mark_thunks[p * 17 + m] = code.getCurr();
+            if (m == 16) {
+                code.mov(code.byte[page + low_base], 1);
+                code.shr(page, 9);
+                code.mov(code.byte[page + (low_base + l2_offset)], 1);
+                code.shr(page, 9);
+                code.mov(code.byte[page + (low_base + l1_offset)], 1);
+            } else {
+                const Xbyak::Reg64 map{m};
+                code.mov(code.byte[map + page], 1);
+                code.shr(page, 9);
+                code.mov(code.byte[map + page + l2_offset], 1);
+                code.shr(page, 9);
+                code.mov(code.byte[map + page + l1_offset], 1);
+            }
+            code.ret();
+        }
+    }
+}
+
 void A64EmitX64::ClearCache() {
     EmitX64::ClearCache();
     link_sites.clear();
@@ -408,19 +571,21 @@ void A64EmitX64::RemoveFastDispatchTable(FastDispatchTable* table) {
     std::erase(fast_dispatch_tables, table);
 }
 
+// PC ends up in rbp, location_descriptor ends up in rbx
+void A64EmitX64::EmitInlineLocationDescriptor() {
+    // This calculation has to match up with A64::LocationDescriptor::UniqueHash
+    // TODO: Optimization is available here based on known state of fpcr.
+    code.mov(rbp, qword[r15 + offsetof(A64JitState, pc)]);
+    code.mov(rcx, A64::LocationDescriptor::pc_mask);
+    code.and_(rcx, rbp);
+    code.mov(ebx, dword[r15 + offsetof(A64JitState, fpcr)]);
+    code.and_(ebx, A64::LocationDescriptor::fpcr_mask);
+    code.shl(rbx, A64::LocationDescriptor::fpcr_shift);
+    code.or_(rbx, rcx);
+}
+
 void A64EmitX64::GenTerminalHandlers() {
-    // PC ends up in rbp, location_descriptor ends up in rbx
-    const auto calculate_location_descriptor = [this] {
-        // This calculation has to match up with A64::LocationDescriptor::UniqueHash
-        // TODO: Optimization is available here based on known state of fpcr.
-        code.mov(rbp, qword[r15 + offsetof(A64JitState, pc)]);
-        code.mov(rcx, A64::LocationDescriptor::pc_mask);
-        code.and_(rcx, rbp);
-        code.mov(ebx, dword[r15 + offsetof(A64JitState, fpcr)]);
-        code.and_(ebx, A64::LocationDescriptor::fpcr_mask);
-        code.shl(rbx, A64::LocationDescriptor::fpcr_shift);
-        code.or_(rbx, rcx);
-    };
+    const auto calculate_location_descriptor = [this] { EmitInlineLocationDescriptor(); };
 
     Xbyak::Label fast_dispatch_cache_miss, rsb_cache_miss;
 
@@ -446,6 +611,7 @@ void A64EmitX64::GenTerminalHandlers() {
         terminal_handler_fast_dispatch_hint = code.getCurr<const void*>();
         calculate_location_descriptor();
         code.L(rsb_cache_miss);
+        terminal_handler_rsb_miss = code.getCurr<const void*>();
         code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
         code.mov(rbp, rbx);
         if (code.HasHostFeature(HostFeature::SSE42)) {
@@ -457,6 +623,7 @@ void A64EmitX64::GenTerminalHandlers() {
         code.jne(fast_dispatch_cache_miss);
         code.jmp(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)]);
         code.L(fast_dispatch_cache_miss);
+        terminal_handler_fast_dispatch_miss = code.getCurr<const void*>();
         code.mov(qword[rbp + offsetof(FastDispatchEntry, location_descriptor)], rbx);
         code.LookupBlock();
         code.mov(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)], rax);
@@ -1125,7 +1292,20 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::PopRSBHint, IR::LocationDescriptor, 
         return;
     }
 
-    code.jmp(terminal_handler_pop_rsb_hint);
+    // Each block gets its own copy of the lookup and its own indirect jump, which the host
+    // predicts per site. A miss takes the shared path with the same registers.
+    if (!terminal_handler_rsb_miss) {
+        code.jmp(terminal_handler_pop_rsb_hint);
+        return;
+    }
+    EmitInlineLocationDescriptor();
+    code.mov(eax, dword[r15 + offsetof(A64JitState, rsb_ptr)]);
+    code.sub(eax, 1);
+    code.and_(eax, u32(A64JitState::RSBPtrMask));
+    code.mov(dword[r15 + offsetof(A64JitState, rsb_ptr)], eax);
+    code.cmp(rbx, qword[r15 + offsetof(A64JitState, rsb_location_descriptors) + rax * sizeof(u64)]);
+    code.jne(terminal_handler_rsb_miss);
+    code.jmp(qword[r15 + offsetof(A64JitState, rsb_codeptrs) + rax * sizeof(u64)]);
 }
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::FastDispatchHint, IR::LocationDescriptor, bool is_single_step) {
@@ -1134,7 +1314,21 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::FastDispatchHint, IR::LocationDescri
         return;
     }
 
-    code.jmp(terminal_handler_fast_dispatch_hint);
+    if (!terminal_handler_fast_dispatch_miss) {
+        code.jmp(terminal_handler_fast_dispatch_hint);
+        return;
+    }
+    EmitInlineLocationDescriptor();
+    code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
+    code.mov(rbp, rbx);
+    if (code.HasHostFeature(HostFeature::SSE42)) {
+        code.crc32(rbp, r12);
+    }
+    code.and_(ebp, fast_dispatch_table_mask);
+    code.lea(rbp, ptr[r12 + rbp]);
+    code.cmp(rbx, qword[rbp + offsetof(FastDispatchEntry, location_descriptor)]);
+    code.jne(terminal_handler_fast_dispatch_miss);
+    code.jmp(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)]);
 }
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::If terminal, IR::LocationDescriptor initial_location, bool is_single_step) {

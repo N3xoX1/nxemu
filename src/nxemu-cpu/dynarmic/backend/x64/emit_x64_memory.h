@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <cstdlib>
+
 #include <mcl/bit_cast.hpp>
 #include <xbyak/xbyak.h>
 
@@ -197,6 +199,64 @@ template<>
         }
         return r13 + vaddr;
     }
+}
+
+// Marks the page of a fastmem write in the write tracking map. The upper levels are only
+// written when the page byte was clear, so most writes only load one byte.
+// True when the whole map fits below 2 GiB, so it is addressed with a 32-bit displacement
+// and needs no base register
+template<typename Config>
+bool WriteTrackMapIsLow(const Config& conf) {
+    const u64 end = reinterpret_cast<u64>(conf.write_track_map) + conf.write_track_l1_offset + (u64{1} << 20);
+    return end < (u64{1} << 31);
+}
+
+// `map` is only needed when the map is not low. `offset` is added to vaddr first.
+template<typename EmitContext>
+void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 offset = 0) {
+    const auto& conf = ctx.conf;
+    const u32 l2_offset = conf.write_track_l2_offset;
+    const u32 l1_offset = conf.write_track_l1_offset;
+    const u32 low_base = map ? 0 : static_cast<u32>(reinterpret_cast<u64>(conf.write_track_map));
+    SharedLabel mark = GenSharedLabel(), marked = GenSharedLabel();
+
+    if (offset != 0) {
+        code.lea(page, code.ptr[vaddr + offset]);
+    } else {
+        code.mov(page, vaddr);
+    }
+    code.shr(page, 12);
+    if (map) {
+        code.mov(*map, reinterpret_cast<u64>(conf.write_track_map));
+        code.cmp(code.byte[*map + page], 0);
+    } else {
+        code.cmp(code.byte[page + low_base], 0);
+    }
+    code.je(*mark, code.T_NEAR);
+    code.L(*marked);
+
+    ctx.deferred_emits.emplace_back([=, &code] {
+        code.L(*mark);
+        if (const void* thunk = code.write_mark_thunks[page.getIdx() * 17 + (map ? map->getIdx() : 16)]) {
+            code.call(thunk);
+            code.jmp(*marked, code.T_NEAR);
+            return;
+        }
+        if (map) {
+            code.mov(code.byte[*map + page], 1);
+            code.shr(page, 9);
+            code.mov(code.byte[*map + page + l2_offset], 1);
+            code.shr(page, 9);
+            code.mov(code.byte[*map + page + l1_offset], 1);
+        } else {
+            code.mov(code.byte[page + low_base], 1);
+            code.shr(page, 9);
+            code.mov(code.byte[page + (low_base + l2_offset)], 1);
+            code.shr(page, 9);
+            code.mov(code.byte[page + (low_base + l1_offset)], 1);
+        }
+        code.jmp(*marked, code.T_NEAR);
+    });
 }
 
 template<std::size_t bitsize>

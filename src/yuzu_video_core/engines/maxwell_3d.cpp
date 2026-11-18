@@ -15,6 +15,7 @@
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 #include "yuzu_video_core/textures/texture.h"
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -52,6 +53,7 @@ Maxwell3D::Maxwell3D(MemoryManager & memory_manager_) :
     upload_state(memory_manager, regs.upload)
 {
     dirty.flags.flip();
+    InitializePipelineKeyRegisters();
     InitializeRegisterDefaults();
     execution_mask.reset();
     for (size_t i = 0; i < execution_mask.size(); i++)
@@ -65,12 +67,97 @@ Maxwell3D::Maxwell3D(MemoryManager & memory_manager_) :
     stream.reserve(1U << 16);
 }
 
-Maxwell3D::~Maxwell3D() = default;
+namespace
+{
+/// The engine that copies uniform buffers on the decode thread, see UniformPrefetchSubmission
+std::atomic<Maxwell3D *> prefetch_owner{};
+} // namespace
+
+Maxwell3D::~Maxwell3D()
+{
+    Maxwell3D * self = this;
+    prefetch_owner.compare_exchange_strong(self, nullptr);
+}
 
 void Maxwell3D::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
 {
     rasterizer = rasterizer_;
     upload_state.BindRasterizer(rasterizer_);
+}
+
+void Maxwell3D::InitializePipelineKeyRegisters()
+{
+    // The constant buffer upload registers only say where data and binds go: the data writes
+    // and the binds change the generation themselves, when they change something.
+    auto& kinds = dirty.generation_kinds;
+    std::fill_n(kinds.begin() + offsetof(Regs, const_buffer) / sizeof(u32),
+                sizeof(Regs::const_buffer) / sizeof(u32), u8{GEN_NONE});
+    for (size_t i = 0; i < Regs::MaxShaderStage; ++i) {
+        kinds[MAXWELL3D_REG_INDEX(bind_groups) + i * (sizeof(Regs::BindGroup) / sizeof(u32)) +
+              offsetof(Regs::BindGroup, raw_config) / sizeof(u32)] = GEN_NONE;
+    }
+    // The vertex input (attribute formats, strides) is dynamic state, or part of the pipeline
+    // key, and only the vertex buffer binds read the stride and the enable: those binds run
+    // again when the buffers change
+    std::fill_n(kinds.begin() + MAXWELL3D_REG_INDEX(vertex_attrib_format),
+                Regs::NumVertexAttributes, u8{GEN_NONE});
+    for (size_t i = 0; i < Regs::NumVertexArrays; ++i) {
+        const size_t stream =
+            MAXWELL3D_REG_INDEX(vertex_streams) + i * (sizeof(Regs::VertexStream) / sizeof(u32));
+        kinds[stream] = GEN_BUFFERS;
+        kinds[stream + offsetof(Regs::VertexStream, address_high) / sizeof(u32)] = GEN_BUFFERS;
+        kinds[stream + offsetof(Regs::VertexStream, address_low) / sizeof(u32)] = GEN_BUFFERS;
+        const size_t limit = MAXWELL3D_REG_INDEX(vertex_stream_limits) +
+                             i * (sizeof(Regs::VertexStreamLimit) / sizeof(u32));
+        kinds[limit + offsetof(Regs::VertexStreamLimit, address_high) / sizeof(u32)] = GEN_BUFFERS;
+        kinds[limit + offsetof(Regs::VertexStreamLimit, address_low) / sizeof(u32)] = GEN_BUFFERS;
+    }
+
+    // The draw range and the draw triggers. The topology in draw.begin and in the instanced
+    // array draws reaches the draw state, which the rasterizer compares itself. The rasterizer
+    // binds the index buffer again for each draw, so its address and format are left out too.
+    for (const size_t method : {
+             MAXWELL3D_REG_INDEX(index_buffer.start_addr_high),
+             MAXWELL3D_REG_INDEX(index_buffer.start_addr_low),
+             MAXWELL3D_REG_INDEX(index_buffer.limit_addr_high),
+             MAXWELL3D_REG_INDEX(index_buffer.limit_addr_low),
+             MAXWELL3D_REG_INDEX(index_buffer.format),
+             MAXWELL3D_REG_INDEX(vertex_buffer.first), MAXWELL3D_REG_INDEX(vertex_buffer.count),
+             MAXWELL3D_REG_INDEX(index_buffer.first), MAXWELL3D_REG_INDEX(index_buffer.count),
+             MAXWELL3D_REG_INDEX(index_buffer32_first), MAXWELL3D_REG_INDEX(index_buffer16_first),
+             MAXWELL3D_REG_INDEX(index_buffer8_first),
+             MAXWELL3D_REG_INDEX(index_buffer32_subsequent),
+             MAXWELL3D_REG_INDEX(index_buffer16_subsequent),
+             MAXWELL3D_REG_INDEX(index_buffer8_subsequent),
+             MAXWELL3D_REG_INDEX(vertex_array_instance_first),
+             MAXWELL3D_REG_INDEX(vertex_array_instance_subsequent),
+             MAXWELL3D_REG_INDEX(global_base_vertex_index),
+             MAXWELL3D_REG_INDEX(global_base_instance_index), MAXWELL3D_REG_INDEX(vertex_id_base),
+             MAXWELL3D_REG_INDEX(draw.begin), MAXWELL3D_REG_INDEX(draw.end)}) {
+        kinds[method] = GEN_NONE;
+    }
+
+    auto& table = dirty.pipeline_key_registers;
+    table.fill(1);
+    const auto clear = [&table](size_t offset, size_t size) {
+        std::fill_n(table.begin() + offset / sizeof(u32), size / sizeof(u32), u8{0});
+    };
+    // Constant buffer sizes reach the key through ProcessCBBind
+    clear(offsetof(Regs, const_buffer), sizeof(Regs::const_buffer));
+    clear(offsetof(Regs, bind_groups), sizeof(Regs::bind_groups));
+    for (size_t i = 0; i < Regs::NumVertexArrays; ++i) {
+        const size_t stream = offsetof(Regs, vertex_streams) + i * sizeof(Regs::VertexStream);
+        clear(stream + offsetof(Regs::VertexStream, address_high), 2 * sizeof(u32));
+    }
+    clear(offsetof(Regs, vertex_stream_limits), sizeof(Regs::vertex_stream_limits));
+    clear(offsetof(Regs, index_buffer), offsetof(Regs::IndexBuffer, format));
+    clear(offsetof(Regs, index_buffer) + offsetof(Regs::IndexBuffer, first), 2 * sizeof(u32));
+    for (size_t i = 0; i < Regs::NumTransformFeedbackBuffers; ++i) {
+        const size_t buffer = offsetof(Regs, transform_feedback) +
+                              offsetof(Regs::TransformFeedback, buffers) +
+                              i * sizeof(Regs::TransformFeedback::Buffer);
+        clear(buffer + offsetof(Regs::TransformFeedback::Buffer, address_high), 4 * sizeof(u32));
+    }
 }
 
 void Maxwell3D::InitializeRegisterDefaults()
@@ -278,18 +365,26 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
 }
 
 void Maxwell3D::RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>> & segments,
-                                      std::vector<u32> & params)
+                                      std::vector<u32> & params, bool flush)
 {
     size_t current_index = 0;
-    for (const std::pair<GPUVAddr, size_t> & segment : segments)
+    for (auto & segment : segments)
     {
         if (segment.first == 0)
         {
             current_index += segment.second;
             continue;
         }
-        memory_manager.ReadBlock(segment.first, &params[current_index],
-                                 sizeof(u32) * segment.second);
+        if (flush)
+        {
+            memory_manager.ReadBlock(segment.first, &params[current_index],
+                                     sizeof(u32) * segment.second);
+        }
+        else
+        {
+            memory_manager.ReadBlockUnsafe(segment.first, &params[current_index],
+                                           sizeof(u32) * segment.second);
+        }
         current_index += segment.second;
     }
 }
@@ -401,10 +496,35 @@ void Maxwell3D::PushMethodRun(u32 method, std::span<const CommandHeader> argumen
         }
         return;
     }
-    for (const auto& argument : arguments)
+    // One stream entry for the whole run
+    const u32 count = static_cast<u32>(arguments.size());
+    if (count == 0)
     {
-        FrontWrite(method++, argument.argument);
+        return;
     }
+    if (skip_same_writes)
+    {
+        // Only the changed values go into the stream, as shorter runs
+        for (const auto& argument : arguments)
+        {
+            FrontWrite(method++, argument.argument);
+        }
+        return;
+    }
+    StreamHeader(StreamRegs, count);
+    stream.push_back(method);
+    const size_t base = stream.size();
+    stream.resize(base + count);
+    u32 * const out = stream.data() + base;
+    for (u32 i = 0; i < count; ++i)
+    {
+        const u32 value = arguments[i].argument;
+        front_regs.reg_array[method + i] = value;
+        out[i] = value;
+    }
+    stream_run_pos = base - 2;
+    stream_run_next = method + count;
+    stream_run_open = true;
 }
 
 void Maxwell3D::ConsumeSinkImpl()
@@ -447,7 +567,9 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
         return;
     }
     regs.reg_array[method] = argument;
+    ++generations[dirty.generation_kinds[method]];
     dirty.MarkShaderProfileRegister(method, old_value, argument);
+    dirty.pipeline_key_changed |= dirty.pipeline_key_registers[method] != 0;
 
     static_assert(std::tuple_size_v<DirtyState::Tables> == 2);
     const auto first = dirty.tables[0][method];
@@ -464,6 +586,14 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
 
 void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argument)
 {
+    // Methods with side effects (barriers, queries, uploads, constant buffer binds) can change
+    // what the next draw reads even when the value is the same
+    ++generations[dirty.generation_kinds[method]];
+    // Only the draw methods keep the draw locks, the others may wait for other threads
+    if (dirty.generation_kinds[method] != GEN_NONE)
+    {
+        rasterizer->ReleaseDrawLocks();
+    }
     switch (method)
     {
     case MAXWELL3D_REG_INDEX(wait_for_idle):
@@ -642,14 +772,120 @@ void Maxwell3D::FrontMethodCall(u32 method, u32 argument, u32 nonshadow_argument
     case MAXWELL3D_REG_INDEX(inline_data):
         stream_writes_memory = true;
         return;
+    case MAXWELL3D_REG_INDEX(bind_groups[0].raw_config):
+        return FrontBindUniform(0);
+    case MAXWELL3D_REG_INDEX(bind_groups[1].raw_config):
+        return FrontBindUniform(1);
+    case MAXWELL3D_REG_INDEX(bind_groups[2].raw_config):
+        return FrontBindUniform(2);
+    case MAXWELL3D_REG_INDEX(bind_groups[3].raw_config):
+        return FrontBindUniform(3);
+    case MAXWELL3D_REG_INDEX(bind_groups[4].raw_config):
+        return FrontBindUniform(4);
     default:
         return;
     }
 }
 
+void Maxwell3D::FrontBindUniform(size_t stage)
+{
+    const auto & group = front_regs.bind_groups[stage];
+    const u32 index = group.shader_slot;
+    if (index >= front_uniforms[stage].size())
+    {
+        return;
+    }
+    FrontUniform & uniform = front_uniforms[stage][index];
+    if (group.valid == 0)
+    {
+        uniform = {};
+        return;
+    }
+    uniform = {front_regs.const_buffer.Address(), front_regs.const_buffer.size};
+    FrontPrefetchUniform(stage, index);
+}
+
+void Maxwell3D::FrontPrefetchUniform(size_t stage, u32 index)
+{
+    if (!prefetch_enabled || prefetch_blocked)
+    {
+        return;
+    }
+    const FrontUniform & uniform = front_uniforms[stage][index];
+    if (uniform.size == 0)
+    {
+        return;
+    }
+    const std::optional<DAddr> device_addr = memory_manager.GpuToCpuAddress(uniform.address);
+    if (!device_addr)
+    {
+        return;
+    }
+    VideoCore::RasterizerInterface::UniformPrefetch prefetch{};
+    if (!rasterizer->PrefetchUniform(stage, index, *device_addr, uniform.size, prefetch))
+    {
+        return;
+    }
+    StreamHeader(StreamPrefetch, static_cast<u32>(stage) | (index << 3));
+    stream.push_back(static_cast<u32>(prefetch.device_addr));
+    stream.push_back(static_cast<u32>(prefetch.device_addr >> 32));
+    stream.push_back(prefetch.size);
+    stream.push_back(prefetch.offset);
+}
+
+void Maxwell3D::FrontPrefetchReset()
+{
+    const u64 position = rasterizer->UniformPrefetchPosition();
+    StreamHeader(StreamPrefetchReset, 0);
+    stream.push_back(static_cast<u32>(position));
+    stream.push_back(static_cast<u32>(position >> 32));
+}
+
+void Maxwell3D::UniformPrefetchSubmission()
+{
+    if (!prefetch_enabled)
+    {
+        if (rasterizer == nullptr || !IsThreaded())
+        {
+            return;
+        }
+        Maxwell3D * owner = nullptr;
+        if (!prefetch_owner.compare_exchange_strong(owner, this) && owner != this)
+        {
+            return;
+        }
+        prefetch_enabled = true;
+    }
+    // The copies of the previous command lists may be stale now
+    FrontPrefetchReset();
+    prefetch_blocked = false;
+    for (size_t stage = 0; stage < front_uniforms.size(); ++stage)
+    {
+        for (u32 index = 0; index < front_uniforms[stage].size(); ++index)
+        {
+            FrontPrefetchUniform(stage, index);
+        }
+    }
+}
+
+void Maxwell3D::UniformPrefetchBarrier()
+{
+    if (!prefetch_enabled || prefetch_blocked)
+    {
+        return;
+    }
+    FrontPrefetchReset();
+    prefetch_blocked = true;
+}
+
 void Maxwell3D::FrontHLEMacro(CachedMacro * program, const std::vector<u32> & parameters,
                               u32 method)
 {
+    // Parameters that the GPU may still write are read again later, keep the macro call then
+    if (!current_macro_dirty && !current_macro_payload && program->LowerToWrites(parameters))
+    {
+        return;
+    }
     if (hle_count == hle_calls.size())
     {
         hle_calls.emplace_back();
@@ -815,6 +1051,7 @@ void Maxwell3D::Publish(bool verify)
 void Maxwell3D::RunBlock(StreamBlock * block)
 {
     RunWords(block->words.data(), block->words.size(), block->hle);
+    rasterizer->ReleaseDrawLocks();
     ++stream_drains;
     if (block->front) [[unlikely]]
     {
@@ -828,6 +1065,7 @@ void Maxwell3D::BackCallMethod(u32 method, u32 argument, bool is_last_call)
 {
     ProcessDirtyRegisters(method, argument);
     ProcessMethodCall(method, argument, argument);
+    rasterizer->ReleaseDrawLocks();
 }
 
 void Maxwell3D::BackCallMultiMethod(u32 method, const u32 * base_start, u32 amount)
@@ -843,6 +1081,7 @@ void Maxwell3D::BackCallMultiMethod(u32 method, const u32 * base_start, u32 amou
     }
 }
 
+
 void Maxwell3D::DrainStream(bool verify)
 {
     if (stream.empty() || stream_draining)
@@ -852,6 +1091,7 @@ void Maxwell3D::DrainStream(bool verify)
     stream_draining = true;
     stream_run_open = false;
     RunWords(stream.data(), stream.size(), hle_calls);
+    rasterizer->ReleaseDrawLocks();
     stream.clear();
     hle_count = 0;
     stream_writes_memory = false;
@@ -897,23 +1137,30 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             pos += count;
             break;
         case StreamInline:
+            rasterizer->ReleaseDrawLocks();
+            ++generations[GEN_STATE];
             upload_state.ProcessData(words + pos, count);
             pos += count;
             break;
         case StreamHLE:
         {
+            // Draw macros only change the draw range, other macros may write any state
+            ++generations[calls[count].program->OnlyDraws() ? GEN_NONE : GEN_STATE];
+            if (!calls[count].program->OnlyDraws())
+            {
+                rasterizer->ReleaseDrawLocks();
+            }
             // The dirty state was taken when the parameters were fetched. DmaPusher drains the
             // stream before that, so queued draws can't make them GPU written later.
             HLECall & call = calls[count];
             if (call.recheck)
             {
-                // The decode thread fetched the parameters before the queued work ran. GPU written
-                // ones are read by RefreshParameters, only when Execute needs them.
+                // The decode thread fetched the parameters before the queued work ran, so read
+                // them again. GPU written ones are read without a flush, as DmaPusher does
+                // without the thread: a flush would wait for the host GPU even when the draw is
+                // indirect. The macro flushes them itself when it needs them (RefreshParameters).
                 call.dirty = call.dirty || AnySegmentDirty(call.segments);
-                if (!call.dirty)
-                {
-                    RefreshParametersImpl(call.segments, call.params);
-                }
+                RefreshParametersImpl(call.segments, call.params, !call.dirty);
             }
             back_hle = &call;
             call.program->Execute(call.params, call.method);
@@ -922,6 +1169,24 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
         }
         case StreamDeferred:
             draw_manager->DrawDeferred();
+            break;
+        case StreamPrefetch:
+        {
+            ++generations[GEN_BUFFERS];
+            buffer_changes.rebound_slots[count & 7] |= 1U << (count >> 3);
+            const VideoCore::RasterizerInterface::UniformPrefetch prefetch{
+                .device_addr = static_cast<DAddr>(words[pos]) | (static_cast<DAddr>(words[pos + 1]) << 32),
+                .size = words[pos + 2],
+                .offset = words[pos + 3],
+            };
+            pos += 4;
+            rasterizer->ApplyUniformPrefetch(count & 7, count >> 3, prefetch);
+            break;
+        }
+        case StreamPrefetchReset:
+            ++generations[GEN_STATE];
+            rasterizer->ResetUniformPrefetch(static_cast<u64>(words[pos]) | (static_cast<u64>(words[pos + 1]) << 32));
+            pos += 2;
             break;
         default:
             ASSERT_MSG(false, "Bad Maxwell3D stream entry");
@@ -1163,6 +1428,20 @@ void Maxwell3D::ProcessCBBind(size_t stage_index)
     // stage.
     const auto & bind_data = regs.bind_groups[stage_index];
     auto & buffer = state.shader_stages[stage_index].const_buffers[bind_data.shader_slot];
+    if (buffer.enabled != (bind_data.valid.Value() != 0) || buffer.size != regs.const_buffer.size)
+    {
+        dirty.pipeline_key_changed = true;
+    }
+    // Binding the same buffer again leaves what the next draw reads
+    if (buffer.enabled != (bind_data.valid.Value() != 0) || buffer.size != regs.const_buffer.size)
+    {
+        ++generations[GEN_STATE];
+    }
+    else if (buffer.address != regs.const_buffer.Address())
+    {
+        ++generations[GEN_BUFFERS];
+        buffer_changes.rebound_slots[stage_index] |= 1U << bind_data.shader_slot;
+    }
     buffer.enabled = bind_data.valid.Value() != 0;
     buffer.address = regs.const_buffer.Address();
     buffer.size = regs.const_buffer.size;
@@ -1189,7 +1468,24 @@ void Maxwell3D::ProcessCBMultiData(const u32 * start_base, u32 amount)
 
     const GPUVAddr address{buffer_address + regs.const_buffer.offset};
     const size_t copy_size = amount * sizeof(u32);
-    memory_manager.WriteBlockCached(address, start_base, copy_size);
+    memory_manager.WriteConstBufferCached(address, start_base, copy_size);
+    ++generations[GEN_BUFFERS];
+    // Uploads mostly write one buffer in a row
+    auto& changes = buffer_changes;
+    if (changes.num_writes != 0 &&
+        changes.writes[changes.num_writes - 1].first + changes.writes[changes.num_writes - 1].second ==
+            address)
+    {
+        changes.writes[changes.num_writes - 1].second += copy_size;
+    }
+    else if (changes.num_writes < BufferChanges::MAX_WRITES)
+    {
+        changes.writes[changes.num_writes++] = {address, copy_size};
+    }
+    else
+    {
+        changes.too_many_writes = true;
+    }
 
     // Increment the current buffer position.
     regs.const_buffer.offset += static_cast<u32>(copy_size);

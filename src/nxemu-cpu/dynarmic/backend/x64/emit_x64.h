@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -99,6 +100,12 @@ struct EmitContext {
     }
     /// The guest NZCV is in the host flags and not yet in cpsr_nzcv
     bool nzcv_pending = false;
+
+    /// Fastmem writes whose write tracking mark is done by a later write of the same group
+    tsl::robin_set<const IR::Inst*> write_track_skip;
+    /// Last write of a group -> offsets from its address to the lowest and highest address
+    /// of the group, both marked by that write
+    tsl::robin_map<const IR::Inst*, std::pair<s32, s32>> write_track_group;
 };
 
 using SharedLabel = std::shared_ptr<Xbyak::Label>;

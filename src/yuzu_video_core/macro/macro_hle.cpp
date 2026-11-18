@@ -65,10 +65,13 @@ public:
         return false;
     }
 
+    bool OnlyDraws() const override {
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool params_dirty) override {
         // Only the fallback leaves a register changed
-        const Maxwell3D::Regs::PrimitiveTopology topology =
-            static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[0]);
+        const auto topology = static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[0]);
         if (extended && (!params_dirty || !IsTopologySafe(topology))) {
             maxwell3d.front_regs.global_base_instance_index = 0;
         }
@@ -174,8 +177,12 @@ public:
         return false;
     }
 
+    bool OnlyDraws() const override {
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>&, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
+        auto& regs = maxwell3d.front_regs;
         regs.vertex_id_base = 0x0;
         regs.global_base_vertex_index = 0x0;
         regs.global_base_instance_index = 0x0;
@@ -290,12 +297,11 @@ public:
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         // Only the fallback leaves registers changed. A safe topology can still fall back when
         // the indirect draw fails, see FrontEffectRegisters.
-        const Maxwell3D::Regs::PrimitiveTopology topology =
-            static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[2]);
+        const auto topology = static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[2]);
         if (IsTopologySafe(topology)) {
             return;
         }
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
+        auto& regs = maxwell3d.front_regs;
         regs.vertex_id_base = 0x0;
         const u32 start_indirect = parameters[0];
         const u32 end_indirect = parameters[1];
@@ -499,8 +505,23 @@ class HLE_C713C83D8F63CCF3 final : public HLEMacroImpl {
 public:
     explicit HLE_C713C83D8F63CCF3(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool OnlyDraws() const override {
+        return true;
+    }
+
+    bool LowerToWrites(const std::vector<u32>& parameters) override {
+        const u32 address = maxwell3d.front_regs.shadow_scratch[24];
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.size), 0x7000);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.address_high),
+                                     (address >> 24) & 0xFF);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.address_low), address << 8);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.offset),
+                                     (parameters[0] & 0x3FFFFFFF) << 2);
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
+        auto& regs = maxwell3d.front_regs;
         const u32 address = regs.shadow_scratch[24];
         regs.const_buffer.size = 0x7000;
         regs.const_buffer.address_high = (address >> 24) & 0xFF;
@@ -524,8 +545,24 @@ class HLE_D7333D26E0A93EDE final : public HLEMacroImpl {
 public:
     explicit HLE_D7333D26E0A93EDE(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool OnlyDraws() const override {
+        return true;
+    }
+
+    bool LowerToWrites(const std::vector<u32>& parameters) override {
+        const auto& regs = maxwell3d.front_regs;
+        const size_t index = parameters[0];
+        const u32 address = regs.shadow_scratch[42 + index];
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.size),
+                                     regs.shadow_scratch[47 + index]);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.address_high),
+                                     (address >> 24) & 0xFF);
+        maxwell3d.FrontWriteRegister(MAXWELL3D_REG_INDEX(const_buffer.address_low), address << 8);
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
+        auto& regs = maxwell3d.front_regs;
         const size_t index = parameters[0];
         const u32 address = regs.shadow_scratch[42 + index];
         regs.const_buffer.size = regs.shadow_scratch[47 + index];
@@ -700,6 +737,7 @@ public:
         regs.transform_feedback_enabled = 1;
         // This HLE write bypasses ProcessDirtyRegisters.
         maxwell3d.dirty.InvalidateShaderProfile();
+        maxwell3d.dirty.pipeline_key_changed = true;
         regs.transform_feedback.buffers[0].start_offset = 0;
         regs.transform_feedback.buffers[1].start_offset = 0;
         regs.transform_feedback.buffers[2].start_offset = 0;

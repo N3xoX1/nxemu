@@ -30,7 +30,7 @@ using namespace SettingsControls;
 
 namespace
 {
-constexpr const char * kTabs[] = {"graphics", "system", "application", "shortcuts"};
+constexpr const char * kTabs[] = {"graphics", "system", "hacks", "application", "shortcuts"};
 constexpr const char * kDebugTabs[] = {"debug-graphics", "debug-system", "debug-applets", "debug-overlay", "debug-log"};
 constexpr const char * kHotkeyPrefix = "hotkey:";
 constexpr const char * kTogglePrefix = "toggle:";
@@ -58,8 +58,9 @@ struct Toggle
 
 constexpr Toggle kToggles[] = {
     {"gpu-sync", NXVideoSetting::SystemGpuCommandSynchronization, Store::Module, true},
-    {"fast-readback", NXVideoSetting::FastGpuReadback, Store::Module, true},
+    {"fast-readback", NXVideoSetting::SystemFastGpuReadback, Store::Module, true},
     {"reactive-flushing", NXVideoSetting::SystemEnableReactiveFlushing, Store::Module, false},
+    {"background-readbacks", NXVideoSetting::SystemBackgroundGpuReadbacks, Store::Module, true},
     {"feedback-loops", NXVideoSetting::SystemBarrierFeedbackLoops, Store::Module, false},
     {"fast-gpu-time", NXVideoSetting::SystemFastGPUTime, Store::Module, true},
     {"video-framerate", NXVideoSetting::SystemSyncToFramerateOfVideoPlayback, Store::Module, false},
@@ -332,10 +333,16 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     {
         return !settings.GetBool(NXOsSetting::SystemUseMultiCore);
     }
+    if (id == "background-readbacks")
+    {
+        // The pages are only protected with reactive flushing
+        return !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing);
+    }
     if (id == "fast-readback")
     {
-        // Normal accuracy already lets games read the results without waiting for the GPU.
-        return settings.GetInt(NXVideoSetting::SystemAccuracyLevel) == static_cast<int>(GpuAccuracy::Normal);
+        // Normal accuracy already lets games read the results without waiting for the GPU,
+        // Extreme always waits for it.
+        return settings.GetInt(NXVideoSetting::SystemAccuracyLevel) != static_cast<int>(GpuAccuracy::High);
     }
     return false;
 }

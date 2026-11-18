@@ -18,6 +18,7 @@
 #include <queue>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/hash.h"
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
@@ -206,6 +207,13 @@ public:
     /// Refresh the state for graphics image view and sampler descriptors
     void SynchronizeGraphicsDescriptors();
 
+    /// Changes whenever graphics texture and sampler descriptors may resolve or need preparing
+    /// differently: a draw with the same handles and epoch as an earlier one gets the same
+    /// views and samplers. Zero when the descriptor tables cannot be tracked.
+    [[nodiscard]] u64 GraphicsDescriptorEpoch() const noexcept {
+        return tables_tracked ? descriptor_epoch : 0;
+    }
+
     /// Refresh the state for compute image view and sampler descriptors
     void SynchronizeComputeDescriptors();
 
@@ -217,8 +225,8 @@ public:
     /// @param is_clear True when the render targets are being used for clears
     void UpdateRenderTargets(bool is_clear, u32 clear_layer_count = 0);
 
-    /// True when every bound render target was drawn to in an earlier frame, so that a draw
-    /// skipped now is redrawn by a later frame. UpdateRenderTargets should be called before this
+    /// True when every bound render target was drawn to in most of the recent frames, so that a
+    /// draw skipped now is redrawn by a later frame. UpdateRenderTargets should be called before this
     [[nodiscard]] bool RenderTargetsDrawnBefore() const;
 
     /// True when an image was drawn to for the first time since the previous call
@@ -318,7 +326,7 @@ public:
     /// Prepare an image to be used
     void PrepareImage(ImageId image_id, bool is_modification, bool invalidate);
 
-    std::recursive_mutex mutex;
+    Common::RecursiveMutex mutex;
 
 private:
     void DeduplicateDownloads();
@@ -641,6 +649,26 @@ private:
 
     u64 modification_tick = 0;
     u64 frame_tick = 0;
+
+    void BumpDescriptorEpoch() noexcept {
+        ++descriptor_epoch;
+    }
+    void TrackGraphicsDescriptorTables(GPUVAddr tic_addr, u32 tic_limit, GPUVAddr tsc_addr,
+                                       u32 tsc_limit);
+    void UntrackGraphicsDescriptorTables();
+    [[nodiscard]] bool OverlapsDescriptorTables(DAddr addr, size_t size) const noexcept;
+
+    // CPU and GPU writes to the guest descriptor tables reach WriteMemory, their pages are
+    // tracked as cached for that
+    u64 descriptor_epoch = 1;
+    const void* tracked_channel{};
+    GPUVAddr tracked_tic_addr{};
+    GPUVAddr tracked_tsc_addr{};
+    u32 tracked_tic_limit{};
+    u32 tracked_tsc_limit{};
+    bool tables_tracked{};
+    bool tables_checked{};
+    std::vector<std::pair<DAddr, size_t>> table_ranges;
     std::vector<ImageViewId> gc_removed_views;
     bool gc_descriptor_tables_dirty = false;
     struct GCReadback {

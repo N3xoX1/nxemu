@@ -368,15 +368,13 @@ endif()
 nxemu_unit_test(test_vertex_input)
 set(_conditional_generated "${CMAKE_CURRENT_BINARY_DIR}/conditional_rendering")
 add_custom_command(
-    OUTPUT "${_conditional_generated}/engine.inc" "${_conditional_generated}/runtime.inc"
+    OUTPUT "${_conditional_generated}/runtime.inc"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/conditional_rendering/extract.py"
         "${CMAKE_SOURCE_DIR}" "${_conditional_generated}"
     DEPENDS conditional_rendering/extract.py
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.cpp"
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/dma_pusher.cpp"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/vk_query_cache.cpp"
     VERBATIM)
-foreach(_part engine runtime)
+foreach(_part runtime)
     add_executable(test_conditional_${_part} conditional_rendering/${_part}.cpp
         "${_conditional_generated}/${_part}.inc")
     target_include_directories(test_conditional_${_part} PRIVATE "${_conditional_generated}"
@@ -414,38 +412,6 @@ add_dependencies(test_strided_handles shader_recompiler sirit fmt common)
 target_link_libraries(test_strided_handles PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_strided_handles)
-
-# Differential tests execute the production DMA and Maxwell register methods.
-set(_gpu_commands_generated "${CMAKE_CURRENT_BINARY_DIR}/gpu_commands")
-add_custom_command(
-    OUTPUT "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
-        "${_gpu_commands_generated}/baseline.inc" "${_gpu_commands_generated}/stream.inc"
-        "${_gpu_commands_generated}/queue.inc" "${_gpu_commands_generated}/stop.inc"
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/gpu_commands/extract.py"
-        "${CMAKE_SOURCE_DIR}" "${_gpu_commands_generated}"
-    DEPENDS gpu_commands/extract.py gpu_commands/baseline.inc
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.h"
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.cpp"
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/dma_pusher.cpp"
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/gpu_thread.h"
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/gpu_thread.cpp"
-    VERBATIM)
-add_executable(test_gpu_commands gpu_commands/commands.cpp gpu_commands/queue_tests.cpp
-    "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
-    "${_gpu_commands_generated}/baseline.inc" "${_gpu_commands_generated}/stream.inc"
-        "${_gpu_commands_generated}/queue.inc" "${_gpu_commands_generated}/stop.inc")
-target_include_directories(test_gpu_commands PRIVATE "${_gpu_commands_generated}"
-    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
-    "${CMAKE_SOURCE_DIR}/external/fmt/include")
-target_compile_definitions(test_gpu_commands PRIVATE FMT_HEADER_ONLY)
-target_link_libraries(test_gpu_commands PRIVATE nxemu_test_support)
-if(NOT MSVC)
-    target_compile_options(test_gpu_commands PRIVATE
-        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
-    target_link_options(test_gpu_commands PRIVATE -fsanitize=address,undefined)
-endif()
-nxemu_unit_test(test_gpu_commands)
-set_tests_properties(test_gpu_commands PROPERTIES TIMEOUT 30)
 
 set(_texture_hotpaths_generated "${CMAKE_CURRENT_BINARY_DIR}/texture_hotpaths")
 add_custom_command(

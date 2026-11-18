@@ -28,6 +28,11 @@ struct Memory {
         ++reads;
         std::memcpy(dst, bytes.data() + address, size);
     }
+
+    // Not host contiguous: the reuse path reads through ReadBlockUnsafe, which counts reads
+    const u8* GetSpan(u64, size_t) const {
+        return nullptr;
+    }
 };
 
 struct Runtime {

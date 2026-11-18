@@ -52,6 +52,11 @@ public:
     void ClearCache();
     /// Calculates how much space is remaining to use.
     size_t SpaceRemaining() const;
+    /// Space left in the hot area, and in the cold one (0 without one).
+    size_t NearSpaceRemaining() const;
+    size_t FarSpaceRemaining() const;
+    /// True once the hot or the cold area has less than 1/divisor of its own size left.
+    bool SpaceLow(size_t divisor) const;
     /// Ensure at least codesize bytes of code cache memory are committed at the current code_ptr.
     void EnsureMemoryCommitted(size_t codesize);
 
@@ -212,6 +217,13 @@ private:
     static constexpr size_t MXCSR_ALREADY_EXITED = 1 << 0;
     static constexpr size_t FORCE_RETURN = 1 << 1;
     std::array<const void*, 4> return_from_run_code;
+
+public:
+    /// Shared cold code that marks the page of a write, by page register * 17 + map register
+    /// (16 without one). Null where none was generated.
+    std::array<const void*, 16 * 17> write_mark_thunks{};
+
+private:
     void GenRunCode(std::function<void(BlockOfCode&)> rcp);
 
     const HostFeature host_features;

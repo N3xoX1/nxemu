@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include <array>
 #include <atomic>
 #include <functional>
@@ -193,6 +195,11 @@ private:
     mutable std::array<std::vector<std::pair<u32, u32>>, max_subchannels> front_sinks;
     /// Puller methods that only write a register, sent with the next puller method that acts
     mutable std::vector<Engines::Puller::MethodCall> pending_puller;
+    /// Puller registers as the decode side sees them, ahead of the GPU thread
+    mutable std::array<u32, 0x40> front_puller_regs{};
+    bool PullerWaitMet(u32 method, u32 argument) const;
+    /// The current GP entry continues a compute parameter payload, see Step
+    bool compute_payload_entry{};
 
     GPU& gpu;
     MemoryManager& memory_manager;

@@ -4,6 +4,7 @@
  */
 
 #include <cstddef>
+#include <cstdlib>
 #include <iterator>
 #include <optional>
 #include <type_traits>

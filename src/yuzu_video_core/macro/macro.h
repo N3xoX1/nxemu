@@ -127,6 +127,18 @@ public:
         return true;
     }
 
+    /// HLE macros only. True when Execute changes the state draws read only through the draw
+    /// range registers, constant buffer data and binds, which keep track of their changes.
+    virtual bool OnlyDraws() const {
+        return false;
+    }
+
+    /// HLE macros only. Decode side: when Execute only writes plain registers, queues them as
+    /// register writes instead of a macro call and returns true. The parameters are final.
+    virtual bool LowerToWrites([[maybe_unused]] const std::vector<u32>& parameters) {
+        return false;
+    }
+
     /// HLE macros only. Registers whose value after Execute depends on the path Execute takes at
     /// run time. Decode waits for Execute and copies these actual results before continuing.
     virtual std::span<const u32> FrontEffectRegisters() const {

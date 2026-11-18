@@ -71,6 +71,7 @@ struct OSSettings
 
     // Video
     bool use_reactive_flushing;
+    bool background_gpu_readbacks;
     bool use_video_framerate;
 
     // Linux

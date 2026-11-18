@@ -351,6 +351,7 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
     config.only_detect_misalignment_via_page_table_on_page_boundary = true;
 
     config.fastmem_pointer = page_table.FastmemArena();
+    config.write_track_map = page_table.WriteTrackMap(config.write_track_l2_offset, config.write_track_l1_offset);
     config.fastmem_address_space_bits = page_table.GetAddressSpaceWidth();
     config.silently_mirror_fastmem = false;
 
@@ -380,7 +381,9 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     config.code_cache_size = 128_MiB;
 #else
-    config.code_cache_size = 512_MiB;
+    // Only the emitted code takes memory. A full cache is emptied, and every core then
+    // compiles its code again: a second or more at a few fps. Jumps inside it stay in rel32.
+    config.code_cache_size = 1024_MiB;
 #endif
     config.share_code_cache_key = &process;
 

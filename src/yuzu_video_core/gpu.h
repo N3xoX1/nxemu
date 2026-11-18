@@ -180,6 +180,9 @@ public:
     /// Tick pending requests within the GPU.
     void TickWork();
 
+    /// True when TickWork has sync requests to run
+    [[nodiscard]] bool HasTickWork() const;
+
     /// Gets a mutable reference to the Host1x interface
     [[nodiscard]] Host1x::Host1x& Host1x();
 
@@ -274,6 +277,9 @@ public:
     /// submit the GPU work that writes it.
     bool AwaitPendingResult(DAddr addr, u64 size, bool kick);
 
+    /// Wait until the query results a CPU read of the region covers are written.
+    void WaitPendingResults(DAddr addr, u64 size);
+
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     void FlushRegion(DAddr addr, u64 size);
 
@@ -283,6 +289,12 @@ public:
     /// Notify rasterizer that CPU is trying to write this area. It returns true if the area is
     /// sensible, false otherwise
     bool OnCPUWrite(DAddr addr, u64 size);
+
+    /// Waits for queued GPU work that reads this area in place, before the CPU writes it
+    void WaitInPlaceReads(DAddr addr, u64 size);
+
+    /// Wakes the GPU thread to run RasterizerInterface::ServiceInPlaceWaits
+    void WakeGpuThread();
 
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(DAddr addr, u64 size);

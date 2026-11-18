@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
+#include <cstdio>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -92,8 +94,11 @@ struct CommandDataContainer {
     bool block{};
 };
 
-/// Work queue from the decode thread to the GPU thread, run in order. Without the decode thread
-/// the work runs at once.
+/**
+ * Work queue from the decode thread to the GPU thread. The decode
+ * thread runs DmaPusher and the Maxwell3D decode side, everything that touches the rasterizer
+ * runs on the GPU thread in queue order. Without the decode thread the work runs at once.
+ */
 class BackQueue final {
 public:
     using Work = std::function<void()>;
@@ -108,19 +113,24 @@ public:
     /// Decode thread: waits until the GPU thread has run all queued work
     void WaitIdle();
 
-    /// Decode thread: runs `func` on the GPU thread and waits for completion.
+    /// Decode thread: runs `func` while the GPU thread is idle and can't start new work
     template <typename Func>
     void RunExclusive(Func&& func) {
         if (!threaded) {
             func();
             return;
         }
-        Push([&func] { func(); });
         WaitIdle();
+        std::scoped_lock lock{*execution_mutex};
+        func();
     }
 
-    /// GPU thread: takes all queued work, false when woken without any
-    bool PopWait(std::deque<Work>& out, std::stop_token stop_token, const std::atomic<bool>& wake);
+    // Used by ThreadManager and the GPU thread
+
+    /// GPU thread: waits for work and takes all queued items, false
+    /// when woken without work
+    bool PopWait(std::deque<Work>& out, std::stop_token stop_token, const std::atomic<bool>& wake,
+                 const std::atomic<bool>& service);
     void FinishMany(u64 count);
     void Notify();
     void Stop();
@@ -129,6 +139,7 @@ private:
     friend class ThreadManager;
 
     bool threaded{};
+    std::recursive_mutex* execution_mutex{};
     std::mutex mutex;
     std::condition_variable_any cv;
     std::condition_variable_any idle_cv;
@@ -158,14 +169,26 @@ struct SynchState final {
     std::atomic<u64> signaled_fence{};
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
+    /// Another thread waits for recorded GPU work, see RasterizerInterface::ServiceInPlaceWaits
+    std::atomic<bool> service_ready{};
 
     void NotifyComposite() {
         if (!composite_ready.exchange(true, std::memory_order_release)) {
-            if (back.IsThreaded()) {
-                back.Notify();
-            } else {
-                queue.NotifyConsumer();
-            }
+            Wake();
+        }
+    }
+
+    void NotifyService() {
+        if (!service_ready.exchange(true, std::memory_order_release)) {
+            Wake();
+        }
+    }
+
+    void Wake() {
+        if (back.IsThreaded()) {
+            back.Notify();
+        } else {
+            queue.NotifyConsumer();
         }
     }
 };
@@ -196,6 +219,11 @@ public:
     void FlushAndInvalidateRegion(DAddr addr, u64 size);
 
     void TickGPU();
+
+    /// Wakes the GPU thread to run RasterizerInterface::ServiceInPlaceWaits
+    void WakeForService() {
+        state->NotifyService();
+    }
 
     /// Returns true when the GPU thread has executed every command pushed so far
     bool IsIdle() const;

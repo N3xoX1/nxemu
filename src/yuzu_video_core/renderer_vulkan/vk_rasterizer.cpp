@@ -15,7 +15,6 @@
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
-#include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "video_settings.h"
 #include "yuzu_video_core/buffer_cache/buffer_cache.h"
@@ -245,7 +244,11 @@ RasterizerVulkan::~RasterizerVulkan() {
 template <typename Func>
 void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     SCOPE_EXIT {
-        gpu.TickWork();
+        // Sync requests may wait for threads that take the cache locks
+        if (gpu.HasTickWork()) {
+            ReleaseDrawLocks();
+            gpu.TickWork();
+        }
     };
     FlushWork();
     gpu_memory->FlushCaching();
@@ -259,7 +262,7 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
             return;
         }
         // Skipping a draw whose pipeline is still compiling only hides it until a later frame
-        // draws it again. A target never drawn in an earlier frame may be drawn only this once
+        // draws it again. A target not drawn in most recent frames may be drawn only this once
         // (a texture the game renders once and keeps), so the draw waits for its pipeline.
         bool drawn_before{};
         {
@@ -276,7 +279,19 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
             return;
         }
     }
-    std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
+    // Consecutive draws keep the locks: taking them for each draw costs more than the draw
+    // setup of many draws. Another thread that waits gets them after this draw.
+    if (!draw_locks_held) {
+        std::lock(buffer_cache.mutex, texture_cache.mutex);
+        draw_locks_held = true;
+        draws_under_locks = 0;
+    }
+    SCOPE_EXIT {
+        if (++draws_under_locks >= 64 || buffer_cache.mutex.HasWaiters() ||
+            texture_cache.mutex.HasWaiters()) {
+            ReleaseDrawLocks();
+        }
+    };
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
@@ -285,7 +300,23 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     // Host queries begin/end within that pass and accumulate across pass boundaries.
     query_cache.CounterEnable(VideoCommon::QueryType::ZPassPixelCount64,
                               maxwell3d->regs.zpass_pixel_count_enable);
-    pipeline->Configure(is_indexed);
+    // Most draws only change the draw range or some buffers: their textures, samplers and render
+    // targets are the ones of the draw before
+    const bool direct_draw = std::exchange(preparing_direct_draw, false);
+    bool reused = false;
+    if (direct_draw) {
+        const DrawBindings current = CurrentDrawBindings(pipeline, is_indexed);
+        if (HasLastDrawState(current)) {
+            if (current.buffer_generation == last_draw_bindings.buffer_generation) {
+                reused = pipeline->ConfigureReused(is_indexed);
+            } else {
+                reused = pipeline->ConfigureKeptBuffers(is_indexed);
+            }
+        }
+    }
+    if (!reused) {
+        pipeline->Configure(is_indexed);
+    }
     image_write_stages |= pipeline->ImageWriteStages();
 
     UpdateDynamicStates();
@@ -293,6 +324,13 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, Func&& draw_func) {
     HandleTransformFeedback();
     draw_func(pipeline);
     buffer_cache.CopySparseWrites();
+    // Taken before the render targets are marked written: marking an aliased one changes the
+    // descriptor epoch, and the next draw then prepares its textures again
+    last_draw_bindings = direct_draw && pipeline->HasReusableBindings() &&
+                                 !buffer_cache.HasSparseBindings()
+                             ? CurrentDrawBindings(pipeline, is_indexed)
+                             : DrawBindings{};
+    maxwell3d->ClearBufferChanges();
 
     const auto& regs = maxwell3d->regs;
     u32 color_mask = 0;
@@ -378,8 +416,48 @@ void RasterizerVulkan::DrawVtgAsCompute(const GraphicsPipeline* pipeline) {
     });
 }
 
+RasterizerVulkan::DrawBindings RasterizerVulkan::CurrentDrawBindings(
+    const GraphicsPipeline* pipeline, bool is_indexed) const {
+    return DrawBindings{
+        .pipeline = pipeline,
+        .maxwell3d = maxwell3d,
+        .state_generation = maxwell3d->DrawStateGeneration(),
+        .buffer_generation = maxwell3d->BufferGeneration(),
+        .record_epoch = scheduler.RecordEpoch(),
+        .descriptor_epoch = texture_cache.GraphicsDescriptorEpoch(),
+        .deleted_buffers_epoch = buffer_cache.DeletedBuffersEpoch(),
+        .gpu_write_epoch = buffer_cache.GpuWriteEpoch(),
+        .memory_epoch = memory_epoch.load(std::memory_order_relaxed),
+        .topology = maxwell3d->draw_manager->GetDrawState().topology,
+        .is_indexed = is_indexed,
+    };
+}
+
+bool RasterizerVulkan::HasLastDrawState(const DrawBindings& current) const {
+    const DrawBindings& last = last_draw_bindings;
+    if (last.pipeline == nullptr || current.descriptor_epoch == 0) {
+        return false;
+    }
+    // Quads draw through an index buffer made from the draw range, inline indices are data
+    const auto& draw_state = maxwell3d->draw_manager->GetDrawState();
+    if (current.topology == Maxwell::PrimitiveTopology::Quads ||
+        current.topology == Maxwell::PrimitiveTopology::QuadStrip ||
+        !draw_state.inline_index_draw_indexes.empty()) {
+        return false;
+    }
+    return current.pipeline == last.pipeline && current.maxwell3d == last.maxwell3d &&
+           current.state_generation == last.state_generation &&
+           current.record_epoch == last.record_epoch &&
+           current.descriptor_epoch == last.descriptor_epoch &&
+           current.deleted_buffers_epoch == last.deleted_buffers_epoch &&
+           current.gpu_write_epoch == last.gpu_write_epoch &&
+           current.memory_epoch == last.memory_epoch && current.topology == last.topology &&
+           current.is_indexed == last.is_indexed;
+}
+
 void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
     vtg_instance_count = instance_count;
+    preparing_direct_draw = true;
     PrepareDraw(is_indexed, [this, is_indexed, instance_count](const GraphicsPipeline* pipeline) {
         if (pipeline->IsVtgAsCompute()) {
             DrawVtgAsCompute(pipeline);
@@ -847,6 +925,27 @@ void Vulkan::RasterizerVulkan::DisableGraphicsUniformBuffer(size_t stage, u32 in
     buffer_cache.DisableGraphicsUniformBuffer(stage, index);
 }
 
+bool RasterizerVulkan::PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                       UniformPrefetch& prefetch) {
+    // Decode thread: no cache lock, see BufferCache::PrefetchUniform
+    return buffer_cache.PrefetchUniform(stage, index, device_addr, max_size, prefetch.device_addr,
+                                        prefetch.size, prefetch.offset);
+}
+
+u64 RasterizerVulkan::UniformPrefetchPosition() {
+    return buffer_cache_runtime.PrefetchPosition();
+}
+
+void RasterizerVulkan::ApplyUniformPrefetch(size_t stage, u32 index,
+                                            const UniformPrefetch& prefetch) {
+    buffer_cache.ApplyUniformPrefetch(stage, index, prefetch.device_addr, prefetch.size,
+                                      prefetch.offset);
+}
+
+void RasterizerVulkan::ResetUniformPrefetch(u64 position) {
+    buffer_cache.ResetUniformPrefetch(position);
+}
+
 void RasterizerVulkan::FlushAll() {}
 
 void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {
@@ -946,7 +1045,10 @@ bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
     which = device_memory.FilterFlushCaches(addr, size, which);
     if ((True(which & VideoCommon::CacheType::BufferCache))) {
         if (buffer_cache.MayHaveGpuWrites(addr, size)) {
-            std::scoped_lock lock{buffer_cache.mutex};
+            // The decode thread asks this for every macro and command list while the GPU
+            // thread holds the lock for each draw: wait without making its unlock wake us
+            buffer_cache.mutex.lock_spin();
+            std::scoped_lock lock{std::adopt_lock, buffer_cache.mutex};
             if (buffer_cache.IsRegionGpuModified(addr, size)) {
                 return true;
             }
@@ -961,7 +1063,8 @@ bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
         return false;
     }
     if (True(which & VideoCommon::CacheType::TextureCache)) {
-        std::scoped_lock lock{texture_cache.mutex};
+        texture_cache.mutex.lock_spin();
+        std::scoped_lock lock{std::adopt_lock, texture_cache.mutex};
         return texture_cache.IsRegionGpuModified(addr, size);
     }
     return false;
@@ -987,6 +1090,7 @@ void RasterizerVulkan::InvalidateRegion(DAddr addr, u64 size, VideoCommon::Cache
     if (addr == 0 || size == 0) {
         return;
     }
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
     if (True(which & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.WriteMemory(addr, size);
@@ -1004,13 +1108,39 @@ void RasterizerVulkan::InvalidateRegion(DAddr addr, u64 size, VideoCommon::Cache
 }
 
 void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) {
-    // Mostly constant buffer data written before a draw: skip the caches with nothing in those pages
-    VideoCommon::CacheType caches = VideoCommon::CacheType::None;
+    InnerInvalidationImpl(sequences, false);
+}
+
+void RasterizerVulkan::ReleaseDrawLocks() {
+    if (!draw_locks_held) {
+        return;
+    }
+    draw_locks_held = false;
+    texture_cache.mutex.unlock();
+    buffer_cache.mutex.unlock();
+}
+
+void RasterizerVulkan::InnerConstBufferInvalidation(
+    std::span<const std::pair<DAddr, std::size_t>> sequences) {
+    InnerInvalidationImpl(sequences, true);
+}
+
+void RasterizerVulkan::InnerInvalidationImpl(
+    std::span<const std::pair<DAddr, std::size_t>> sequences, bool const_buffers_only) {
+    // Most of these are constant buffer data written before a draw. Skip the caches that never
+    // registered anything in the written pages.
+    auto caches = VideoCommon::CacheType::None;
     for (const auto& [addr, size] : sequences) {
         caches |= device_memory.FilterFlushCaches(
             addr, size,
             VideoCommon::CacheType::TextureCache | VideoCommon::CacheType::QueryCache |
                 VideoCommon::CacheType::ShaderCache);
+    }
+    // The 3D engine notes its constant buffer writes for the draws that keep their bindings:
+    // the buffers they bind are synchronized again, the other caches are not
+    if (!const_buffers_only ||
+        True(caches & (VideoCommon::CacheType::TextureCache | VideoCommon::CacheType::QueryCache))) {
+        memory_epoch.fetch_add(1, std::memory_order_relaxed);
     }
     if (True(caches & VideoCommon::CacheType::TextureCache)) {
         std::scoped_lock lock{texture_cache.mutex};
@@ -1037,10 +1167,94 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
     }
 }
 
+void RasterizerVulkan::WaitInPlaceReads(DAddr addr, u64 size) {
+    buffer_cache.WaitInPlaceReads(addr, size, [this](u64 tick) { WaitInPlaceTick(tick); });
+}
+
+void RasterizerVulkan::WaitInPlaceReadsForEngineWrite(DAddr addr, u64 size) {
+    buffer_cache.WaitInPlaceReads(addr, size, [this](u64 tick) { WaitInPlaceTick(tick); });
+}
+
+void RasterizerVulkan::WaitInPlaceTick(u64 tick) {
+    if (scheduler.IsFree(tick)) {
+        return;
+    }
+    if (tick >= scheduler.CurrentTick()) {
+        // The work is still recorded: only the thread that records may submit it
+        switch (VideoCore::gpu_thread_role) {
+        case VideoCore::GpuThreadRole::Draw:
+            scheduler.Flush();
+            break;
+        case VideoCore::GpuThreadRole::Decode: {
+            // Excludes the GPU thread once it ran the queued work
+            const Tegra::ExecutionLock lock = gpu.LockExecution();
+            if (tick >= scheduler.CurrentTick()) {
+                scheduler.Flush();
+            }
+            break;
+        }
+        case VideoCore::GpuThreadRole::None:
+            if (!RequestInPlaceSubmit(tick)) {
+                return;
+            }
+            break;
+        }
+    }
+    // Submitted: the GPU signals it, or the device is lost and the wait returns
+    scheduler.GetMasterSemaphore().Wait(tick);
+}
+
+bool RasterizerVulkan::RequestInPlaceSubmit(u64 tick) {
+    std::unique_lock lock{in_place_wait_mutex};
+    if (in_place_waits_stopped) {
+        return false;
+    }
+    in_place_submit_tick = std::max(in_place_submit_tick, tick);
+    in_place_submit_requested.store(true, std::memory_order_release);
+    gpu.WakeGpuThread();
+    in_place_wait_cv.wait(lock, [this, tick] {
+        return in_place_waits_stopped || tick < scheduler.CurrentTick();
+    });
+    return !in_place_waits_stopped;
+}
+
+void RasterizerVulkan::ServiceInPlaceWaits() {
+    // Only the thread that records submits: a puller method can run on the decode thread
+    if (VideoCore::gpu_thread_role != VideoCore::GpuThreadRole::Draw) {
+        return;
+    }
+    if (!in_place_submit_requested.load(std::memory_order_acquire)) [[likely]] {
+        return;
+    }
+    u64 tick;
+    {
+        std::scoped_lock lock{in_place_wait_mutex};
+        in_place_submit_requested.store(false, std::memory_order_relaxed);
+        tick = std::exchange(in_place_submit_tick, 0);
+    }
+    if (tick >= scheduler.CurrentTick()) {
+        scheduler.Flush();
+    }
+    {
+        // The waiters check the tick under the lock: none misses the notification
+        std::scoped_lock lock{in_place_wait_mutex};
+    }
+    in_place_wait_cv.notify_all();
+}
+
+void RasterizerVulkan::StopInPlaceWaits() {
+    {
+        std::scoped_lock lock{in_place_wait_mutex};
+        in_place_waits_stopped = true;
+    }
+    in_place_wait_cv.notify_all();
+}
+
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
     if (addr == 0 || size == 0) {
         return false;
     }
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
 
     const auto requested = VideoCommon::CacheType::BufferCache | VideoCommon::CacheType::TextureCache;
     const auto caches = device_memory.FilterFlushCaches(addr, size, requested);
@@ -1065,6 +1279,7 @@ void RasterizerVulkan::OnCacheInvalidation(DAddr addr, u64 size) {
     if (addr == 0 || size == 0) {
         return;
     }
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
 
     {
         std::scoped_lock lock{texture_cache.mutex};
@@ -1082,6 +1297,7 @@ void RasterizerVulkan::InvalidateGPUCache() {
 }
 
 void RasterizerVulkan::UnmapMemory(DAddr addr, u64 size) {
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
     {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.UnmapMemory(addr, size);
@@ -1094,6 +1310,7 @@ void RasterizerVulkan::UnmapMemory(DAddr addr, u64 size) {
 }
 
 void RasterizerVulkan::ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size, bool preserve_contents) {
+    memory_epoch.fetch_add(1, std::memory_order_relaxed);
     {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.UnmapGPUMemory(as_id, addr, size, preserve_contents);
@@ -1267,7 +1484,7 @@ void RasterizerVulkan::AccelerateInlineToMemory(GPUVAddr address, size_t copy_si
     }
     gpu_memory->WriteBlockUnsafe(address, memory.data(), copy_size);
     {
-        std::unique_lock<std::recursive_mutex> lock{buffer_cache.mutex};
+        std::unique_lock<Common::RecursiveMutex> lock{buffer_cache.mutex};
         if (!buffer_cache.InlineMemory(*cpu_addr, copy_size, memory)) {
             buffer_cache.WriteMemory(*cpu_addr, copy_size);
         }
@@ -1348,7 +1565,9 @@ void RasterizerVulkan::FlushWork() {
     if (draw_counter < DRAWS_TO_DISPATCH) {
         // Batch opportunistic worker handoffs. Explicit guest flushes/waits
         // and the periodic driver submission below retain their original cadence.
-        if ((draw_counter & 31) == 31) {
+        // Every 128 draws: waking the worker more often costs the GPU thread more than the
+        // worker gains, fewer wakes leave the worker idle too long.
+        if ((draw_counter & 127) == 127) {
             scheduler.DispatchWork();
         }
         return;

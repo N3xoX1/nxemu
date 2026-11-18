@@ -8,6 +8,12 @@
 #include "core/hle/kernel/svc_types.h"
 #include <nxemu-module-spec/cpu.h>
 
+namespace Core::Memory {
+// Whether the JIT marks fastmem writes in a map instead of the GPU caches write-protecting
+// their pages. Defined in memory.cpp.
+bool UseWriteTrackMap();
+} // namespace Core::Memory
+
 namespace Kernel {
 
 class KProcessPageTable :
@@ -23,6 +29,20 @@ public:
     uint8_t * FastmemArena() const override
     {
         return GetImpl().fastmem_arena;
+    }
+
+    uint8_t * WriteTrackMap(uint32_t & l2_offset, uint32_t & l1_offset) const override
+    {
+        // The memory system stops write-protecting cached pages only in the same case
+        const auto & impl = GetImpl();
+        if (impl.fastmem_arena == nullptr || !Core::Memory::UseWriteTrackMap())
+        {
+            l2_offset = l1_offset = 0;
+            return nullptr;
+        }
+        l2_offset = impl.write_track_l2_offset;
+        l1_offset = impl.write_track_l1_offset;
+        return impl.write_track_map;
     }
 
     void ** PageTable() const override

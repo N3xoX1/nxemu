@@ -25,12 +25,42 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+      # The runner mirror is sometimes very slow: downloaded packages are cached, and an
+      # attempt that stalls is retried on the main Ubuntu archive.
+      - name: Restore apt packages
+        id: apt-cache
+        if: ${{ !env.ACT }}
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/apt-archives
+          key: apt-ubuntu-24.04-v1-${{ hashFiles('.github/workflows/linux.yml') }}
+          restore-keys: |
+            apt-ubuntu-24.04-v1-
       - name: Install build tools
-        timeout-minutes: 10
+        timeout-minutes: 25
         run: |
-          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
-          sudo apt-get "${apt_options[@]}" update --error-on=any
-          sudo apt-get "${apt_options[@]}" install -y build-essential clang libclang-rt-dev lld cmake ninja-build pkg-config ccache glslang-tools libdbus-1-dev libvulkan-dev libwayland-dev libegl-dev libxkbcommon-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libudev-dev libusb-1.0-0-dev python3
+          packages=(build-essential clang libclang-rt-dev lld cmake ninja-build pkg-config ccache glslang-tools libdbus-1-dev libvulkan-dev libwayland-dev libegl-dev libxkbcommon-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libudev-dev libusb-1.0-0-dev python3)
+          archives="$HOME/apt-archives"
+          mkdir -p "$archives/partial"
+          apt_options=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Dir::Cache::Archives="$archives")
+          install() {
+            timeout 8m sudo apt-get "${apt_options[@]}" update --error-on=any &&
+              timeout 8m sudo apt-get "${apt_options[@]}" install -y "${packages[@]}"
+          }
+          if ! install; then
+            echo "::warning::apt attempt failed or stalled, retrying on archive.ubuntu.com"
+            sudo sed -i -E 's#https?://[^ ]*archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' \
+              /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
+            sudo dpkg --configure -a || true
+            install
+          fi
+          sudo chown -R "$USER" "$archives"
+      - name: Save apt packages
+        if: ${{ !env.ACT && steps.apt-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/apt-archives
+          key: ${{ steps.apt-cache.outputs.cache-primary-key }}
       - name: Prepare build cache paths
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
