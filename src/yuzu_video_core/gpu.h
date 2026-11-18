@@ -277,6 +277,9 @@ public:
     /// submit the GPU work that writes it.
     bool AwaitPendingResult(DAddr addr, u64 size, bool kick);
 
+    /// Wait until the query results a CPU read of the region covers are written.
+    void WaitPendingResults(DAddr addr, u64 size);
+
     /// Notify rasterizer that any caches of the specified region should be flushed to Switch memory
     void FlushRegion(DAddr addr, u64 size);
 
