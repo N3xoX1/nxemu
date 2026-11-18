@@ -15,6 +15,7 @@
 
 body.tab-graphics #tab-graphics,
 body.tab-system #tab-system,
+body.tab-hacks #tab-hacks,
 body.tab-application #tab-application,
 body.tab-shortcuts #tab-shortcuts,
 body.tab-debug-graphics #tab-debug-graphics,
@@ -89,6 +90,7 @@ body.narrow .advanced-page
 
 body.narrow.tab-graphics #tab-graphics,
 body.narrow.tab-system #tab-system,
+body.narrow.tab-hacks #tab-hacks,
 body.narrow.tab-application #tab-application,
 body.narrow.tab-shortcuts #tab-shortcuts,
 body.narrow.tab-debug-graphics #tab-debug-graphics,

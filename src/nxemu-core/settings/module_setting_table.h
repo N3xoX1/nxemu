@@ -34,6 +34,11 @@ inline std::string SettingsJson(const JsonValue & root)
     return root.isNull() ? std::string() : JsonStyledWriter().write(root);
 }
 
+inline bool SameJson(const JsonValue & a, const JsonValue & b)
+{
+    return JsonStyledWriter().write(a) == JsonStyledWriter().write(b);
+}
+
 template <typename Setting, size_t N>
 Setting * FindSetting(Setting (&settings)[N], const char * id)
 {
@@ -117,8 +122,10 @@ void SettingChanged(Setting (&settings)[N], const char * id)
     }
 }
 
+// titleDefaults holds what the module sets for the running game when its settings file leaves
+// it out, in the layout of that file.
 template <typename Setting, size_t N>
-void LoadGameSettings(Setting (&settings)[N], const char * section)
+void LoadGameSettings(Setting (&settings)[N], const char * section, const JsonValue & titleDefaults = JsonValue())
 {
     const JsonValue root = ParseSettings(g_settings->GetGameSectionSettings(section));
     const bool debugEnabled = g_settings->DebugSettingsEnabled();
@@ -129,19 +136,26 @@ void LoadGameSettings(Setting (&settings)[N], const char * section)
             continue;
         }
         const bool locked = setting.debugSetting && !debugEnabled;
-        const bool present = !JsonSettingValue(setting, root).isNull();
+        const bool present = !JsonSettingValue(setting, root).isNull() && !locked;
+        const bool titleDefault = !JsonSettingValue(setting, titleDefaults).isNull();
         LoadStoreSetting(setting, setting.fallback);
-        if (present && !locked)
+        if (present)
         {
             ReadJsonSetting(setting, root);
         }
+        else if (titleDefault)
+        {
+            ReadJsonSetting(setting, titleDefaults);
+        }
         StoreSetting(setting);
-        setting.gameValue = present && !locked && !SameStoreValue(setting, setting.identifier, setting.fallback);
+        // A game value set for the title does not follow the system one either
+        setting.gameValue = titleDefault || (present && !SameStoreValue(setting, setting.identifier, setting.fallback));
     }
 }
 
 template <typename Setting, size_t N>
-void SetupSettings(Setting (&settings)[N], const char * section, SettingChangeCallback settingChanged, SettingChangeCallback gameSettingsChanged)
+void SetupSettings(Setting (&settings)[N], const char * section, SettingChangeCallback settingChanged, SettingChangeCallback gameSettingsChanged,
+                   const JsonValue & titleDefaults = JsonValue())
 {
     for (Setting & setting : settings)
     {
@@ -186,7 +200,7 @@ void SetupSettings(Setting (&settings)[N], const char * section, SettingChangeCa
         }
     }
 
-    LoadGameSettings(settings, section);
+    LoadGameSettings(settings, section, titleDefaults);
     for (Setting & setting : settings)
     {
         if (setting.fallback == nullptr)
@@ -223,7 +237,7 @@ void CleanupSettings(Setting (&settings)[N], SettingChangeCallback settingChange
 }
 
 template <typename Setting, size_t N>
-void SaveSettings(Setting (&settings)[N], const char * section)
+void SaveSettings(Setting (&settings)[N], const char * section, const JsonValue & titleDefaults = JsonValue())
 {
     const bool debugEnabled = g_settings->DebugSettingsEnabled();
     const JsonValue saved = ParseSettings(g_settings->GetSectionSettings(section));
@@ -254,6 +268,18 @@ void SaveSettings(Setting (&settings)[N], const char * section)
         if (setting.debugSetting && !debugEnabled)
         {
             KeepSavedSetting(setting, savedGame, gameRoot);
+            continue;
+        }
+        const JsonValue titleDefault = JsonSettingValue(setting, titleDefaults);
+        if (!titleDefault.isNull())
+        {
+            // Only a choice other than the title's default is the player's
+            JsonValue current;
+            WriteJsonSetting(setting, current, true);
+            if (!SameJson(JsonSettingValue(setting, current), titleDefault))
+            {
+                WriteJsonSetting(setting, gameRoot, true);
+            }
             continue;
         }
         if (setting.gameValue && !SameStoreValue(setting, setting.identifier, setting.fallback))

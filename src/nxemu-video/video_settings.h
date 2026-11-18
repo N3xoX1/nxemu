@@ -106,9 +106,12 @@ struct VideoSettings
     bool global_async_presentation;
     bool use_reactive_flushing;
     bool global_use_reactive_flushing;
+    bool background_gpu_readbacks;
+    bool global_background_gpu_readbacks;
     bool gpu_command_synchronization;
     bool global_gpu_command_synchronization;
     bool fast_gpu_readback;
+    bool global_fast_gpu_readback;
 
     bool use_asynchronous_shaders;
     bool global_use_asynchronous_shaders;

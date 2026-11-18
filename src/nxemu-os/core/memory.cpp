@@ -2056,6 +2056,12 @@ void Memory::RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, i
 }
 
 bool Memory::ProtectsReadCachedRegions() {
+    // Off, games wait for the GPU to finish every readback: slower, but they never read
+    // a value from before the fence they waited for.
+    if (!osSettings.background_gpu_readbacks)
+    {
+        return false;
+    }
 #if defined(__APPLE__)
     return impl->buffer->UsesNce() && osSettings.use_reactive_flushing;
 #else
