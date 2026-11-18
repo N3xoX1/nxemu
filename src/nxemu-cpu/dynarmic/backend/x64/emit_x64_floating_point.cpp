@@ -1133,12 +1133,15 @@ static void EmitFPRound(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, siz
     }
 
     // FRINTA: trunc(x), plus one away from zero when the dropped part is at least one half.
-    // x - trunc(x) is exact, and the blend keeps the sign of zero results.
+    // x - trunc(x) is exact, and the blend keeps the sign of zero results. The upper lanes of
+    // truncated end up in the result, so they are cleared: the NaN check below compares all of
+    // them, and a signalling NaN left there raised IOC.
     if (fsize != 16 && code.HasHostFeature(HostFeature::SSE41) && rounding_mode == FP::RoundingMode::ToNearest_TieAwayFromZero && !exact) {
         const Xbyak::Xmm truncated = ctx.reg_alloc.ScratchXmm();
         const Xbyak::Xmm mask = ctx.reg_alloc.ScratchXmm();
         if (fsize == 64) {
             FPTwoOp<64>(code, ctx, inst, [&](Xbyak::Xmm result) {
+                code.xorps(truncated, truncated);
                 code.roundsd(truncated, result, 0b1011);
                 code.movaps(mask, result);
                 code.subsd(mask, truncated);
@@ -1153,6 +1156,7 @@ static void EmitFPRound(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, siz
             });
         } else {
             FPTwoOp<32>(code, ctx, inst, [&](Xbyak::Xmm result) {
+                code.xorps(truncated, truncated);
                 code.roundss(truncated, result, 0b1011);
                 code.movaps(mask, result);
                 code.subss(mask, truncated);
