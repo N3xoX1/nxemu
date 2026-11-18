@@ -348,7 +348,7 @@ bool BlockOfCode::SpaceLow(size_t divisor) const {
     // Each area against its own size: the cold one fills at its own pace, and running out of
     // it alone must not empty a hot area that still has room.
     const u8* const near_end = far_begin ? far_begin : &top_[maxSize_];
-    const size_t near_size = static_cast<size_t>(near_end - code_begin);
+    const size_t near_size = static_cast<size_t>(near_end - static_cast<const u8*>(code_begin));
     if (NearSpaceRemaining() < near_size / divisor) {
         return true;
     }
