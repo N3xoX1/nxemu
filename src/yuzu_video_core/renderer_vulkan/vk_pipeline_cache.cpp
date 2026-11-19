@@ -831,7 +831,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_fp16_denorm_preserve = float_control.shaderDenormPreserveFloat16 != VK_FALSE,
         .support_fp32_denorm_preserve = float_control.shaderDenormPreserveFloat32 != VK_FALSE,
         .support_fp16_denorm_flush = float_control.shaderDenormFlushToZeroFloat16 != VK_FALSE,
-        .support_fp32_denorm_flush = float_control.shaderDenormFlushToZeroFloat32 != VK_FALSE,
+        .support_fp32_denorm_flush = float_control.shaderDenormFlushToZeroFloat32 != VK_FALSE &&
+                                     driver_id != VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS,
         .support_fp16_signed_zero_nan_preserve =
             float_control.shaderSignedZeroInfNanPreserveFloat16 != VK_FALSE,
         .support_fp32_signed_zero_nan_preserve =
