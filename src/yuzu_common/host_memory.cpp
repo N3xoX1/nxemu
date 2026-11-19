@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <boost/icl/separate_interval_set.hpp>
 #include <windows.h>
+#include <psapi.h>
 #include "yuzu_common/dynamic_library.h"
 
 #elif defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__) // ^^^ Windows ^^^ vvv POSIX vvv
@@ -41,10 +42,17 @@
 
 #endif // ^^^ POSIX ^^^
 
+#include <atomic>
+#include <algorithm>
+#include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <random>
+#include <vector>
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -130,10 +138,13 @@ public:
         GetFuncAddress(kernelbase_dll, "MapViewOfFile3", pfn_MapViewOfFile3);
         GetFuncAddress(kernelbase_dll, "UnmapViewOfFile2", pfn_UnmapViewOfFile2);
 
-        // Allocate backing file map
+        // SEC_COMMIT reserves system commit for the *entire* guest memory at startup.
+        // SEC_RESERVE only charges pages explicitly committed through the backing view.
+        // Keep this opt-in until Windows gameplay and OOM paths have been validated.
         backing_handle =
             pfn_CreateFileMapping2(INVALID_HANDLE_VALUE, nullptr, FILE_MAP_WRITE | FILE_MAP_READ,
-                                   PAGE_READWRITE, SEC_COMMIT, backing_size, nullptr, nullptr, 0);
+                                   PAGE_READWRITE, lazy_commit ? SEC_RESERVE : SEC_COMMIT,
+                                   backing_size, nullptr, nullptr, 0);
         if (!backing_handle) {
             LOG_CRITICAL(HW_Memory, "Failed to allocate {} MiB of backing memory",
                          backing_size >> 20);
@@ -157,6 +168,16 @@ public:
             LOG_CRITICAL(HW_Memory, "Failed to map {} MiB of virtual memory", backing_size >> 20);
             throw std::bad_alloc{};
         }
+        if (lazy_commit) {
+            const size_t granule_count = (backing_size + CommitGranule - 1) / CommitGranule;
+            const size_t word_count = (granule_count + 63) / 64;
+            committed_granules = std::make_unique<std::atomic<u64>[]>(word_count);
+            for (size_t i = 0; i < word_count; ++i) {
+                committed_granules[i].store(0, std::memory_order_relaxed);
+            }
+            LOG_INFO(HW_Memory, "Windows lazy guest memory commitment enabled ({} MiB reserved)",
+                     backing_size >> 20);
+        }
         // Allocate virtual address placeholder
         virtual_base = static_cast<u8*>(pfn_VirtualAlloc2(process, nullptr, virtual_size,
                                                           MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
@@ -174,6 +195,9 @@ public:
     }
 
     void Map(size_t virtual_offset, size_t host_offset, size_t length, MemoryPermission perms) {
+        if (track_trim_activity) {
+            mapped_bytes.fetch_add(length, std::memory_order_relaxed);
+        }
         std::unique_lock lock{placeholder_mutex};
         if (!IsNiechePlaceholder(virtual_offset, length)) {
             Split(virtual_offset, length);
@@ -185,6 +209,9 @@ public:
     }
 
     void Unmap(size_t virtual_offset, size_t length) {
+        if (track_trim_activity) {
+            mapped_bytes.fetch_add(length, std::memory_order_relaxed);
+        }
         std::scoped_lock lock{placeholder_mutex};
 
         // Unmap until there are no more placeholders
@@ -193,6 +220,9 @@ public:
     }
 
     void Protect(size_t virtual_offset, size_t length, bool read, bool write, bool execute) {
+        if (track_trim_activity) {
+            mapped_bytes.fetch_add(length, std::memory_order_relaxed);
+        }
         DWORD new_flags{};
         if (read && write) {
             new_flags = PAGE_READWRITE;
@@ -223,6 +253,95 @@ public:
         return false;
     }
 
+    bool CommitBackingRegion(size_t physical_offset, size_t length) {
+        if (!lazy_commit || length == 0) {
+            return true;
+        }
+        ASSERT(physical_offset <= backing_size && length <= backing_size - physical_offset);
+
+        const size_t first = physical_offset / CommitGranule;
+        const size_t last = (physical_offset + length - 1) / CommitGranule + 1;
+
+        // Most fastmem maps and kernel opens revisit already committed pages.
+        // Avoid serializing them on commit_mutex; a released bitmap bit means
+        // the OS commit succeeded and is visible to all aliases.
+        bool already_committed = true;
+        for (size_t i = first; i < last; ++i) {
+            if ((committed_granules[i / 64].load(std::memory_order_acquire) &
+                 (u64{1} << (i % 64))) == 0) {
+                already_committed = false;
+                break;
+            }
+        }
+        if (already_committed) {
+            return true;
+        }
+
+        std::scoped_lock lock{commit_mutex};
+
+        size_t index = first;
+        while (index < last) {
+            if (committed_granules[index / 64].load(std::memory_order_relaxed) &
+                (u64{1} << (index % 64))) {
+                ++index;
+                continue;
+            }
+            const size_t begin = index;
+            do {
+                ++index;
+            } while (index < last &&
+                     !(committed_granules[index / 64].load(std::memory_order_relaxed) &
+                       (u64{1} << (index % 64))));
+
+            const size_t offset = begin * CommitGranule;
+            const size_t commit_length = std::min(backing_size, index * CommitGranule) - offset;
+            void* const address = backing_base + offset;
+            if (VirtualAlloc(address, commit_length, MEM_COMMIT, PAGE_READWRITE) != address) {
+                LOG_CRITICAL(HW_Memory,
+                             "Failed to commit {} KiB of guest memory at offset {:#x} "
+                             "(Windows error {})",
+                             commit_length >> 10, offset, GetLastError());
+                return false;
+            }
+            for (size_t committed = begin; committed < index; ++committed) {
+                committed_granules[committed / 64].fetch_or(u64{1} << (committed % 64),
+                                                             std::memory_order_release);
+            }
+        }
+        return true;
+    }
+
+    /// Find the physical offset for a resident guest alias. The lock is not held
+    /// while reading the backing page or trimming a view from the working set.
+    std::optional<std::pair<size_t, size_t>> BackingRange(size_t virtual_offset) {
+        std::scoped_lock lock{placeholder_mutex};
+        const auto it = placeholders.find(virtual_offset);
+        if (it == placeholders.end() || virtual_offset < it->lower() ||
+            virtual_offset >= it->upper()) {
+            return std::nullopt;
+        }
+        const auto backing = placeholder_host_pointers.find(it->lower());
+        if (backing == placeholder_host_pointers.end()) {
+            return std::nullopt;
+        }
+        return std::pair{backing->second + virtual_offset - it->lower(), it->upper()};
+    }
+
+    /// With lazy commitment a stale alias lookup can name a reserved, never
+    /// committed backing page; reading it would raise an access violation.
+    [[nodiscard]] bool IsBackingCommitted(size_t physical_offset) const noexcept {
+        if (!lazy_commit) {
+            return true;
+        }
+        const size_t index = physical_offset / CommitGranule;
+        return (committed_granules[index / 64].load(std::memory_order_acquire) &
+                (u64{1} << (index % 64))) != 0;
+    }
+
+    [[nodiscard]] u64 MappedBytes() const noexcept {
+        return mapped_bytes.load(std::memory_order_relaxed);
+    }
+
     void EnableDirectMappedAddress() {
         // TODO
         UNREACHABLE();
@@ -235,6 +354,18 @@ public:
     u8* virtual_base{};
 
 private:
+    static constexpr size_t CommitGranule = 64 * 1024;
+
+    static bool ZeroTrimEnabled() {
+        const char* const flag = std::getenv("NXEMU_ZERO_TRIM");
+        return flag && std::strcmp(flag, "1") == 0;
+    }
+
+    static bool LazyCommitEnabled() {
+        const char* const flag = std::getenv("NXEMU_WIN_LAZY_GUEST_COMMIT");
+        return flag && std::strcmp(flag, "1") == 0;
+    }
+
     /// Release all resources in the object
     void Release() {
         if (!placeholders.empty()) {
@@ -381,6 +512,12 @@ private:
 
     HANDLE process{};        ///< Current process handle
     HANDLE backing_handle{}; ///< File based backing memory
+
+    const bool lazy_commit{LazyCommitEnabled()};
+    const bool track_trim_activity{ZeroTrimEnabled()};
+    std::atomic<u64> mapped_bytes{0};
+    std::mutex commit_mutex;
+    std::unique_ptr<std::atomic<u64>[]> committed_granules;
 
     DynamicLibrary kernelbase_dll;
     PFN_CreateFileMapping2 pfn_CreateFileMapping2{};
@@ -663,13 +800,25 @@ public:
 #ifdef __linux__
         // Set MADV_REMOVE on backing map to destroy it instantly.
         // This also deletes the area from the backing file.
-        int ret = madvise(backing_base + physical_offset, length, MADV_REMOVE);
-        ASSERT_MSG(ret == 0, "madvise failed: {}", strerror(errno));
-
-        return true;
+        if (madvise(backing_base + physical_offset, length, MADV_REMOVE) == 0) {
+            return true;
+        }
+        // Some Android kernels or backing-file implementations reject MADV_REMOVE.
+        // Let HostMemory zero the region instead of terminating the emulator.
+        static std::once_flag warning_once;
+        const int error = errno;
+        std::call_once(warning_once, [error] {
+            LOG_WARNING(HW_Memory, "MADV_REMOVE unsupported ({}); using memset fallback",
+                        strerror(error));
+        });
+        return false;
 #else
         return false;
 #endif
+    }
+
+    bool CommitBackingRegion(size_t physical_offset, size_t length) {
+        return true;
     }
 
     void EnableDirectMappedAddress() {
@@ -774,6 +923,10 @@ public:
         return false;
     }
 
+    bool CommitBackingRegion(size_t physical_offset, size_t length) {
+        return true;
+    }
+
     void EnableDirectMappedAddress() {}
 
     u8* backing_base{nullptr};
@@ -808,6 +961,11 @@ HostMemory::HostMemory(size_t backing_size_, size_t virtual_size_)
         backing_base = fallback_buffer->data();
         virtual_base = nullptr;
     }
+    num_granules = (backing_size + (size_t{1} << GranuleShift) - 1) >> GranuleShift;
+    granules = std::make_unique<std::atomic<u8>[]>(num_granules);
+    for (size_t i = 0; i < num_granules; ++i) {
+        granules[i].store(0, std::memory_order_relaxed);
+    }
 }
 
 HostMemory::~HostMemory() = default;
@@ -826,6 +984,11 @@ void HostMemory::Map(size_t virtual_offset, size_t host_offset, size_t length,
     if (length == 0 || !virtual_base || !impl) {
         return;
     }
+#ifdef _WIN32
+    // An alias may be touched immediately after it becomes visible, even when its
+    // physical pages were not obtained via a regular kernel heap allocation.
+    CommitBackingRegion(host_offset, length);
+#endif
     impl->Map(virtual_offset + virtual_base_offset, host_offset, length, perms);
 }
 
@@ -853,9 +1016,267 @@ void HostMemory::Protect(size_t virtual_offset, size_t length, MemoryPermission 
 }
 
 void HostMemory::ClearBackingRegion(size_t physical_offset, size_t length, u32 fill_value) {
-    if (!impl || fill_value != 0 || !impl->ClearBackingRegion(physical_offset, length)) {
-        std::memset(backing_base + physical_offset, fill_value, length);
+#ifdef _WIN32
+    CommitBackingRegion(physical_offset, length);
+#endif
+    if (length == 0) {
+        return;
     }
+    MarkBackingUsed(physical_offset, length);
+    const auto clear = [this, fill_value](size_t offset, size_t size) {
+        if (!impl || fill_value != 0 || !impl->ClearBackingRegion(offset, size)) {
+            std::memset(backing_base + offset, fill_value, size);
+        }
+    };
+    if (fill_value != 0) {
+        clear(physical_offset, length);
+        MarkBackingDirty(physical_offset, length);
+        return;
+    }
+    // Clear only the granules that may hold data; the rest is still zero and untouched, and a
+    // memset would make the host commit it (and spend the time) for nothing. A granule
+    // cleared in full is zero again.
+    constexpr size_t GranuleSize = size_t{1} << GranuleShift;
+    const size_t end = physical_offset + length;
+    size_t span_begin = end;
+    for (size_t offset = physical_offset; offset < end;) {
+        const size_t index = offset >> GranuleShift;
+        const size_t granule_end = (index + 1) << GranuleShift;
+        const size_t clear_end = std::min(granule_end, end);
+        const bool dirty =
+            (granules[index].load(std::memory_order_acquire) & GranuleDirty) != 0;
+        if (dirty) {
+            if (span_begin == end) {
+                span_begin = offset;
+            }
+            if (offset == granule_end - GranuleSize && clear_end == granule_end) {
+                // Cleared below, before anyone can see this granule allocated.
+                granules[index].fetch_and(static_cast<u8>(~GranuleDirty),
+                                          std::memory_order_release);
+            }
+        } else if (span_begin != end) {
+            clear(span_begin, offset - span_begin);
+            span_begin = end;
+        }
+        offset = clear_end;
+    }
+    if (span_begin != end) {
+        clear(span_begin, end - span_begin);
+    }
+}
+
+void HostMemory::MarkBackingUsed(size_t physical_offset, size_t length) {
+    if (length == 0) {
+        return;
+    }
+    const size_t last = std::min((physical_offset + length - 1) >> GranuleShift, num_granules - 1);
+    for (size_t index = physical_offset >> GranuleShift; index <= last; ++index) {
+        if ((granules[index].load(std::memory_order_relaxed) & GranuleUsed) == 0) {
+            granules[index].fetch_or(GranuleUsed, std::memory_order_release);
+        }
+    }
+}
+
+void HostMemory::MarkBackingDirty(size_t physical_offset, size_t length) {
+    if (length == 0) {
+        return;
+    }
+    const size_t last = std::min((physical_offset + length - 1) >> GranuleShift, num_granules - 1);
+    for (size_t index = physical_offset >> GranuleShift; index <= last; ++index) {
+        if ((granules[index].load(std::memory_order_relaxed) & GranuleDirty) == 0) {
+            granules[index].fetch_or(GranuleUsed | GranuleDirty, std::memory_order_release);
+        }
+    }
+}
+
+bool HostMemory::IsBackingDirty(size_t physical_offset) const {
+    const size_t index = physical_offset >> GranuleShift;
+    return index < num_granules &&
+           (granules[index].load(std::memory_order_acquire) & GranuleDirty) != 0;
+}
+
+bool HostMemory::ReleaseFreeBacking(size_t physical_offset) {
+    constexpr size_t GranuleSize = size_t{1} << GranuleShift;
+    if (physical_offset % GranuleSize != 0 || physical_offset + GranuleSize > backing_size ||
+        !impl) {
+        return false;
+    }
+#ifdef _WIN32
+    // Windows frees an all-zero page that leaves the working set without writing it to the
+    // pagefile, so zeroing and trimming returns the RAM (not the commit).
+    std::memset(backing_base + physical_offset, 0, GranuleSize);
+    VirtualUnlock(backing_base + physical_offset, GranuleSize);
+#elif defined(__linux__)
+    if (!impl->ClearBackingRegion(physical_offset, GranuleSize)) {
+        return false;
+    }
+#else
+    return false;
+#endif
+    granules[physical_offset >> GranuleShift].fetch_and(static_cast<u8>(~GranuleDirty),
+                                                       std::memory_order_release);
+    return true;
+}
+
+void HostMemory::ForgetBackingContents() {
+    for (size_t index = 0; index < num_granules; ++index) {
+        if ((granules[index].load(std::memory_order_relaxed) & GranuleUsed) != 0) {
+            granules[index].fetch_or(GranuleDirty, std::memory_order_release);
+        }
+    }
+}
+
+void HostMemory::CommitBackingRegion(size_t physical_offset, size_t length) {
+    ASSERT(physical_offset <= backing_size && length <= backing_size - physical_offset);
+    if (impl && !impl->CommitBackingRegion(physical_offset, length)) {
+        // An access violation would otherwise occur on the first touch of a reserved page.
+        throw std::bad_alloc{};
+    }
+}
+
+std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
+#ifdef _WIN32
+    if (backing_base == nullptr || impl == nullptr) {
+        return {0, 0};
+    }
+
+    // Query resident pages only: scanning the entire 4-12 GiB reservation would
+    // page cold memory back in and negate the benefit. The working-set API can
+    // report a larger required buffer when the process grows during the query.
+    std::vector<ULONG_PTR> entries(size_t{1} << 17);
+    bool queried = false;
+    for (int attempt = 0; attempt < 8; ++attempt) {
+        if (K32QueryWorkingSet(GetCurrentProcess(), entries.data(),
+                               static_cast<DWORD>(entries.size() * sizeof(ULONG_PTR)))) {
+            queried = true;
+            break;
+        }
+        if (GetLastError() != ERROR_BAD_LENGTH || entries.size() >= (size_t{1} << 23)) {
+            break;
+        }
+        entries.resize(std::min(entries.size() * 2, size_t{1} << 23));
+    }
+    if (!queried) {
+        return {0, 0};
+    }
+
+    constexpr uintptr_t page_size = GuestPageSize;
+    const uintptr_t backing_begin = reinterpret_cast<uintptr_t>(backing_base);
+    const uintptr_t view_begin = reinterpret_cast<uintptr_t>(impl->virtual_base);
+    const size_t count = std::min(size_t{entries[0]}, entries.size() - 1);
+    std::vector<uintptr_t> backing_pages;
+    std::vector<uintptr_t> view_pages;
+    backing_pages.reserve(count / 2);
+    view_pages.reserve(count / 2);
+    for (size_t i = 1; i <= count; ++i) {
+        const uintptr_t page = entries[i] & ~(page_size - 1);
+        if (page - backing_begin < backing_size) {
+            backing_pages.push_back(page);
+        } else if (view_begin != 0 && page - view_begin < impl->virtual_size) {
+            view_pages.push_back(page);
+        }
+    }
+
+    // Read only through the permanent writable backing mapping. A guest alias
+    // can be unmapped or reprotected concurrently. VirtualUnlock discards no
+    // guest bytes: a racing write stays valid and might merely incur a soft fault.
+    const auto is_zero_page = [](const u8* data) {
+        const auto* words = reinterpret_cast<const u64*>(data);
+        // Lichii #1580: exit after the first non-zero cache line, which avoids
+        // reading the remaining 4 KiB for almost every non-zero guest page.
+        constexpr size_t WordsPerCacheLine = 64 / sizeof(u64);
+        for (size_t i = 0; i < GuestPageSize / sizeof(u64); i += WordsPerCacheLine) {
+            u64 nonzero = 0;
+            for (size_t j = 0; j < WordsPerCacheLine; ++j) {
+                nonzero |= words[i + j];
+            }
+            if (nonzero != 0) {
+                return false;
+            }
+        }
+        return true;
+    };
+    std::sort(backing_pages.begin(), backing_pages.end());
+    std::sort(view_pages.begin(), view_pages.end());
+    std::vector<uintptr_t> trim;
+    trim.reserve(backing_pages.size() + view_pages.size());
+    size_t zero_bytes = 0;
+    for (const uintptr_t page : backing_pages) {
+        if (is_zero_page(reinterpret_cast<const u8*>(page))) {
+            trim.push_back(page);
+            zero_bytes += page_size;
+        }
+    }
+    size_t covered_begin = 0;
+    size_t covered_end = 0;
+    size_t covered_physical = 0;
+    for (const uintptr_t page : view_pages) {
+        const size_t view_offset = page - view_begin;
+        if (view_offset < covered_begin || view_offset >= covered_end) {
+            const auto range = impl->BackingRange(view_offset);
+            if (!range) {
+                covered_end = 0;
+                continue;
+            }
+            covered_begin = view_offset;
+            // Limit stale mapping snapshots to 2 MiB before checking again.
+            covered_end = std::min(range->second, view_offset + (size_t{2} << 20));
+            covered_physical = range->first;
+        }
+        const size_t physical = covered_physical + view_offset - covered_begin;
+        if (physical >= backing_size || backing_size - physical < page_size) {
+            continue;
+        }
+        if (!impl->IsBackingCommitted(physical)) {
+            continue;
+        }
+        const uintptr_t physical_page = backing_begin + physical;
+        if (is_zero_page(reinterpret_cast<const u8*>(physical_page))) {
+            trim.push_back(page);
+            zero_bytes += page_size;
+        }
+        // The inspection itself can make a physical page resident. Evict it
+        // again unless it was already present in the original working-set scan.
+        if (!std::binary_search(backing_pages.begin(), backing_pages.end(), physical_page)) {
+            trim.push_back(physical_page);
+        }
+    }
+
+    std::sort(trim.begin(), trim.end());
+    trim.erase(std::unique(trim.begin(), trim.end()), trim.end());
+    for (size_t first = 0; first < trim.size();) {
+        size_t last = first + 1;
+        // At most 1 MiB per unlock, so no single call holds the working set long (Lichii
+        // 2b37c841fa, from Fritchii)
+        constexpr size_t MaxUnlockBytes = size_t{1} << 20;
+        while (last < trim.size() && trim[last] == trim[last - 1] + page_size &&
+               (last - first) * page_size < MaxUnlockBytes) {
+            ++last;
+        }
+        const uintptr_t begin = trim[first];
+        const size_t length = trim[last - 1] + page_size - begin;
+        if (!VirtualUnlock(reinterpret_cast<void*>(begin), length) &&
+            GetLastError() != ERROR_NOT_LOCKED) {
+            // A run may span two separate mapped views. Retry per page rather
+            // than assuming that VirtualUnlock accepts it as one region.
+            for (size_t i = first; i < last; ++i) {
+                VirtualUnlock(reinterpret_cast<void*>(trim[i]), page_size);
+            }
+        }
+        first = last;
+    }
+    return {(backing_pages.size() + view_pages.size()) * page_size, zero_bytes};
+#else
+    return {0, 0};
+#endif
+}
+
+u64 HostMemory::MappedBytes() const noexcept {
+#ifdef _WIN32
+    return impl ? impl->MappedBytes() : 0;
+#else
+    return 0;
+#endif
 }
 
 void HostMemory::EnableDirectMappedAddress() {

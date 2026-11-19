@@ -73,7 +73,8 @@ size_t BytesPerIndex(VkIndexType index_type) {
     }
 }
 
-vk::Buffer CreateBuffer(const Device& device, const MemoryAllocator& memory_allocator, u64 size) {
+vk::Buffer CreateBuffer(const Device& device, const MemoryAllocator& memory_allocator,
+                        StagingBufferPool& staging_pool, u64 size) {
     VkBufferUsageFlags flags =
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
         VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT |
@@ -96,6 +97,17 @@ vk::Buffer CreateBuffer(const Device& device, const MemoryAllocator& memory_allo
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
     };
+    if (vk::Buffer buffer = memory_allocator.TryCreateBuffer(buffer_ci, MemoryUsage::DeviceLocal)) {
+        return buffer;
+    }
+    // The staging pool holds most of the memory that can be freed now (Lichii #262: 926 MiB of
+    // a 3.2 GB heap when a 128 KiB guest buffer had no room after a scene change).
+    static u32 logged{};
+    if (logged++ < 32) {
+        LOG_WARNING(Render_Vulkan,
+                    "No memory for a {} byte buffer; freeing staging buffers and retrying", size);
+    }
+    staging_pool.ReleaseMemory();
     return memory_allocator.CreateBuffer(buffer_ci, MemoryUsage::DeviceLocal);
 }
 } // Anonymous namespace
@@ -112,7 +124,7 @@ Buffer::Buffer(BufferCacheRuntime& runtime, VideoCommon::NullBufferParams null_p
 
 Buffer::Buffer(BufferCacheRuntime& runtime, DAddr cpu_addr_, u64 size_bytes_)
     : VideoCommon::BufferBase(cpu_addr_, size_bytes_), device{&runtime.device},
-      buffer{CreateBuffer(*device, runtime.memory_allocator, SizeBytes())}, tracker{SizeBytes()} {
+      buffer{CreateBuffer(*device, runtime.memory_allocator, runtime.staging_pool, SizeBytes())}, tracker{SizeBytes()} {
     if (runtime.device.HasDebuggingToolAttached()) {
         buffer.SetObjectNameEXT(fmt::format("Buffer 0x{:x}", CpuAddr()).c_str());
     }
@@ -491,7 +503,7 @@ bool BufferCacheRuntime::DifferentialReadback(Buffer& buffer, const StagingBuffe
                 used, used + bytes, std::memory_order_relaxed));
             try {
                 buffer.readback_shadow = std::make_shared<ReadbackShadow>(
-                    readback_shadow_budget, bytes, CreateBuffer(device, memory_allocator, bytes));
+                    readback_shadow_budget, bytes, CreateBuffer(device, memory_allocator, staging_pool, bytes));
             } catch (...) {
                 readback_shadow_budget->used.fetch_sub(bytes, std::memory_order_relaxed);
                 throw;
@@ -727,7 +739,7 @@ void BufferCacheRuntime::MarkHostWrite(const Buffer& buffer) {
 VkBuffer BufferCacheRuntime::WriteTrackBitmap() {
     if (!write_track_bitmap) {
         constexpr u64 size = Shader::Backend::SPIRV::WRITE_TRACK_WORDS * sizeof(u32);
-        write_track_bitmap = CreateBuffer(device, memory_allocator, size);
+        write_track_bitmap = CreateBuffer(device, memory_allocator, staging_pool, size);
         scheduler.RequestOutsideRenderPassOperationContext();
         scheduler.Record([buffer = *write_track_bitmap](vk::CommandBuffer cmdbuf) {
             cmdbuf.FillBuffer(buffer, 0, VK_WHOLE_SIZE, 0);

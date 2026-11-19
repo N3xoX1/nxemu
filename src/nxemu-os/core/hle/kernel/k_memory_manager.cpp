@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
+#include <cstring>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -47,7 +51,91 @@ KMemoryManager::KMemoryManager(Core::System& system)
           KLightLock{system.Kernel()},
       } {}
 
+void KMemoryManager::CommitBackingPages(KPhysicalAddress address, size_t num_pages) {
+    if (num_pages == 0) {
+        return;
+    }
+    auto& buffer = m_system.DeviceMemory().buffer;
+    const size_t offset = address.GetValue() - Core::DramMemoryMap::Base;
+    // Allocated pages can be written from now on: a later free makes them dirty.
+    buffer.MarkBackingUsed(offset, num_pages * PageSize);
+#ifdef _WIN32
+    buffer.CommitBackingRegion(offset, num_pages * PageSize);
+#endif
+}
+
+void KMemoryManager::ReleaseFreeBacking() {
+#if defined(_WIN32) || defined(__linux__)
+    static const bool enabled = [] {
+        const char* const flag = std::getenv("NXEMU_FREE_RELEASE");
+        return flag == nullptr || std::strcmp(flag, "0") != 0;
+    }();
+    if (!enabled) {
+        return;
+    }
+    // One pass a second, from whichever thread frees pages (it already takes the pool locks).
+    static std::atomic<s64> next_pass_ms{0};
+    const s64 now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::steady_clock::now().time_since_epoch())
+                           .count();
+    s64 due = next_pass_ms.load(std::memory_order_relaxed);
+    if (now_ms < due ||
+        !next_pass_ms.compare_exchange_strong(due, now_ms + 1000, std::memory_order_relaxed)) {
+        return;
+    }
+    // Each release zeroes 64 KiB on this thread: bound the pass to keep it well under a ms.
+    constexpr size_t MaxReleasesPerPass = 128; // 8 MiB
+    size_t releases = 0;
+    size_t free_dirty = 0;
+    auto& buffer = m_system.DeviceMemory().buffer;
+    for (size_t i = 0; i < m_num_managers; ++i) {
+        Impl& manager = m_managers[i];
+        KPageHeap& heap = manager.GetHeap();
+        const size_t heap_offset = heap.GetAddress().GetValue() - Core::DramMemoryMap::Base;
+        KScopedLightLock lk(m_pool_locks[static_cast<size_t>(manager.GetPool())]);
+        if (heap.GetNumFreeGranules() == 0) {
+            continue; // nothing wholly free: skip scanning every granule under the lock
+        }
+        for (size_t granule = 0; granule < heap.GetNumGranules(); ++granule) {
+            u8& seen_free = heap.GranuleReleaseState(granule);
+            const size_t offset = heap_offset + (granule << KPageHeap::GranuleShift);
+            if (!heap.IsGranuleFree(granule) || !buffer.IsBackingDirty(offset)) {
+                // In use, or already zero: a granule freed and soon taken again keeps its RAM.
+                seen_free = 0;
+                continue;
+            }
+            ++free_dirty;
+            if (seen_free == 0) {
+                seen_free = 1;
+                continue;
+            }
+            if (releases < MaxReleasesPerPass && buffer.ReleaseFreeBacking(offset)) {
+                ++releases;
+                seen_free = 0;
+            }
+        }
+    }
+    static std::atomic<u64> released_total{0};
+    const u64 total = released_total.fetch_add(releases) + releases;
+    static std::atomic<s64> next_log_ms{0};
+    if (now_ms >= next_log_ms.load(std::memory_order_relaxed)) {
+        next_log_ms.store(now_ms + 30000, std::memory_order_relaxed);
+        LOG_INFO(Kernel, "Free guest memory released: {} MiB total, {} MiB free and not yet zero",
+                 (total << KPageHeap::GranuleShift) >> 20,
+                 ((free_dirty - releases) << KPageHeap::GranuleShift) >> 20);
+    }
+#endif
+}
+
+void KMemoryManager::MarkBackingPagesDirty(KPhysicalAddress address, size_t num_pages) {
+    // Freed pages may hold data: the next allocation that clears them must really clear them.
+    m_system.DeviceMemory().buffer.MarkBackingDirty(address.GetValue() - Core::DramMemoryMap::Base,
+                                                    num_pages * PageSize);
+}
+
 void KMemoryManager::Initialize(KVirtualAddress management_region, size_t management_region_size) {
+    // A kernel started again over the same backing memory finds the previous run's data.
+    m_system.DeviceMemory().buffer.ForgetBackingContents();
 
     // Clear the management region to zero.
     const KVirtualAddress management_region_end = management_region + management_region_size;
@@ -142,6 +230,7 @@ void KMemoryManager::Initialize(KVirtualAddress management_region, size_t manage
                 }
 
                 // Open/reserve the ini memory.
+                CommitBackingPages(ini_start, ini_size / PageSize);
                 manager.OpenFirst(ini_start, ini_size / PageSize);
                 reserved_sizes[it.GetAttributes()] += ini_size;
 
@@ -245,6 +334,9 @@ KPhysicalAddress KMemoryManager::AllocateAndOpenContinuous(size_t num_pages, siz
         return 0;
     }
 
+    // Commit physical backing before the kernel or an alias can touch the new pages.
+    CommitBackingPages(allocated_block, num_pages);
+
     // Maintain the optimized memory bitmap, if we should.
     if (m_has_optimized_process[static_cast<size_t>(pool)]) {
         chosen_manager->TrackUnoptimizedAllocation(m_system.Kernel(), allocated_block, num_pages);
@@ -326,6 +418,10 @@ Result KMemoryManager::AllocateAndOpen(KPageGroup* out, size_t num_pages, u32 op
     R_TRY(this->AllocatePageGroupImpl(out, num_pages, pool, dir,
                                       m_has_optimized_process[static_cast<size_t>(pool)], true));
 
+    for (const auto& block : *out) {
+        CommitBackingPages(block.GetAddress(), block.GetNumPages());
+    }
+
     // Open the first reference to the pages.
     for (const auto& block : *out) {
         KPhysicalAddress cur_address = block.GetAddress();
@@ -372,6 +468,10 @@ Result KMemoryManager::AllocateForProcess(KPageGroup* out, size_t num_pages, u32
 
         // Set whether we should optimize.
         optimized = has_optimized && is_optimized;
+    }
+
+    for (const auto& block : *out) {
+        CommitBackingPages(block.GetAddress(), block.GetNumPages());
     }
 
     // Perform optimized memory tracking, if we should.

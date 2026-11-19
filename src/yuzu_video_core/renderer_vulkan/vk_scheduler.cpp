@@ -344,6 +344,9 @@ u64 Scheduler::SubmitExecution(VkSemaphore signal_semaphore, VkSemaphore wait_se
             on_submit();
         }
 
+        // Existing opt-in stall profiling attributes queue mutex contention and
+        // the host vkQueueSubmit call separately from command recording.
+        const StallProfile submit_profile{"queue_submit", signal_value};
         std::scoped_lock lock{device.QueueMutex()};
         switch (const VkResult result = master_semaphore->SubmitQueue(
                     cmdbuf, upload_cmdbuf, signal_semaphore, wait_semaphore, signal_value)) {

@@ -81,6 +81,7 @@ object NativeLibrary {
     external fun processProgramEvents(): Int
     external fun emulationSurfaceDestroyed()
     external fun emulationStopped()
+    external fun trimMemory(level: Int)
     external fun surfaceChanged(surface: android.view.Surface)
     external fun pauseEmulation()
     external fun unpauseEmulation()

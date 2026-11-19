@@ -4,9 +4,12 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <memory>
 #include <numeric>
+#include <optional>
+#include <vector>
 
 #include "yuzu_common/range_sets.inc"
 #include "yuzu_video_core/buffer_cache/buffer_cache_base.h"
@@ -2347,6 +2350,54 @@ void BufferCache<P>::MappedUploadMemory([[maybe_unused]] Buffer& buffer,
                                         [[maybe_unused]] u64 total_size_bytes,
                                         [[maybe_unused]] std::span<BufferCopy> copies) {
     if constexpr (USE_MEMORY_MAPS) {
+        // A cold buffer can have hundreds of MiB to upload, which took one staging buffer of
+        // that size (rounded up to a power of two) held until the tick completed. Past 64 MiB,
+        // upload through 32 MiB slices and wait for each so the next one reuses its memory
+        // (Lichii-rust #458).
+        constexpr u64 SliceThreshold = 64ULL << 20;
+        constexpr u64 SliceSize = 32ULL << 20;
+        if (total_size_bytes <= SliceThreshold) {
+            MappedUploadSlice(buffer, total_size_bytes, copies);
+            return;
+        }
+        std::vector<BufferCopy> slice;
+        u64 slice_bytes = 0;
+        const auto flush_slice = [&](bool last) {
+            if (slice.empty()) {
+                return;
+            }
+            MappedUploadSlice(buffer, slice_bytes, slice);
+            if (!last) {
+                runtime.Finish();
+            }
+            slice.clear();
+            slice_bytes = 0;
+        };
+        for (size_t i = 0; i < copies.size(); ++i) {
+            const BufferCopy& copy = copies[i];
+            for (u64 done = 0; done < copy.size;) {
+                const u64 size = std::min<u64>(copy.size - done, SliceSize - slice_bytes);
+                slice.push_back(BufferCopy{
+                    .src_offset = slice_bytes,
+                    .dst_offset = copy.dst_offset + done,
+                    .size = size,
+                });
+                slice_bytes += size;
+                done += size;
+                if (slice_bytes == SliceSize) {
+                    flush_slice(i + 1 == copies.size() && done == copy.size);
+                }
+            }
+        }
+        flush_slice(true);
+    }
+}
+
+template <class P>
+void BufferCache<P>::MappedUploadSlice([[maybe_unused]] Buffer& buffer,
+                                       [[maybe_unused]] u64 total_size_bytes,
+                                       [[maybe_unused]] std::span<BufferCopy> copies) {
+    if constexpr (USE_MEMORY_MAPS) {
         auto upload_staging = runtime.UploadStagingBuffer(total_size_bytes);
         const std::span<u8> staging_pointer = upload_staging.mapped_span;
         gpu_written_results.clear();
@@ -2501,22 +2552,109 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
     }
 
     if constexpr (USE_MEMORY_MAPS) {
-        auto download_staging = runtime.DownloadStagingBuffer(total_size_bytes);
-        const u8* const mapped_memory = download_staging.mapped_span.data();
-        const std::span<BufferCopy> copies_span(copies.data(), copies.data() + copies.size());
-        for (BufferCopy& copy : copies) {
-            // Modify copies to have the staging offset in mind
-            copy.dst_offset += download_staging.offset;
-            buffer.MarkUsage(copy.src_offset, copy.size);
-        }
-        runtime.CopyBuffer(download_staging.buffer, buffer, copies_span, true);
-        runtime.Finish();
-        for (const BufferCopy& copy : copies) {
-            const DAddr copy_device_addr = buffer.CpuAddr() + copy.src_offset;
-            // Undo the modified offset
-            const u64 dst_offset = copy.dst_offset - download_staging.offset;
-            const u8* copy_mapped_memory = mapped_memory + dst_offset;
-            device_memory.WriteBlockUnsafe(copy_device_addr, copy_mapped_memory, copy.size);
+        // Preserve the existing one-submit path for ordinary readbacks. A request
+        // above this size otherwise rounds up to a 128 MiB (or larger) allocation.
+        static constexpr u64 MAX_SINGLE_READBACK_BYTES = 64_MiB;
+        if (total_size_bytes <= MAX_SINGLE_READBACK_BYTES) {
+            // Preserve the single submission and single wait for small readbacks.
+            auto download_staging = runtime.DownloadStagingBuffer(total_size_bytes);
+            const u8* const mapped_memory = download_staging.mapped_span.data();
+            for (BufferCopy& copy : copies) {
+                copy.dst_offset += download_staging.offset;
+                buffer.MarkUsage(copy.src_offset, copy.size);
+            }
+            runtime.CopyBuffer(download_staging.buffer, buffer, copies, true);
+            runtime.Finish();
+            for (const BufferCopy& copy : copies) {
+                const DAddr copy_device_addr = buffer.CpuAddr() + copy.src_offset;
+                const u64 dst_offset = copy.dst_offset - download_staging.offset;
+                device_memory.WriteBlockUnsafe(copy_device_addr, mapped_memory + dst_offset,
+                                               copy.size);
+            }
+        } else {
+            // Large synchronous downloads previously reserved one giant staging
+            // buffer. Pack transfers into two alternating 8 MiB slices instead.
+            // Do not publish or reuse either slice before both GPU copies finish.
+            static constexpr u64 SLICE_BYTES = 8_MiB;
+            struct HostCopy {
+                DAddr address;
+                u64 offset;
+                u64 size;
+            };
+            struct Slice {
+                std::vector<BufferCopy> transfers;
+                std::vector<HostCopy> host_copies;
+                std::optional<Async_Buffer> staging;
+                u64 used = 0;
+            };
+            std::array<Slice, 2> slices;
+            size_t submitted = 0;
+
+            const auto publish_slices = [&] {
+                runtime.Finish();
+                for (size_t i = 0; i < submitted; ++i) {
+                    Slice& slice = slices[i];
+                    for (const HostCopy& copy : slice.host_copies) {
+                        device_memory.WriteBlockUnsafe(
+                            copy.address, slice.staging->mapped_span.data() + copy.offset,
+                            copy.size);
+                    }
+                    // OpenGL download staging has no implicit fence and otherwise
+                    // becomes reusable before the second GPU copy completes.
+                    // Both backends must hold each slice until Finish and host copy.
+                    runtime.FreeDeferredStagingBuffer(*slice.staging);
+                    slice.staging.reset();
+                    slice.transfers.clear();
+                    slice.host_copies.clear();
+                    slice.used = 0;
+                }
+                submitted = 0;
+            };
+            const auto submit_slice = [&] {
+                Slice& slice = slices[submitted];
+                slice.staging = runtime.DownloadStagingBuffer(slice.used, true);
+                for (BufferCopy& transfer : slice.transfers) {
+                    transfer.dst_offset += slice.staging->offset;
+                }
+                runtime.CopyBuffer(slice.staging->buffer, buffer, slice.transfers, true);
+                if (++submitted == slices.size()) {
+                    publish_slices();
+                }
+            };
+
+            for (const BufferCopy& copy : copies) {
+                buffer.MarkUsage(copy.src_offset, copy.size);
+                for (u64 copied = 0; copied < copy.size;) {
+                    Slice& slice = slices[submitted];
+                    const u64 aligned = Common::AlignUp(slice.used, 64ULL);
+                    if (aligned == SLICE_BYTES) {
+                        submit_slice();
+                        continue;
+                    }
+                    const u64 size = std::min(copy.size - copied, SLICE_BYTES - aligned);
+                    slice.transfers.push_back(BufferCopy{
+                        .src_offset = copy.src_offset + copied,
+                        .dst_offset = aligned,
+                        .size = size,
+                    });
+                    slice.host_copies.push_back(HostCopy{
+                        .address = buffer.CpuAddr() + copy.src_offset + copied,
+                        .offset = aligned,
+                        .size = size,
+                    });
+                    slice.used = aligned + size;
+                    copied += size;
+                    if (slice.used == SLICE_BYTES) {
+                        submit_slice();
+                    }
+                }
+            }
+            if (slices[submitted].used != 0) {
+                submit_slice();
+            }
+            if (submitted != 0) {
+                publish_slices();
+            }
         }
     } else {
         const std::span<u8> immediate_buffer = ImmediateBuffer(largest_copy);

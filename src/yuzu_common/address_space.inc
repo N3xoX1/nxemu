@@ -267,8 +267,9 @@ MAP_MEMBER(void)::UnmapLocked(VaType virt, VaType size) {
             blocks.insert(block_start_successor, Block(virt, UnmappedPa, {}));
         }
     } else if (block_start_predecessor->Unmapped()) {
-        // If the previous block is unmapped
-        blocks.erase(block_start_successor, block_end_predecessor);
+        // If the previous block is unmapped it covers the region, so erase every block inside it
+        // (Lichii #1896: erasing up to block_end_predecessor left the last block mapped)
+        blocks.erase(block_start_successor, block_end_successor);
     } else {
         // Erase overwritten blocks, skipping the first one as we have written the unmapped start
         // block there
@@ -291,67 +292,35 @@ ALLOC_MEMBER_CONST()::FlatAllocator(VaType virt_start_, VaType va_limit_)
 ALLOC_MEMBER(VaType)::Allocate(VaType size) {
     std::scoped_lock lock(this->block_mutex);
 
-    VaType alloc_start{UnmappedVa};
-    VaType alloc_end{current_linear_alloc_end + size};
-
-    // Avoid searching backwards in the address space if possible
-    if (alloc_end >= current_linear_alloc_end && alloc_end <= this->va_limit) {
-        auto alloc_end_successor{
-            std::lower_bound(this->blocks.begin(), this->blocks.end(), alloc_end)};
-        if (alloc_end_successor == this->blocks.begin()) {
-            ASSERT_MSG(false, "First block in AS map is invalid!");
+    // First free range of the size at or after `from`; the last block reaches the VA limit.
+    // Lichii #1896: the old skip loop could return a mapped range, or nothing with space free.
+    const auto find_free = [&](VaType from) -> VaType {
+        const auto starts_after = [](VaType virt, const auto& b) { return virt < b.virt; };
+        auto block{std::upper_bound(this->blocks.begin(), this->blocks.end(), from, starts_after)};
+        if (block == this->blocks.begin()) {
+            return UnmappedVa;
         }
-
-        auto alloc_end_predecessor{std::prev(alloc_end_successor)};
-        if (alloc_end_predecessor->virt <= current_linear_alloc_end) {
-            alloc_start = current_linear_alloc_end;
-        } else {
-            // Skip over fixed any mappings in front of us
-            while (alloc_end_successor != this->blocks.end()) {
-                if (alloc_end_successor->virt - alloc_end_predecessor->virt < size ||
-                    alloc_end_predecessor->Mapped()) {
-                    alloc_start = alloc_end_predecessor->virt;
-                    break;
-                }
-
-                alloc_end_predecessor = alloc_end_successor++;
-
-                // Use the VA limit to calculate if we can fit in the final block since it has no
-                // successor
-                if (alloc_end_successor == this->blocks.end()) {
-                    alloc_end = alloc_end_predecessor->virt + size;
-
-                    if (alloc_end >= alloc_end_predecessor->virt && alloc_end <= this->va_limit) {
-                        alloc_start = alloc_end_predecessor->virt;
-                    }
-                }
+        for (block = std::prev(block); block != this->blocks.end(); ++block) {
+            const auto next{std::next(block)};
+            const VaType end{next == this->blocks.end() ? this->va_limit : next->virt};
+            const VaType start{std::max(block->virt, from)};
+            if (block->Unmapped() && start < end && end - start >= size) {
+                return start;
             }
         }
+        return UnmappedVa;
+    };
+
+    // Continue after the previous allocation, then look for a gap from the start of the space.
+    VaType alloc_start{find_free(current_linear_alloc_end)};
+    if (alloc_start == UnmappedVa) {
+        alloc_start = find_free(virt_start);
+    }
+    if (alloc_start == UnmappedVa) {
+        return {}; // AS is full
     }
 
-    if (alloc_start != UnmappedVa) {
-        current_linear_alloc_end = alloc_start + size;
-    } else { // If linear allocation overflows the AS then find a gap
-        if (this->blocks.size() <= 2) {
-            ASSERT_MSG(false, "Unexpected allocator state!");
-        }
-
-        auto search_predecessor{std::next(this->blocks.begin())};
-        auto search_successor{std::next(search_predecessor)};
-
-        while (search_successor != this->blocks.end() &&
-               (search_successor->virt - search_predecessor->virt < size ||
-                search_predecessor->Mapped())) {
-            search_predecessor = search_successor++;
-        }
-
-        if (search_successor != this->blocks.end()) {
-            alloc_start = search_predecessor->virt;
-        } else {
-            return {}; // AS is full
-        }
-    }
-
+    current_linear_alloc_end = alloc_start + size;
     this->MapLocked(alloc_start, true, size, {});
     return alloc_start;
 }
@@ -361,6 +330,11 @@ ALLOC_MEMBER(void)::AllocateFixed(VaType virt, VaType size) {
 }
 
 ALLOC_MEMBER(void)::Free(VaType virt, VaType size) {
-    this->Unmap(virt, size);
+    std::scoped_lock lock(this->block_mutex);
+    this->UnmapLocked(virt, size);
+    // Freeing the newest allocation lets the next one take its place
+    if (virt + size == current_linear_alloc_end) {
+        current_linear_alloc_end = virt;
+    }
 }
 } // namespace Common

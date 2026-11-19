@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
+#include <utility>
 #include "yuzu_common/common_funcs.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/virtual_buffer.h"
@@ -73,6 +75,35 @@ public:
 
     void ClearBackingRegion(size_t physical_offset, size_t length, u32 fill_value);
 
+    /// Zero-fill tracking: backing memory starts zero and gets RAM only once touched, so a
+    /// zero clear skips 64 KiB granules that cannot hold data. The kernel marks pages used when
+    /// it allocates them and dirty when it frees them.
+    void MarkBackingUsed(size_t physical_offset, size_t length);
+    void MarkBackingDirty(size_t physical_offset, size_t length);
+    /// Every used granule may hold data again (new kernel over the same memory).
+    void ForgetBackingContents();
+
+    /// Whether the 64 KiB granule at `physical_offset` may hold data.
+    [[nodiscard]] bool IsBackingDirty(size_t physical_offset) const;
+    /// Gives the host memory of a dirty 64 KiB granule that the kernel holds free back to the
+    /// host, leaving it zero and clean. The caller guarantees nobody uses it meanwhile.
+    /// Returns false where the platform cannot do it without a cost (then nothing changed).
+    bool ReleaseFreeBacking(size_t physical_offset);
+
+    /// Ensure physical backing is accessible before a kernel allocation is used.
+    /// On Windows with lazy guest commitment this commits the corresponding section pages;
+    /// on other configurations it is a no-op.
+    void CommitBackingRegion(size_t physical_offset, size_t length);
+
+    /// Windows: remove resident all-zero pages from the process working set without
+    /// discarding their contents. Returns {resident bytes inspected, zero bytes found}.
+    /// Other platforms currently return {0, 0} rather than risk data loss.
+    [[nodiscard]] std::pair<size_t, size_t> TrimZeroPages() const;
+
+    /// Approximate bytes touched by Map/Unmap/Protect, for idle-time Windows
+    /// reclamation scheduling. Zero on other platforms and if trimming is off.
+    [[nodiscard]] u64 MappedBytes() const noexcept;
+
     [[nodiscard]] u8* BackingBasePointer() noexcept {
         return backing_base;
     }
@@ -108,6 +139,12 @@ private:
 
     // Fallback if fastmem is not supported on this platform
     std::unique_ptr<Common::VirtualBuffer<u8>> fallback_buffer;
+
+    static constexpr size_t GranuleShift = 16;
+    static constexpr u8 GranuleUsed = 1;
+    static constexpr u8 GranuleDirty = 2;
+    size_t num_granules{};
+    std::unique_ptr<std::atomic<u8>[]> granules;
 };
 
 } // namespace Common

@@ -69,6 +69,26 @@ public:
 
     void Free(KPhysicalAddress addr, size_t num_pages);
 
+    /// Free pages per 64 KiB granule of the heap, kept under the pool lock with the heap, so
+    /// the backing of a wholly free granule can be given back to the host without racing an
+    /// allocation. Empty when the heap is not granule aligned.
+    static constexpr size_t GranuleShift = 16;
+    static constexpr size_t GranulePages = (size_t{1} << GranuleShift) / PageSize;
+    size_t GetNumGranules() const {
+        return m_granule_free_pages.size();
+    }
+    bool IsGranuleFree(size_t granule) const {
+        return m_granule_free_pages[granule] == GranulePages;
+    }
+    /// Granules with every page free: a release pass skips the heap when there are none.
+    size_t GetNumFreeGranules() const {
+        return m_num_free_granules;
+    }
+    /// Remembers whether a granule was free at the previous release pass.
+    u8& GranuleReleaseState(size_t granule) {
+        return m_granule_release_state[granule];
+    }
+
     static size_t CalculateManagementOverheadSize(size_t region_size) {
         return CalculateManagementOverheadSize(region_size, MemoryBlockPageShifts.data(),
                                                NumMemoryBlockPageShifts);
@@ -210,6 +230,8 @@ private:
     };
 
 private:
+    void TrackPages(KPhysicalAddress addr, size_t num_pages, bool freed);
+
     KPhysicalAddress AllocateByLinearSearch(s32 index);
     KPhysicalAddress AllocateByRandom(s32 index, size_t num_pages, size_t align_pages);
 
@@ -224,6 +246,9 @@ private:
     std::array<Block, NumMemoryBlockPageShifts> m_blocks;
     KPageBitmap::RandomBitGenerator m_rng;
     std::vector<u64> m_management_data;
+    std::vector<u8> m_granule_free_pages;
+    std::vector<u8> m_granule_release_state;
+    size_t m_num_free_granules{};
 };
 
 } // namespace Kernel

@@ -365,6 +365,43 @@ void TextureCache<P>::TickFrame() {
     runtime.TickFrame();
     ++frame_tick;
 
+    // Keep the capacity during sustained large uploads, but release a one-off
+    // allocation after five seconds of small/no requests at 60 FPS. Resetting
+    // the logical size does not free memory, and makes the next frame's request
+    // size observable without adding work to the upload path.
+    static constexpr u32 SCRATCH_IDLE_FRAMES = 300;
+    const auto maintain_scratch = [](Common::ScratchBuffer<u8>& scratch, size_t keep_bytes,
+                                     u32& small_frames, size_t& peak_bytes) {
+        peak_bytes = std::max(peak_bytes, scratch.capacity());
+        if (scratch.capacity() <= keep_bytes || scratch.size() > keep_bytes) {
+            small_frames = 0;
+        } else if (++small_frames >= SCRATCH_IDLE_FRAMES) {
+            scratch = Common::ScratchBuffer<u8>{keep_bytes};
+            small_frames = 0;
+        }
+        scratch.resize_destructive(0);
+    };
+    maintain_scratch(swizzle_data_buffer, 8_MiB, swizzle_scratch_small_frames,
+                     peak_swizzle_scratch_bytes);
+    maintain_scratch(unswizzle_data_buffer, 4_MiB, unswizzle_scratch_small_frames,
+                     peak_unswizzle_scratch_bytes);
+
+    // Optional, coarse diagnostics. The normal render path performs no formatting
+    // or clock reads. The peaks describe retained scratch, not total process RAM.
+    static const bool profile_memory = [] {
+        const char* value = std::getenv("NXEMU_MEMORY_PROFILE");
+        return value != nullptr && value[0] == '1';
+    }();
+    if (profile_memory && frame_tick % 300 == 0) {
+        LOG_INFO(HW_GPU,
+                 "Texture memory: device_used_mib={} swizzle_mib={} unswizzle_mib={} "
+                 "peak_swizzle_mib={} peak_unswizzle_mib={}",
+                 total_used_memory / 1_MiB, swizzle_data_buffer.capacity() / 1_MiB,
+                 unswizzle_data_buffer.capacity() / 1_MiB,
+                 peak_swizzle_scratch_bytes / 1_MiB,
+                 peak_unswizzle_scratch_bytes / 1_MiB);
+    }
+
     if constexpr (IMPLEMENTS_ASYNC_DOWNLOADS) {
         for (auto& buffer : async_buffers_death_ring) {
             runtime.FreeDeferredStagingBuffer(buffer);
@@ -2277,9 +2314,48 @@ void TextureCache<P>::RefreshContents(Image& image, ImageId image_id) {
         QueueAsyncDecode(image, image_id);
         return;
     }
+    if (UploadInChunks(image)) {
+        return;
+    }
     auto staging = runtime.UploadStagingBuffer(MapSizeBytes(image));
     UploadImageContents(image, staging);
     runtime.InsertUploadMemoryBarrier();
+}
+
+template <class P>
+bool TextureCache<P>::UploadInChunks(Image& image) {
+    // A whole upload of a very large image needs a staging buffer of its full size, rounded up to
+    // a power of two (1 GiB for 600 MiB of data), which can fail when memory is tight. Port of
+    // Lichii 073b877965 + b547bda625.
+    constexpr u64 min_size = 64_MiB;
+    constexpr u64 chunk_size = 32_MiB;
+    constexpr ImageFlagBits excluded = ImageFlagBits::Sparse | ImageFlagBits::Converted |
+                                       ImageFlagBits::AcceleratedUpload | ImageFlagBits::Rescaled;
+    if (True(image.flags & excluded) || image.info.type != ImageType::e2D ||
+        MapSizeBytes(image) < min_size) {
+        return false;
+    }
+    if (!PlanUnswizzleImageRows(image.gpu_addr, image.info, 0, 1).layout_valid) {
+        return false; // layout not handled: one staging buffer after all
+    }
+    std::vector<u8> scratch;
+    for (u64 offset = 0; offset < image.guest_size_bytes; offset += chunk_size) {
+        const u64 end = std::min<u64>(offset + chunk_size, image.guest_size_bytes);
+        const UnswizzlePlan plan = PlanUnswizzleImageRows(image.gpu_addr, image.info, offset, end);
+        if (plan.copies.empty()) {
+            continue; // padding between levels or layers
+        }
+        auto staging = runtime.UploadStagingBuffer(plan.total_host_bytes);
+        ExecuteUnswizzlePlan(*gpu_memory, plan, staging.mapped_span, scratch);
+        image.UploadMemory(staging, plan.copies);
+        if (end < image.guest_size_bytes) {
+            // Submit and wait so this chunk's staging memory is reused by the next one; without
+            // it every chunk's buffer stays alive until the next scheduler flush.
+            runtime.Finish();
+        }
+    }
+    runtime.InsertUploadMemoryBarrier();
+    return true;
 }
 
 template <class P>

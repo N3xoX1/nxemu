@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <thread>
+
 #include "yuzu_common/host_memory.h"
 #include "yuzu_common/typed_address.h"
 #include <nxemu-module-spec/operating_system.h>
@@ -84,6 +86,11 @@ public:
     }
 
     Common::HostMemory buffer;
+
+private:
+    void MaintainGuestMemory(std::stop_token stop);
+    // Destroyed before buffer, stopping all reclamation before its mappings go away.
+    std::jthread memory_maintenance_thread;
 };
 
 } // namespace Core

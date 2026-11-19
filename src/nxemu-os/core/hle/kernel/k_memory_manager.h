@@ -85,6 +85,7 @@ public:
     }
 
     void OpenFirst(KPhysicalAddress address, size_t num_pages) {
+        CommitBackingPages(address, num_pages);
         // Repeatedly open references until we've done so for all pages.
         while (num_pages) {
             auto& manager = this->GetManager(address);
@@ -101,6 +102,7 @@ public:
     }
 
     void Close(KPhysicalAddress address, size_t num_pages) {
+        MarkBackingPagesDirty(address, num_pages);
         // Repeatedly close references until we've done so for all pages.
         while (num_pages) {
             auto& manager = this->GetManager(address);
@@ -114,6 +116,7 @@ public:
             num_pages -= cur_pages;
             address += cur_pages * PageSize;
         }
+        ReleaseFreeBacking();
     }
 
     size_t GetSize() {
@@ -232,6 +235,9 @@ private:
         constexpr Pool GetPool() const {
             return m_pool;
         }
+        KPageHeap& GetHeap() {
+            return m_heap;
+        }
         constexpr size_t GetSize() const {
             return m_heap.GetSize();
         }
@@ -334,6 +340,11 @@ private:
     };
 
 private:
+    void CommitBackingPages(KPhysicalAddress address, size_t num_pages);
+    void MarkBackingPagesDirty(KPhysicalAddress address, size_t num_pages);
+    /// At most once a second: give back the host memory of granules free since the last pass.
+    void ReleaseFreeBacking();
+
     Impl& GetManager(KPhysicalAddress address) {
         return m_managers[m_memory_layout.GetPhysicalLinearRegion(address).GetAttributes()];
     }

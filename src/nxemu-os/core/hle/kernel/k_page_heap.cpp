@@ -1,8 +1,11 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+
 #include "core/core.h"
 #include "core/hle/kernel/k_page_heap.h"
+#include "yuzu_common/logging/log.h"
 
 namespace Kernel {
 
@@ -32,6 +35,44 @@ void KPageHeap::Initialize(KPhysicalAddress address, size_t size,
 
     // Ensure we didn't overextend our bounds.
     ASSERT(KVirtualAddress(cur_bitmap_storage) <= management_end);
+
+    // Every page starts allocated; the initial frees count them.
+    if (Common::IsAligned(m_heap_address.GetValue(), size_t{1} << GranuleShift) &&
+        Common::IsAligned(m_heap_size, size_t{1} << GranuleShift)) {
+        m_granule_free_pages.assign(m_heap_size >> GranuleShift, 0);
+        m_granule_release_state.assign(m_heap_size >> GranuleShift, 0);
+    }
+}
+
+void KPageHeap::TrackPages(KPhysicalAddress addr, size_t num_pages, bool freed) {
+    if (m_granule_free_pages.empty() || num_pages == 0) {
+        return;
+    }
+    size_t page = (addr - m_heap_address) / PageSize;
+    const size_t end = page + num_pages;
+    while (page < end) {
+        const size_t granule = page / GranulePages;
+        const size_t granule_end = std::min(end, (granule + 1) * GranulePages);
+        const u8 count = static_cast<u8>(granule_end - page);
+        u8& free_pages = m_granule_free_pages[granule];
+        if (freed ? free_pages + count > GranulePages : free_pages < count) {
+            // Never expected; stop tracking rather than ever release memory in use.
+            LOG_ERROR(Kernel, "Page heap granule accounting broke at {:#x}; release disabled",
+                      addr.GetValue());
+            m_granule_free_pages.clear();
+            m_granule_release_state.clear();
+            m_num_free_granules = 0;
+            return;
+        }
+        if (!freed && free_pages == GranulePages) {
+            --m_num_free_granules;
+        }
+        free_pages = static_cast<u8>(freed ? free_pages + count : free_pages - count);
+        if (freed && free_pages == GranulePages) {
+            ++m_num_free_granules;
+        }
+        page = granule_end;
+    }
 }
 
 size_t KPageHeap::GetNumFreePages() const {
@@ -49,6 +90,7 @@ KPhysicalAddress KPageHeap::AllocateByLinearSearch(s32 index) {
 
     for (s32 i = index; i < static_cast<s32>(m_num_blocks); i++) {
         if (const KPhysicalAddress addr = m_blocks[i].PopBlock(false); addr != 0) {
+            this->TrackPages(addr, m_blocks[i].GetSize() / PageSize, false);
             if (const size_t allocated_size = m_blocks[i].GetSize(); allocated_size > needed_size) {
                 this->Free(addr + needed_size, (allocated_size - needed_size) / PageSize);
             }
@@ -111,6 +153,7 @@ KPhysicalAddress KPageHeap::AllocateByRandom(s32 index, size_t num_pages, size_t
 
     // Pop a block from the index we selected.
     if (KPhysicalAddress addr = m_blocks[index].PopBlock(true); addr != 0) {
+        this->TrackPages(addr, m_blocks[index].GetSize() / PageSize, false);
         // Determine how much size we have left over.
         if (const size_t leftover_size = m_blocks[index].GetSize() - needed_size;
             leftover_size > 0) {
@@ -152,6 +195,7 @@ void KPageHeap::Free(KPhysicalAddress addr, size_t num_pages) {
     if (num_pages == 0) {
         return;
     }
+    this->TrackPages(addr, num_pages, true);
 
     // Find the largest block size that we can free, and free as many as possible.
     s32 big_index = static_cast<s32>(m_num_blocks) - 1;

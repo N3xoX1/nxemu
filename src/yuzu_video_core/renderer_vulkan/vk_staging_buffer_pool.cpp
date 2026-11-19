@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <algorithm>
+#include <cstdlib>
+#include <initializer_list>
 #include <utility>
 #include <vector>
 
@@ -12,6 +14,7 @@
 #include "yuzu_common/bit_util.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/literals.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
 #include "yuzu_video_core/renderer_vulkan/vk_staging_buffer_pool.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
@@ -102,6 +105,27 @@ void StagingBufferPool::TickFrame() {
     ReleaseCache(MemoryUsage::DeviceLocal);
     ReleaseCache(MemoryUsage::Upload);
     ReleaseCache(MemoryUsage::Download);
+
+    static const bool profile_memory = [] {
+        const char* value = std::getenv("NXEMU_MEMORY_PROFILE");
+        return value != nullptr && value[0] == '1';
+    }();
+    if (profile_memory && frame % 300 == 0) {
+        const auto held_bytes = [](const StagingBuffersCache& cache) {
+            size_t bytes = 0;
+            for (const auto& level : cache) {
+                for (const auto& entry : level.entries) {
+                    // Device-local staging buffers may not be mapped at all.
+                    bytes += size_t{1} << entry.log2_level;
+                }
+            }
+            return bytes;
+        };
+        LOG_INFO(Render_Vulkan,
+                 "Staging memory: stream_mib={} upload_mib={} download_mib={} device_local_mib={}",
+                 stream_buffer_size / 1_MiB, held_bytes(upload_cache) / 1_MiB,
+                 held_bytes(download_cache) / 1_MiB, held_bytes(device_local_cache) / 1_MiB);
+    }
 }
 
 StagingBufferRef StagingBufferPool::GetStreamBuffer(size_t size) {
@@ -219,7 +243,29 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
     if (device.IsExtTransformFeedbackSupported()) {
         buffer_ci.usage |= VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT;
     }
-    vk::Buffer buffer = memory_allocator.CreateBuffer(buffer_ci, usage);
+    vk::Buffer buffer = memory_allocator.TryCreateBuffer(buffer_ci, usage);
+    if (!buffer) {
+        // No memory left for it (Lichii #262: an 8 GB laptop and a 128 MiB upload). Free the idle
+        // staging buffers and try again, then wait for the GPU so the ones it was still reading
+        // are idle too.
+        ReleaseIdleBuffers();
+        buffer = memory_allocator.TryCreateBuffer(buffer_ci, usage);
+        if (!buffer) {
+            ReleaseMemory();
+            buffer = memory_allocator.TryCreateBuffer(buffer_ci, usage);
+        }
+        if (!buffer) {
+            LOG_CRITICAL(Render_Vulkan, "No memory for a {} byte staging buffer (usage {})", size,
+                         static_cast<u32>(usage));
+            throw vk::Exception(VK_ERROR_OUT_OF_DEVICE_MEMORY);
+        }
+        static u32 logged{};
+        if (logged++ < 32) {
+            LOG_WARNING(Render_Vulkan,
+                        "Out of memory for a {} byte staging buffer; freed idle staging buffers",
+                        size);
+        }
+    }
     if (device.HasDebuggingToolAttached()) {
         ++buffer_index;
         buffer.SetObjectNameEXT(fmt::format("Staging Buffer {}", buffer_index).c_str());
@@ -259,9 +305,48 @@ void StagingBufferPool::ReleaseCache(MemoryUsage usage) {
     }
 }
 
+void StagingBufferPool::ReleaseIdleBuffers() {
+    for (StagingBuffersCache* const cache : {&device_local_cache, &upload_cache, &download_cache}) {
+        for (StagingBuffers& staging : *cache) {
+            std::erase_if(staging.entries, [this](const StagingBuffer& entry) {
+                return !entry.deferred && scheduler.IsFree(entry.tick);
+            });
+            staging.scan_index = 0;
+        }
+    }
+}
+
+void StagingBufferPool::ReleaseMemory() {
+    // Waits for the GPU so the buffers it was still reading are idle too. Those handed out in
+    // the current tick may feed commands not recorded yet (the caller's input while it asks for
+    // its output): they move to the tick after Finish, so they are neither freed nor handed out
+    // again.
+    const u64 current_tick = scheduler.CurrentTick();
+    scheduler.Finish();
+    const u64 next_tick = scheduler.CurrentTick();
+    for (StagingBuffersCache* const cache : {&device_local_cache, &upload_cache, &download_cache}) {
+        for (StagingBuffers& staging : *cache) {
+            for (StagingBuffer& entry : staging.entries) {
+                if (!entry.deferred && entry.tick >= current_tick) {
+                    entry.tick = next_tick;
+                }
+            }
+        }
+    }
+    for (u64& sync_tick : sync_ticks) {
+        if (sync_tick >= current_tick) {
+            sync_tick = next_tick;
+        }
+    }
+    ReleaseIdleBuffers();
+}
+
 void StagingBufferPool::ReleaseLevel(StagingBuffersCache& cache, size_t log2) {
     const auto is_deletable = [this](const StagingBuffer& entry) {
-        return !entry.deferred && frame - entry.frame >= IDLE_FRAMES &&
+        const auto idle_frames = (size_t{1} << entry.log2_level) > LARGE_BUFFER_BYTES
+                                     ? LARGE_IDLE_FRAMES
+                                     : IDLE_FRAMES;
+        return !entry.deferred && frame - entry.frame >= idle_frames &&
                scheduler.IsFree(entry.tick);
     };
     std::erase_if(cache[log2].entries, is_deletable);

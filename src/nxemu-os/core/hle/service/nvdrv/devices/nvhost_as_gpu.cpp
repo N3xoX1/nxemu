@@ -616,6 +616,19 @@ NvResult nvhost_as_gpu::MapBufferEx(IoctlMapBufferEx & params)
         if (!params.offset)
         {
             nvmap.UnpinHandle(params.handle);
+            u64 buffers{};
+            u64 buffer_bytes{};
+            for (const auto& [offset, mapping] : mapping_map)
+            {
+                if (mapping && !mapping->fixed && mapping->big_page == big_page)
+                {
+                    ++buffers;
+                    buffer_bytes += mapping->size;
+                }
+            }
+            LOG_ERROR(Service_NVDRV, "No free {} page range of {:#x} bytes; {} buffers hold {} MiB of it",
+                      big_page ? "big" : "small", Common::AlignUp(size, page_size), buffers,
+                      buffer_bytes >> 20);
             ASSERT_MSG(false, "Failed to allocate free space in the GPU AS!");
             return NvResult::InsufficientMemory;
         }
