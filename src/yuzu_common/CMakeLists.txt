@@ -77,6 +77,7 @@ add_library(yuzu_common STATIC
     quaternion.h
     range_map.h
     range_mutex.h
+    recursive_mutex.h
     range_sets.h
     range_sets.inc
     reader_writer_queue.h
