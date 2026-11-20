@@ -27,8 +27,9 @@ public:
         if (address >= start_address && address + size <= last_collection) [[likely]] {
             return;
         }
-        size = ((address + size + atomicity_size_mask) & atomicity_mask) - address;
-        address = address & atomicity_mask;
+        const GPUVAddr first_block = address & atomicity_mask;
+        size = ((address + size + atomicity_size_mask) & atomicity_mask) - first_block;
+        address = first_block;
         if (!has_collected) [[unlikely]] {
             reset_values();
             has_collected = true;
