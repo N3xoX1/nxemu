@@ -7,9 +7,14 @@
 #include <cstdio>
 #include "yuzu_video_core/engines/maxwell_3d.h"
 #include "yuzu_video_core/engines/puller.h"
+#include "yuzu_video_core/dma_pusher.h"
 using Maxwell3D=Tegra::Engines::Maxwell3D;
 namespace Engines=Tegra::Engines;
+using BufferMethods=Tegra::BufferMethods;
 constexpr u32 MacroRegistersStart=0xe00, non_puller_methods=0x40;
+enum { GEN_NONE = 0, GEN_STATE = 1 };
+// Stream kinds: StreamHeader below ignores the kind and count, so any value compiles.
+constexpr u32 StreamCall = 0;
 void Check(bool v,const char* s) { if(!v) throw std::runtime_error(s); }
 using Regs=Maxwell3D::Regs;
 struct Memory {
@@ -27,12 +32,13 @@ struct Raster {
  unsigned calls{};
  bool AccelerateConditionalRendering(){++calls;return accelerate();}
  void WaitForIdle(){} void FragmentBarrier(){} void InvalidateGPUCache(){} void TiledCacheBarrier(){}
+ void ReleaseDrawLocks(){}
 };
 struct Macro { void ClearCode(u32){} void AddCode(u32,u32){} };
 struct Upload { void ProcessExec(bool){} void ProcessData(u32){} };
 struct Fixture {
  using Regs=Maxwell3D::Regs;
- Regs regs{},shadow_state{};
+ Regs regs{},shadow_state{},front_regs{};
  Memory memory_manager;
  Draw draw; Draw* draw_manager=&draw;
  Raster raster; Raster* rasterizer=&raster;
@@ -43,6 +49,12 @@ struct Fixture {
  GPUVAddr current_dma_segment{};
  std::vector<std::pair<u32,u32>> method_sink;
  std::bitset<65535> execution_mask;
+ // Queued methods for the execute side: the test runs single-threaded, so publish right
+ // after every call that has one (PublishWords=1) instead of batching like production.
+ static constexpr u32 PublishWords = 1;
+ std::vector<u32> stream;
+ struct { std::array<u8, MacroRegistersStart> generation_kinds{}; } dirty;
+ std::array<unsigned, 2> generations{};
  Fixture(){ for(u32 i=0;i<Regs::NUM_REGS;++i) execution_mask[i]=IsMethodExecutable(i); }
  bool IsMethodExecutable(u32);
  u32 ProcessShadowRam(u32,u32);
@@ -55,12 +67,35 @@ struct Fixture {
  void ProcessMacro(u32,const u32*,u32,bool){}
  void ProcessMacroBind(u32){} void ProcessFirmwareCall4(){} void ProcessCBData(u32){} void ProcessCBBind(u32){}
  void ProcessQueryGet(){} void ProcessCounterReset(){} void ProcessSyncPoint(){}
+ bool IsThreaded() const { return true; }
+ void FrontWrite(u32 method,u32 value){ front_regs.reg_array[method]=value; }
+ void StreamHeader(u32,u32){}
+ void FrontMethodCall(u32,u32,u32){}
+ void Publish(){
+  for(size_t i=0;i+3<=stream.size();i+=3){
+   ProcessDirtyRegisters(stream[i],stream[i+1]);
+   ProcessMethodCall(stream[i],stream[i+1],stream[i+2]);
+  }
+  stream.clear();
+ }
 };
 struct Dma {
  struct {u32 method{},subchannel{},method_count=1; GPUVAddr dma_get{}; u32 dma_word_offset{};bool is_last_call=true;} dma_state;
  std::array<Fixture*,8> subchannels{};
  std::array<Engines::EngineTypes,8> subchannel_type{};
  struct {void CallPullerMethod(Engines::Puller::MethodCall) const{}} puller;
+ void* maxwell3d_engine=nullptr;
+ mutable std::vector<Engines::Puller::MethodCall> pending_puller;
+ mutable std::array<std::vector<std::pair<u32,u32>>,8> front_sinks;
+ bool IsThreaded() const { return false; }
+ void DrainMaxwell3D() const {}
+ bool IsPullerRegisterOnly(u32) const { return false; }
+ bool IsPullerWait(u32,u32) const { return false; }
+ template<typename F> void PostBack(F&& f) const { f(); }
+ std::vector<std::pair<u32,u32>>& SinkFor(u32 sc) const {
+  if (IsThreaded() && subchannel_type[sc] != Engines::EngineTypes::Maxwell3D) { return front_sinks[sc]; }
+  return subchannels[sc]->method_sink;
+ }
  void CallMethod(u32) const;
 };
 #include "engine.inc"
