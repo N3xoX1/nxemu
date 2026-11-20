@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #if defined(__linux__)
+#include <linux/falloc.h>
 #include <sys/random.h>
 #endif
 #include <unistd.h>
@@ -800,15 +801,26 @@ public:
 #ifdef __linux__
         // Set MADV_REMOVE on backing map to destroy it instantly.
         // This also deletes the area from the backing file.
-        if (madvise(backing_base + physical_offset, length, MADV_REMOVE) == 0) {
+        static std::atomic_bool madvise_remove_works{true};
+        if (madvise_remove_works.load(std::memory_order_relaxed) &&
+            madvise(backing_base + physical_offset, length, MADV_REMOVE) == 0) {
             return true;
         }
-        // Some Android kernels or backing-file implementations reject MADV_REMOVE.
+        // Some Android kernels reject MADV_REMOVE on the memfd. Punching the hole in the file
+        // frees the pages the same way; the memset fallback would keep them resident as zeros.
+        if (fd >= 0 && fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+                                 static_cast<off_t>(physical_offset),
+                                 static_cast<off_t>(length)) == 0) {
+            if (madvise_remove_works.exchange(false, std::memory_order_relaxed)) {
+                LOG_WARNING(HW_Memory, "MADV_REMOVE unsupported; punching holes in the backing instead");
+            }
+            return true;
+        }
         // Let HostMemory zero the region instead of terminating the emulator.
         static std::once_flag warning_once;
         const int error = errno;
         std::call_once(warning_once, [error] {
-            LOG_WARNING(HW_Memory, "MADV_REMOVE unsupported ({}); using memset fallback",
+            LOG_WARNING(HW_Memory, "MADV_REMOVE and hole punching unsupported ({}); using memset fallback",
                         strerror(error));
         });
         return false;
