@@ -163,6 +163,7 @@ protected:
         DoNotFastmemMarker marker;
         bool recompile;
     };
+    static constexpr float FastmemPatchInfoLoadFactor = 0.85f;
     tsl::robin_map<u64, FastmemPatchInfo> fastmem_patch_info;
     std::set<DoNotFastmemMarker> do_not_fastmem;
     std::optional<DoNotFastmemMarker> ShouldFastmem(A64EmitContext& ctx, IR::Inst* inst) const;
