@@ -1026,6 +1026,41 @@ TextureType ReadTextureType(Environment& env, const ConstBufferAddr& cbuf) {
     return static_cast<TextureType>(env.ReadTextureQuery(TextureQuerySource(cbuf), TextureQueryKind::Type));
 }
 
+bool SameStaticHandle(const ConstBufferAddr& lhs, const ConstBufferAddr& rhs) {
+    return lhs.count == 1 && rhs.count == 1 && lhs.dynamic_offset.IsEmpty() &&
+           rhs.dynamic_offset.IsEmpty() && !lhs.has_index_cbuf && !rhs.has_index_cbuf &&
+           lhs.index == rhs.index && lhs.offset == rhs.offset && lhs.shift_left == rhs.shift_left &&
+           lhs.has_secondary == rhs.has_secondary && lhs.is_direct == rhs.is_direct &&
+           lhs.handle_or_bits == rhs.handle_or_bits && lhs.mask == rhs.mask &&
+           (!lhs.has_secondary ||
+            (lhs.secondary_index == rhs.secondary_index &&
+             lhs.secondary_offset == rhs.secondary_offset &&
+             lhs.secondary_shift_left == rhs.secondary_shift_left &&
+             lhs.secondary_mask == rhs.secondary_mask));
+}
+
+std::optional<TextureType> SiblingTextureType(const TextureInstVector& instructions,
+                                              const TextureInst& query) {
+    for (const TextureInst& other : instructions) {
+        if (other.inst == query.inst || !SameStaticHandle(query.cbuf, other.cbuf)) {
+            continue;
+        }
+        const IR::Opcode bound{IndexedInstruction(*other.inst)};
+        const IR::Opcode opcode{bound != IR::Opcode::Void ? bound : other.inst->GetOpcode()};
+        if (opcode == IR::Opcode::ImageQueryDimensions || opcode == IR::Opcode::ImageQueryLod) {
+            continue;
+        }
+        const TextureType type{other.inst->Flags<IR::TextureInstInfo>().type};
+        if (opcode == IR::Opcode::ImageFetch && type == TextureType::Color1D) {
+            continue;
+        }
+        if (type != TextureType::Buffer) {
+            return type;
+        }
+    }
+    return std::nullopt;
+}
+
 TexturePixelFormat ReadTexturePixelFormat(Environment& env, const ConstBufferAddr& cbuf) {
     return static_cast<TexturePixelFormat>(env.ReadTextureQuery(TextureQuerySource(cbuf), TextureQueryKind::Format));
 }
@@ -1327,7 +1362,11 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         bool is_multisample{false};
         switch (inst->GetOpcode()) {
         case IR::Opcode::ImageQueryDimensions:
-            flags.type.Assign(ReadTextureType(env, cbuf));
+            if (const auto sibling{SiblingTextureType(to_replace, texture_inst)}) {
+                flags.type.Assign(*sibling);
+            } else {
+                flags.type.Assign(ReadTextureType(env, cbuf));
+            }
             inst->SetFlags(flags);
             break;
         case IR::Opcode::ImageSampleImplicitLod:
