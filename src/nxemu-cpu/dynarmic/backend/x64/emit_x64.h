@@ -131,6 +131,12 @@ inline bool BaselineLoadsAndImmediates() {
     return (jit_test_variant & 256) != 0;
 }
 
+/// Test variant bit 8192: FRECPE calls the FP code for every input (the code generation before)
+/// instead of the inline estimate for normal inputs, for differential tests
+inline bool OutOfLineRecipEstimate() {
+    return (jit_test_variant & 8192) != 0;
+}
+
 /// True when the value is known to have every bit above `kept_bits` clear, wherever it lives:
 /// the loads below and the zero extensions clear them in an XMM, and a GPR value moved to an
 /// XMM later goes through movd/movq, which clears them too.

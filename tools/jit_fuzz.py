@@ -23,6 +23,8 @@ Bit 1024 stores NZCV at every flag-setting instruction (the code generation befo
 leaving it in the host flags for the side exits and the block end to store.
 Bit 2048 stores every guest register write on the hot path (the code generation before) instead
 of leaving a write that a later write of the same register replaces to the side exits before it.
+Bit 8192 makes FRECPE call the FP code for every input (the code generation before) instead of
+the inline estimate for normal inputs.
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution
