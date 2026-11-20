@@ -415,6 +415,19 @@ target_link_libraries(test_strided_handles PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_strided_handles)
 
+# Built from source: linking shader_recompiler.lib defines fmt twice with the test stubs on MSVC.
+add_executable(test_texture_query_type texture_query_type/query_type.cpp
+    "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/ir_opt/texture_pass.cpp")
+foreach(source attribute basic_block condition flow_test ir_emitter microinstruction opcodes patch program type value)
+    target_sources(test_texture_query_type PRIVATE
+        "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/frontend/ir/${source}.cpp")
+endforeach()
+target_include_directories(test_texture_query_type PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_compile_definitions(test_texture_query_type PRIVATE FMT_HEADER_ONLY)
+target_link_libraries(test_texture_query_type PRIVATE nxemu_test_support)
+nxemu_unit_test(test_texture_query_type LINUX)
+
 # Differential tests execute the production DMA and Maxwell register methods.
 set(_gpu_commands_generated "${CMAKE_CURRENT_BINARY_DIR}/gpu_commands")
 add_custom_command(

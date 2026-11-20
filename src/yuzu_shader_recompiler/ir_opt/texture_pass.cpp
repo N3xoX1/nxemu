@@ -1039,8 +1039,9 @@ bool SameStaticHandle(const ConstBufferAddr& lhs, const ConstBufferAddr& rhs) {
              lhs.secondary_mask == rhs.secondary_mask));
 }
 
-std::optional<TextureType> SiblingTextureType(const TextureInstVector& instructions,
-                                              const TextureInst& query) {
+std::optional<TextureType> AgreedSiblingTextureType(const TextureInstVector& instructions,
+                                                    const TextureInst& query) {
+    std::optional<TextureType> sibling_type;
     for (const TextureInst& other : instructions) {
         if (other.inst == query.inst || !SameStaticHandle(query.cbuf, other.cbuf)) {
             continue;
@@ -1054,11 +1055,15 @@ std::optional<TextureType> SiblingTextureType(const TextureInstVector& instructi
         if (opcode == IR::Opcode::ImageFetch && type == TextureType::Color1D) {
             continue;
         }
-        if (type != TextureType::Buffer) {
-            return type;
+        if (type == TextureType::Buffer) {
+            continue;
         }
+        if (sibling_type && *sibling_type != type) {
+            return std::nullopt;
+        }
+        sibling_type = type;
     }
-    return std::nullopt;
+    return sibling_type;
 }
 
 TexturePixelFormat ReadTexturePixelFormat(Environment& env, const ConstBufferAddr& cbuf) {
@@ -1362,7 +1367,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         bool is_multisample{false};
         switch (inst->GetOpcode()) {
         case IR::Opcode::ImageQueryDimensions:
-            if (const auto sibling{SiblingTextureType(to_replace, texture_inst)}) {
+            if (const auto sibling{AgreedSiblingTextureType(to_replace, texture_inst)}) {
                 flags.type.Assign(*sibling);
             } else {
                 flags.type.Assign(ReadTextureType(env, cbuf));
