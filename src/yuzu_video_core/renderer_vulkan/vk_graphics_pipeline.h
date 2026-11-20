@@ -162,6 +162,14 @@ public:
 
     void Configure(bool is_indexed);
 
+    // False when the draw has to be configured in full
+    [[nodiscard]] bool ConfigureReused(bool is_indexed);
+    [[nodiscard]] bool ConfigureKeptBuffers(bool is_indexed);
+
+    [[nodiscard]] bool HasReusableBindings() const noexcept {
+        return reusable_bindings;
+    }
+
     /// recipe_prefix: the recipe recorder's memo for the matched key, valid until the next call.
     [[nodiscard]] GraphicsPipeline* Next(const GraphicsPipelineCacheKey& current_key,
                                          u64*& recipe_prefix) noexcept {
@@ -264,8 +272,21 @@ private:
     /// Returns the color attachments the draw writes
     [[nodiscard]] u32 ColorWriteMask() const;
 
+    void RequestRenderPass();
+
     void ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);
+
+    enum class KeptTextures { Same, Changed, Failed };
+
+    [[nodiscard]] KeptTextures UpdateKeptTextures(bool may_change);
+    [[nodiscard]] bool ReadTextureHandles();
+    [[nodiscard]] bool ConfigureKeptImages(bool is_indexed);
+
+    void BindStorageBuffers(size_t stage);
+    void BindTextureBuffers(size_t stage, const VideoCommon::ImageViewInOut*& views_it);
+    void AddKeptEntries(size_t& entry, size_t end);
+    void ConfigureKeptDraw();
 
     /// Reads the pixel local textures of the fragment stage from the color attachments they
     /// sample when the draw allows it, unbinding their views. Returns the shader selectors.
@@ -320,6 +341,19 @@ private:
     boost::container::small_vector<u32, 64> cached_sampler_handles;
     boost::container::small_vector<VideoCommon::SamplerId, 64> cached_samplers;
     u64 cached_descriptor_epoch{};
+
+    u32 enabled_stage_mask{};
+    std::array<u32, NUM_STAGES> handle_cbuf_masks{};
+    bool binds_only_uniform_buffers{};
+    /// No binding is written by the draw or changes with each draw
+    bool has_stable_bindings{};
+    bool reusable_bindings{};
+    std::vector<DescriptorUpdateEntry> kept_entries;
+    std::array<u32, NUM_STAGES> kept_uniform_entries{};
+    std::array<u32, NUM_STAGES> kept_image_entries{};
+    std::array<u32, Shader::Backend::SPIRV::NUM_TEXTURE_AND_IMAGE_SCALING_WORDS> kept_rescaling{};
+    bool kept_uses_render_area{};
+    std::array<f32, 4> kept_render_area{};
 
     // Pixel local texture reads of the fragment stage in selector order, and their views
     boost::container::static_vector<Shader::PixelLocalRead, Shader::MAX_PIXEL_LOCAL_READS>

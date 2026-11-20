@@ -335,6 +335,10 @@ class RescalingPushConstant {
 public:
     explicit RescalingPushConstant() noexcept {}
 
+    explicit RescalingPushConstant(
+        const std::array<u32, NUM_TEXTURE_AND_IMAGE_SCALING_WORDS>& data) noexcept
+        : words{data} {}
+
     void PushTexture(bool is_rescaled) noexcept {
         *texture_ptr |= is_rescaled ? texture_bit : 0u;
         texture_bit <<= 1u;

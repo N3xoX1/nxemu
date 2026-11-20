@@ -3040,6 +3040,39 @@ public:
     /// these.
     Regs regs{};
 
+    enum GenerationKind : u8 {
+        GEN_STATE,
+        /// The draw range and the draw triggers, which each draw reads again
+        GEN_NONE,
+        GEN_BUFFERS,
+    };
+
+    [[nodiscard]] u64 DrawStateGeneration() const noexcept {
+        return generations[GEN_STATE];
+    }
+
+    [[nodiscard]] u64 BufferGeneration() const noexcept {
+        return generations[GEN_BUFFERS];
+    }
+
+    /// Writes are device ranges, so every GPU address mapping the memory sees them
+    struct BufferChanges {
+        static constexpr size_t MAX_WRITES = 8;
+        std::array<u32, Regs::MaxShaderStage> rebound_slots{};
+        std::array<std::pair<DAddr, u64>, MAX_WRITES> writes{};
+        u32 num_writes{};
+        bool untracked_writes{};
+
+        void AddWrite(DAddr address, u64 size) noexcept;
+        [[nodiscard]] bool IsWritten(DAddr address, u64 size) const noexcept;
+    };
+
+    [[nodiscard]] u32 ChangedConstBuffers(size_t stage, u32 slots) const noexcept;
+
+    void ClearBufferChanges() noexcept {
+        buffer_changes = {};
+    }
+
     /// Registers of the decode side. Shadow RAM and the macro engine read these. Method calls
     /// write them at once, and write `regs` later when the method stream is drained.
     Regs front_regs{};
@@ -3194,6 +3227,7 @@ public:
         // buffer data and draw ranges are left out: most draws only change those.
         Table pipeline_key_registers{};
         bool pipeline_key_changed{true};
+        Table generation_kinds{};
     } dirty;
 
     std::unique_ptr<DrawManager> draw_manager;
@@ -3296,6 +3330,8 @@ private:
     void InitializeRegisterDefaults();
 
     void InitializePipelineKeyRegisters();
+
+    void InitializeGenerationKinds();
 
     void ProcessMacro(u32 method, const u32* base_start, u32 amount, bool is_last_call);
 
@@ -3436,6 +3472,9 @@ private:
     std::unique_ptr<MacroEngine> macro_engine;
 
     Upload::State upload_state;
+
+    std::array<u64, 3> generations{};
+    BufferChanges buffer_changes;
 
     bool execute_on{true};
 

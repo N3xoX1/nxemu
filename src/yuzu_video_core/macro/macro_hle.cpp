@@ -79,6 +79,10 @@ class HLE_DrawArraysIndirect final : public HLEMacroImpl {
 public:
     explicit HLE_DrawArraysIndirect(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool ChangesDrawState() const override {
+        return false;
+    }
+
     bool FrontEffectsUseParameters() const override {
         return false;
     }
@@ -187,6 +191,10 @@ template <bool extended>
 class HLE_DrawIndexedIndirect final : public HLEMacroImpl {
 public:
     explicit HLE_DrawIndexedIndirect(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool ChangesDrawState() const override {
+        return false;
+    }
 
     bool FrontEffectsUseParameters() const override {
         return false;
@@ -517,6 +525,10 @@ class HLE_C713C83D8F63CCF3 final : public HLEMacroImpl {
 public:
     explicit HLE_C713C83D8F63CCF3(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool ChangesDrawState() const override {
+        return false;
+    }
+
     bool LowerToWrites(const std::vector<u32>& parameters) override {
         FrontWriteRegisters(Writes(maxwell3d.front_regs, parameters));
         return true;
@@ -547,6 +559,10 @@ private:
 class HLE_D7333D26E0A93EDE final : public HLEMacroImpl {
 public:
     explicit HLE_D7333D26E0A93EDE(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool ChangesDrawState() const override {
+        return false;
+    }
 
     bool LowerToWrites(const std::vector<u32>& parameters) override {
         FrontWriteRegisters(Writes(maxwell3d.front_regs, parameters));
