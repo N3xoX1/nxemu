@@ -22,6 +22,7 @@ public:
     static std::optional<CatalogMetadata> ReadCatalogMetadata(const FileSys::VirtualFile& file);
     static LoaderFileType IdentifyType(const FileSys::VirtualFile& file);
     LoaderFileType GetFileType() const override { return LoaderFileType::NX; }
+    AppLoader_NX * AsNx() override { return this; }
     LoaderResultStatus GetStatus() const;
     uint32_t SelectedSnapshot() const;
     uint32_t SelectedVersion() const;
