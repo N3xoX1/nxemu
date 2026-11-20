@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+// MediaCodec integration adapted for NXEmu on 2026-10-30.
+
 // SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -24,6 +28,7 @@ extern "C" {
 #include <libavfilter/buffersink.h>
 #include <libavfilter/buffersrc.h>
 #include <libavutil/avutil.h>
+#include <libavutil/mem.h>
 #include <libavutil/opt.h>
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -40,6 +45,12 @@ class HardwareContext;
 class DecoderContext;
 class DeinterlaceFilter;
 
+struct FrameInfo {
+    u32 width{};
+    u32 height{};
+    bool key_frame{}; // VP9 reconstruction supplies this; H.264 uses the IDR NAL.
+};
+
 // Wraps an AVPacket, a container for compressed bitstream data.
 class Packet {
 public:
@@ -48,6 +59,8 @@ public:
 
     explicit Packet(std::span<const u8> data);
     ~Packet();
+
+    bool IsValid() const { return m_packet && m_packet->size > 0; }
 
     AVPacket* GetPacket() const {
         return m_packet;
@@ -112,7 +125,8 @@ public:
     YUZU_NON_COPYABLE(Decoder);
     YUZU_NON_MOVEABLE(Decoder);
 
-    explicit Decoder(Tegra::Host1x::NvdecCommon::VideoCodec codec);
+    explicit Decoder(Tegra::Host1x::NvdecCommon::VideoCodec codec,
+                     bool prefer_android_mediacodec = false);
     ~Decoder() = default;
 
     bool SupportsDecodingOnDevice(AVPixelFormat* out_pix_fmt, AVHWDeviceType type) const;
@@ -121,8 +135,13 @@ public:
         return m_codec;
     }
 
+    bool IsAndroidMediaCodec() const {
+        return m_android_mediacodec;
+    }
+
 private:
     const AVCodec* m_codec{};
+    bool m_android_mediacodec{};
 };
 
 // Wraps AVBufferRef for an accelerated decoder.
@@ -161,9 +180,9 @@ public:
     ~DecoderContext();
 
     void InitializeHardwareDecoder(const HardwareContext & context, AVPixelFormat hw_pix_fmt);
-    bool OpenContext(const Decoder & decoder);
-    bool SendPacket(const Packet & packet);
-    std::unique_ptr<Frame> ReceiveFrame(bool * out_is_interlaced);
+    bool OpenContext(const Decoder & decoder, std::span<const u8> extradata = {});
+    int SendPacket(const Packet & packet);
+    std::unique_ptr<Frame> ReceiveFrame(bool * out_is_interlaced, bool * out_decode_error = nullptr);
 
     AVCodecContext * GetCodecContext() const
     {
@@ -206,14 +225,30 @@ public:
     bool Initialize(Tegra::Host1x::NvdecCommon::VideoCodec codec);
     void Reset();
 
-    bool SendPacket(std::span<const u8> packet_data, size_t configuration_size);
-    void ReceiveFrames(std::queue<std::unique_ptr<Frame>> & frame_queue);
+    bool SendPacket(std::span<const u8> packet_data, size_t configuration_size,
+                    FrameInfo info, std::queue<std::unique_ptr<Frame>>& frame_queue);
+    // Drain all available output, not just one frame before retrying EAGAIN.
+    bool ReceiveFrames(std::queue<std::unique_ptr<Frame>>& frame_queue);
 
 private:
+    bool SwitchToSoftwareDecoder(std::queue<std::unique_ptr<Frame>>& frame_queue);
+    void QueueFrame(std::unique_ptr<Frame> frame,
+                    std::queue<std::unique_ptr<Frame>>& frame_queue);
+
     std::optional<FFmpeg::Decoder> m_decoder;
     std::optional<FFmpeg::DecoderContext> m_decoder_context;
     std::optional<FFmpeg::HardwareContext> m_hardware_context;
     std::optional<FFmpeg::DeinterlaceFilter> m_deinterlace_filter;
+    Tegra::Host1x::NvdecCommon::VideoCodec m_codec{};
+    bool m_opened{};
+    bool m_android_mediacodec{};
+    bool m_waiting_for_keyframe{};
+    bool m_software_fallback{};
+    FrameInfo m_frame_info{};
+    FrameInfo m_filter_info{};
+    AVPixelFormat m_filter_format{AV_PIX_FMT_NONE};
+    s64 m_next_packet_pts{};
+    std::vector<u8> m_h264_parameter_sets;
 };
 
 } // namespace FFmpeg

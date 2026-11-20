@@ -5,6 +5,7 @@
 
 #include <array>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "yuzu_common/common_types.h"
@@ -133,6 +134,13 @@ public:
     /// Returns a const span to the composed frame data.
     [[nodiscard]] std::span<const u8> GetFrameBytes() const {
         return frame;
+    }
+
+    [[nodiscard]] bool IsKeyFrame() const { return current_frame_info.is_key_frame; }
+
+    [[nodiscard]] std::pair<u32, u32> GetFrameDimensions() const {
+        return {static_cast<u32>(current_frame_info.frame_size.width),
+                static_cast<u32>(current_frame_info.frame_size.height)};
     }
 
 private:

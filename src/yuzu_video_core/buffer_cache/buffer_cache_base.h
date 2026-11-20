@@ -20,6 +20,7 @@
 #include "yuzu_common/lru_cache.h"
 #include "yuzu_common/range_sets.h"
 #include "yuzu_common/readback_reference.h"
+#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/slot_vector.h"
@@ -397,7 +398,7 @@ public:
         } while (channel_state->has_deleted_buffers);
     }
 
-    std::recursive_mutex mutex;
+    Common::RecursiveMutex mutex;
     Runtime& runtime;
 
 private:
