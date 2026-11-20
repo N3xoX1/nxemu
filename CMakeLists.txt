@@ -159,6 +159,11 @@ if(NOT ANDROID)
     # Visual Studio starts the emulator, not ALL_BUILD.
     set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" PROPERTY VS_STARTUP_PROJECT nxemu)
 endif()
+if(WIN32)
+    # Diagnostic: built with nxemu so the Windows package can ship it.
+    add_subdirectory(src/pipeline_probe)
+    add_dependencies(nxemu pipeline_probe)
+endif()
 
 option(NXEMU_BUILD_TESTS "Build the tests in tests/" OFF)
 if(NXEMU_BUILD_TESTS)
