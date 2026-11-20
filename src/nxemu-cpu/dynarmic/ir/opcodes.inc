@@ -48,6 +48,7 @@ A64OPC(GetNZCVRaw,                                          U32,                
 A64OPC(SetNZCVRaw,                                          Void,           U32                                                             )
 A64OPC(SetNZCV,                                             Void,           NZCV                                                            )
 A64OPC(SetNZCVAtExits,                                      Void,                                                                           )
+A64OPC(SetRegAtExits,                                       Void,           Opaque                                                          )
 A64OPC(GetW,                                                U32,            A64Reg                                                          )
 A64OPC(GetX,                                                U64,            A64Reg                                                          )
 A64OPC(GetS,                                                U128,           A64Vec                                                          )

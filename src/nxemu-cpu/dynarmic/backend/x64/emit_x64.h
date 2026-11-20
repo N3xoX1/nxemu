@@ -99,6 +99,16 @@ struct EmitContext {
     }
     /// The guest NZCV is in the host flags and not yet in cpsr_nzcv
     bool nzcv_pending = false;
+    /// A guest register write that only side exits need (a later write of the same register
+    /// replaces it on the hot path). Its SetW/SetX became A64SetRegAtExits (the A64 emitter's
+    /// PlanRegistersAtExits) and each side exit before the later write stores it.
+    struct SetAtExit {
+        size_t offset;       // in the JIT state
+        bool is_w;           // a W write: the upper half is stored as zero
+        bool zero_extended;  // a W value whose register already has the upper half clear
+        IR::Value value;     // an immediate, or an instruction that is still live at the exits
+    };
+    tsl::robin_map<const IR::Inst*, std::vector<SetAtExit>> sets_at_exits;  // by A64SideExit
 };
 
 using SharedLabel = std::shared_ptr<Xbyak::Label>;
