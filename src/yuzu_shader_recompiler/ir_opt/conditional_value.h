@@ -98,7 +98,7 @@ public:
         PrepareFacts();
         if (const auto it = facts.find(Key(condition.Inst())); it != facts.end())
         {
-            if (it->second < 2) return (it->second != 0) != negated;
+            return it->second.truth != negated;
         }
         return std::nullopt;
     }
@@ -109,8 +109,8 @@ public:
     {
         PrepareFacts();
         return std::ranges::any_of(facts, [](const auto& fact) {
-            const auto& [key, truth] = fact;
-            return truth == 2 && key.opcode != IR::Opcode::Void &&
+            const auto& [key, state] = fact;
+            return state.contradictory && key.opcode != IR::Opcode::Void &&
                    key.lhs.kind != 0 && key.rhs.kind != 0;
         });
     }
@@ -133,8 +133,13 @@ public:
         const Edge edge{phi->PhiBlock(index), owner->second};
         if (const auto it = possible.find(edge); it != possible.end()) return it->second;
         bool result = true;
+        // Stop at the lowest common enclosing scope of source and use (parents always have
+        // smaller indices). Shared ancestor scopes were already entered on the path to use.
+        size_t common = current->second.scope;
         for (size_t scope = source->second.scope; scope != 0; scope = scopes[scope].parent)
         {
+            while (common > scope) common = scopes[common].parent;
+            if (common == scope) break;
             if (const auto truth = Truth(scopes[scope].condition); truth && *truth != scopes[scope].truth)
             {
                 result = false;
@@ -353,6 +358,12 @@ private:
         return {value, negated};
     }
 
+    struct Fact
+    {
+        bool truth{};
+        bool contradictory{};
+    };
+
     void PrepareFacts()
     {
         if (facts_ready) return;
@@ -360,13 +371,15 @@ private:
         facts_ready = true;
         const auto block = blocks.find(use);
         if (block == blocks.end()) return;
+        // Walk from innermost to outermost scope. Keep the innermost scope's truth so
+        // sibling predicates still resolve even when an outer scope contradicts it.
         for (size_t scope = block->second.scope; scope != 0; scope = scopes[scope].parent)
         {
             const auto [condition, negated] = Normalize(scopes[scope].condition);
             if (condition.IsImmediate()) continue;
-            const unsigned truth = scopes[scope].truth != negated;
-            const auto [it, inserted] = facts.emplace(Key(condition.Inst()), truth);
-            if (!inserted && it->second != truth) it->second = 2; // Contradictory/unreachable path.
+            const bool truth = scopes[scope].truth != negated;
+            const auto [it, inserted] = facts.emplace(Key(condition.Inst()), Fact{truth, false});
+            if (!inserted && it->second.truth != truth) it->second.contradictory = true;
         }
     }
 
@@ -445,7 +458,7 @@ private:
     std::unordered_map<const IR::Block *, Branch> branches;
     std::unordered_set<const IR::Block *> loop_headers;
     std::unordered_map<const IR::Inst *, bool> cross_loop;
-    std::unordered_map<ConditionKey, unsigned, ConditionHash> facts;
+    std::unordered_map<ConditionKey, Fact, ConditionHash> facts;
     std::unordered_map<Edge, bool, EdgeHash> possible;
 };
 
