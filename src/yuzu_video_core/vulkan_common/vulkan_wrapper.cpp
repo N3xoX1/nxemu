@@ -10,9 +10,20 @@
 
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/logging/log.h"
+#include "yuzu_video_core/renderer_vulkan/pipeline_replay_capture.h"
 #include "yuzu_video_core/vulkan_common/vk_enum_string_helper.h"
 #include "yuzu_video_core/vulkan_common/vma.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
+
+#ifdef _MSC_VER
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 namespace Vulkan::vk {
 
@@ -264,6 +275,45 @@ void SetObjectName(const DeviceDispatch* dld, VkDevice device, T handle, VkObjec
         Check(dld->vkSetDebugUtilsObjectNameEXT(device, &name_info));
     }
 }
+
+#ifdef _MSC_VER
+// Offset of an access violation inside Intel's Windows shader compiler (igc64.dll), or 0 when the
+// exception is anything else and must keep propagating.
+u64 IntelShaderCompilerCrashOffset(const EXCEPTION_POINTERS* info) {
+    if (info->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) {
+        return 0;
+    }
+    const HMODULE compiler{GetModuleHandleW(L"igc64.dll")};
+    const auto address{static_cast<LPCWSTR>(info->ExceptionRecord->ExceptionAddress)};
+    HMODULE module{};
+    if (compiler == nullptr ||
+        !GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            address, &module) ||
+        module != compiler) {
+        return 0;
+    }
+    return reinterpret_cast<u64>(address) - reinterpret_cast<u64>(module);
+}
+
+// Intel's final Skylake driver (31.0.101.2115) dereferences null in igc64.dll's pixel shader
+// scheduler (PreRAScheduler, "user node not found") on some Pokemon Legends: Z-A shadow shaders.
+// The fault is caught here and the build reported as failed, so only that pipeline's draws are
+// lost. Kept free of objects with destructors, which __try does not allow.
+VkResult CreateGraphicsPipelineCatchingCompilerCrash(const DeviceDispatch& dld, VkDevice device,
+                                                     VkPipelineCache cache,
+                                                     const VkGraphicsPipelineCreateInfo& ci,
+                                                     VkPipeline* object, u64* crash_offset) {
+    __try {
+        return dld.vkCreateGraphicsPipelines(device, cache, 1, &ci, nullptr, object);
+    } __except ((*crash_offset = IntelShaderCompilerCrashOffset(GetExceptionInformation())) != 0
+                    ? EXCEPTION_EXECUTE_HANDLER
+                    : EXCEPTION_CONTINUE_SEARCH) {
+        *object = VK_NULL_HANDLE;
+        return VK_ERROR_UNKNOWN;
+    }
+}
+#endif
 
 } // Anonymous namespace
 
@@ -736,6 +786,7 @@ DescriptorPool Device::CreateDescriptorPool(const VkDescriptorPoolCreateInfo& ci
 RenderPass Device::CreateRenderPass(const VkRenderPassCreateInfo& ci) const {
     VkRenderPass object;
     Check(dld->vkCreateRenderPass(handle, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnRenderPass(object, ci);
     return RenderPass(object, handle, *dld);
 }
 
@@ -750,6 +801,7 @@ DescriptorSetLayout Device::CreateDescriptorSetLayout(
     const VkDescriptorSetLayoutCreateInfo& ci) const {
     VkDescriptorSetLayout object;
     Check(dld->vkCreateDescriptorSetLayout(handle, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnDescriptorSetLayout(object, ci);
     return DescriptorSetLayout(object, handle, *dld);
 }
 
@@ -762,20 +814,37 @@ PipelineCache Device::CreatePipelineCache(const VkPipelineCacheCreateInfo& ci) c
 PipelineLayout Device::CreatePipelineLayout(const VkPipelineLayoutCreateInfo& ci) const {
     VkPipelineLayout object;
     Check(dld->vkCreatePipelineLayout(handle, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnPipelineLayout(object, ci);
     return PipelineLayout(object, handle, *dld);
 }
 
 Pipeline Device::CreateGraphicsPipeline(const VkGraphicsPipelineCreateInfo& ci,
                                         VkPipelineCache cache) const {
     VkPipeline object;
-    Check(dld->vkCreateGraphicsPipelines(handle, cache, 1, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnGraphicsPipeline(ci);
+#ifdef _MSC_VER
+    u64 crash_offset{};
+    const VkResult result{
+        CreateGraphicsPipelineCatchingCompilerCrash(*dld, handle, cache, ci, &object, &crash_offset)};
+    if (crash_offset != 0) {
+        LOG_ERROR(Render_Vulkan,
+                  "Intel shader compiler crashed at igc64.dll+{:#x}, skipping the pipeline",
+                  crash_offset);
+    }
+#else
+    const VkResult result{dld->vkCreateGraphicsPipelines(handle, cache, 1, &ci, nullptr, &object)};
+#endif
+    PipelineReplay::Capture::ForgetModules(ci.pStages, ci.stageCount);
+    Check(result);
     return Pipeline(object, handle, *dld);
 }
 
 Pipeline Device::CreateComputePipeline(const VkComputePipelineCreateInfo& ci,
                                        VkPipelineCache cache) const {
     VkPipeline object;
-    Check(dld->vkCreateComputePipelines(handle, cache, 1, &ci, nullptr, &object));
+    const VkResult result{dld->vkCreateComputePipelines(handle, cache, 1, &ci, nullptr, &object)};
+    PipelineReplay::Capture::ForgetModules(&ci.stage, 1);
+    Check(result);
     return Pipeline(object, handle, *dld);
 }
 
@@ -813,6 +882,7 @@ QueryPool Device::CreateQueryPool(const VkQueryPoolCreateInfo& ci) const {
 ShaderModule Device::CreateShaderModule(const VkShaderModuleCreateInfo& ci) const {
     VkShaderModule object;
     Check(dld->vkCreateShaderModule(handle, &ci, nullptr, &object));
+    PipelineReplay::Capture::OnShaderModule(object, ci);
     return ShaderModule(object, handle, *dld);
 }
 

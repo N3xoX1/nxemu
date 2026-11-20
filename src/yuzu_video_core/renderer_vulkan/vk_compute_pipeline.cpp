@@ -8,6 +8,7 @@
 #include <exception>
 #include <vector>
 
+#include "yuzu_video_core/renderer_vulkan/pipeline_crash_trace.h"
 #include "yuzu_video_core/renderer_vulkan/pipeline_helper.h"
 #include "yuzu_video_core/renderer_vulkan/pipeline_statistics.h"
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
@@ -52,8 +53,9 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
     writes_images = std::ranges::any_of(info.image_descriptors, is_written) ||
                     std::ranges::any_of(info.image_buffer_descriptors, is_written);
 
-    auto func{[this, &descriptor_pool, shader_notify, pipeline_statistics, runtime_event=VideoCommon::ShaderProfile::Runtime::current] {
+    auto func{[this, &descriptor_pool, shader_notify, pipeline_statistics, runtime_event=VideoCommon::ShaderProfile::Runtime::current, trace_hash=PipelineCrashTrace::pending_compute_hash] {
         VideoCommon::ShaderProfile::Runtime::Span runtime_timer(runtime_event,VideoCommon::ShaderProfile::Runtime::Work::Native);
+        PipelineCrashTrace::NativeBuild trace{"compute", trace_hash};
         try {
             DescriptorLayoutBuilder builder{device};
             builder.Add(info, VK_SHADER_STAGE_COMPUTE_BIT);
@@ -103,6 +105,7 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
         // The module is not required after vkCreateComputePipelines returns. Release it
         // on both success and failure instead of retaining it for the pipeline's lifetime.
         spv_module.reset();
+        trace.Finish(!build_failed);
         VideoCommon::ShaderProfile::Runtime::NativeResult(runtime_event,!build_failed);
         std::scoped_lock lock{build_mutex};
         is_built = true;
