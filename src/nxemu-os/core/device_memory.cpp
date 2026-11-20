@@ -44,6 +44,14 @@ DeviceMemory::DeviceMemory()
         memory_maintenance_thread =
             std::jthread([this](std::stop_token stop) { MaintainGuestMemory(stop); });
     }
+#elif defined(__APPLE__)
+    // Zero guest pages are handed back as reusable (MADV_FREE_REUSABLE). Opt-in, like Windows,
+    // until it has been tested on macOS.
+    const char* const trim = std::getenv("NXEMU_ZERO_TRIM");
+    if (trim != nullptr && std::strcmp(trim, "1") == 0) {
+        memory_maintenance_thread =
+            std::jthread([this](std::stop_token stop) { MaintainGuestMemory(stop); });
+    }
 #elif defined(__linux__) && defined(__GLIBC__) && !defined(__ANDROID__)
     // glibc malloc_trim can reduce RSS after pipeline and shader cache evictions,
     // but it takes allocator locks. Keep it opt-in until frame-time tests exist.
@@ -58,7 +66,8 @@ DeviceMemory::DeviceMemory()
 DeviceMemory::~DeviceMemory() = default;
 
 void DeviceMemory::MaintainGuestMemory(std::stop_token stop) {
-#if defined(_WIN32) || (defined(__linux__) && defined(__GLIBC__) && !defined(__ANDROID__))
+#if defined(_WIN32) || defined(__APPLE__) ||                                                     \
+    (defined(__linux__) && defined(__GLIBC__) && !defined(__ANDROID__))
     using namespace std::chrono_literals;
     Common::SetCurrentThreadName("GuestMemoryTrim");
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Low);
@@ -69,7 +78,7 @@ void DeviceMemory::MaintainGuestMemory(std::stop_token stop) {
         wake.wait_for(lock, stop, delay, [] { return false; });
         return stop.stop_requested();
     };
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
     // Avoid competing with shaders and game data during initial loading.
     std::chrono::seconds interval = 30s;
     // NXEMU_ZERO_TRIM_STRESS=1: a pass every 2 s with no back-off and no wait for bulk mapping,
@@ -89,7 +98,7 @@ void DeviceMemory::MaintainGuestMemory(std::stop_token stop) {
         if (wait_or_stop(interval)) {
             return;
         }
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
         // Lichii #1580: avoid competing with bulk guest map/unmap/protect.
         // Sampling the counter is free unless the optional trim is enabled.
         u64 previously_mapped = buffer.MappedBytes();
@@ -129,7 +138,7 @@ void DeviceMemory::MaintainGuestMemory(std::stop_token stop) {
         } catch (const std::exception& e) {
             // Trimming is opportunistic; allocation pressure must never crash the game.
             interval = stress ? 2s : 300s;
-            LOG_WARNING(HW_Memory, "Skipping Windows zero-page trim: {}", e.what());
+            LOG_WARNING(HW_Memory, "Skipping zero-page trim: {}", e.what());
         }
 #elif defined(__linux__) && defined(__GLIBC__) && !defined(__ANDROID__)
         // glibc-safe operation; it can contend with other malloc callers,

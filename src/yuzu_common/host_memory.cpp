@@ -824,10 +824,31 @@ public:
                         strerror(error));
         });
         return false;
+#elif defined(__APPLE__)
+        // The backing is a Mach named memory entry, which has no hole punching. Zero the region,
+        // then mark its whole host pages reusable: the kernel takes them back without writing
+        // them out, and a page it took reads as zero again. Either way the region reads as zero.
+        u8* const data = backing_base + physical_offset;
+        std::memset(data, 0, length);
+        MarkReusable(data, length);
+        return true;
 #else
         return false;
 #endif
     }
+
+#if defined(__APPLE__)
+    /// Hands the whole host pages inside [data, data + length) back to the kernel as reusable.
+    /// Their bytes stay valid until the kernel takes them, after which they read as zero.
+    void MarkReusable(u8* data, size_t length) const {
+        const uintptr_t begin = Common::AlignUp(reinterpret_cast<uintptr_t>(data), host_page_size);
+        const uintptr_t end = Common::AlignDown(reinterpret_cast<uintptr_t>(data) + length,
+                                                host_page_size);
+        if (begin < end) {
+            madvise(reinterpret_cast<void*>(begin), end - begin, MADV_FREE_REUSABLE);
+        }
+    }
+#endif
 
     bool CommitBackingRegion(size_t physical_offset, size_t length) {
         return true;
@@ -1118,7 +1139,7 @@ bool HostMemory::ReleaseFreeBacking(size_t physical_offset) {
     // pagefile, so zeroing and trimming returns the RAM (not the commit).
     std::memset(backing_base + physical_offset, 0, GranuleSize);
     VirtualUnlock(backing_base + physical_offset, GranuleSize);
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__APPLE__)
     if (!impl->ClearBackingRegion(physical_offset, GranuleSize)) {
         return false;
     }
@@ -1278,6 +1299,64 @@ std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
         first = last;
     }
     return {(backing_pages.size() + view_pages.size()) * page_size, zero_bytes};
+#elif defined(__APPLE__)
+    if (backing_base == nullptr || impl == nullptr) {
+        return {0, 0};
+    }
+    // Every guest view (fastmem arena or NCE direct map) shares the pages of the backing object,
+    // so scanning the backing mapping covers them all. mincore lists the resident host pages
+    // without faulting the others in.
+    const size_t page_size = impl->host_page_size;
+    const size_t page_count = backing_size / page_size;
+    std::vector<char> residency(page_count);
+    if (mincore(reinterpret_cast<caddr_t>(backing_base), page_count * page_size,
+                residency.data()) != 0) {
+        return {0, 0};
+    }
+    const auto is_zero_page = [page_size](const u8* data) {
+        const auto* words = reinterpret_cast<const u64*>(data);
+        constexpr size_t WordsPerCacheLine = 64 / sizeof(u64);
+        for (size_t i = 0; i < page_size / sizeof(u64); i += WordsPerCacheLine) {
+            u64 nonzero = 0;
+            for (size_t j = 0; j < WordsPerCacheLine; ++j) {
+                nonzero |= words[i + j];
+            }
+            if (nonzero != 0) {
+                return false;
+            }
+        }
+        return true;
+    };
+    size_t resident_bytes = 0;
+    size_t zero_bytes = 0;
+    for (size_t index = 0; index < page_count; ++index) {
+        if ((residency[index] & MINCORE_INCORE) == 0) {
+            continue;
+        }
+        resident_bytes += page_size;
+        u8* const page = backing_base + index * page_size;
+        if (!is_zero_page(page)) {
+            continue;
+        }
+        // Unlike VirtualUnlock, MADV_FREE_REUSABLE also forgets that the page was modified, so
+        // the kernel may drop it. A guest write that lands between the check and the madvise
+        // would be lost with it: check again and, if the page changed, write one of its words
+        // back so that the page is modified again and kept.
+        impl->MarkReusable(page, page_size);
+        if (is_zero_page(page)) {
+            zero_bytes += page_size;
+            continue;
+        }
+        madvise(page, page_size, MADV_FREE_REUSE);
+        for (size_t offset = 0; offset < page_size; offset += sizeof(u64)) {
+            auto* const word = reinterpret_cast<u64*>(page + offset);
+            if (__atomic_load_n(word, __ATOMIC_RELAXED) != 0) {
+                __atomic_fetch_or(word, u64{0}, __ATOMIC_RELAXED);
+                break;
+            }
+        }
+    }
+    return {resident_bytes, zero_bytes};
 #else
     return {0, 0};
 #endif
