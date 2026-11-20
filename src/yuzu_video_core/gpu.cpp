@@ -120,14 +120,28 @@ struct GPU::Impl :
     {
     }
 
-    // Stops every thread that calls back through GPU. GPU calls it before destroying
-    // this: during ~Impl, GPU::impl is already null.
+    // Stops every thread that calls back through GPU. Safe to call both during
+    // EmulationStopping(true) (before OS teardown joins guest threads) and from ~GPU().
     void Shutdown()
     {
+        std::scoped_lock shutdown_lock{shutdown_mutex};
         NotifyShutdown();
-        cdma_pushers.clear();
+        std::map<u32, std::shared_ptr<AsyncCdma>> pushers;
+        {
+            std::scoped_lock lock{cdma_mutex};
+            pushers.swap(cdma_pushers);
+        }
+        pushers.clear();
         composite_requests.Cancel();
         gpu_thread.StopThread();
+        {
+            // The GPU thread has stopped, so no queued sync request will run anymore.
+            // Drop them (they may reference waiters' stack frames) and release waiters.
+            std::scoped_lock lck{sync_request_mutex};
+            sync_requests.clear();
+            sync_requests_dropped = true;
+        }
+        sync_request_cv.notify_all();
     }
 
     std::shared_ptr<Control::ChannelState> CreateChannel(s32 channel_id)
@@ -209,6 +223,10 @@ struct GPU::Impl :
     [[nodiscard]] uint64_t RequestSyncOperation(Func && action)
     {
         std::unique_lock lck{sync_request_mutex};
+        if (sync_requests_dropped)
+        {
+            return current_sync_fence.load(std::memory_order_relaxed);
+        }
         const uint64_t fence = last_sync_fence.fetch_add(1, std::memory_order_relaxed) + 1;
         sync_requests.emplace_back(std::forward<Func>(action));
         return fence;
@@ -223,7 +241,9 @@ struct GPU::Impl :
     void WaitForSyncOperation(const uint64_t fence)
     {
         std::unique_lock lck{sync_request_mutex};
-        sync_request_cv.wait(lck, [this, fence] { return CurrentSyncRequestFence() >= fence; });
+        sync_request_cv.wait(lck, [this, fence] {
+            return CurrentSyncRequestFence() >= fence || sync_requests_dropped;
+        });
     }
 
     /// Tick pending requests within the GPU.
@@ -658,6 +678,7 @@ struct GPU::Impl :
     GPU & gpu;
     Host1x::Host1x & host1x;
 
+    std::mutex shutdown_mutex;
     std::mutex cdma_mutex;
     std::map<u32, std::shared_ptr<AsyncCdma>> cdma_pushers;
     std::unique_ptr<VideoCore::RendererBase> renderer;
@@ -684,6 +705,7 @@ struct GPU::Impl :
     std::atomic<uint64_t> last_sync_fence{};
     std::mutex sync_request_mutex;
     std::condition_variable sync_request_cv;
+    bool sync_requests_dropped{};
 
     const bool is_async;
 
@@ -706,6 +728,11 @@ GPU::GPU(ISystemModules & modules, Tegra::Host1x::Host1x & host1x, bool is_async
 }
 
 GPU::~GPU()
+{
+    impl->Shutdown();
+}
+
+void GPU::Shutdown()
 {
     impl->Shutdown();
 }

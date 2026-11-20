@@ -139,6 +139,9 @@ struct VideoManager::Impl
         if (m_gpuCore)
         {
             m_gpuCore->WaitForComposite();
+            // Stop GPU workers and release sync-operation waiters before OS shutdown
+            // waits for guest threads to terminate.
+            m_gpuCore->Shutdown();
         }
     }
 
