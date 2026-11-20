@@ -15,6 +15,7 @@
 #include "dynarmic/backend/x64/a64_jitstate.h"
 #include "dynarmic/backend/x64/devirtualize.h"
 #include "dynarmic/backend/x64/emit_x64.h"
+#include "dynarmic/backend/x64/fastmem_patch_table.h"
 #include "dynarmic/frontend/A64/a64_location_descriptor.h"
 #include "dynarmic/interface/A64/a64.h"
 #include "dynarmic/interface/A64/config.h"
@@ -163,8 +164,7 @@ protected:
         DoNotFastmemMarker marker;
         bool recompile;
     };
-    static constexpr float FastmemPatchInfoLoadFactor = 0.85f;
-    tsl::robin_map<u64, FastmemPatchInfo> fastmem_patch_info;
+    FastmemPatchTable<FastmemPatchInfo, DoNotFastmemMarker> fastmem_patch_info;
     std::set<DoNotFastmemMarker> do_not_fastmem;
     std::optional<DoNotFastmemMarker> ShouldFastmem(A64EmitContext& ctx, IR::Inst* inst) const;
     void PlanWriteTracking(A64EmitContext& ctx) const;

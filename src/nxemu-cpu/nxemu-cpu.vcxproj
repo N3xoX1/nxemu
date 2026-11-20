@@ -73,6 +73,7 @@
     <ClInclude Include="dynarmic\backend\x64\devirtualize.h" />
     <ClInclude Include="dynarmic\backend\x64\emit_x64.h" />
     <ClInclude Include="dynarmic\backend\x64\emit_x64_memory.h" />
+    <ClInclude Include="dynarmic\backend\x64\fastmem_patch_table.h" />
     <ClInclude Include="dynarmic\backend\x64\exclusive_monitor_friend.h" />
     <ClInclude Include="dynarmic\backend\x64\hostloc.h" />
     <ClInclude Include="dynarmic\backend\x64\host_feature.h" />

@@ -55,9 +55,7 @@ FP::FPCR A64EmitContext::FPCR(bool fpcr_controlled) const {
 
 A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_interface)
         : EmitX64(code), conf(conf), devirtualize_callbacks(conf.callbacks), jit_interface{jit_interface} {
-    // One entry per fastmem access of the compiled code: the default 0.5 load factor left
-    // half of the table empty (~100 MiB per core in MK8). Lookups only happen on faults.
-    fastmem_patch_info.max_load_factor(FastmemPatchInfoLoadFactor);
+    fastmem_patch_info.SetCodeBase(code.getCode());
     GenMemory128Accessors();
     GenFastmemFallbacks();
     GenTerminalHandlers();
@@ -625,9 +623,7 @@ void A64EmitX64::ClearCache() {
     pending_link_stubs.clear();
     block_ranges.ClearCache();
     ClearFastDispatchTable();
-    // clear() keeps the bucket array: release it with the code it described
-    fastmem_patch_info = {};
-    fastmem_patch_info.max_load_factor(FastmemPatchInfoLoadFactor);
+    fastmem_patch_info.clear();
 }
 
 void A64EmitX64::InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges) {
