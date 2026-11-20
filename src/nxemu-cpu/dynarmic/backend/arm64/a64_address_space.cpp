@@ -329,8 +329,11 @@ A64AddressSpace::A64AddressSpace(const A64::UserConfig& conf)
 
 IR::Block A64AddressSpace::GenerateIR(IR::LocationDescriptor descriptor) const {
     const auto get_code = [this](u64 vaddr) { return conf.callbacks->MemoryReadCode(vaddr); };
-    IR::Block ir_block = A64::Translate(A64::LocationDescriptor{descriptor}, get_code,
-                                        {conf.define_unpredictable_behaviour, conf.wall_clock_cntpct});
+    A64::TranslationOptions options{conf.define_unpredictable_behaviour, conf.wall_clock_cntpct};
+    // Match the x64 differential test switch, and keep precise memory aborts on the baseline path.
+    options.side_exits = conf.HasOptimization(OptimizationFlag::BlockLinking) &&
+                        !conf.check_halt_on_memory_access && (conf.test_variant & 64) == 0;
+    IR::Block ir_block = A64::Translate(A64::LocationDescriptor{descriptor}, get_code, options);
 
     Optimization::A64CallbackConfigPass(ir_block, conf);
     Optimization::NamingPass(ir_block);

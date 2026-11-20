@@ -26,11 +26,18 @@ namespace Dynarmic::Backend::Arm64 {
 
 using namespace oaknut::util;
 
-oaknut::Label EmitA64Cond(oaknut::CodeGenerator& code, EmitContext&, IR::Cond cond) {
-    oaknut::Label pass;
-    // TODO: Flags in host flags
+static void LoadA64ConditionFlags(oaknut::CodeGenerator& code, EmitContext& ctx) {
+    if (ctx.guest_nzcv_position == code.xptr<CodePtr>()) {
+        return;
+    }
+    ctx.reg_alloc.SpillFlags();
     code.LDR(Wscratch0, Xstate, offsetof(A64JitState, cpsr_nzcv));
     code.MSR(oaknut::SystemReg::NZCV, Xscratch0);
+}
+
+oaknut::Label EmitA64Cond(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Cond cond) {
+    oaknut::Label pass;
+    LoadA64ConditionFlags(code, ctx);
     code.B(static_cast<oaknut::Cond>(cond), pass);
     return pass;
 }
@@ -212,10 +219,15 @@ void EmitIR<IR::Opcode::A64SetNZCVRaw>(oaknut::CodeGenerator& code, EmitContext&
 template<>
 void EmitIR<IR::Opcode::A64SetNZCV>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    const bool in_host_flags = !args[0].IsImmediate() &&
+                               args[0].CurrentLocationKind() == HostLoc::Kind::Flags;
     auto Wnzcv = ctx.reg_alloc.ReadW(args[0]);
     RegAlloc::Realize(Wnzcv);
 
     code.STR(Wnzcv, Xstate, offsetof(A64JitState, cpsr_nzcv));
+    if (in_host_flags) {
+        ctx.guest_nzcv_position = code.xptr<CodePtr>();
+    }
 }
 
 template<>
@@ -376,8 +388,41 @@ void EmitIR<IR::Opcode::A64SetFPSR>(oaknut::CodeGenerator& code, EmitContext& ct
 }
 
 template<>
-void EmitIR<IR::Opcode::A64SideExit>(oaknut::CodeGenerator&, EmitContext&, IR::Inst*) {
-    ASSERT_FALSE("A64SideExit is not supported by this backend; side_exits is never set here.");
+void EmitIR<IR::Opcode::A64SideExit>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
+    auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+    const IR::Cond cond = args[0].GetImmediateCond();
+    const auto exit = GenSharedLabel();
+    if (cond == IR::Cond::AL || cond == IR::Cond::NV) {
+        const bool exit_when_set = cond == IR::Cond::AL;
+        if (args[1].IsImmediate()) {
+            if (args[1].GetImmediateU1() != exit_when_set) {
+                return;
+            }
+            code.B(*exit);
+        } else {
+            auto bit = ctx.reg_alloc.ReadW(args[1]);
+            RegAlloc::Realize(bit);
+            if (exit_when_set) {
+                EmitFarNonZeroBranch(code, *bit, *exit);
+            } else {
+                EmitFarZeroBranch(code, *bit, *exit);
+            }
+        }
+    } else {
+        LoadA64ConditionFlags(code, ctx);
+        EmitFarConditionalBranch(code, static_cast<oaknut::Cond>(cond), *exit);
+    }
+
+    const A64::LocationDescriptor location{ctx.block.Location()};
+    const auto next = location.SetPC(args[2].GetImmediateU64());
+    const auto cycles = static_cast<size_t>(args[3].GetImmediateU64());
+    // Capture the lazy FPSR state for this exit. The fall-through path can change it.
+    ctx.deferred_emits.emplace_back([&code, &ctx, exit, location, next, cycles, fpsr = ctx.fpsr]() mutable {
+        code.l(*exit);
+        fpsr.Spill();
+        EmitAddCycles(code, ctx, cycles);
+        EmitA64Terminal(code, ctx, IR::Term::LinkBlock{next}, location, false);
+    });
 }
 
 template<>

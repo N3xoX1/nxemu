@@ -41,11 +41,15 @@ struct EmitContext {
     FastmemManager& fastmem;
 
     std::vector<std::function<void()>> deferred_emits;
+    // Valid at this code position only. Any other IR instruction may clobber NZCV.
+    CodePtr guest_nzcv_position{};
 
     FP::FPCR FPCR(bool fpcr_controlled = true) const {
         const FP::FPCR fpcr = conf.descriptor_to_fpcr(block.Location());
         return fpcr_controlled ? fpcr : fpcr.ASIMDStandardValue();
     }
 };
+
+void EmitAddCycles(oaknut::CodeGenerator& code, EmitContext& ctx, size_t cycles_to_add);
 
 }  // namespace Dynarmic::Backend::Arm64
