@@ -22,6 +22,7 @@
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
 #include "yuzu_common/polyfill_ranges.h"
+#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/scratch_buffer.h"
 #include "yuzu_common/slot_vector.h"
 #include "yuzu_common/thread_worker.h"
@@ -330,7 +331,7 @@ public:
     /// Prepare an image to be used
     void PrepareImage(ImageId image_id, bool is_modification, bool invalidate);
 
-    std::recursive_mutex mutex;
+    Common::RecursiveMutex mutex;
 
 private:
     void DeduplicateDownloads();
