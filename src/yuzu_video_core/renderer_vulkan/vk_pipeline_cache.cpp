@@ -816,8 +816,12 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
             device.IsUniformTexelBufferArrayNonUniformIndexingSupported(),
         .support_storage_image_array_nonuniform_indexing =
             device.IsStorageImageArrayNonUniformIndexingSupported(),
+        // Intel's Windows shader compiler crashes on dynamically indexed reads through the
+        // aliased uvec2 view of a uniform buffer
         .disable_uniform_buffer_descriptor_aliasing =
-            device.IsDescriptorAliasingSupported() && device.GetDriverID() == VK_DRIVER_ID_MOLTENVK,
+            device.IsDescriptorAliasingSupported() &&
+            (driver_id == VK_DRIVER_ID_MOLTENVK ||
+             driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS),
         .support_int8 = device.IsInt8Supported(),
         .support_int16 = device.IsShaderInt16Supported(),
         .support_int64 = device.IsShaderInt64Supported(),
