@@ -1178,9 +1178,10 @@ bool GraphicsPipeline::ConfigureReused(bool is_indexed) {
     if (is_indexed && !buffer_cache.RebindIndexBuffer()) {
         return false;
     }
-    // The previous draw wrote the render targets, a sampled one needs the barrier again
+    // Rebinding the index buffer or a feedback barrier can end the render pass.
+    // In that case the caller must configure the draw again to reopen it.
     texture_cache.CheckFeedbackLoop(std::span(descriptor_views.data(), descriptor_views.size()));
-    return true;
+    return scheduler.IsInsideRenderPass();
 }
 
 bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
