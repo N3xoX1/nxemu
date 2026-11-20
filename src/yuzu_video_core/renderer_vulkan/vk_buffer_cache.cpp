@@ -582,7 +582,10 @@ bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, size_t size) 
     if (host_mapped_size != 0) {
         return true;
     }
-    if (!device.IsExtExternalMemoryHostSupported() || base == nullptr || size == 0) {
+    // Importing the guest RAM backing can make Metal command buffers fail with
+    // out-of-memory errors even when the Vulkan memory import succeeds.
+    if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK ||
+        !device.IsExtExternalMemoryHostSupported() || base == nullptr || size == 0) {
         return false;
     }
     const auto& dld = device.GetDispatchLoader();
