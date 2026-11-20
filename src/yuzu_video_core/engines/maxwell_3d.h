@@ -3149,6 +3149,10 @@ public:
             shader_profile_changes |= 0xffU;
             shader_profile_stale |= 0xffU;
         }
+        // Registers that can change the graphics pipeline key. Binding addresses, constant
+        // buffer data and draw ranges are left out: most draws only change those.
+        Table pipeline_key_registers{};
+        bool pipeline_key_changed{true};
     } dirty;
 
     std::unique_ptr<DrawManager> draw_manager;
@@ -3249,6 +3253,8 @@ public:
 
 private:
     void InitializeRegisterDefaults();
+
+    void InitializePipelineKeyRegisters();
 
     void ProcessMacro(u32 method, const u32* base_start, u32 amount, bool is_last_call);
 

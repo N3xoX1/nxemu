@@ -183,6 +183,8 @@ private:
     void SerializeGraphicsEnvironments(const GraphicsPipelineCacheKey& key,
                                        GraphicsEnvironments& environments);
 
+    [[nodiscard]] GraphicsPipeline* LookupGraphicsPipeline();
+
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipelineSlowPath();
 
     [[nodiscard]] GraphicsPipeline* BuiltPipeline(GraphicsPipeline* pipeline) noexcept;
@@ -241,6 +243,12 @@ private:
     /// graphics_key.state before MaskUnusedState
     FixedPipelineState::MaskedFields unmasked_fields{};
     GraphicsPipeline* current_pipeline{};
+    // State of the last full lookup, valid while no register of the key changes
+    GraphicsPipeline* fast_lookup_pipeline{};
+    const Tegra::Engines::Maxwell3D* fast_lookup_engine{};
+    Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology fast_lookup_topology{};
+    Tegra::Engines::Maxwell3D::EngineHint fast_lookup_hint{};
+    u64 fast_lookup_revision{};
     CbufSizeDependencies cbuf_size_dependencies;
     GraphicsCbufSizeState<5, 18> graphics_cbuf_size_state;
 
