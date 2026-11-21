@@ -81,10 +81,6 @@ struct EmitContext {
     /// IsZero whose only use is the side exit right after it: ZF holds the result, the
     /// value itself is never written
     const IR::Inst* zero_flag_for = nullptr;
-    /// The block ends in a CheckBit exit that can test the host flags (a top-level CheckBit, no
-    /// cycle count update before it): an IsZero feeding the block's last instruction,
-    /// SetCheckBit, then only sets ZF
-    bool check_bit_exit_on_flags = false;
     /// GetNZCVFromOp values kept in the host flags only. Their SetNZCV became A64SetNZCVAtExits
     /// (the A64 emitter's PlanNZCVAtExits): the producer leaves NZCV in the host flags, and the
     /// side exits and the block end store it.

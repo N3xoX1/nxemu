@@ -15,10 +15,6 @@ Bit 256 turns off 64-bit immediates for ADD/SUB/CMP, plain stores for SetS/SetD,
 vector loads straight into XMM registers, lane inserts (VectorSetElement32/64) from an XMM
 register and the zero extension of LeastSignificantWord, MostSignificantWord and loads (the code
 generation before them).
-Bit 512 makes the If and CheckBit exits at the end of a block reload NZCV and the check bit
-instead of using the host flags, and counts vector register moves as changing the host flags (the
-code generation before). Most forward branches are side exits, so add 64 to both variants to
-test the block ends.
 Bit 1024 stores NZCV at every flag-setting instruction (the code generation before) instead of
 leaving it in the host flags for the side exits and the block end to store.
 Bit 2048 stores every guest register write on the hot path (the code generation before) instead
