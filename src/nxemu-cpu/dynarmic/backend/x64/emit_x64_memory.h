@@ -257,10 +257,10 @@ void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xby
 }
 
 template<std::size_t bitsize, typename EmitContext>
-void EmitWriteTrackAccess(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map) {
-    EmitWriteTrack(code, ctx, vaddr, page, map, 0, false);
+void EmitWriteTrackAccess(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 disp = 0) {
+    EmitWriteTrack(code, ctx, vaddr, page, map, disp, false);
     if constexpr (bitsize > 8) {
-        EmitWriteTrack(code, ctx, vaddr, page, map, static_cast<s32>(bitsize / 8 - 1), false);
+        EmitWriteTrack(code, ctx, vaddr, page, map, disp + static_cast<s32>(bitsize / 8 - 1), false);
     }
 }
 

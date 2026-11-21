@@ -25,6 +25,7 @@
 #include "dynarmic/backend/x64/stack_layout.h"
 #include "dynarmic/frontend/A64/a64_location_descriptor.h"
 #include "dynarmic/frontend/A64/a64_types.h"
+#include "dynarmic/ir/acc_type.h"
 #include "dynarmic/ir/basic_block.h"
 #include "dynarmic/ir/cond.h"
 #include "dynarmic/ir/microinstruction.h"
@@ -126,6 +127,19 @@ s64 PlainWriteBytes(IR::Opcode op) {
     }
 }
 
+bool IsPlainRead(IR::Opcode op) {
+    switch (op) {
+    case IR::Opcode::A64ReadMemory8:
+    case IR::Opcode::A64ReadMemory16:
+    case IR::Opcode::A64ReadMemory32:
+    case IR::Opcode::A64ReadMemory64:
+    case IR::Opcode::A64ReadMemory128:
+        return true;
+    default:
+        return false;
+    }
+}
+
 // The block may stop after these, so the writes before them must be marked first
 bool MayLeaveBlock(IR::Opcode op) {
     switch (op) {
@@ -154,20 +168,57 @@ bool MayLeaveBlock(IR::Opcode op) {
     }
 }
 
+bool HasRegisterAndImmediateOperands(const IR::Inst& inst) {
+    return !inst.GetArg(0).IsImmediate() && inst.GetArg(1).IsImmediate() && inst.GetArg(2).IsImmediate() && !inst.GetArg(2).GetU1();
+}
+
 std::pair<const IR::Inst*, s64> SplitAddress(const IR::Value& address) {
     if (address.IsImmediate()) {
         return {nullptr, 0};
     }
     const IR::Inst* inst = address.GetInstRecursive();
     const IR::Opcode op = inst->GetOpcode();
-    if ((op == IR::Opcode::Add64 || op == IR::Opcode::Sub64) && !inst->GetArg(0).IsImmediate() && inst->GetArg(1).IsImmediate()
-        && inst->GetArg(2).IsImmediate() && !inst->GetArg(2).GetU1()) {
+    if ((op == IR::Opcode::Add64 || op == IR::Opcode::Sub64) && HasRegisterAndImmediateOperands(*inst)) {
         const s64 imm = static_cast<s64>(inst->GetArg(1).GetU64());
         return {inst->GetArg(0).GetInstRecursive(), op == IR::Opcode::Add64 ? imm : -imm};
     }
     return {inst, 0};
 }
 }  // namespace
+
+constexpr s64 max_write_group_span = 4096;
+// The slow path stub negates it and write tracking adds a group offset: both stay 32-bit
+constexpr s64 max_folded_displacement = INT32_MAX - max_write_group_span;
+
+// Only without the address check is a fastmem access [r13 + vaddr]
+void A64EmitX64::PlanFoldedAddresses(A64EmitContext& ctx) const {
+    if ((conf.test_variant & 4096) != 0 || !conf.fastmem_pointer || conf.fastmem_address_space_bits != 64) {
+        return;
+    }
+    for (IR::Inst& inst : ctx.block) {
+        const bool is_write = PlainWriteBytes(inst.GetOpcode()) != 0;
+        if (!is_write && !IsPlainRead(inst.GetOpcode())) {
+            continue;
+        }
+        const IR::AccType acc = inst.GetArg(is_write ? 3 : 2).GetAccType();
+        if (acc == IR::AccType::ORDERED || acc == IR::AccType::ORDEREDRW || acc == IR::AccType::LIMITEDORDERED) {
+            continue;
+        }
+        const IR::Value vaddr = inst.GetArg(1);
+        if (vaddr.IsImmediate()) {
+            continue;
+        }
+        const IR::Inst* add = vaddr.GetInst();
+        if (add->GetOpcode() != IR::Opcode::Add64 || add->UseCount() != 1 || !HasRegisterAndImmediateOperands(*add)) {
+            continue;
+        }
+        const s64 disp = static_cast<s64>(add->GetArg(1).GetU64());
+        if (disp < -max_folded_displacement || disp > max_folded_displacement || !ShouldFastmem(ctx, &inst)) {
+            continue;
+        }
+        ctx.folded_addresses.insert(add);
+    }
+}
 
 // The NZCV a SetNZCV stores is often overwritten before anything but a side exit reads
 // it. Look ahead from each SetNZCV (the block is known in full): if every later reader before
@@ -366,7 +417,7 @@ void A64EmitX64::PlanWriteTracking(A64EmitContext& ctx) const {
                 continue;
             }
             const s64 write_last = offset + bytes - 1;
-            if (write_base != base || std::max(last, write_last) - std::min(first, offset) >= 4096) {
+            if (write_base != base || std::max(last, write_last) - std::min(first, offset) >= max_write_group_span) {
                 close();
                 base = write_base;
                 first = offset;
@@ -431,6 +482,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     ctx.check_bit_exit_on_flags = flags_to_block_end && !conf.enable_cycle_counting && boost::get<IR::Term::CheckBit>(&terminal) != nullptr;
     terminal_check_bit_in_zf = false;
     PlanWriteTracking(ctx);
+    PlanFoldedAddresses(ctx);
 
     // Start emitting.
     code.align();
