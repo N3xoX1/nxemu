@@ -22,11 +22,11 @@ public:
 
     ~GPUDirtyMemoryManager() = default;
 
-    void Collect(PAddr address, size_t size) {
+    void Collect(PAddr address, uint64_t size) {
         // The mask represents one 2-KiB window. A CPU block write can cross
         // that boundary (including a full 4-KiB guest page), so retain each part.
         while (size != 0) {
-            const size_t chunk = std::min<size_t>(size, page_size - (address & page_mask));
+            const uint64_t chunk = std::min(size, page_size - (address & page_mask));
             CollectSingleWindow(address, chunk);
             address += chunk;
             size -= chunk;
@@ -35,7 +35,7 @@ public:
 
     // Collect widens writes to 64-byte blocks. A block can also hold GPU writes not downloaded
     // yet, which invalidating it would replace with stale guest memory: keep known ranges exact.
-    void CollectExact(PAddr address, size_t size) {
+    void CollectExact(PAddr address, uint64_t size) {
         std::scoped_lock lk(guard);
         if (!exact_back_buffer.empty()) {
             auto& [last_address, last_size] = exact_back_buffer.back();
@@ -47,7 +47,7 @@ public:
         exact_back_buffer.emplace_back(address, size);
     }
 
-    void CollectCoarse(PAddr address, size_t size) {
+    void CollectCoarse(PAddr address, uint64_t size) {
         std::scoped_lock lk(guard);
         coarse_back_buffer.emplace_back(address, size);
     }
@@ -77,14 +77,14 @@ public:
         }
         coarse_front_buffer.clear();
         for (auto& transform : front_buffer) {
-            size_t offset = 0;
+            uint64_t offset = 0;
             u64 mask = transform.mask;
             while (mask != 0) {
-                const size_t empty_bits = std::countr_zero(mask);
+                const uint64_t empty_bits = std::countr_zero(mask);
                 offset += empty_bits << align_bits;
                 mask = mask >> empty_bits;
 
-                const size_t continuous_bits = std::countr_one(mask);
+                const uint64_t continuous_bits = std::countr_one(mask);
                 invalidator->OnCacheInvalidation((static_cast<PAddr>(transform.address) << page_bits) + offset, (uint32_t)(continuous_bits << align_bits));
                 mask = continuous_bits < align_size ? (mask >> continuous_bits) : 0;
                 offset += continuous_bits << align_bits;
@@ -99,14 +99,14 @@ private:
         u32 mask;
     };
 
-    constexpr static size_t DEVICE_PAGEBITS = 12ULL;
-    constexpr static size_t page_bits = DEVICE_PAGEBITS - 1;
-    constexpr static size_t page_size = 1ULL << page_bits;
-    constexpr static size_t page_mask = page_size - 1;
+    constexpr static uint64_t DEVICE_PAGEBITS = 12ULL;
+    constexpr static uint64_t page_bits = DEVICE_PAGEBITS - 1;
+    constexpr static uint64_t page_size = 1ULL << page_bits;
+    constexpr static uint64_t page_mask = page_size - 1;
 
-    constexpr static size_t align_bits = 6U;
-    constexpr static size_t align_size = 1U << align_bits;
-    constexpr static size_t align_mask = align_size - 1;
+    constexpr static uint64_t align_bits = 6U;
+    constexpr static uint64_t align_size = 1U << align_bits;
+    constexpr static uint64_t align_mask = align_size - 1;
     constexpr static TransformAddress default_transform = {.address = ~0U, .mask = 0U};
 
     bool IsValid(PAddr address) {
@@ -116,23 +116,23 @@ private:
     }
 
     template <typename T>
-    T CreateMask(size_t top_bit, size_t minor_bit) {
+    T CreateMask(uint64_t top_bit, uint64_t minor_bit) {
         // Non-empty fragments guarantee 1 <= top_bit <= width and minor_bit < width.
         // Two shifts suffice, including a full-window mask, without a width-sized shift.
         return (~T{0} >> (sizeof(T) * 8 - top_bit)) & (~T{0} << minor_bit);
     }
 
-    TransformAddress BuildTransform(PAddr address, size_t size) {
-        const size_t minor_address = address & page_mask;
-        const size_t minor_bit = minor_address >> align_bits;
-        const size_t top_bit = (minor_address + size + align_mask) >> align_bits;
+    TransformAddress BuildTransform(PAddr address, uint64_t size) {
+        const uint64_t minor_address = address & page_mask;
+        const uint64_t minor_bit = minor_address >> align_bits;
+        const uint64_t top_bit = (minor_address + size + align_mask) >> align_bits;
         TransformAddress result{};
         result.address = static_cast<u32>(address >> page_bits);
         result.mask = CreateMask<u32>(top_bit, minor_bit);
         return result;
     }
 
-    void CollectSingleWindow(PAddr address, size_t size) {
+    void CollectSingleWindow(PAddr address, uint64_t size) {
         TransformAddress t = BuildTransform(address, size);
         TransformAddress tmp, original;
         for (;;) {
@@ -171,10 +171,10 @@ private:
     std::mutex gather_guard;
     std::vector<TransformAddress> back_buffer;
     std::vector<TransformAddress> front_buffer;
-    std::vector<std::pair<PAddr, size_t>> exact_back_buffer;
-    std::vector<std::pair<PAddr, size_t>> exact_front_buffer;
-    std::vector<std::pair<PAddr, size_t>> coarse_back_buffer;
-    std::vector<std::pair<PAddr, size_t>> coarse_front_buffer;
+    std::vector<std::pair<PAddr, uint64_t>> exact_back_buffer;
+    std::vector<std::pair<PAddr, uint64_t>> exact_front_buffer;
+    std::vector<std::pair<PAddr, uint64_t>> coarse_back_buffer;
+    std::vector<std::pair<PAddr, uint64_t>> coarse_front_buffer;
 };
 
 } // namespace Core
