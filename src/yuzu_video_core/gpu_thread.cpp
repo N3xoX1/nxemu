@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
@@ -255,7 +259,14 @@ ThreadManager::~ThreadManager() = default;
 void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Frontend::GraphicsContext & context, Tegra::Control::Scheduler & scheduler)
 {
     rasterizer = renderer.ReadRasterizer();
-    if (is_async)
+#if defined(__APPLE__) && TARGET_OS_OSX
+    // The split path waits for the rendering thread at every GP entry. Keep decode and
+    // rendering on the same worker on macOS to preserve DMA ordering without that handoff.
+    const bool split_gpu_thread = false;
+#else
+    const bool split_gpu_thread = is_async;
+#endif
+    if (split_gpu_thread)
     {
         state->back.threaded = true;
         thread = std::jthread(RunDrawThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(*state));
