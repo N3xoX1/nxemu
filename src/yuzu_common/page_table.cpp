@@ -63,8 +63,8 @@ void PageTable::EnableWriteTracking() {
     }
     const std::size_t num_page_table_entries = pointers.size();
     // The padding keeps 8-byte scans inside the map
-    const std::size_t l2_entries = ((num_page_table_entries >> 9) + 64) & ~std::size_t{63};
-    const std::size_t l1_entries = ((num_page_table_entries >> 18) + 64) & ~std::size_t{63};
+    const uint64_t l2_entries = ((num_page_table_entries >> 9) + 64) & ~uint64_t{63};
+    const uint64_t l1_entries = ((num_page_table_entries >> 18) + 64) & ~uint64_t{63};
     write_track_storage.resize(num_page_table_entries + l2_entries + l1_entries + 64);
     write_track_map = write_track_storage.data();
     write_track_l2_offset = static_cast<u32>(num_page_table_entries);
