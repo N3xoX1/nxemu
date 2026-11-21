@@ -878,9 +878,16 @@ void TextureCache<P>::MarkRenderTarget(ImageViewId view_id) {
     const ImageViewBase& view = slot_image_views[view_id];
     if (!view.IsBuffer()) {
         Image& image = slot_images[view.image_id];
-        if (image.first_render_frame > frame_tick) {
-            image.first_render_frame = frame_tick;
-            has_new_render_targets = true;
+        if (image.last_render_frame != frame_tick) {
+            if (image.last_render_frame > frame_tick) {
+                has_new_render_targets = true;
+                image.render_frame_bits = 1;
+            } else {
+                const u64 age = frame_tick - image.last_render_frame;
+                image.render_frame_bits =
+                    (age < 32 ? image.render_frame_bits << age : 0) | 1;
+            }
+            image.last_render_frame = frame_tick;
         }
     }
 }
@@ -892,7 +899,24 @@ bool TextureCache<P>::RenderTargetsDrawnBefore() const {
             return true;
         }
         const ImageViewBase& view = slot_image_views[view_id];
-        return view.IsBuffer() || slot_images[view.image_id].first_render_frame < frame_tick;
+        if (view.IsBuffer()) {
+            return true;
+        }
+        // Only a target the game draws again frame after frame gets the skipped draw back. A
+        // target drawn now and then (an icon or another texture the game renders once and keeps,
+        // even one reused for different contents) keeps whatever this draw leaves in it.
+        const Image& image = slot_images[view.image_id];
+        if (image.last_render_frame > frame_tick) {
+            return false;
+        }
+        u32 bits = image.render_frame_bits;
+        if (image.last_render_frame != frame_tick) {
+            const u64 age = frame_tick - image.last_render_frame;
+            bits = age < 32 ? bits << age : 0;
+        }
+        constexpr u32 RecentFrames = 0x1FEU; // the 8 frames before this one
+        constexpr int MinRecentDraws = 4;
+        return std::popcount(bits & RecentFrames) >= MinRecentDraws;
     };
     return std::ranges::all_of(render_targets.color_buffer_ids, drawn_before) &&
            drawn_before(render_targets.depth_buffer_id);

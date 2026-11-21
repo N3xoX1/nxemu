@@ -230,8 +230,8 @@ public:
     /// @param is_clear True when the render targets are being used for clears
     void UpdateRenderTargets(bool is_clear, u32 clear_layer_count = 0);
 
-    /// True when every bound render target was drawn to in an earlier frame, so that a draw
-    /// skipped now is redrawn by a later frame. UpdateRenderTargets should be called before this
+    /// True when every bound render target was drawn to in most of the recent frames, so that a
+    /// draw skipped now is redrawn by a later frame. UpdateRenderTargets should be called before this
     [[nodiscard]] bool RenderTargetsDrawnBefore() const;
 
     /// True when an image was drawn to for the first time since the previous call
