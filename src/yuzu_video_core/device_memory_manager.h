@@ -114,10 +114,10 @@ public:
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
     void UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta);
-    void UpdatePagesWriteProtectedCount(DAddr addr, size_t size, s32 delta);
+    void UpdatePagesWriteProtectedCount(DAddr addr, uint64_t size, s32 delta);
     // Pages holding bytes the GPU wrote stay cached and write protected, even once a CPU write
     // untracked them: every later CPU write there is reported exactly, never as a coarse write.
-    void UpdatePagesGpuModifiedCount(DAddr addr, size_t size, s32 delta) {
+    void UpdatePagesGpuModifiedCount(DAddr addr, uint64_t size, s32 delta) {
         UpdatePagesCachedCount(addr, size, delta);
         UpdatePagesWriteProtectedCount(addr, size, delta);
     }
@@ -146,7 +146,7 @@ private:
 
     /// Calls func(memory, vaddr, size) for each run of the range backed by one process
     template <typename Func>
-    void ForEachProcessRange(DAddr addr, size_t size, Func&& func);
+    void ForEachProcessRange(DAddr addr, uint64_t size, Func&& func);
     static constexpr size_t device_as_size = 1ULL << device_virtual_bits;
     static constexpr size_t page_bits = 12;
     static constexpr size_t page_size = 1ULL << page_bits;
