@@ -11,6 +11,12 @@ function(nxemu_unit_test name)
     endif()
 endfunction()
 
+add_executable(test_memory_reclaim memory_reclaim/reclaim.cpp
+    "${CMAKE_SOURCE_DIR}/src/nxemu-os/core/hle/kernel/k_page_heap.cpp")
+target_include_directories(test_memory_reclaim PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-os")
+target_link_libraries(test_memory_reclaim PRIVATE nxemu_test_support yuzu_common common)
+nxemu_unit_test(test_memory_reclaim LINUX)
+
 add_executable(test_lot1_audio eden_lot1/audio.cpp)
 target_include_directories(test_lot1_audio PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/boost"

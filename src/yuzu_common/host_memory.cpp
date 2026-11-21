@@ -139,6 +139,11 @@ public:
         GetFuncAddress(kernelbase_dll, "MapViewOfFile3", pfn_MapViewOfFile3);
         GetFuncAddress(kernelbase_dll, "UnmapViewOfFile2", pfn_UnmapViewOfFile2);
 
+        if (lazy_commit) {
+            const size_t granule_count = (backing_size + CommitGranule - 1) / CommitGranule;
+            const size_t word_count = (granule_count + 63) / 64;
+            committed_granules = std::make_unique<std::atomic<u64>[]>(word_count);
+        }
         // SEC_COMMIT reserves system commit for the *entire* guest memory at startup.
         // SEC_RESERVE only charges pages explicitly committed through the backing view.
         // Keep this opt-in until Windows gameplay and OOM paths have been validated.
@@ -170,12 +175,6 @@ public:
             throw std::bad_alloc{};
         }
         if (lazy_commit) {
-            const size_t granule_count = (backing_size + CommitGranule - 1) / CommitGranule;
-            const size_t word_count = (granule_count + 63) / 64;
-            committed_granules = std::make_unique<std::atomic<u64>[]>(word_count);
-            for (size_t i = 0; i < word_count; ++i) {
-                committed_granules[i].store(0, std::memory_order_relaxed);
-            }
             LOG_INFO(HW_Memory, "Windows lazy guest memory commitment enabled ({} MiB reserved)",
                      backing_size >> 20);
         }
@@ -799,6 +798,12 @@ public:
 
     bool ClearBackingRegion(size_t physical_offset, size_t length) {
 #ifdef __linux__
+        // madvise rounds the length up to a host page. Let the caller memset partial pages
+        // so an adjacent allocation keeps its bytes.
+        if (!Common::IsAligned(physical_offset, host_page_size) ||
+            !Common::IsAligned(length, host_page_size)) {
+            return false;
+        }
         // Set MADV_REMOVE on backing map to destroy it instantly.
         // This also deletes the area from the backing file.
         static std::atomic_bool madvise_remove_works{true};
@@ -996,9 +1001,6 @@ HostMemory::HostMemory(size_t backing_size_, size_t virtual_size_)
     }
     num_granules = (backing_size + (size_t{1} << GranuleShift) - 1) >> GranuleShift;
     granules = std::make_unique<std::atomic<u8>[]>(num_granules);
-    for (size_t i = 0; i < num_granules; ++i) {
-        granules[i].store(0, std::memory_order_relaxed);
-    }
 }
 
 HostMemory::~HostMemory() = default;
@@ -1130,8 +1132,8 @@ bool HostMemory::IsBackingDirty(size_t physical_offset) const {
 
 bool HostMemory::ReleaseFreeBacking(size_t physical_offset) {
     constexpr size_t GranuleSize = size_t{1} << GranuleShift;
-    if (physical_offset % GranuleSize != 0 || physical_offset + GranuleSize > backing_size ||
-        !impl) {
+    if (!impl || physical_offset % GranuleSize != 0 || physical_offset > backing_size ||
+        backing_size - physical_offset < GranuleSize) {
         return false;
     }
 #ifdef _WIN32
@@ -1231,8 +1233,9 @@ std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
     };
     std::sort(backing_pages.begin(), backing_pages.end());
     std::sort(view_pages.begin(), view_pages.end());
-    std::vector<uintptr_t> trim;
-    trim.reserve(backing_pages.size() + view_pages.size());
+    // The working-set snapshot is no longer needed. Reuse its capacity for trim candidates.
+    auto trim = std::move(entries);
+    trim.clear();
     size_t zero_bytes = 0;
     for (const uintptr_t page : backing_pages) {
         if (is_zero_page(reinterpret_cast<const u8*>(page))) {
@@ -1299,64 +1302,6 @@ std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
         first = last;
     }
     return {(backing_pages.size() + view_pages.size()) * page_size, zero_bytes};
-#elif defined(__APPLE__)
-    if (backing_base == nullptr || impl == nullptr) {
-        return {0, 0};
-    }
-    // Every guest view (fastmem arena or NCE direct map) shares the pages of the backing object,
-    // so scanning the backing mapping covers them all. mincore lists the resident host pages
-    // without faulting the others in.
-    const size_t page_size = impl->host_page_size;
-    const size_t page_count = backing_size / page_size;
-    std::vector<char> residency(page_count);
-    if (mincore(reinterpret_cast<caddr_t>(backing_base), page_count * page_size,
-                residency.data()) != 0) {
-        return {0, 0};
-    }
-    const auto is_zero_page = [page_size](const u8* data) {
-        const auto* words = reinterpret_cast<const u64*>(data);
-        constexpr size_t WordsPerCacheLine = 64 / sizeof(u64);
-        for (size_t i = 0; i < page_size / sizeof(u64); i += WordsPerCacheLine) {
-            u64 nonzero = 0;
-            for (size_t j = 0; j < WordsPerCacheLine; ++j) {
-                nonzero |= words[i + j];
-            }
-            if (nonzero != 0) {
-                return false;
-            }
-        }
-        return true;
-    };
-    size_t resident_bytes = 0;
-    size_t zero_bytes = 0;
-    for (size_t index = 0; index < page_count; ++index) {
-        if ((residency[index] & MINCORE_INCORE) == 0) {
-            continue;
-        }
-        resident_bytes += page_size;
-        u8* const page = backing_base + index * page_size;
-        if (!is_zero_page(page)) {
-            continue;
-        }
-        // Unlike VirtualUnlock, MADV_FREE_REUSABLE also forgets that the page was modified, so
-        // the kernel may drop it. A guest write that lands between the check and the madvise
-        // would be lost with it: check again and, if the page changed, write one of its words
-        // back so that the page is modified again and kept.
-        impl->MarkReusable(page, page_size);
-        if (is_zero_page(page)) {
-            zero_bytes += page_size;
-            continue;
-        }
-        madvise(page, page_size, MADV_FREE_REUSE);
-        for (size_t offset = 0; offset < page_size; offset += sizeof(u64)) {
-            auto* const word = reinterpret_cast<u64*>(page + offset);
-            if (__atomic_load_n(word, __ATOMIC_RELAXED) != 0) {
-                __atomic_fetch_or(word, u64{0}, __ATOMIC_RELAXED);
-                break;
-            }
-        }
-    }
-    return {resident_bytes, zero_bytes};
 #else
     return {0, 0};
 #endif

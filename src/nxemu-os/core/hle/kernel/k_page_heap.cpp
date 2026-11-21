@@ -10,13 +10,12 @@
 namespace Kernel {
 
 void KPageHeap::Initialize(KPhysicalAddress address, size_t size,
-                           KVirtualAddress management_address, size_t management_size,
+                           KVirtualAddress /*management_address*/, size_t management_size,
                            const size_t* block_shifts, size_t num_block_shifts) {
     // Check our assumptions.
     ASSERT(Common::IsAligned(address.GetValue(), PageSize));
     ASSERT(Common::IsAligned(size, PageSize));
     ASSERT(0 < num_block_shifts && num_block_shifts <= NumMemoryBlockPageShifts);
-    const KVirtualAddress management_end = management_address + management_size;
 
     // Set our members.
     m_heap_address = address;
@@ -34,7 +33,7 @@ void KPageHeap::Initialize(KPhysicalAddress address, size_t size,
     }
 
     // Ensure we didn't overextend our bounds.
-    ASSERT(KVirtualAddress(cur_bitmap_storage) <= management_end);
+    ASSERT(cur_bitmap_storage <= m_management_data.data() + m_management_data.size());
 
     // Every page starts allocated; the initial frees count them.
     if (Common::IsAligned(m_heap_address.GetValue(), size_t{1} << GranuleShift) &&
@@ -66,6 +65,7 @@ void KPageHeap::TrackPages(KPhysicalAddress addr, size_t num_pages, bool freed) 
         }
         if (!freed && free_pages == GranulePages) {
             --m_num_free_granules;
+            m_granule_release_state[granule] = 0;
         }
         free_pages = static_cast<u8>(freed ? free_pages + count : free_pages - count);
         if (freed && free_pages == GranulePages) {
@@ -90,9 +90,9 @@ KPhysicalAddress KPageHeap::AllocateByLinearSearch(s32 index) {
 
     for (s32 i = index; i < static_cast<s32>(m_num_blocks); i++) {
         if (const KPhysicalAddress addr = m_blocks[i].PopBlock(false); addr != 0) {
-            this->TrackPages(addr, m_blocks[i].GetSize() / PageSize, false);
+            this->TrackPages(addr, needed_size / PageSize, false);
             if (const size_t allocated_size = m_blocks[i].GetSize(); allocated_size > needed_size) {
-                this->Free(addr + needed_size, (allocated_size - needed_size) / PageSize);
+                this->ReturnToFreeList(addr + needed_size, (allocated_size - needed_size) / PageSize);
             }
             return addr;
         }
@@ -153,7 +153,6 @@ KPhysicalAddress KPageHeap::AllocateByRandom(s32 index, size_t num_pages, size_t
 
     // Pop a block from the index we selected.
     if (KPhysicalAddress addr = m_blocks[index].PopBlock(true); addr != 0) {
-        this->TrackPages(addr, m_blocks[index].GetSize() / PageSize, false);
         // Determine how much size we have left over.
         if (const size_t leftover_size = m_blocks[index].GetSize() - needed_size;
             leftover_size > 0) {
@@ -165,7 +164,7 @@ KPhysicalAddress KPageHeap::AllocateByRandom(s32 index, size_t num_pages, size_t
 
             // Free memory before the random offset.
             if (random_offset != 0) {
-                this->Free(addr, random_offset / PageSize);
+                this->ReturnToFreeList(addr, random_offset / PageSize);
             }
 
             // Advance our block by the random offset.
@@ -173,10 +172,11 @@ KPhysicalAddress KPageHeap::AllocateByRandom(s32 index, size_t num_pages, size_t
 
             // Free memory after our allocated block.
             if (random_offset != leftover_size) {
-                this->Free(addr + needed_size, (leftover_size - random_offset) / PageSize);
+                this->ReturnToFreeList(addr + needed_size, (leftover_size - random_offset) / PageSize);
             }
         }
 
+        this->TrackPages(addr, num_pages, false);
         // Return the block we allocated.
         return addr;
     }
@@ -192,10 +192,14 @@ void KPageHeap::FreeBlock(KPhysicalAddress block, s32 index) {
 
 void KPageHeap::Free(KPhysicalAddress addr, size_t num_pages) {
     // Freeing no pages is a no-op.
+    this->TrackPages(addr, num_pages, true);
+    this->ReturnToFreeList(addr, num_pages);
+}
+
+void KPageHeap::ReturnToFreeList(KPhysicalAddress addr, size_t num_pages) {
     if (num_pages == 0) {
         return;
     }
-    this->TrackPages(addr, num_pages, true);
 
     // Find the largest block size that we can free, and free as many as possible.
     s32 big_index = static_cast<s32>(m_num_blocks) - 1;

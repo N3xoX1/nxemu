@@ -8,6 +8,7 @@
 namespace Common {
 
 void* AllocateMemoryPages(std::size_t size) noexcept;
+void GuardUntouchedPages(void* data, std::size_t size);
 void FreeMemoryPages(void* base, std::size_t size) noexcept;
 
 template <typename T>
@@ -37,6 +38,10 @@ public:
                                                                    nullptr} {}
 
     VirtualBuffer& operator=(VirtualBuffer&& other) noexcept {
+        if (this == &other) {
+            return *this;
+        }
+        FreeMemoryPages(base_ptr, alloc_size);
         alloc_size = std::exchange(other.alloc_size, 0);
         base_ptr = std::exchange(other.base_ptr, nullptr);
         return *this;

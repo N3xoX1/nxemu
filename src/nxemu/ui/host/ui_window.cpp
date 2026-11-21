@@ -140,6 +140,14 @@ UiWindow::~UiWindow()
         Rml::SetRenderInterface(nullptr);
         Rml::SetSystemInterface(nullptr);
     }
+    for (const auto data : m_mappedFonts)
+    {
+#if defined(_WIN32)
+        UnmapViewOfFile(data.data());
+#else
+        munmap(const_cast<uint8_t *>(data.data()), data.size());
+#endif
+    }
     m_renderer.reset();
     m_presenter.reset();
     m_system.reset();
@@ -716,14 +724,21 @@ bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
             return Fail(std::string("Unable to load font ") + font);
         }
     }
-    for (const SystemFont & font : SystemFallbackFonts())
+    const auto fonts = SystemFallbackFonts();
+    m_mappedFonts.reserve(m_mappedFonts.size() + fonts.size());
+    for (const SystemFont & font : fonts)
     {
-        // The views stay mapped until the process ends (RmlUi needs them until Rml::Shutdown)
         const Rml::Span<const Rml::byte> data = MapFontFile(font.path);
-        if (data.empty() || !Rml::LoadFontFace(data, {}, Rml::Style::FontStyle::Normal, Rml::Style::FontWeight::Normal, true, font.faceIndex))
+        if (!data.empty())
         {
-            Rml::LoadFontFace(Common::FS::PathToUTF8String(font.path), true, Rml::Style::FontWeight::Normal, font.faceIndex);
+            // RmlUi borrows the bytes until shutdown.
+            m_mappedFonts.emplace_back(data.data(), data.size());
+            if (Rml::LoadFontFace(data, {}, Rml::Style::FontStyle::Normal, Rml::Style::FontWeight::Normal, true, font.faceIndex))
+            {
+                continue;
+            }
         }
+        Rml::LoadFontFace(Common::FS::PathToUTF8String(font.path), true, Rml::Style::FontWeight::Normal, font.faceIndex);
     }
     return true;
 }

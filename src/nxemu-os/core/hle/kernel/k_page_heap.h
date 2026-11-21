@@ -220,6 +220,8 @@ private:
                     const size_t* block_shifts, size_t num_block_shifts);
     size_t GetNumFreePages() const;
 
+    // Split leftovers were already counted as free.
+    void ReturnToFreeList(KPhysicalAddress addr, size_t num_pages);
     void FreeBlock(KPhysicalAddress block, s32 index);
 
     // The 16 KiB size lets hosts with 16 KiB pages get whole host pages without fragmenting

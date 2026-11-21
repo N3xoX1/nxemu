@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -57,16 +58,23 @@ void KMemoryManager::CommitBackingPages(KPhysicalAddress address, size_t num_pag
     }
     auto& buffer = m_system.DeviceMemory().buffer;
     const size_t offset = address.GetValue() - Core::DramMemoryMap::Base;
-    // Allocated pages can be written from now on: a later free makes them dirty.
-    buffer.MarkBackingUsed(offset, num_pages * PageSize);
 #ifdef _WIN32
     buffer.CommitBackingRegion(offset, num_pages * PageSize);
 #endif
+    // Record use only after backing is accessible, including on a later kernel restart.
+    buffer.MarkBackingUsed(offset, num_pages * PageSize);
 }
 
 void KMemoryManager::ReleaseFreeBacking() {
-#if defined(_WIN32) || defined(__linux__)
+#if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
     static const bool enabled = [] {
+#ifdef __APPLE__
+        // Reclaim only while the pool lock guarantees that no guest can write the pages.
+        const char* const trim = std::getenv("NXEMU_ZERO_TRIM");
+        if (!trim || std::strcmp(trim, "1") != 0) {
+            return false;
+        }
+#endif
         const char* const flag = std::getenv("NXEMU_FREE_RELEASE");
         return flag == nullptr || std::strcmp(flag, "0") != 0;
     }();
@@ -92,9 +100,11 @@ void KMemoryManager::ReleaseFreeBacking() {
         Impl& manager = m_managers[i];
         KPageHeap& heap = manager.GetHeap();
         const size_t heap_offset = heap.GetAddress().GetValue() - Core::DramMemoryMap::Base;
-        KScopedLightLock lk(m_pool_locks[static_cast<size_t>(manager.GetPool())]);
-        if (heap.GetNumFreeGranules() == 0) {
-            continue; // nothing wholly free: skip scanning every granule under the lock
+        const size_t pool = static_cast<size_t>(manager.GetPool());
+        KScopedLightLock lk(m_pool_locks[pool]);
+        // An optimized process can reuse its previous page contents without a fill.
+        if (m_has_optimized_process[pool] || heap.GetNumFreeGranules() == 0) {
+            continue;
         }
         for (size_t granule = 0; granule < heap.GetNumGranules(); ++granule) {
             u8& seen_free = heap.GranuleReleaseState(granule);
@@ -317,6 +327,9 @@ KPhysicalAddress KMemoryManager::AllocateAndOpenContinuous(size_t num_pages, siz
 
     // Choose a heap based on our page size request.
     const s32 heap_index = KPageHeap::GetAlignedBlockIndex(num_pages, align_pages);
+    if (heap_index < 0) {
+        return 0;
+    }
 
     // Loop, trying to iterate from each block.
     Impl* chosen_manager = nullptr;
@@ -335,7 +348,12 @@ KPhysicalAddress KMemoryManager::AllocateAndOpenContinuous(size_t num_pages, siz
     }
 
     // Commit physical backing before the kernel or an alias can touch the new pages.
-    CommitBackingPages(allocated_block, num_pages);
+    try {
+        CommitBackingPages(allocated_block, num_pages);
+    } catch (const std::bad_alloc&) {
+        chosen_manager->Free(allocated_block, num_pages);
+        return 0;
+    }
 
     // Maintain the optimized memory bitmap, if we should.
     if (m_has_optimized_process[static_cast<size_t>(pool)]) {
@@ -357,10 +375,16 @@ Result KMemoryManager::AllocatePageGroupImpl(KPageGroup* out, size_t num_pages, 
     // Ensure that we don't leave anything un-freed.
     ON_RESULT_FAILURE {
         for (const auto& it : *out) {
-            auto& manager = this->GetManager(it.GetAddress());
-            const size_t node_num_pages = std::min<u64>(
-                it.GetNumPages(), (manager.GetEndAddress() - it.GetAddress()) / PageSize);
-            manager.Free(it.GetAddress(), node_num_pages);
+            // KPageGroup can concatenate physically adjacent blocks from different managers.
+            auto address = it.GetAddress();
+            size_t remaining = it.GetNumPages();
+            while (remaining > 0) {
+                auto& manager = this->GetManager(address);
+                const size_t pages = std::min(remaining, manager.GetPageOffsetToEnd(address));
+                manager.Free(address, pages);
+                remaining -= pages;
+                address += pages * PageSize;
+            }
         }
         out->Finalize();
     };
@@ -398,6 +422,14 @@ Result KMemoryManager::AllocatePageGroupImpl(KPageGroup* out, size_t num_pages, 
 
     // Only succeed if we allocated as many pages as we wanted.
     R_UNLESS(num_pages == 0, ResultOutOfMemory);
+    try {
+        for (const auto& block : *out) {
+            CommitBackingPages(block.GetAddress(), block.GetNumPages());
+        }
+    } catch (const std::bad_alloc&) {
+        // Use the same rollback as guest heap exhaustion before opening any references.
+        R_THROW(ResultOutOfMemory);
+    }
 
     // We succeeded!
     R_SUCCEED();
@@ -417,10 +449,6 @@ Result KMemoryManager::AllocateAndOpen(KPageGroup* out, size_t num_pages, u32 op
     // Allocate the page group.
     R_TRY(this->AllocatePageGroupImpl(out, num_pages, pool, dir,
                                       m_has_optimized_process[static_cast<size_t>(pool)], true));
-
-    for (const auto& block : *out) {
-        CommitBackingPages(block.GetAddress(), block.GetNumPages());
-    }
 
     // Open the first reference to the pages.
     for (const auto& block : *out) {
@@ -468,10 +496,6 @@ Result KMemoryManager::AllocateForProcess(KPageGroup* out, size_t num_pages, u32
 
         // Set whether we should optimize.
         optimized = has_optimized && is_optimized;
-    }
-
-    for (const auto& block : *out) {
-        CommitBackingPages(block.GetAddress(), block.GetNumPages());
     }
 
     // Perform optimized memory tracking, if we should.
@@ -559,8 +583,7 @@ size_t KMemoryManager::Impl::Initialize(KPhysicalAddress address, size_t size,
     // Setup region.
     m_pool = p;
     m_management_region = management;
-    m_page_reference_counts.resize(
-        Kernel::Board::Nintendo::Nx::KSystemControl::Init::GetIntendedMemorySize() / PageSize);
+    m_page_reference_counts.resize(size / PageSize);
     ASSERT(Common::IsAligned(m_management_region.GetValue(), PageSize));
 
     // Initialize the manager's KPageHeap.

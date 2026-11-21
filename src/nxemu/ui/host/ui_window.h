@@ -6,7 +6,9 @@
 #include <future>
 #include <memory>
 #include <nxemu-module-spec/base.h>
+#include <span>
 #include <string>
+#include <vector>
 
 class SystemInterface_SDL;
 class UiDialogWindow;
@@ -114,6 +116,7 @@ private:
     Uint32 m_themeRequest = 0;
     std::future<void> m_themeQuery;
 #endif
+    std::vector<std::span<const uint8_t>> m_mappedFonts;
     Rml::Context * m_context = nullptr;
     IVideo * m_video = nullptr;
     int m_drawableWidth = 0;
