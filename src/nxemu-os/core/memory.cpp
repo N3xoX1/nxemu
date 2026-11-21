@@ -1766,7 +1766,7 @@ struct Memory::Impl {
 
     // Exact even for small writes: a 64-byte block around one can hold GPU-written bytes, which
     // a widened report would replace with stale guest memory
-    void HandleRasterizerWrite(VAddr v_address, size_t size, WriteReport report = WriteReport::Exact)
+    void HandleRasterizerWrite(VAddr v_address, uint64_t size, WriteReport report = WriteReport::Exact)
     {
         const auto * p = GetPointerImpl(v_address, []() {}, []() {});
         constexpr size_t sys_core = Hardware::NUM_CPU_CORES - 1;
@@ -1832,7 +1832,7 @@ struct Memory::Impl {
     std::unordered_map<u64, u32> write_protected_counts;
     std::unique_ptr<u64[], FreeBits> read_cached_storage;
     std::atomic<u64 *> read_cached_bits{};
-    size_t read_cached_page_count{};
+    uint64_t read_cached_page_count{};
     std::mutex harvest_mutex;
     std::vector<u64> harvested_pages;
 #endif

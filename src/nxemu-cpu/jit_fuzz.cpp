@@ -36,13 +36,13 @@ using u64 = std::uint64_t;
 
 constexpr u64 code_base = 0x10000;
 constexpr u32 svc0 = 0xD4000001;
-constexpr size_t arena_size = 1 << 20;  // fastmem mode: guest addresses below 1 MiB
-constexpr size_t arena_pages = arena_size >> 12;
-constexpr size_t write_track_l1_offset = arena_pages + 64;
-constexpr size_t write_track_size = arena_pages + 3 * 64;
+constexpr uint64_t arena_size = 1 << 20;  // fastmem mode: guest addresses below 1 MiB
+constexpr uint64_t arena_pages = arena_size >> 12;
+constexpr uint64_t write_track_l1_offset = arena_pages + 64;
+constexpr uint64_t write_track_size = arena_pages + 3 * 64;
 
 constexpr int fastmem_unchecked = 2;
-constexpr size_t unchecked_reservation = 2 * arena_size;
+constexpr uint64_t unchecked_reservation = 2 * arena_size;
 
 struct Pattern {
     const char* fn;
@@ -278,7 +278,7 @@ struct Runner {
 
     // Every arena page that changed must be marked, with its summary bytes
     bool WriteMarksMissing(const u8* initial) const {
-        for (size_t page = 0; write_track && page < arena_pages; page++) {
+        for (uint64_t page = 0; write_track && page < arena_pages; page++) {
             const bool marked = write_track[page] && write_track[arena_pages + (page >> 9)] && write_track[write_track_l1_offset + (page >> 18)];
             if (!marked && !env.callback_pages[page] && std::memcmp(arena + page * 4096, initial + page * 4096, 4096) != 0) {
                 return true;
@@ -375,7 +375,7 @@ extern "C"
 
     static const std::vector<u8> initial_arena = [] {
         std::vector<u8> v(arena_size);
-        for (size_t i = 0; i < arena_size; i++) {
+        for (uint64_t i = 0; i < arena_size; i++) {
             v[i] = InitialByte(i);
         }
         return v;
