@@ -58,7 +58,7 @@ struct Toggle
 
 constexpr Toggle kToggles[] = {
     {"gpu-sync", NXVideoSetting::SystemGpuCommandSynchronization, Store::Module, true},
-    {"fast-readback", NXVideoSetting::FastGpuReadback, Store::Module, true},
+    {"fast-readback", NXVideoSetting::SystemFastGpuReadback, Store::Module, true},
     {"reactive-flushing", NXVideoSetting::SystemEnableReactiveFlushing, Store::Module, false},
     {"feedback-loops", NXVideoSetting::SystemBarrierFeedbackLoops, Store::Module, false},
     {"fast-gpu-time", NXVideoSetting::SystemFastGPUTime, Store::Module, true},
@@ -334,8 +334,9 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     }
     if (id == "fast-readback")
     {
-        // Normal accuracy already lets games read the results without waiting for the GPU.
-        return settings.GetInt(NXVideoSetting::SystemAccuracyLevel) == static_cast<int>(GpuAccuracy::Normal);
+        // Normal accuracy already lets games read the results without waiting for the GPU,
+        // Extreme always waits for it.
+        return settings.GetInt(NXVideoSetting::SystemAccuracyLevel) != static_cast<int>(GpuAccuracy::High);
     }
     return false;
 }

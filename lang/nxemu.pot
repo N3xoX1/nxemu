@@ -485,7 +485,7 @@ msgid "Lets games read what the chip drew without waiting for it."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgid "Only with High accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml

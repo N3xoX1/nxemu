@@ -467,10 +467,10 @@ msgstr "Låter spel läsa vad grafikprocessorn ritade utan att vänta på den."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid ""
-"Needs High or Extreme accuracy. Much faster in some games, keeping High "
-"drawing. What games read can be a frame late."
+"Only with High accuracy. Much faster in some games, keeping High drawing. "
+"What games read can be a frame late."
 msgstr ""
-"Kräver hög eller extrem noggrannhet. I vissa spel är det mycket snabbare och "
+"Bara med hög noggrannhet. I vissa spel är det mycket snabbare och "
 "behåller ritning med hög noggrannhet. Det som spel läser kan ligga en "
 "bildruta efter."
 
