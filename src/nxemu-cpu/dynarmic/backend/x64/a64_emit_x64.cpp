@@ -109,7 +109,6 @@ static bool IsHostFlagNeutral(const IR::Inst& inst, bool vector_moves) {
 }
 
 namespace {
-// Bytes written by a plain write, 0 for other ops
 s64 PlainWriteBytes(IR::Opcode op) {
     switch (op) {
     case IR::Opcode::A64WriteMemory8:
@@ -155,7 +154,6 @@ bool MayLeaveBlock(IR::Opcode op) {
     }
 }
 
-// Splits an address into a base value and a constant offset
 std::pair<const IR::Inst*, s64> SplitAddress(const IR::Value& address) {
     if (address.IsImmediate()) {
         return {nullptr, 0};
@@ -339,9 +337,8 @@ void A64EmitX64::EmitStoreNZCVFromHostFlags() {
     code.mov(dword[r15 + offsetof(A64JitState, cpsr_nzcv)], eax);
 }
 
-// Fastmem writes off the same base that write less than a page of bytes touch at most two
-// pages. In a group of three or more, only the last write marks the write tracking map, for
-// the first and the last byte of the group.
+// Writes off one base that span less than a page touch at most two pages: in a group of three
+// or more, only the last write marks the map, for the group's first and last byte.
 void A64EmitX64::PlanWriteTracking(A64EmitContext& ctx) const {
     if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
         return;

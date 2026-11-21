@@ -201,16 +201,15 @@ template<>
     }
 }
 
-// The whole map is below 2 GiB, so it is addressed without a base register
+// Then the map is addressed without a base register
 template<typename Config>
 bool WriteTrackMapIsLow(const Config& conf) {
     const u64 end = reinterpret_cast<u64>(conf.write_track_map) + conf.write_track_l1_offset + (u64{1} << 20);
     return end < (u64{1} << 31);
 }
 
-// Marks the page of vaddr + offset in the write tracking map. The summary levels are only
-// written when the page byte was clear. `map` is only needed when the map is not low.
-// `check_range` skips a page past the map, for an address that is not known to be valid.
+// `map` is only needed when the map is not low. `check_range` skips a page past the map, for an
+// address that is not known to be valid.
 template<typename EmitContext>
 void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 offset, bool check_range) {
     const u32 l2_offset = ctx.conf.write_track_l2_offset;
@@ -257,7 +256,6 @@ void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xby
     });
 }
 
-// Marks the first and the last page a successful fastmem write of `bitsize` touched
 template<std::size_t bitsize, typename EmitContext>
 void EmitWriteTrackAccess(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map) {
     EmitWriteTrack(code, ctx, vaddr, page, map, 0, false);

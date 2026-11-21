@@ -52,9 +52,13 @@ void Invalidate(Page& host, std::vector<bool>& gpu_modified, const Page& guest, 
 struct Recorder final : ICacheInvalidator {
     u64 base;
     Ranges ranges;
+    Ranges coarse;
     explicit Recorder(u64 base_) : base{base_} {}
     void OnCacheInvalidation(uint64_t address, uint32_t size) override {
         ranges.emplace_back(address - base, size);
+    }
+    void OnCoarseCacheInvalidation(uint64_t address, uint32_t size) override {
+        coarse.emplace_back(address - base, size);
     }
 };
 
@@ -71,6 +75,9 @@ struct BlockingRecorder final : ICacheInvalidator {
         entered = true;
         wake.notify_all();
         wake.wait(lock, [&] { return release; });
+    }
+    void OnCoarseCacheInvalidation(uint64_t address, uint32_t size) override {
+        OnCacheInvalidation(address, size);
     }
 };
 
@@ -241,6 +248,32 @@ int main() {
             }
         }
         check(all_ranges, "concurrent collectors preserve every changed window");
+    }
+
+    // A page the JIT marked is reported whole, as a coarse write the caches keep GPU data under
+    {
+        Core::GPUDirtyMemoryManager manager;
+        Recorder recorder{0};
+        manager.CollectCoarse(0x5000, PageSize);
+        manager.CollectExact(0x6000, 4);
+        manager.Gather(&recorder);
+        check(recorder.coarse == Ranges{{0x5000, PageSize}}, "a coarse write is gathered as coarse");
+        check(recorder.ranges == Ranges{{0x6000, 4}}, "an exact write stays exact next to a coarse one");
+    }
+
+    // Exact writes that touch or overlap the previous one merge into it, and nothing else does
+    {
+        Core::GPUDirtyMemoryManager manager;
+        Recorder recorder{0};
+        manager.CollectExact(0x7000, 4);
+        manager.CollectExact(0x7004, 4);
+        manager.CollectExact(0x7002, 2);
+        manager.CollectExact(0x7006, 8);
+        manager.CollectExact(0x7020, 4);
+        manager.CollectExact(0x701c, 4);
+        manager.Gather(&recorder);
+        check(recorder.ranges == Ranges{{0x7000, 14}, {0x7020, 4}, {0x701c, 4}},
+              "exact writes merge only with the write before when they touch it");
     }
 
     // A readback gather can run while the GPU's invalidation callback is still

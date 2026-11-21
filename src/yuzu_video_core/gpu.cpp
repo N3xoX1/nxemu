@@ -643,6 +643,11 @@ struct GPU::Impl :
         rasterizer->OnCacheInvalidation(address, size);
     }
 
+    void OnCoarseCacheInvalidation(uint64_t address, uint32_t size) override
+    {
+        rasterizer->OnCoarseCacheInvalidation(address, size);
+    }
+
     void RegisterHostThread()
     {
         m_modules.OperatingSystem().RegisterHostThread();

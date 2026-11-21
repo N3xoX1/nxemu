@@ -44,8 +44,6 @@ constexpr std::size_t YUZU_PAGEBITS = 12;
 constexpr u64 YUZU_PAGESIZE = 1ULL << YUZU_PAGEBITS;
 constexpr u64 YUZU_PAGEMASK = YUZU_PAGESIZE - 1;
 
-bool UseWriteTrackMap();
-
 /// Virtual user-space memory regions
 enum : u64 {
     /// TLS (Thread-Local Storage) related.
@@ -160,6 +158,7 @@ public:
     /// Reports the cached pages the JIT marked in the write map since the last call.
     void HarvestCpuWrites();
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override;
+    void RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) override;
     bool ProtectsReadCachedRegions() override;
 
     template <typename T>

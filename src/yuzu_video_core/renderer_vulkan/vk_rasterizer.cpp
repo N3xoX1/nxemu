@@ -1077,6 +1077,23 @@ void RasterizerVulkan::OnCacheInvalidation(DAddr addr, u64 size) {
     pipeline_cache.InvalidateRegion(addr, size);
 }
 
+void RasterizerVulkan::OnCoarseCacheInvalidation(DAddr addr, u64 size) {
+    if (addr == 0 || size == 0) {
+        return;
+    }
+    const auto caches = device_memory.FilterFlushCaches(
+        addr, size, VideoCommon::CacheType::BufferCache | VideoCommon::CacheType::TextureCache);
+    if (True(caches & VideoCommon::CacheType::TextureCache)) {
+        std::scoped_lock lock{texture_cache.mutex};
+        texture_cache.WriteMemory(addr, size);
+    }
+    if (True(caches & VideoCommon::CacheType::BufferCache)) {
+        std::scoped_lock lock{buffer_cache.mutex};
+        buffer_cache.CoarseWriteMemory(addr, size);
+    }
+    pipeline_cache.InvalidateRegion(addr, size);
+}
+
 void RasterizerVulkan::InvalidateGPUCache() {
     gpu.InvalidateGPUCache();
 }

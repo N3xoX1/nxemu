@@ -58,7 +58,7 @@ static bool ProtectOnlyReadCachedPages()
 #endif
 }
 
-bool UseWriteTrackMap()
+static bool UseWriteTrackMap()
 {
 #if defined(_M_X64) || defined(__x86_64__)
     return ProtectOnlyReadCachedPages();
@@ -90,6 +90,9 @@ struct Memory::Impl {
                              g_settings->GetBool(NXCpuSetting::CpuoptFastmem);
         if (std::addressof(process) == system.ApplicationProcess() && fastmem) {
             current_page_table->fastmem_arena = system.DeviceMemory().buffer.VirtualBasePointer();
+            if (UseWriteTrackMap()) {
+                current_page_table->EnableWriteTracking();
+            }
         } else {
             current_page_table->fastmem_arena = nullptr;
         }
@@ -646,8 +649,9 @@ struct Memory::Impl {
 #if !defined(__APPLE__)
         if (WriteTracking())
         {
-            // CPU writes are marked in the write map, only pages that need a download are protected
-            ProtectReadCachedPages(vaddr, size, cached);
+            // CPU writes are marked in the write map. Only pages that need a download or hold
+            // GPU-written buffer data are protected.
+            ProtectTrackedPages(vaddr, size, cached);
         }
         else if (current_page_table->fastmem_arena && cached && ProtectOnlyReadCachedPages())
         {
@@ -757,7 +761,8 @@ struct Memory::Impl {
 #if !defined(__APPLE__)
         if (cached && WriteTracking())
         {
-            // After the pages are cached, so that a harvest keeps the marks of later writes
+            // After the pages are cached, so that a harvest keeps the marks of later writes. A write
+            // in between loses its mark, but the caller uploads the region after this.
             ClearWriteMarks(region_vaddr, size);
         }
 #endif
@@ -967,16 +972,16 @@ struct Memory::Impl {
         size_t core;
     };
 
-    static void HandleRasterizerWriteCollect(uint64_t address, uint64_t size, void * user_data)
-    {
-        auto & context = *static_cast<RasterizerWriteCollectContext *>(user_data);
-        context.impl->gpu_dirty_managers[context.core].Collect(address, size);
-    }
-
     static void HandleRasterizerWriteCollectExact(uint64_t address, uint64_t size, void * user_data)
     {
         auto & context = *static_cast<RasterizerWriteCollectContext *>(user_data);
         context.impl->gpu_dirty_managers[context.core].CollectExact(address, size);
+    }
+
+    static void HandleRasterizerWriteCollectCoarse(uint64_t address, uint64_t size, void * user_data)
+    {
+        auto & context = *static_cast<RasterizerWriteCollectContext *>(user_data);
+        context.impl->gpu_dirty_managers[context.core].CollectCoarse(address, size);
     }
 
 #if !defined(__APPLE__)
@@ -1040,7 +1045,7 @@ struct Memory::Impl {
 
     bool WriteTracking() const
     {
-        return current_page_table->fastmem_arena != nullptr && UseWriteTrackMap();
+        return current_page_table->write_track_map != nullptr;
     }
 
     // The JIT only sets the summary levels when the page byte is clear, so an old mark would
@@ -1060,32 +1065,42 @@ struct Memory::Impl {
     }
 
     // Caller holds read_cached_mutex
-    void ProtectReadCachedPages(u64 vaddr, u64 size, bool cached)
+    void ProtectTrackedPages(u64 vaddr, u64 size, bool cached)
     {
-        if (read_cached_bits.load(std::memory_order_acquire) == nullptr)
+        if (read_cached_bits.load(std::memory_order_acquire) == nullptr && write_protected_counts.empty())
         {
             return;
         }
-        const Common::MemoryPermission perm = cached ? Common::MemoryPermission{} : Common::MemoryPermission::ReadWrite;
         u64 run_begin = 0, run_end = 0;
+        Common::MemoryPermission run_perm{};
         const auto flush = [&] {
             if (run_begin != run_end)
             {
-                buffer->Protect(run_begin, run_end - run_begin, perm);
+                buffer->Protect(run_begin, run_end - run_begin, run_perm);
             }
             run_begin = run_end = 0;
         };
         const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
         for (u64 page = Common::AlignDown(vaddr, YUZU_PAGESIZE); page < end; page += YUZU_PAGESIZE)
         {
-            if (!IsReadCachedPage(page >> YUZU_PAGEBITS))
+            const u64 index = page >> YUZU_PAGEBITS;
+            const bool read_cached = IsReadCachedPage(index);
+            if (!read_cached && !write_protected_counts.contains(index))
             {
                 flush();
                 continue;
             }
+            const Common::MemoryPermission perm = !cached       ? Common::MemoryPermission::ReadWrite
+                                                  : read_cached ? Common::MemoryPermission{}
+                                                                : Common::MemoryPermission::Read;
+            if (run_begin != run_end && run_perm != perm)
+            {
+                flush();
+            }
             if (run_begin == run_end)
             {
                 run_begin = page;
+                run_perm = perm;
             }
             run_end = page + YUZU_PAGESIZE;
         }
@@ -1146,7 +1161,7 @@ struct Memory::Impl {
         });
         for (const u64 page : harvested_pages)
         {
-            HandleRasterizerWrite(page << YUZU_PAGEBITS, YUZU_PAGESIZE);
+            HandleRasterizerWrite(page << YUZU_PAGEBITS, YUZU_PAGESIZE, WriteReport::Coarse);
         }
     }
 
@@ -1245,8 +1260,9 @@ struct Memory::Impl {
             if (protect && current_page_table->pointers[index].Type() == Common::PageType::RasterizerCachedMemory)
             {
                 const Common::MemoryPermission perm = now_cached ? Common::MemoryPermission{}
-                                                      : WriteTracking() ? Common::MemoryPermission::ReadWrite
-                                                                        : Common::MemoryPermission::Read;
+                                                      : WriteTracking() && !write_protected_counts.contains(index)
+                                                          ? Common::MemoryPermission::ReadWrite
+                                                          : Common::MemoryPermission::Read;
                 if (run_begin != run_end && (run_end != page || run_perm != perm))
                 {
                     flush();
@@ -1262,6 +1278,76 @@ struct Memory::Impl {
             {
                 flush();
             }
+        }
+        flush();
+    }
+
+    // A harvested page doesn't tell which of its bytes the CPU wrote, so pages holding
+    // GPU-written buffer data deny writes: a write faults and is reported exactly.
+    void RasterizerMarkRegionWriteProtected(u64 vaddr, u64 size, s32 delta)
+    {
+        if (size == 0 || delta == 0 || !WriteTracking() || !AddressSpaceContains(*current_page_table, vaddr, size))
+        {
+            return;
+        }
+        std::scoped_lock lk{read_cached_mutex};
+        u64 run_begin{}, run_end{};
+        Common::MemoryPermission run_perm{};
+        const auto flush = [&] {
+            if (run_begin != run_end)
+            {
+                buffer->Protect(run_begin, run_end - run_begin, run_perm);
+            }
+            run_begin = run_end = 0;
+        };
+        const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
+        for (u64 page = Common::AlignDown(vaddr, YUZU_PAGESIZE); page < end; page += YUZU_PAGESIZE)
+        {
+            const u64 index = page >> YUZU_PAGEBITS;
+            bool was_protected{};
+            bool now_protected{};
+            auto it = write_protected_counts.find(index);
+            if (delta > 0)
+            {
+                was_protected = it != write_protected_counts.end();
+                if (!was_protected)
+                {
+                    it = write_protected_counts.emplace(index, 0).first;
+                }
+                it->second += static_cast<u32>(delta);
+                now_protected = true;
+            }
+            else if (it != write_protected_counts.end())
+            {
+                was_protected = true;
+                if (it->second <= static_cast<u32>(-delta))
+                {
+                    write_protected_counts.erase(it);
+                }
+                else
+                {
+                    it->second -= static_cast<u32>(-delta);
+                    now_protected = true;
+                }
+            }
+            // Read-cached pages deny every access already. Uncached pages are protected when they become cached.
+            if (was_protected == now_protected || IsReadCachedPage(index) ||
+                current_page_table->pointers[index].Type() != Common::PageType::RasterizerCachedMemory)
+            {
+                flush();
+                continue;
+            }
+            const Common::MemoryPermission perm = now_protected ? Common::MemoryPermission::Read : Common::MemoryPermission::ReadWrite;
+            if (run_begin != run_end && run_perm != perm)
+            {
+                flush();
+            }
+            if (run_begin == run_end)
+            {
+                run_begin = page;
+                run_perm = perm;
+            }
+            run_end = page + YUZU_PAGESIZE;
         }
         flush();
     }
@@ -1621,7 +1707,7 @@ struct Memory::Impl {
         }
         for (const auto & [address, size] : written)
         {
-            HandleRasterizerWrite(address, size, true);
+            HandleRasterizerWrite(address, size);
         }
     }
 #endif
@@ -1672,7 +1758,15 @@ struct Memory::Impl {
         return false;
     }
 
-    void HandleRasterizerWrite(VAddr v_address, size_t size, bool exact = false)
+    enum class WriteReport
+    {
+        Exact,
+        Coarse,
+    };
+
+    // Exact even for small writes: a 64-byte block around one can hold GPU-written bytes, which
+    // a widened report would replace with stale guest memory
+    void HandleRasterizerWrite(VAddr v_address, size_t size, WriteReport report = WriteReport::Exact)
     {
         const auto * p = GetPointerImpl(v_address, []() {}, []() {});
         constexpr size_t sys_core = Hardware::NUM_CPU_CORES - 1;
@@ -1691,8 +1785,13 @@ struct Memory::Impl {
         };
 
         RasterizerWriteCollectContext context{this, core};
+        if (report == WriteReport::Coarse)
+        {
+            system.GetVideo().HandleRasterizerCoarseWrite(p, size, HandleRasterizerWriteCollectCoarse, &context);
+            return;
+        }
         system.GetVideo().HandleRasterizerWrite(p, size, &rasterizer_write_areas[core].last_address,
-            exact ? HandleRasterizerWriteCollectExact : HandleRasterizerWriteCollect, &context);
+            HandleRasterizerWriteCollectExact, &context);
     }
 
     struct GPUDirtyState
@@ -1730,6 +1829,7 @@ struct Memory::Impl {
 #if !defined(__APPLE__)
     std::mutex read_cached_mutex;
     std::unordered_map<u64, u32> read_cached_counts;
+    std::unordered_map<u64, u32> write_protected_counts;
     std::unique_ptr<u64[], FreeBits> read_cached_storage;
     std::atomic<u64 *> read_cached_bits{};
     size_t read_cached_page_count{};
@@ -1977,6 +2077,12 @@ Result Memory::FlushDataCache(Common::ProcessAddress dest_addr, const std::size_
 
 void Memory::RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) {
     impl->RasterizerMarkRegionReadCached(vaddr, size, delta);
+}
+
+void Memory::RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) {
+#if !defined(__APPLE__)
+    impl->RasterizerMarkRegionWriteProtected(vaddr, size, delta);
+#endif
 }
 
 bool Memory::ProtectsReadCachedRegions() {

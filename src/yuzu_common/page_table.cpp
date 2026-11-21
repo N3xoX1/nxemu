@@ -55,7 +55,13 @@ void PageTable::Resize(std::size_t address_space_width_in_bits, std::size_t page
     blocks.resize(num_page_table_entries);
     current_address_space_width_in_bits = address_space_width_in_bits;
     page_size = 1ULL << page_size_in_bits;
+}
 
+void PageTable::EnableWriteTracking() {
+    if (write_track_map != nullptr) {
+        return;
+    }
+    const std::size_t num_page_table_entries = pointers.size();
     // The padding keeps 8-byte scans inside the map
     const std::size_t l2_entries = ((num_page_table_entries >> 9) + 64) & ~std::size_t{63};
     const std::size_t l1_entries = ((num_page_table_entries >> 18) + 64) & ~std::size_t{63};

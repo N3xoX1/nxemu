@@ -20,7 +20,9 @@ BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, R
     : runtime{runtime_}, device_memory{device_memory_}, memory_tracker{device_memory} {
     // Ensure the first slot is used for the null buffer
     void(slot_buffers.insert(runtime, NullBufferParams{}));
-    gpu_modified_ranges.Clear();
+    gpu_modified_ranges.SetOnPages([this](DAddr addr, u64 size, s32 delta) {
+        device_memory.UpdatePagesGpuModifiedCount(addr, size, delta);
+    });
     inline_buffer_id = NULL_BUFFER_ID;
 
     if (!runtime.CanReportMemoryUsage()) {
@@ -120,6 +122,13 @@ void BufferCache<P>::WriteMemory(DAddr device_addr, u64 size) {
         InvalidateReadbackReferences(device_addr, size);
     }
     memory_tracker.MarkRegionAsCpuModified(device_addr, size);
+}
+
+template <class P>
+void BufferCache<P>::CoarseWriteMemory(DAddr device_addr, u64 size) {
+    gpu_modified_ranges.ForEachNotInRange(device_addr, size, [&](DAddr start, DAddr end) {
+        WriteMemory(start, end - start);
+    });
 }
 
 template <class P>

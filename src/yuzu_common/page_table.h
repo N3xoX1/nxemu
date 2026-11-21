@@ -114,6 +114,8 @@ struct PageTable {
      */
     void Resize(std::size_t address_space_width_in_bits, std::size_t page_size_in_bits);
 
+    void EnableWriteTracking();
+
     std::size_t GetAddressSpaceBits() const {
         return current_address_space_width_in_bits;
     }

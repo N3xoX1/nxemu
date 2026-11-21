@@ -751,6 +751,23 @@ void DeviceMemoryManager<Traits>::InvalidateNativeReadRegion(DAddr addr, size_t 
 template <typename Traits>
 void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta)
 {
+    ForEachProcessRange(addr, size, [delta](IMemory& memory, VAddr begin, size_t bytes) {
+        memory.RasterizerMarkRegionReadCached(begin, bytes, delta);
+    });
+}
+
+template <typename Traits>
+void DeviceMemoryManager<Traits>::UpdatePagesWriteProtectedCount(DAddr addr, size_t size, s32 delta)
+{
+    ForEachProcessRange(addr, size, [delta](IMemory& memory, VAddr begin, size_t bytes) {
+        memory.RasterizerMarkRegionWriteProtected(begin, bytes, delta);
+    });
+}
+
+template <typename Traits>
+template <typename Func>
+void DeviceMemoryManager<Traits>::ForEachProcessRange(DAddr addr, size_t size, Func&& func)
+{
     if (size == 0) return;
     Common::ScopedRangeLock lk(counter_guard, addr, size);
     std::atomic_thread_fence(std::memory_order_acquire);
@@ -761,7 +778,7 @@ void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t 
     VAddr begin{};
     size_t bytes{};
     const auto flush = [&] {
-        if (bytes && memory) memory->RasterizerMarkRegionReadCached(begin, bytes, delta);
+        if (bytes && memory) func(*memory, begin, bytes);
         bytes = 0;
     };
     for (; page < page_end; ++page)

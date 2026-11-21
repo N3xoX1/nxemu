@@ -37,7 +37,19 @@ public:
     // yet, which invalidating it would replace with stale guest memory: keep known ranges exact.
     void CollectExact(PAddr address, size_t size) {
         std::scoped_lock lk(guard);
+        if (!exact_back_buffer.empty()) {
+            auto& [last_address, last_size] = exact_back_buffer.back();
+            if (address >= last_address && address <= last_address + last_size) {
+                last_size = std::max(last_size, address + size - last_address);
+                return;
+            }
+        }
         exact_back_buffer.emplace_back(address, size);
+    }
+
+    void CollectCoarse(PAddr address, size_t size) {
+        std::scoped_lock lk(guard);
+        coarse_back_buffer.emplace_back(address, size);
     }
 
     void Gather(ICacheInvalidator * invalidator)
@@ -51,6 +63,7 @@ public:
             TransformAddress t = current.exchange(default_transform, std::memory_order_relaxed);
             front_buffer.swap(back_buffer);
             exact_front_buffer.swap(exact_back_buffer);
+            coarse_front_buffer.swap(coarse_back_buffer);
             if (IsValid(t.address)) {
                 front_buffer.emplace_back(t);
             }
@@ -59,6 +72,10 @@ public:
             invalidator->OnCacheInvalidation(address, static_cast<uint32_t>(size));
         }
         exact_front_buffer.clear();
+        for (const auto& [address, size] : coarse_front_buffer) {
+            invalidator->OnCoarseCacheInvalidation(address, static_cast<uint32_t>(size));
+        }
+        coarse_front_buffer.clear();
         for (auto& transform : front_buffer) {
             size_t offset = 0;
             u64 mask = transform.mask;
@@ -156,6 +173,8 @@ private:
     std::vector<TransformAddress> front_buffer;
     std::vector<std::pair<PAddr, size_t>> exact_back_buffer;
     std::vector<std::pair<PAddr, size_t>> exact_front_buffer;
+    std::vector<std::pair<PAddr, size_t>> coarse_back_buffer;
+    std::vector<std::pair<PAddr, size_t>> coarse_front_buffer;
 };
 
 } // namespace Core
