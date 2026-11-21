@@ -223,6 +223,7 @@ private:
     VideoCore::RasterizerInterface* rasterizer = nullptr;
 
     std::shared_ptr<SynchState> state{std::make_shared<SynchState>()};
+    std::stop_source stop_source;
     std::jthread thread;
     std::jthread decode_thread;
 };

@@ -254,6 +254,7 @@ ThreadManager::~ThreadManager() = default;
 
 void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Frontend::GraphicsContext & context, Tegra::Control::Scheduler & scheduler)
 {
+    stop_source = std::stop_source{};
     rasterizer = renderer.ReadRasterizer();
     if (is_async)
     {
@@ -277,6 +278,9 @@ Tegra::ExecutionLock ThreadManager::LockExecution()
 
 void ThreadManager::StopThread()
 {
+    // Cancel command submission and wake any producer blocked on a full queue
+    // before stopping the consumer thread.
+    stop_source.request_stop();
     if (decode_thread.joinable())
     {
         // The GPU thread keeps running the queued work the decode thread may be waiting on
@@ -344,13 +348,21 @@ u64 ThreadManager::PushCommand(CommandData && command_data, bool block)
         block = true;
     }
 
+    const auto stop_token = stop_source.get_token();
     std::unique_lock lk(state->write_lock);
+    if (stop_token.stop_requested())
+    {
+        return state->last_fence;
+    }
     const u64 fence{++state->last_fence};
-    state->queue.EmplaceWait(std::move(command_data), fence, block);
+    if (!state->queue.EmplaceWaitStoppable(stop_token, std::move(command_data), fence, block))
+    {
+        return fence;
+    }
 
     if (block)
     {
-        Common::CondvarWait(state->cv, lk, thread.get_stop_token(), [this, fence] {
+        Common::CondvarWait(state->cv, lk, stop_token, [this, fence] {
             return fence <= state->signaled_fence.load(std::memory_order_relaxed);
         });
     }

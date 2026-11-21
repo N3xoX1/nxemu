@@ -24,12 +24,18 @@ class SPSCQueue {
 public:
     template <typename... Args>
     bool TryEmplace(Args&&... args) {
-        return Emplace<PushMode::Try>(std::forward<Args>(args)...);
+        return Emplace<PushMode::Try>(std::stop_token{}, std::forward<Args>(args)...);
     }
 
     template <typename... Args>
     void EmplaceWait(Args&&... args) {
-        Emplace<PushMode::Wait>(std::forward<Args>(args)...);
+        Emplace<PushMode::Wait>(std::stop_token{}, std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    bool EmplaceWaitStoppable(std::stop_token stop_token, Args&&... args) {
+        return Emplace<PushMode::WaitWithStopToken>(std::move(stop_token),
+                                                    std::forward<Args>(args)...);
     }
 
     bool TryPop(T& t) {
@@ -82,6 +88,7 @@ private:
     enum class PushMode {
         Try,
         Wait,
+        WaitWithStopToken,
         Count,
     };
 
@@ -93,7 +100,7 @@ private:
     };
 
     template <PushMode Mode, typename... Args>
-    bool Emplace(Args&&... args) {
+    bool Emplace([[maybe_unused]] std::stop_token stop_token, Args&&... args) {
         const size_t write_index = m_write_index.load(std::memory_order::relaxed);
 
         if constexpr (Mode == PushMode::Try) {
@@ -107,6 +114,18 @@ private:
             producer_cv.wait(lock, [this, write_index] {
                 return (write_index - m_read_index.load(std::memory_order::acquire)) < Capacity;
             });
+        } else if constexpr (Mode == PushMode::WaitWithStopToken) {
+            if (stop_token.stop_requested()) {
+                return false;
+            }
+            // Wait until we have free slots to write to or stop is requested.
+            std::unique_lock lock{producer_cv_mutex};
+            Common::CondvarWait(producer_cv, lock, stop_token, [this, write_index] {
+                return (write_index - m_read_index.load(std::memory_order::acquire)) < Capacity;
+            });
+            if (stop_token.stop_requested()) {
+                return false;
+            }
         } else {
             static_assert(Mode < PushMode::Count, "Invalid PushMode.");
         }
@@ -197,6 +216,12 @@ public:
         spsc_queue.EmplaceWait(std::forward<Args>(args)...);
     }
 
+    template <typename... Args>
+    bool EmplaceWaitStoppable(std::stop_token stop_token, Args&&... args) {
+        std::scoped_lock lock{write_mutex};
+        return spsc_queue.EmplaceWaitStoppable(std::move(stop_token), std::forward<Args>(args)...);
+    }
+
     bool TryPop(T& t) {
         return spsc_queue.TryPop(t);
     }
@@ -245,6 +270,12 @@ public:
     void EmplaceWait(Args&&... args) {
         std::scoped_lock lock{write_mutex};
         spsc_queue.EmplaceWait(std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    bool EmplaceWaitStoppable(std::stop_token stop_token, Args&&... args) {
+        std::scoped_lock lock{write_mutex};
+        return spsc_queue.EmplaceWaitStoppable(std::move(stop_token), std::forward<Args>(args)...);
     }
 
     bool TryPop(T& t) {
