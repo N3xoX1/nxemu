@@ -139,6 +139,11 @@ public:
     virtual bool LowerToWrites([[maybe_unused]] const std::vector<u32>& parameters) {
         return false;
     }
+
+    /// HLE macros only. False when Execute writes only Maxwell3D::GEN_NONE registers.
+    virtual bool ChangesDrawState() const {
+        return true;
+    }
 };
 
 class MacroEngine {

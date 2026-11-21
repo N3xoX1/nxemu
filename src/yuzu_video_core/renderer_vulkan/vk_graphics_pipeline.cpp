@@ -295,6 +295,107 @@ ConfigureFuncPtr ConfigureFunc(const std::array<vk::ShaderModule, NUM_STAGES>& m
     return FindSpec<SimpleVertexSpec, SimpleVertexFragmentSpec, SimpleStorageSpec, SimpleImageSpec,
                     DefaultSpec>(modules, infos);
 }
+
+class StageHandleReader {
+public:
+    using ConstBuffers = std::array<Tegra::Engines::ConstBufferInfo, Maxwell::MaxConstBuffers>;
+
+    explicit StageHandleReader(Tegra::MemoryManager& gpu_memory_, const ConstBuffers& cbufs_,
+                               bool via_header_index_)
+        : gpu_memory{gpu_memory_}, cbufs{cbufs_}, via_header_index{via_header_index_} {}
+
+    auto Prepare(const auto& desc) {
+        ASSERT(cbufs[desc.cbuf_index].enabled);
+        const auto primary = Bind(desc.cbuf_index, desc.count);
+        u32 uniform_offset{};
+        bool invalid_uniform_index{};
+        if constexpr (requires { desc.has_index_cbuf; }) {
+            if (desc.has_index_cbuf) {
+                ASSERT(cbufs[desc.index_cbuf_index].enabled);
+                const auto index_buffer = Bind(desc.index_cbuf_index, 1);
+                invalid_uniform_index = index_buffer.size < sizeof(u32) ||
+                    desc.index_cbuf_offset > index_buffer.size - sizeof(u32);
+                if (!invalid_uniform_index) {
+                    uniform_offset = index_buffer.Read(desc.index_cbuf_offset) << desc.index_shift;
+                }
+            }
+        }
+        auto secondary = primary;
+        bool has_secondary{};
+        u32 secondary_offset{};
+        if constexpr (requires { desc.has_secondary; }) {
+            if (desc.has_secondary) {
+                ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
+                secondary = Bind(desc.secondary_cbuf_index, desc.count);
+                has_secondary = true;
+                secondary_offset = desc.secondary_cbuf_offset;
+            }
+        }
+        return [=, &desc, via_header_index = via_header_index](u32 index) {
+            const u32 delta = index * desc.stride;
+            const u32 offset = desc.cbuf_offset + delta + uniform_offset;
+            if constexpr (requires { desc.has_index_cbuf; }) {
+                if (desc.has_index_cbuf &&
+                    (invalid_uniform_index || primary.size < sizeof(u32) ||
+                     offset > primary.size - sizeof(u32))) {
+                    return TexturePair(0, via_header_index);
+                }
+            }
+            const u32 raw = primary.Read(offset);
+            return TexturePair(Tegra::Texture::ComposeTextureHandle(
+                                   desc, raw, has_secondary ? secondary.Read(secondary_offset) : 0),
+                               via_header_index);
+        };
+    }
+
+private:
+    auto Bind(u32 bank, u32 count) {
+        return cbuf_reader.Bind(gpu_memory, bank, cbufs[bank].address, cbufs[bank].size, count);
+    }
+
+    Tegra::MemoryManager& gpu_memory;
+    const ConstBuffers& cbufs;
+    const bool via_header_index;
+    DescriptorCbufReader<Maxwell::MaxConstBuffers> cbuf_reader;
+};
+
+u32 HandleConstBufferMask(const Shader::Info& info) {
+    u32 mask{};
+    const auto add = [&mask](const auto& desc) {
+        mask |= 1U << desc.cbuf_index;
+        if constexpr (requires { desc.has_secondary; }) {
+            if (desc.has_secondary) {
+                mask |= 1U << desc.secondary_cbuf_index;
+            }
+        }
+        if constexpr (requires { desc.has_index_cbuf; }) {
+            if (desc.has_index_cbuf) {
+                mask |= 1U << desc.index_cbuf_index;
+            }
+        }
+    };
+    const auto add_with_sources = [&add](const auto& desc) {
+        add(desc);
+        for (const auto& source : desc.sources) {
+            add(source);
+        }
+    };
+    std::ranges::for_each(info.texture_buffer_descriptors, add_with_sources);
+    std::ranges::for_each(info.image_buffer_descriptors, add);
+    std::ranges::for_each(info.texture_descriptors, add_with_sources);
+    std::ranges::for_each(info.image_descriptors, add);
+    return mask;
+}
+
+bool WritesStorageBuffers(const Shader::Info& info) {
+    return std::ranges::any_of(info.storage_buffers_descriptors,
+                               [](const auto& desc) { return desc.is_written; });
+}
+
+bool BindsOnlyUniformBuffers(const Shader::Info& info) {
+    return info.storage_buffers_descriptors.empty() && info.texture_buffer_descriptors.empty() &&
+           info.image_buffer_descriptors.empty();
+}
 } // Anonymous namespace
 
 VtgScratchAllocator::VtgScratchAllocator(const Device& device, Scheduler& scheduler_,
@@ -498,6 +599,8 @@ GraphicsPipeline::GraphicsPipeline(
             continue;
         }
         stage_infos[stage] = *info;
+        enabled_stage_mask |= 1U << stage;
+        handle_cbuf_masks[stage] = HandleConstBufferMask(*info);
         const auto is_written = [](const auto& desc) { return desc.is_written; };
         if (std::ranges::any_of(info->image_descriptors, is_written) ||
             std::ranges::any_of(info->image_buffer_descriptors, is_written)) {
@@ -583,6 +686,9 @@ GraphicsPipeline::GraphicsPipeline(
         vtg->indirect_pass = vtg_info->indirect_pass;
     }
     dynamic_topology = !vtg && UsesDynamicTopology(key);
+    binds_only_uniform_buffers = std::ranges::all_of(stage_infos, BindsOnlyUniformBuffers);
+    has_stable_bindings = image_write_stages == 0 && !xfb && !vtg && !uses_texture_table &&
+                          std::ranges::none_of(stage_infos, WritesStorageBuffers);
     descriptor_views.resize(num_image_elements);
     descriptor_samplers.resize(num_textures);
     // Number of leading components the vertex shader may read from each attribute. Used to keep
@@ -802,66 +908,11 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     size_t attachment_read_slot{};
     const auto config_stage{[&](size_t stage) LAMBDA_FORCEINLINE {
         const Shader::Info& info{stage_infos[stage]};
-        buffer_cache.UnbindGraphicsStorageBuffers(stage);
-        if constexpr (Spec::has_storage_buffers) {
-            size_t ssbo_index{};
-            for (const auto& desc : info.storage_buffers_descriptors) {
-                ASSERT(desc.count == 1);
-                buffer_cache.BindGraphicsStorageBuffer(stage, ssbo_index, desc.cbuf_index,
-                                                       desc.cbuf_offset, desc.is_written);
-                ++ssbo_index;
-            }
-        }
-        const auto& cbufs{maxwell3d->state.shader_stages[stage].const_buffers};
-        DescriptorCbufReader<18> cbuf_reader;
-        const auto bind_cbuf = [&](u32 bank, u32 count) {
-            return cbuf_reader.Bind(*gpu_memory, bank, cbufs[bank].address, cbufs[bank].size, count);
-        };
-        const auto prepare_handle{[&](const auto& desc) {
-            ASSERT(cbufs[desc.cbuf_index].enabled);
-            const auto primary = bind_cbuf(desc.cbuf_index, desc.count);
-            u32 uniform_offset{};
-            bool invalid_uniform_index{};
-            if constexpr (requires { desc.has_index_cbuf; }) {
-                if (desc.has_index_cbuf) {
-                    ASSERT(cbufs[desc.index_cbuf_index].enabled);
-                    const auto index_buffer = bind_cbuf(desc.index_cbuf_index, 1);
-                    invalid_uniform_index = index_buffer.size < sizeof(u32) ||
-                        desc.index_cbuf_offset > index_buffer.size - sizeof(u32);
-                    if (!invalid_uniform_index) {
-                        uniform_offset = index_buffer.Read(desc.index_cbuf_offset) << desc.index_shift;
-                    }
-                }
-            }
-            auto secondary = primary;
-            bool has_secondary{};
-            u32 secondary_offset{};
-            if constexpr (requires { desc.has_secondary; }) {
-                if (desc.has_secondary) {
-                    ASSERT(cbufs[desc.secondary_cbuf_index].enabled);
-                    secondary = bind_cbuf(desc.secondary_cbuf_index, desc.count);
-                    has_secondary = true;
-                    secondary_offset = desc.secondary_cbuf_offset;
-                }
-            }
-            return [=](u32 index) {
-                const u32 delta = index * desc.stride;
-                const u32 offset = desc.cbuf_offset + delta + uniform_offset;
-                if constexpr (requires { desc.has_index_cbuf; }) {
-                    if (desc.has_index_cbuf &&
-                        (invalid_uniform_index || primary.size < sizeof(u32) ||
-                         offset > primary.size - sizeof(u32))) {
-                        return TexturePair(0, via_header_index);
-                    }
-                }
-                const u32 raw = primary.Read(offset);
-                return TexturePair(Tegra::Texture::ComposeTextureHandle(
-                                       desc, raw, has_secondary ? secondary.Read(secondary_offset) : 0),
-                                   via_header_index);
-            };
-        }};
+        BindStorageBuffers(stage);
+        StageHandleReader handles{*gpu_memory, maxwell3d->state.shader_stages[stage].const_buffers,
+                                  via_header_index};
         const auto add_image{[&](const auto& desc, bool blacklist) LAMBDA_FORCEINLINE {
-            const auto read_handle = prepare_handle(desc);
+            const auto read_handle = handles.Prepare(desc);
             for (u32 index = 0; index < desc.count; ++index) {
                 const auto handle{read_handle(index)};
                 views[view_index++] = {
@@ -898,7 +949,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                 attachment_read_views[attachment_read_slot++] = view_index;
             }
             const auto add_texture = [&](const auto & source) {
-                const auto read_handle = prepare_handle(source);
+                const auto read_handle = handles.Prepare(source);
                 for (u32 index = 0; index < source.count; ++index)
                 {
                     const auto handle{read_handle(index)};
@@ -977,56 +1028,21 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                            ? Shader::Backend::SPIRV::NO_ATTACHMENT_READS
                            : SelectAttachmentReads(std::span(views.data(), views.size()));
 
-    VideoCommon::ImageViewInOut* texture_buffer_it{views.data()};
-    const auto bind_stage_info{[&](size_t stage) LAMBDA_FORCEINLINE {
-        size_t index{};
-        const auto add_buffer{[&](const auto& desc) {
-            constexpr bool is_image = std::is_same_v<decltype(desc), const ImageBufferDescriptor&>;
-            for (u32 i = 0; i < desc.count; ++i) {
-                bool is_written{false};
-                if constexpr (is_image) {
-                    is_written = desc.is_written;
-                }
-                ImageView& image_view{texture_cache.GetImageView(texture_buffer_it->id)};
-                buffer_cache.BindGraphicsTextureBuffer(stage, index, image_view.GpuAddr(),
-                                                       image_view.BufferSize(), image_view.format,
-                                                       is_written, is_image);
-                ++index;
-                ++texture_buffer_it;
-            }
-        }};
-        buffer_cache.UnbindGraphicsTextureBuffers(stage);
-
-        const Shader::Info& info{stage_infos[stage]};
-        if constexpr (Spec::has_texture_buffers) {
-            for (const auto& desc : info.texture_buffer_descriptors) {
-                add_buffer(desc);
-            }
-        }
-        if constexpr (Spec::has_image_buffers) {
-            for (const auto& desc : info.image_buffer_descriptors) {
-                add_buffer(desc);
-            }
-        }
-        texture_buffer_it += Shader::NumDescriptors(info.texture_descriptors);
-        if constexpr (Spec::has_images) {
-            texture_buffer_it += Shader::NumDescriptors(info.image_descriptors);
-        }
-    }};
+    const VideoCommon::ImageViewInOut* texture_buffer_it{views.data()};
     if constexpr (Spec::enabled_stages[0]) {
-        bind_stage_info(0);
+        BindTextureBuffers(0, texture_buffer_it);
     }
     if constexpr (Spec::enabled_stages[1]) {
-        bind_stage_info(1);
+        BindTextureBuffers(1, texture_buffer_it);
     }
     if constexpr (Spec::enabled_stages[2]) {
-        bind_stage_info(2);
+        BindTextureBuffers(2, texture_buffer_it);
     }
     if constexpr (Spec::enabled_stages[3]) {
-        bind_stage_info(3);
+        BindTextureBuffers(3, texture_buffer_it);
     }
     if constexpr (Spec::enabled_stages[4]) {
-        bind_stage_info(4);
+        BindTextureBuffers(4, texture_buffer_it);
     }
 
     buffer_cache.UpdateGraphicsBuffers(is_indexed);
@@ -1043,7 +1059,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     const VideoCommon::SamplerId* samplers_it{samplers.data()};
     const VideoCommon::ImageViewInOut* views_it{views.data()};
     const auto prepare_stage{[&](size_t stage) LAMBDA_FORCEINLINE {
+        kept_uniform_entries[stage] = static_cast<u32>(guest_descriptor_queue.Entries().size());
         buffer_cache.BindHostStageBuffers(stage);
+        kept_image_entries[stage] = static_cast<u32>(guest_descriptor_queue.Entries().size());
         PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage], rescaling,
                              samplers_it, views_it, &texture_table_scratch);
         const auto& info{stage_infos[stage]};
@@ -1116,6 +1134,271 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         ScaleTrace::capture_pending = true;
     }
     ConfigureDraw(rescaling, render_area);
+
+    // Kept draws bind no pipeline, and need the views still as prepared
+    reusable_bindings = has_stable_bindings &&
+                        attachment_reads == Shader::Backend::SPIRV::NO_ATTACHMENT_READS &&
+                        texture_cache.GraphicsDescriptorEpoch() == cached_descriptor_epoch &&
+                        !ScaleTrace::Active() && IsBuilt();
+    if (reusable_bindings) {
+        const auto entries = guest_descriptor_queue.Entries();
+        kept_entries.assign(entries.begin(), entries.end());
+        kept_rescaling = rescaling.Data();
+        kept_uses_render_area = render_area.uses_render_area;
+        kept_render_area = render_area.words;
+    }
+}
+
+void GraphicsPipeline::BindStorageBuffers(size_t stage) {
+    buffer_cache.UnbindGraphicsStorageBuffers(stage);
+    size_t ssbo_index{};
+    for (const auto& desc : stage_infos[stage].storage_buffers_descriptors) {
+        ASSERT(desc.count == 1);
+        buffer_cache.BindGraphicsStorageBuffer(stage, ssbo_index, desc.cbuf_index,
+                                               desc.cbuf_offset, desc.is_written);
+        ++ssbo_index;
+    }
+}
+
+void GraphicsPipeline::BindTextureBuffers(size_t stage,
+                                          const VideoCommon::ImageViewInOut*& views_it) {
+    buffer_cache.UnbindGraphicsTextureBuffers(stage);
+    size_t index{};
+    const auto add_buffer{[&](const auto& desc) {
+        constexpr bool is_image = std::is_same_v<decltype(desc), const ImageBufferDescriptor&>;
+        for (u32 i = 0; i < desc.count; ++i) {
+            bool is_written{false};
+            if constexpr (is_image) {
+                is_written = desc.is_written;
+            }
+            ImageView& image_view{texture_cache.GetImageView(views_it->id)};
+            buffer_cache.BindGraphicsTextureBuffer(stage, index, image_view.GpuAddr(),
+                                                   image_view.BufferSize(), image_view.format,
+                                                   is_written, is_image);
+            ++index;
+            ++views_it;
+        }
+    }};
+    const Shader::Info& info{stage_infos[stage]};
+    for (const auto& desc : info.texture_buffer_descriptors) {
+        add_buffer(desc);
+    }
+    for (const auto& desc : info.image_buffer_descriptors) {
+        add_buffer(desc);
+    }
+    views_it += Shader::NumDescriptors(info.texture_descriptors);
+    views_it += Shader::NumDescriptors(info.image_descriptors);
+}
+
+bool GraphicsPipeline::ConfigureReused(bool is_indexed) {
+    if (is_indexed && !buffer_cache.RebindIndexBuffer()) {
+        return false;
+    }
+    texture_cache.CheckFeedbackLoop(descriptor_views);
+    // A feedback loop barrier or an 8-bit index conversion ends the render pass
+    RequestRenderPass();
+    return true;
+}
+
+bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
+    std::array<u32, NUM_STAGES> changed_uniforms{};
+    bool handles_changed{};
+    for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
+        const size_t stage = static_cast<size_t>(std::countr_zero(mask));
+        const u32 uniforms = enabled_uniform_buffer_masks[stage];
+        const u32 changed =
+            maxwell3d->ChangedConstBuffers(stage, uniforms | handle_cbuf_masks[stage]);
+        changed_uniforms[stage] = changed & uniforms;
+        handles_changed |= (changed & handle_cbuf_masks[stage]) != 0;
+    }
+    const bool may_change_textures = binds_only_uniform_buffers && attachment_read_kinds.empty();
+    const KeptTextures textures =
+        handles_changed ? UpdateKeptTextures(may_change_textures) : KeptTextures::Same;
+    if (textures == KeptTextures::Failed) {
+        return false;
+    }
+    if (!binds_only_uniform_buffers) {
+        return ConfigureKeptImages(is_indexed);
+    }
+    if (!buffer_cache.UpdateKeptDrawBuffers(is_indexed)) {
+        return false;
+    }
+    buffer_cache.BindHostGeometryBuffers(is_indexed);
+
+    const bool push_images = textures == KeptTextures::Changed;
+    RescalingPushConstant rescaling;
+    const VideoCommon::SamplerId* samplers_it{descriptor_samplers.data()};
+    const VideoCommon::ImageViewInOut* views_it{descriptor_views.data()};
+    guest_descriptor_queue.Acquire(num_descriptor_entries);
+    size_t entry{};
+    for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
+        const size_t stage = static_cast<size_t>(std::countr_zero(mask));
+        AddKeptEntries(entry, kept_uniform_entries[stage]);
+        for (u32 slots = enabled_uniform_buffer_masks[stage]; slots != 0;
+             slots &= slots - 1, ++entry) {
+            const u32 slot = static_cast<u32>(std::countr_zero(slots));
+            if (((changed_uniforms[stage] >> slot) & 1) != 0) {
+                buffer_cache.BindKeptUniformBuffer(stage, slot);
+            } else {
+                guest_descriptor_queue.AddEntry(kept_entries[entry]);
+            }
+        }
+        if (push_images) {
+            PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage],
+                                 rescaling, samplers_it, views_it);
+            entry = guest_descriptor_queue.Entries().size();
+        }
+    }
+    AddKeptEntries(entry, kept_entries.size());
+    if (push_images) {
+        kept_rescaling = rescaling.Data();
+    }
+    ConfigureKeptDraw();
+    return true;
+}
+
+bool GraphicsPipeline::ConfigureKeptImages(bool is_indexed) {
+    const VideoCommon::ImageViewInOut* texture_buffer_it{descriptor_views.data()};
+    for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
+        const size_t stage = static_cast<size_t>(std::countr_zero(mask));
+        BindStorageBuffers(stage);
+        BindTextureBuffers(stage, texture_buffer_it);
+    }
+    if (!buffer_cache.UpdateKeptGraphicsBuffers(is_indexed)) {
+        return false;
+    }
+    buffer_cache.BindHostGeometryBuffers(is_indexed);
+
+    guest_descriptor_queue.Acquire(num_descriptor_entries);
+    size_t entry{};
+    for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
+        const size_t stage = static_cast<size_t>(std::countr_zero(mask));
+        AddKeptEntries(entry, kept_uniform_entries[stage]);
+        buffer_cache.BindHostStageBuffers(stage);
+        entry = kept_image_entries[stage];
+    }
+    AddKeptEntries(entry, kept_entries.size());
+    ConfigureKeptDraw();
+    return true;
+}
+
+GraphicsPipeline::KeptTextures GraphicsPipeline::UpdateKeptTextures(bool may_change) {
+    auto& views = descriptor_views;
+    auto& samplers = descriptor_samplers;
+    const u64 descriptor_epoch = texture_cache.GraphicsDescriptorEpoch();
+    texture_cache.SynchronizeGraphicsDescriptors();
+    if (!ReadTextureHandles()) {
+        return KeptTextures::Failed;
+    }
+    bool changed{};
+    for (size_t i = 0; i < views.size(); ++i) {
+        if (views[i].index == cached_view_indices[i]) {
+            views[i].id = cached_view_ids[i];
+            continue;
+        }
+        if (!may_change) {
+            return KeptTextures::Failed;
+        }
+        changed = true;
+        texture_cache.FillGraphicsImageViews<true>(std::span(views.data() + i, 1));
+    }
+    for (size_t i = 0; i < samplers.size(); ++i) {
+        if (sampler_handles[i] == cached_sampler_handles[i]) {
+            continue;
+        }
+        if (!may_change) {
+            return KeptTextures::Failed;
+        }
+        changed = true;
+        samplers[i] = texture_cache.GetGraphicsSamplerId(sampler_handles[i]);
+    }
+    // A lookup that created, deleted or rescaled an image may have changed the kept views
+    if (texture_cache.GraphicsDescriptorEpoch() != descriptor_epoch) {
+        return KeptTextures::Failed;
+    }
+    if (!changed) {
+        return KeptTextures::Same;
+    }
+    for (size_t i = 0; i < views.size(); ++i) {
+        cached_view_indices[i] = views[i].index;
+        cached_view_ids[i] = views[i].id;
+    }
+    std::copy_n(sampler_handles.begin(), samplers.size(), cached_sampler_handles.begin());
+    std::ranges::copy(samplers, cached_samplers.begin());
+    return KeptTextures::Changed;
+}
+
+bool GraphicsPipeline::ReadTextureHandles() {
+    auto& views = descriptor_views;
+    const bool via_header_index{maxwell3d->regs.sampler_binding ==
+                                Maxwell::SamplerBinding::ViaHeaderBinding};
+    size_t view_index{};
+    size_t sampler_index{};
+    for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
+        const size_t stage = static_cast<size_t>(std::countr_zero(mask));
+        const Shader::Info& info{stage_infos[stage]};
+        StageHandleReader handles{*gpu_memory, maxwell3d->state.shader_stages[stage].const_buffers,
+                                  via_header_index};
+        const auto read_images = [&](const auto& desc, bool blacklist) {
+            const auto read_handle = handles.Prepare(desc);
+            for (u32 index = 0; index < desc.count; ++index) {
+                views[view_index++] = {.index = read_handle(index).first, .blacklist = blacklist};
+            }
+        };
+        const auto read_textures = [&](const auto& desc) {
+            const auto read_handle = handles.Prepare(desc);
+            for (u32 index = 0; index < desc.count; ++index) {
+                const auto handle{read_handle(index)};
+                views[view_index++] = {.index = handle.first};
+                sampler_handles[sampler_index++] = handle.second;
+            }
+        };
+        for (const auto& desc : info.texture_buffer_descriptors) {
+            if (desc.sources.empty()) {
+                read_images(desc, false);
+            } else {
+                for (const auto& source : desc.sources) {
+                    read_images(source, false);
+                }
+            }
+        }
+        for (const auto& desc : info.image_buffer_descriptors) {
+            read_images(desc, false);
+        }
+        for (const auto& desc : info.texture_descriptors) {
+            if (desc.is_direct) {
+                return false;
+            }
+            if (desc.sources.empty()) {
+                read_textures(desc);
+            } else {
+                for (const auto& source : desc.sources) {
+                    read_textures(source);
+                }
+            }
+        }
+        for (const auto& desc : info.image_descriptors) {
+            read_images(desc, desc.is_written);
+        }
+    }
+    return view_index == views.size() && sampler_index == descriptor_samplers.size();
+}
+
+void GraphicsPipeline::AddKeptEntries(size_t& entry, size_t end) {
+    for (; entry < end; ++entry) {
+        guest_descriptor_queue.AddEntry(kept_entries[entry]);
+    }
+}
+
+void GraphicsPipeline::ConfigureKeptDraw() {
+    const auto entries = guest_descriptor_queue.Entries();
+    ASSERT(entries.size() == kept_entries.size());
+    kept_entries.assign(entries.begin(), entries.end());
+    texture_cache.CheckFeedbackLoop(descriptor_views);
+    RenderAreaPushConstant render_area;
+    render_area.uses_render_area = kept_uses_render_area;
+    render_area.words = kept_render_area;
+    ConfigureDraw(RescalingPushConstant(kept_rescaling), render_area);
 }
 
 u32 GraphicsPipeline::SelectAttachmentReads(std::span<VideoCommon::ImageViewInOut> views) {
@@ -1961,8 +2244,7 @@ u32 GraphicsPipeline::ColorWriteMask() const {
     return color_write_mask;
 }
 
-void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
-                                     const RenderAreaPushConstant& render_area) {
+void GraphicsPipeline::RequestRenderPass() {
     const Framebuffer* const framebuffer = texture_cache.GetFramebuffer();
     u32 color_scratch_mask{};
     if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK) {
@@ -1974,6 +2256,11 @@ void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
         }
     }
     scheduler.RequestRenderpass(framebuffer, color_scratch_mask);
+}
+
+void GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
+                                     const RenderAreaPushConstant& render_area) {
+    RequestRenderPass();
     if (attachment_reads != Shader::Backend::SPIRV::NO_ATTACHMENT_READS) {
         // Reads of the pixel being shaded only wait for earlier draws to the same region
         scheduler.Record([](vk::CommandBuffer cmdbuf) {

@@ -160,6 +160,11 @@ public:
         }
     }
 
+    virtual void InnerConstBufferInvalidation(
+        std::span<const std::pair<DAddr, std::size_t>> sequences) {
+        InnerInvalidation(sequences);
+    }
+
     /// Notify rasterizer that any caches of the specified region are desync with guest
     virtual void OnCacheInvalidation(PAddr addr, u64 size) = 0;
 
@@ -169,6 +174,9 @@ public:
     }
 
     virtual bool OnCPUWrite(PAddr addr, u64 size) = 0;
+
+    /// The guest may have written memory it ordered before this point, without reporting it
+    virtual void OnGuestSynchronization() {}
 
     /// Sync memory between guest and host.
     virtual void InvalidateGPUCache() = 0;

@@ -390,6 +390,25 @@ public:
         current_draw_indirect = current_draw_indirect_;
     }
 
+    [[nodiscard]] u64 DeletedBuffersEpoch() const noexcept {
+        return deleted_buffers_epoch;
+    }
+
+    [[nodiscard]] u64 GpuWriteEpoch() const noexcept {
+        return gpu_write_epoch;
+    }
+
+    [[nodiscard]] bool HasSparseBindings() const noexcept {
+        return has_bound_sparse || has_written_sparse;
+    }
+
+    // False when the update deleted a buffer or bound a sparse one: kept bindings may be stale
+    [[nodiscard]] bool RebindIndexBuffer();
+    [[nodiscard]] bool UpdateKeptDrawBuffers(bool is_indexed);
+    [[nodiscard]] bool UpdateKeptGraphicsBuffers(bool is_indexed);
+
+    void BindKeptUniformBuffer(size_t stage, u32 index);
+
     [[nodiscard]] std::pair<Buffer*, u32> GetDrawIndirectCount();
 
     [[nodiscard]] std::pair<Buffer*, u32> GetDrawIndirectBuffer();
@@ -492,6 +511,11 @@ private:
 
     /// A tracked write is one the bitmap of written pages records
     void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size, bool tracked = false);
+
+    void MarkGpuWriteHistory(DAddr device_addr, u64 size) noexcept {
+        gpu_write_history.Mark(device_addr, size);
+        ++gpu_write_epoch;
+    }
 
     /// Write tracking words of a written binding, or disabled ones when it cannot be tracked
     bool SetWriteTrackingSlot(u32 slot, DAddr device_addr, u32 texel_size);
@@ -653,6 +677,8 @@ private:
     u64 sparse_bind_tick = 0;
     bool has_bound_sparse = false;
     bool has_written_sparse = false;
+    u64 deleted_buffers_epoch = 0;
+    u64 gpu_write_epoch = 0;
     u64 content_version = 0;
 
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;

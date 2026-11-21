@@ -63,6 +63,10 @@ struct Upload {
 struct Fixture : Engines::EngineInterface {
   using DirtyState = Maxwell3D::DirtyState;
   DirtyState dirty;
+  using GenerationKind = Maxwell3D::GenerationKind;
+  static constexpr GenerationKind GEN_STATE = Maxwell3D::GEN_STATE;
+  static constexpr GenerationKind GEN_NONE = Maxwell3D::GEN_NONE;
+  std::array<u64, 3> generations{};
   std::vector<std::array<u32, 4>> effects;
   std::vector<std::array<u32, Regs::NUM_REGS>> observed;
   using Regs = Maxwell3D::Regs;

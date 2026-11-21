@@ -200,6 +200,7 @@ struct GPU::Impl :
     void OnCommandListEnd()
     {
         rasterizer->ReleaseFences(false);
+        rasterizer->OnGuestSynchronization();
         Settings::UpdateGPUAccuracy();
     }
 
