@@ -451,8 +451,8 @@ msgid "Lets games read what the chip drew without waiting for it."
 msgstr "Позволяет играм читать то, что нарисовал чип, не дожидаясь его."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
-msgstr "Требует точности «Высокая» или «Экстремальная». В некоторых играх намного быстрее, с отрисовкой уровня «Высокая». Прочитанное играми может запаздывать на кадр."
+msgid "Only with High accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgstr "Только при точности «Высокая». В некоторых играх намного быстрее, с отрисовкой уровня «Высокая». Прочитанное играми может запаздывать на кадр."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp

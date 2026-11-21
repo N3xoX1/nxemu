@@ -109,6 +109,7 @@ struct VideoSettings
     bool gpu_command_synchronization;
     bool global_gpu_command_synchronization;
     bool fast_gpu_readback;
+    bool global_fast_gpu_readback;
 
     bool use_asynchronous_shaders;
     bool global_use_asynchronous_shaders;

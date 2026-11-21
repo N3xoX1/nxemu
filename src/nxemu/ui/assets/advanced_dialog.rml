@@ -102,6 +102,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Fast readback</div>
+                      <div class="row-text">Lets games read what the chip drew without waiting for it.</div>
+                    </div>
+                    <div id="fast-readback" class="switch" data-command="toggle:fast-readback" title="Only with High accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Videos at their own speed</div>
                       <div class="row-text">Even when the speed is not limited.</div>
                     </div>
@@ -414,15 +423,6 @@
                       <div class="row-text">Keeps the order games give their commands in.</div>
                     </div>
                     <div id="gpu-sync" class="switch" data-command="toggle:gpu-sync" title="Slower, and steadier. Off, some games show faults, hang or crash.">
-                      <div class="switch-knob" />
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Fast readback</div>
-                      <div class="row-text">Lets games read what the chip drew without waiting for it.</div>
-                    </div>
-                    <div id="fast-readback" class="switch" data-command="toggle:fast-readback" title="Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late.">
                       <div class="switch-knob" />
                     </div>
                   </div>
