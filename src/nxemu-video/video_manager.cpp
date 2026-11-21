@@ -651,6 +651,14 @@ void VideoManager::HandleRasterizerWrite(const uint8_t * pointer, uint64_t size,
     });
 }
 
+void VideoManager::HandleRasterizerCoarseWrite(const uint8_t * pointer, uint64_t size, RasterizerDirtyCollect collect, void * user_data)
+{
+    thread_local Common::ScratchBuffer<u32> scratch;
+    impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
+        collect(address, size, user_data);
+    });
+}
+
 void VideoManager::DeregisterHostAction(uint32_t syncpoint_id, uint32_t handle)
 {
     impl->m_host1x->GetSyncpointManager().DeregisterHostAction(syncpoint_id, handle);

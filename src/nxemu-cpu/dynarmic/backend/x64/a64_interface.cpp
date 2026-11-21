@@ -77,6 +77,8 @@ static bool SameGeneratedCode(const UserConfig& a, const UserConfig& b) {
         && a.fastmem_address_space_bits == b.fastmem_address_space_bits && a.silently_mirror_fastmem == b.silently_mirror_fastmem
         && a.fastmem_exclusive_access == b.fastmem_exclusive_access
         && a.recompile_on_exclusive_fastmem_failure == b.recompile_on_exclusive_fastmem_failure
+        && a.write_track_map == b.write_track_map && a.write_track_l2_offset == b.write_track_l2_offset
+        && a.write_track_l1_offset == b.write_track_l1_offset
         && a.define_unpredictable_behaviour == b.define_unpredictable_behaviour
         && a.wall_clock_cntpct == b.wall_clock_cntpct && a.check_halt_on_memory_access == b.check_halt_on_memory_access
         && a.enable_cycle_counting == b.enable_cycle_counting && a.notify_compilation == b.notify_compilation

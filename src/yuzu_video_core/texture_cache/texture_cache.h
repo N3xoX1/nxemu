@@ -3425,7 +3425,6 @@ void TextureCache<P>::NotifyNativeImageModification(ImageBase& image, ImageId im
 
 template <class P>
 void TextureCache<P>::UpdateNativeReadTracking(ImageBase& image, ImageId image_id) {
-#if defined(__APPLE__)
     const bool required = True(image.flags & ImageFlagBits::Tracked) &&
                           True(image.flags & ImageFlagBits::GpuModified);
     const bool tracked = True(image.flags & ImageFlagBits::NativeReadTracked);
@@ -3451,7 +3450,6 @@ void TextureCache<P>::UpdateNativeReadTracking(ImageBase& image, ImageId image_i
     ForEachSparseSegment(image, [this, delta](GPUVAddr, DAddr address, size_t size) {
         device_memory.UpdatePagesReadCachedCount(address, size, delta);
     });
-#endif
 }
 
 template <class P>

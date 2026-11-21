@@ -108,6 +108,67 @@ static bool IsHostFlagNeutral(const IR::Inst& inst, bool vector_moves) {
     }
 }
 
+namespace {
+s64 PlainWriteBytes(IR::Opcode op) {
+    switch (op) {
+    case IR::Opcode::A64WriteMemory8:
+        return 1;
+    case IR::Opcode::A64WriteMemory16:
+        return 2;
+    case IR::Opcode::A64WriteMemory32:
+        return 4;
+    case IR::Opcode::A64WriteMemory64:
+        return 8;
+    case IR::Opcode::A64WriteMemory128:
+        return 16;
+    default:
+        return 0;
+    }
+}
+
+// The block may stop after these, so the writes before them must be marked first
+bool MayLeaveBlock(IR::Opcode op) {
+    switch (op) {
+    case IR::Opcode::A64CallSupervisor:
+    case IR::Opcode::A64SideExit:
+    case IR::Opcode::A64ExceptionRaised:
+    case IR::Opcode::A64DataCacheOperationRaised:
+    case IR::Opcode::A64InstructionCacheOperationRaised:
+    case IR::Opcode::A64DataSynchronizationBarrier:
+    case IR::Opcode::A64DataMemoryBarrier:
+    case IR::Opcode::A64InstructionSynchronizationBarrier:
+    case IR::Opcode::A64ClearExclusive:
+    case IR::Opcode::A64ExclusiveReadMemory8:
+    case IR::Opcode::A64ExclusiveReadMemory16:
+    case IR::Opcode::A64ExclusiveReadMemory32:
+    case IR::Opcode::A64ExclusiveReadMemory64:
+    case IR::Opcode::A64ExclusiveReadMemory128:
+    case IR::Opcode::A64ExclusiveWriteMemory8:
+    case IR::Opcode::A64ExclusiveWriteMemory16:
+    case IR::Opcode::A64ExclusiveWriteMemory32:
+    case IR::Opcode::A64ExclusiveWriteMemory64:
+    case IR::Opcode::A64ExclusiveWriteMemory128:
+        return true;
+    default:
+        return false;
+    }
+}
+
+std::pair<const IR::Inst*, s64> SplitAddress(const IR::Value& address) {
+    if (address.IsImmediate()) {
+        return {nullptr, 0};
+    }
+    const IR::Inst* inst = address.GetInstRecursive();
+    const IR::Opcode op = inst->GetOpcode();
+    if ((op == IR::Opcode::Add64 || op == IR::Opcode::Sub64) && !inst->GetArg(0).IsImmediate() && inst->GetArg(1).IsImmediate()
+        && inst->GetArg(2).IsImmediate() && !inst->GetArg(2).GetU1()) {
+        const s64 imm = static_cast<s64>(inst->GetArg(1).GetU64());
+        return {inst->GetArg(0).GetInstRecursive(), op == IR::Opcode::Add64 ? imm : -imm};
+    }
+    return {inst, 0};
+}
+}  // namespace
+
 // The NZCV a SetNZCV stores is often overwritten before anything but a side exit reads
 // it. Look ahead from each SetNZCV (the block is known in full): if every later reader before
 // the next NZCV write is a side exit or a conditional select that finds the value still in the
@@ -276,6 +337,51 @@ void A64EmitX64::EmitStoreNZCVFromHostFlags() {
     code.mov(dword[r15 + offsetof(A64JitState, cpsr_nzcv)], eax);
 }
 
+// Writes off one base that span less than a page touch at most two pages: in a group of three
+// or more, only the last write marks the map, for the group's first and last byte.
+void A64EmitX64::PlanWriteTracking(A64EmitContext& ctx) const {
+    if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
+        return;
+    }
+    std::vector<std::pair<IR::Inst*, s64>> group;
+    const IR::Inst* base = nullptr;
+    s64 first = 0, last = 0;
+    const auto close = [&] {
+        if (group.size() >= 3) {
+            const s64 offset = group.back().second;
+            for (size_t i = 0; i + 1 < group.size(); ++i) {
+                ctx.write_track_skip.insert(group[i].first);
+            }
+            ctx.write_track_group.emplace(group.back().first, std::make_pair(static_cast<s32>(first - offset), static_cast<s32>(last - offset)));
+        }
+        group.clear();
+        base = nullptr;
+    };
+    for (IR::Inst& inst : ctx.block) {
+        const IR::Opcode op = inst.GetOpcode();
+        if (const s64 bytes = PlainWriteBytes(op); bytes != 0) {
+            const auto [write_base, offset] = SplitAddress(inst.GetArg(1));
+            if (write_base == nullptr || !ShouldFastmem(ctx, &inst)) {
+                close();
+                continue;
+            }
+            const s64 write_last = offset + bytes - 1;
+            if (write_base != base || std::max(last, write_last) - std::min(first, offset) >= 4096) {
+                close();
+                base = write_base;
+                first = offset;
+                last = write_last;
+            }
+            first = std::min(first, offset);
+            last = std::max(last, write_last);
+            group.emplace_back(&inst, offset);
+        } else if (MayLeaveBlock(op)) {
+            close();
+        }
+    }
+    close();
+}
+
 A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     if (conf.very_verbose_debugging_output) {
         std::puts(IR::DumpBlock(block).c_str());
@@ -324,6 +430,7 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     const IR::Terminal terminal = block.GetTerminal();
     ctx.check_bit_exit_on_flags = flags_to_block_end && !conf.enable_cycle_counting && boost::get<IR::Term::CheckBit>(&terminal) != nullptr;
     terminal_check_bit_in_zf = false;
+    PlanWriteTracking(ctx);
 
     // Start emitting.
     code.align();

@@ -157,6 +157,7 @@ protected:
     tsl::robin_map<u64, FastmemPatchInfo> fastmem_patch_info;
     std::set<DoNotFastmemMarker> do_not_fastmem;
     std::optional<DoNotFastmemMarker> ShouldFastmem(A64EmitContext& ctx, IR::Inst* inst) const;
+    void PlanWriteTracking(A64EmitContext& ctx) const;
     FakeCall FastmemCallback(u64 rip);
 
     // Memory access helpers

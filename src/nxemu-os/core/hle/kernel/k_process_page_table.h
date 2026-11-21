@@ -25,6 +25,14 @@ public:
         return GetImpl().fastmem_arena;
     }
 
+    uint8_t * WriteTrackMap(uint32_t & l2_offset, uint32_t & l1_offset) const override
+    {
+        const Common::PageTable & impl = GetImpl();
+        l2_offset = impl.write_track_l2_offset;
+        l1_offset = impl.write_track_l1_offset;
+        return impl.write_track_map;
+    }
+
     void ** PageTable() const override
     {
         return (void **)(GetImpl().pointers.data());

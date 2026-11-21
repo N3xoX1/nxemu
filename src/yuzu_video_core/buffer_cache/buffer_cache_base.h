@@ -26,6 +26,7 @@
 #include "yuzu_common/slot_vector.h"
 #include "yuzu_video_core/buffer_cache/buffer_base.h"
 #include "yuzu_video_core/buffer_cache/empty_storage_buffer_warning.h"
+#include "yuzu_video_core/buffer_cache/gpu_modified_ranges.h"
 #include "yuzu_video_core/buffer_cache/uniform_stream_reuse.h"
 #include "yuzu_video_core/control/channel_state_cache.h"
 #include "yuzu_video_core/delayed_destruction_ring.h"
@@ -216,6 +217,9 @@ public:
     void TickFrame();
 
     void WriteMemory(DAddr device_addr, u64 size);
+
+    /// The CPU wrote somewhere in the range: keeps what the GPU wrote there
+    void CoarseWriteMemory(DAddr device_addr, u64 size);
 
     void CachedWriteMemory(DAddr device_addr, u64 size);
 
@@ -652,7 +656,7 @@ private:
     u64 content_version = 0;
 
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
-    Common::RangeSet<DAddr> gpu_modified_ranges;
+    GpuModifiedRanges<DAddr, Core::DEVICE_PAGESIZE> gpu_modified_ranges;
     GpuWriteHistory<> gpu_write_history;
 
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges;

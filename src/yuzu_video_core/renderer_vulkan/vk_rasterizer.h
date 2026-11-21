@@ -130,6 +130,7 @@ public:
                           VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) override;
     void OnCacheInvalidation(DAddr addr, u64 size) override;
+    void OnCoarseCacheInvalidation(DAddr addr, u64 size) override;
     bool OnCPUWrite(DAddr addr, u64 size) override;
     void InvalidateGPUCache() override;
     void UnmapMemory(DAddr addr, u64 size) override;
