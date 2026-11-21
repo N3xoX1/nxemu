@@ -356,6 +356,10 @@ std::optional<Tegra::Texture::TICEntry> GenericEnvironment::ReadTextureInfo(
     const GPUVAddr descriptor_addr{tic_addr + handle.first * sizeof(Tegra::Texture::TICEntry)};
     Tegra::Texture::TICEntry entry;
     gpu_memory->ReadBlock(descriptor_addr, &entry, sizeof(entry));
+    if (entry.raw == decltype(entry.raw){}) {
+        // Empty null texture descriptor (handle 0 in NVN): compile as a 2D texture, not 1D.
+        return std::nullopt;
+    }
     return entry;
 }
 
@@ -618,7 +622,11 @@ std::optional<Tegra::Texture::TICEntry> GraphicsEnvironment::ReadSnapshotTexture
         handle.first >= snapshot->texture_descriptors->size()) {
         return std::nullopt;
     }
-    return (*snapshot->texture_descriptors)[handle.first];
+    const auto& entry = (*snapshot->texture_descriptors)[handle.first];
+    if (entry.raw == decltype(entry.raw){}) {
+        return std::nullopt;
+    }
+    return entry;
 }
 
 u32 GraphicsEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {

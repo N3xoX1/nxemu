@@ -660,8 +660,6 @@ struct GPU::Impl :
 
     std::mutex cdma_mutex;
     std::map<u32, std::shared_ptr<AsyncCdma>> cdma_pushers;
-    std::unique_ptr<VideoCore::RendererBase> renderer;
-    VideoCore::RasterizerInterface * rasterizer = nullptr;
     const bool use_nvdec;
 
     s32 new_channel_id{1};
@@ -693,6 +691,11 @@ struct GPU::Impl :
     std::unordered_map<s32, std::shared_ptr<Tegra::Control::ChannelState>> channels;
     Tegra::Control::ChannelState * current_channel;
     s32 bound_channel{-1};
+
+    // Destroy the renderer before channels, scheduler, and cpu_context so
+    // shutdown flushes and cache destructors never dereference destroyed engines.
+    std::unique_ptr<VideoCore::RendererBase> renderer;
+    VideoCore::RasterizerInterface * rasterizer = nullptr;
 
     VideoCommon::CompositeRequestQueue composite_requests;
 

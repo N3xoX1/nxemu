@@ -349,7 +349,10 @@ public:
     }
 
 private:
-    auto Bind(u32 bank, u32 count) {
+    using BoundBuffer =
+        DescriptorCbufReader<Maxwell::MaxConstBuffers>::BoundBuffer<Tegra::MemoryManager>;
+
+    BoundBuffer Bind(u32 bank, u32 count) {
         return cbuf_reader.Bind(gpu_memory, bank, cbufs[bank].address, cbufs[bank].size, count);
     }
 
