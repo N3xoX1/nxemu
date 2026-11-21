@@ -41,6 +41,9 @@ constexpr size_t arena_pages = arena_size >> 12;
 constexpr size_t write_track_l1_offset = arena_pages + 64;
 constexpr size_t write_track_size = arena_pages + 3 * 64;
 
+constexpr int fastmem_unchecked = 2;
+constexpr size_t unchecked_reservation = 2 * arena_size;
+
 struct Pattern {
     const char* fn;
     const char* name;
@@ -120,6 +123,8 @@ struct Env final : A64::UserCallbacks {
     A64::Jit* jit = nullptr;
     bool bad = false;  // exception or interpreter fallback: the sequence is skipped
     bool done = false;  // reached the final SVC or was skipped
+    bool detect_out_of_reservation = false;
+    bool out_of_reservation = false;
     std::map<std::string, int>* reasons = nullptr;
     void Skip(const std::string& why) {
         if (!bad && reasons) {
@@ -131,6 +136,9 @@ struct Env final : A64::UserCallbacks {
     }
 
     u8 Read(u64 a) {
+        if (detect_out_of_reservation && a >= unchecked_reservation) {
+            out_of_reservation = true;
+        }
         if (arena && a < arena_size) {
             return arena[a];
         }
@@ -138,6 +146,9 @@ struct Env final : A64::UserCallbacks {
         return it != writes.end() ? it->second : InitialByte(a);
     }
     void Write(u64 a, u8 v) {
+        if (detect_out_of_reservation && a >= unchecked_reservation) {
+            out_of_reservation = true;
+        }
         if (arena && a < arena_size) {
             arena[a] = v;
             callback_pages[a >> 12] = true;
@@ -206,7 +217,7 @@ struct Runner {
     bool write_track_virtual = false;
 
     // A low write tracking map is addressed without a base register
-    Runner(u32 variant, bool fastmem, bool low_write_track = false) {
+    Runner(u32 variant, int fastmem, bool low_write_track = false) {
         A64::UserConfig conf;
         conf.callbacks = &env;
         conf.tpidr_el0 = &tpidr;
@@ -220,11 +231,19 @@ struct Runner {
         conf.test_variant = variant;
         if (fastmem) {
 #ifdef _WIN32
-            arena = static_cast<u8*>(VirtualAlloc(nullptr, arena_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+            if (fastmem == fastmem_unchecked) {
+                arena = static_cast<u8*>(VirtualAlloc(nullptr, unchecked_reservation, MEM_RESERVE, PAGE_NOACCESS));
+                VirtualAlloc(arena, arena_size, MEM_COMMIT, PAGE_READWRITE);
+            } else {
+                arena = static_cast<u8*>(VirtualAlloc(nullptr, arena_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+            }
 #endif
             conf.fastmem_pointer = arena;
-            conf.fastmem_address_space_bits = 20;
+            conf.fastmem_address_space_bits = fastmem == fastmem_unchecked ? 64 : 20;
             conf.silently_mirror_fastmem = false;
+            if (fastmem == fastmem_unchecked) {
+                conf.recompile_on_fastmem_failure = false;
+            }
             env.arena = arena;
             env.callback_pages.resize(arena_pages);
 #ifdef _WIN32
@@ -319,6 +338,13 @@ extern "C"
     if (!rep) {
         return -1;
     }
+    if (g_bench_reps > 0 && fastmem == fastmem_unchecked) {
+        std::fprintf(rep, "bench does not run with fastmem 2: the arena check only covers the first run\n");
+        if (rep != stdout) {
+            std::fclose(rep);
+        }
+        return -1;
+    }
     static const std::vector<Pattern> patterns = MakePatterns();
     std::vector<size_t> focus;
     for (size_t i = 0; i < patterns.size(); i++) {
@@ -327,7 +353,7 @@ extern "C"
             focus.push_back(i);
         }
     }
-    Runner a(variant_a, fastmem != 0, true), b(variant_b, fastmem != 0), probe(0, false);
+    Runner a(variant_a, fastmem, true), b(variant_b, fastmem), probe(0, 0);
     // An instruction alone, to drop encodings the translator rejects (reserved fields, unallocated)
     const auto valid = [&](u32 inst, const char* fn) {
         probe.env.code = {inst, svc0};
@@ -396,7 +422,12 @@ extern "C"
             switch (rng() % 4) {
             case 0: r = rng(); break;
             case 1: r = rng() % 64; break;
-            default: r = 0x20000 + (rng() % 0xC0000 & ~u64{7}); break;
+            default:
+                r = 0x20000 + (rng() % 0xC0000 & ~u64{7});
+                if (fastmem == fastmem_unchecked && rng() % 3 == 0) {
+                    r += arena_size;
+                }
+                break;
             }
         }
         s.sp = 0x80000 + (rng() % 0x10000 & ~u64{15});
@@ -417,6 +448,36 @@ extern "C"
         static const u32 fpcrs[] = {0, 1u << 25, 1u << 24, 3u << 22, 1u << 22, (1u << 25) | (1u << 24)};
         s.fpcr = fpcrs[rng() % (sizeof(fpcrs) / sizeof(fpcrs[0]))];
         s.nzcv = static_cast<u32>(rng() % 16) << 28;
+
+        if (fastmem == fastmem_unchecked) {
+            // Unchecked, a JIT access past the reservation would reach host memory
+            probe.env.code = code;
+            probe.env.names = names;
+            probe.env.writes.clear();
+            probe.env.bad = false;
+            probe.env.done = false;
+            probe.env.reasons = nullptr;
+            probe.env.detect_out_of_reservation = true;
+            probe.env.out_of_reservation = false;
+            probe.tpidr = 0x1234;
+            probe.jit->InvalidateCacheRange(code_base, 4 * 32);
+            probe.jit->SetRegisters(s.x);
+            probe.jit->SetSP(s.sp);
+            probe.jit->SetVectors(s.v);
+            probe.jit->SetFpcr(s.fpcr);
+            probe.jit->SetFpsr(0);
+            probe.jit->SetPstate(s.nzcv);
+            probe.jit->SetPC(code_base);
+            for (int i = 0; i < 16 && !probe.env.done && !probe.env.out_of_reservation; i++) {
+                probe.jit->Run();
+            }
+            probe.env.detect_out_of_reservation = false;
+            if (probe.env.out_of_reservation || probe.env.bad || !probe.env.done) {
+                skipped++;
+                reasons[probe.env.out_of_reservation ? "leaves the fastmem arena" : "the arena check did not finish"]++;
+                continue;
+            }
+        }
 
         for (Runner* r : {&a, &b}) {
             r->env.code = code;

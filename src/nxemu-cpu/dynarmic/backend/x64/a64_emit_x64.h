@@ -113,6 +113,7 @@ protected:
 
     void PlanNZCVAtExits(A64EmitContext& ctx) const;
     void PlanRegistersAtExits(A64EmitContext& ctx) const;
+    void PlanFoldedAddresses(A64EmitContext& ctx) const;
     void EmitStoreNZCVFromHostFlags();
 
     void (*memory_read_128)();

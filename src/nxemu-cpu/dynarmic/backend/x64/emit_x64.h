@@ -115,6 +115,8 @@ struct EmitContext {
     /// Last write of a group -> offsets from its address to the first and the last byte the
     /// group writes
     tsl::robin_map<const IR::Inst*, std::pair<s32, s32>> write_track_group;
+    /// Add64s that emit nothing: the one fastmem access using each adds its immediate itself
+    tsl::robin_set<const IR::Inst*> folded_addresses;
 };
 
 using SharedLabel = std::shared_ptr<Xbyak::Label>;

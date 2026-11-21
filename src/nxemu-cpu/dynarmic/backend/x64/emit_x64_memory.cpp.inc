@@ -20,6 +20,28 @@ inline auto* CoreMonitor(const AxxJitState& state) {
 inline auto* CoreCallbacks(const AxxJitState& state) {
     return reinterpret_cast<std::remove_pointer_t<decltype(AxxUserConfig::callbacks)>*>(state.core_callbacks);
 }
+
+std::optional<s32> FoldedDisplacement(const EmitContext& ctx, const IR::Value& vaddr) {
+    if (vaddr.IsImmediate() || ctx.folded_addresses.empty() || !ctx.folded_addresses.contains(vaddr.GetInst())) {
+        return std::nullopt;
+    }
+    return static_cast<s32>(vaddr.GetInst()->GetArg(1).GetU64());
+}
+
+// lea, not add/sub, so the flags survive as they do through the fallback alone; rsp - 8 gives the
+// fallback the stack alignment it has when the abort path calls it directly
+template<typename Fallback>
+u64 EmitFoldedAddressStub(BlockOfCode& code, Xbyak::Label& stub, Fallback fallback, Xbyak::Reg64 vaddr, s32 disp) {
+    const u64 entry = mcl::bit_cast<u64>(code.getCurr());
+    code.L(stub);
+    code.lea(vaddr, code.ptr[vaddr + disp]);
+    code.lea(rsp, code.ptr[rsp - 8]);
+    code.call(fallback);
+    code.lea(rsp, code.ptr[rsp + 8]);
+    code.lea(vaddr, code.ptr[vaddr - disp]);
+    code.ret();
+    return entry;
+}
 }  // namespace
 
 std::optional<AxxEmitX64::DoNotFastmemMarker> AxxEmitX64::ShouldFastmem(AxxEmitContext& ctx, IR::Inst* inst) const {
@@ -105,6 +127,8 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
         to_xmm = fastmem_marker && !ordered && (acc == IR::AccType::VEC || acc == IR::AccType::VECSTREAM) && !BaselineLoadsAndImmediates();
     }
     const int value_idx = (bitsize == 128 || to_xmm) ? ctx.reg_alloc.ScratchXmm().getIdx() : ctx.reg_alloc.ScratchGpr().getIdx();
+    const auto disp = FoldedDisplacement(ctx, inst->GetArg(1));
+    ASSERT(!disp || fastmem_marker);
 
     void (*wrapped_fn)() = nullptr;
     if constexpr (AxxEmitX64::has_xmm_read_fallbacks) {
@@ -121,7 +145,8 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
     if (fastmem_marker) {
         // Use fastmem
         bool require_abort_handling;
-        const auto src_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
+        const auto base_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
+        const auto src_ptr = disp ? base_ptr + static_cast<size_t>(static_cast<s64>(*disp)) : base_ptr;
 
         const void* location = code.getCurr();
         if (to_xmm) {
@@ -136,19 +161,25 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
             code.L(*abort);
-            code.call(wrapped_fn);
+            Xbyak::Label stub;
+            if (disp) {
+                code.call(stub);
+            } else {
+                code.call(wrapped_fn);
+            }
+            const u64 resume = mcl::bit_cast<u64>(code.getCurr());
+            EmitCheckMemoryAbort(ctx, inst, end.get());
+            code.jmp(*end, code.T_NEAR);
+            const u64 fault_call = disp ? EmitFoldedAddressStub(code, stub, wrapped_fn, vaddr, *disp) : mcl::bit_cast<u64>(wrapped_fn);
 
             fastmem_patch_info.emplace(
                 mcl::bit_cast<u64>(location),
                 FastmemPatchInfo{
-                    mcl::bit_cast<u64>(code.getCurr()),
-                    mcl::bit_cast<u64>(wrapped_fn),
+                    resume,
+                    fault_call,
                     *fastmem_marker,
                     conf.recompile_on_fastmem_failure,
                 });
-
-            EmitCheckMemoryAbort(ctx, inst, end.get());
-            code.jmp(*end, code.T_NEAR);
         });
     } else {
         // Use page table
@@ -207,10 +238,20 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
         ctx.reg_alloc.ScratchGpr(HostLoc::RDX);
     }
 
-    const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(args[1]);
+    Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(args[1]);
     const int value_idx = bitsize == 128
                             ? ctx.reg_alloc.UseXmm(args[2]).getIdx()
                             : (ordered ? ctx.reg_alloc.UseScratchGpr(args[2]).getIdx() : ctx.reg_alloc.UseGpr(args[2]).getIdx());
+
+    auto disp = FoldedDisplacement(ctx, inst->GetArg(1));
+    ASSERT(!disp || fastmem_marker);
+    const bool stores_its_base = bitsize != 128 && value_idx == vaddr.getIdx();
+    if (disp && stores_its_base) {
+        const Xbyak::Reg64 full = ctx.reg_alloc.ScratchGpr();
+        code.lea(full, code.ptr[vaddr + *disp]);
+        vaddr = full;
+        disp.reset();
+    }
 
     const auto wrapped_fn = write_fallbacks[std::make_tuple(ordered, bitsize, vaddr.getIdx(), value_idx)];
 
@@ -227,7 +268,8 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
     if (fastmem_marker) {
         // Use fastmem
         bool require_abort_handling;
-        const auto dest_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
+        const auto base_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
+        const auto dest_ptr = disp ? base_ptr + static_cast<size_t>(static_cast<s64>(*disp)) : base_ptr;
 
         const auto location = EmitWriteMemoryMov<bitsize>(code, dest_ptr, value_idx, ordered);
         // The last write of a group also marks the earlier writes, so its fallback comes back
@@ -236,28 +278,35 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
         const bool marks_group = group != ctx.write_track_group.end();
         SharedLabel track = GenSharedLabel();
         code.L(*track);
+        const s32 track_disp = disp.value_or(0);
         if (marks_group) {
-            EmitWriteTrack(code, ctx, vaddr, *track_page, track_map, group->second.first, true);
-            EmitWriteTrack(code, ctx, vaddr, *track_page, track_map, group->second.second, true);
+            EmitWriteTrack(code, ctx, vaddr, *track_page, track_map, group->second.first + track_disp, true);
+            EmitWriteTrack(code, ctx, vaddr, *track_page, track_map, group->second.second + track_disp, true);
         } else if (track_page) {
-            EmitWriteTrackAccess<bitsize>(code, ctx, vaddr, *track_page, track_map);
+            EmitWriteTrackAccess<bitsize>(code, ctx, vaddr, *track_page, track_map, track_disp);
         }
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
             code.L(*abort);
-            code.call(wrapped_fn);
+            Xbyak::Label stub;
+            if (disp) {
+                code.call(stub);
+            } else {
+                code.call(wrapped_fn);
+            }
+            const u64 resume = mcl::bit_cast<u64>(code.getCurr());
+            EmitCheckMemoryAbort(ctx, inst, marks_group ? track.get() : end.get());
+            code.jmp(marks_group ? *track : *end, code.T_NEAR);
+            const u64 fault_call = disp ? EmitFoldedAddressStub(code, stub, wrapped_fn, vaddr, *disp) : mcl::bit_cast<u64>(wrapped_fn);
 
             fastmem_patch_info.emplace(
                 mcl::bit_cast<u64>(location),
                 FastmemPatchInfo{
-                    mcl::bit_cast<u64>(code.getCurr()),
-                    mcl::bit_cast<u64>(wrapped_fn),
+                    resume,
+                    fault_call,
                     *fastmem_marker,
                     conf.recompile_on_fastmem_failure,
                 });
-
-            EmitCheckMemoryAbort(ctx, inst, marks_group ? track.get() : end.get());
-            code.jmp(marks_group ? *track : *end, code.T_NEAR);
         });
     } else {
         // Use page table
