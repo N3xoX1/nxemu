@@ -2684,6 +2684,11 @@ void Framebuffer::CreateFramebuffer(TextureCacheRuntime& runtime,
 
     num_color_buffers = static_cast<u32>(num_colors);
     framebuffer_layers = static_cast<u32>(std::max(num_layers, 1));
+    // Clamp attachment-less or oversized framebuffers to the Vulkan device limits.
+    const VkPhysicalDeviceLimits& limits = runtime.device.DescriptorLimits();
+    render_area.width = std::clamp(render_area.width, 1U, limits.maxFramebufferWidth);
+    render_area.height = std::clamp(render_area.height, 1U, limits.maxFramebufferHeight);
+    framebuffer_layers = std::clamp(framebuffer_layers, 1U, limits.maxFramebufferLayers);
     if (mixed_samples) {
         // Same order as RenderPassCache: MSAA color, depth, single-sample resolve color.
         size_t attachment_index{};

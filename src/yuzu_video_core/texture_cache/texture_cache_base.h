@@ -516,7 +516,8 @@ private:
         ImageId, const ImageViewInfo& view_info);
 
     /// Returns true if the current clear parameters clear the whole image of a given image view
-    [[nodiscard]] bool IsFullClear(ImageViewId id);
+    [[nodiscard]] bool IsFullClear(ImageViewId id, bool is_color, size_t index,
+                                   u32 clear_layer_count);
 
     [[nodiscard]] std::pair<u32, u32> PrepareDmaImage(ImageId dst_id, GPUVAddr base_addr,
                                                       bool mark_as_modified);

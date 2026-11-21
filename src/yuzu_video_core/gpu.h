@@ -243,6 +243,9 @@ public:
     /// Performs any additional necessary steps to shutdown GPU emulation.
     void NotifyShutdown();
 
+    /// Stops all GPU worker threads and releases any waiters blocked on sync operations.
+    void Shutdown();
+
     /// Returns true while the emulated system is powered on.
     [[nodiscard]] bool IsPoweredOn() const;
 

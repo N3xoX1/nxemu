@@ -821,11 +821,14 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear, u32 clear_layer_count) 
     if (!flags[Dirty::RenderTargets]) {
         for (size_t index = 0; index < NUM_RT; ++index) {
             ImageViewId& color_buffer_id = render_targets.color_buffer_ids[index];
-            PrepareImageView(color_buffer_id, true, is_clear && IsFullClear(color_buffer_id));
+            PrepareImageView(color_buffer_id, true,
+                             is_clear &&
+                                 IsFullClear(color_buffer_id, true, index, clear_layer_count));
             MarkRenderTarget(color_buffer_id);
         }
         const ImageViewId depth_buffer_id = render_targets.depth_buffer_id;
-        PrepareImageView(depth_buffer_id, true, is_clear && IsFullClear(depth_buffer_id));
+        PrepareImageView(depth_buffer_id, true,
+                         is_clear && IsFullClear(depth_buffer_id, false, 0, clear_layer_count));
         MarkRenderTarget(depth_buffer_id);
         return;
     }
@@ -839,12 +842,14 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear, u32 clear_layer_count) 
 
     for (size_t index = 0; index < NUM_RT; ++index) {
         ImageViewId& color_buffer_id = render_targets.color_buffer_ids[index];
-        PrepareImageView(color_buffer_id, true, is_clear && IsFullClear(color_buffer_id));
+        PrepareImageView(color_buffer_id, true,
+                         is_clear && IsFullClear(color_buffer_id, true, index, clear_layer_count));
         MarkRenderTarget(color_buffer_id);
     }
     const ImageViewId depth_buffer_id = render_targets.depth_buffer_id;
 
-    PrepareImageView(depth_buffer_id, true, is_clear && IsFullClear(depth_buffer_id));
+    PrepareImageView(depth_buffer_id, true,
+                     is_clear && IsFullClear(depth_buffer_id, false, 0, clear_layer_count));
     MarkRenderTarget(depth_buffer_id);
 
     for (size_t index = 0; index < NUM_RT; ++index) {
@@ -3980,26 +3985,19 @@ std::pair<FramebufferId, ImageViewId> TextureCache<P>::RenderTargetFromImage(
 }
 
 template <class P>
-bool TextureCache<P>::IsFullClear(ImageViewId id) {
+bool TextureCache<P>::IsFullClear(ImageViewId id, bool is_color, size_t index,
+                                  u32 clear_layer_count) {
     if (!id) {
         return true;
     }
     const ImageViewBase& image_view = slot_image_views[id];
     const ImageBase& image = slot_images[image_view.image_id];
-    const Extent3D size = image_view.size;
-    const auto& regs = maxwell3d->regs;
-    const auto& scissor = regs.scissor_test[0];
-    if (image.info.resources.levels > 1 || image.info.resources.layers > 1) {
-        // Images with multiple resources can't be cleared in a single call
+    const GPUVAddr target_address =
+        is_color ? maxwell3d->regs.rt[index].Address() : maxwell3d->regs.zeta.Address();
+    if (image_view.size != image.info.size || image.gpu_addr != target_address) {
         return false;
     }
-    if (regs.clear_control.use_scissor == 0) {
-        // If scissor testing is disabled, the clear is always full
-        return true;
-    }
-    // Make sure the clear covers all texels in the subresource
-    return scissor.min_x == 0 && scissor.min_y == 0 && scissor.max_x >= size.width &&
-           scissor.max_y >= size.height;
+    return CanDiscardOnClear(image.info, is_color, index, clear_layer_count);
 }
 
 template <class P>
