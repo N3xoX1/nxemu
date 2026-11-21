@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 #include "yuzu_common/host_memory.h"
@@ -88,7 +91,12 @@ public:
     Common::HostMemory buffer;
 
 private:
+    void NotifyTrimActivity();
     void MaintainGuestMemory(std::stop_token stop);
+
+    std::mutex trim_wake_mutex;
+    std::condition_variable_any trim_wake_cv;
+    std::atomic<bool> trim_requested{false};
     // Destroyed before buffer, stopping all reclamation before its mappings go away.
     std::jthread memory_maintenance_thread;
 };

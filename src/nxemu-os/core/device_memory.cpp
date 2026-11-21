@@ -9,14 +9,11 @@
 #include <exception>
 #include <mutex>
 
-#if defined(__linux__) && defined(__GLIBC__) && !defined(__ANDROID__)
-#include <malloc.h>
-#endif
-
 #include "core/device_memory.h"
 #include "hle/kernel/board/nintendo/nx/k_system_control.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/thread.h"
+#include "yuzu_common/virtual_buffer.h"
 
 namespace Core {
 
@@ -36,11 +33,11 @@ DeviceMemory::DeviceMemory()
     buffer.CommitBackingRegion(0, std::min(buffer.BackingSize(), BootstrapSize));
 
     // Lichii #961: make zero-only guest pages leave the resident working set.
-    // The pass is not yet proven stable under NXEmu's concurrent mappings:
-    // Lichii issue #1769 reports an unresolved crash inside ZeroTrim. Keep it
-    // opt-in until Windows long-session tests have been completed.
+    // Enabled by default on Windows (NXEMU_ZERO_TRIM=0 disables it); wakes on bulk guest
+    // memory transitions and settles before scanning through the permanent backing mapping.
     const char* const trim = std::getenv("NXEMU_ZERO_TRIM");
-    if (trim != nullptr && std::strcmp(trim, "1") == 0) {
+    if (trim == nullptr || std::strcmp(trim, "0") != 0) {
+        buffer.SetTrimActivityCallback([this] { NotifyTrimActivity(); });
         memory_maintenance_thread =
             std::jthread([this](std::stop_token stop) { MaintainGuestMemory(stop); });
     }
@@ -55,43 +52,63 @@ DeviceMemory::DeviceMemory()
 #endif
 }
 
-DeviceMemory::~DeviceMemory() = default;
+DeviceMemory::~DeviceMemory() {
+    buffer.SetTrimActivityCallback({});
+    if (memory_maintenance_thread.joinable()) {
+        memory_maintenance_thread.request_stop();
+        memory_maintenance_thread.join();
+    }
+}
+
+void DeviceMemory::NotifyTrimActivity() {
+    if (!trim_requested.exchange(true, std::memory_order_release)) {
+        std::scoped_lock lock{trim_wake_mutex};
+        trim_wake_cv.notify_one();
+    }
+}
 
 void DeviceMemory::MaintainGuestMemory(std::stop_token stop) {
 #if defined(_WIN32) || (defined(__linux__) && defined(__GLIBC__) && !defined(__ANDROID__))
     using namespace std::chrono_literals;
     Common::SetCurrentThreadName("GuestMemoryTrim");
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Low);
-    std::mutex mutex;
-    std::condition_variable_any wake;
     const auto wait_or_stop = [&](std::chrono::milliseconds delay) {
-        std::unique_lock lock{mutex};
-        wake.wait_for(lock, stop, delay, [] { return false; });
+        std::unique_lock lock{trim_wake_mutex};
+        trim_wake_cv.wait_for(lock, stop, delay, [] { return false; });
         return stop.stop_requested();
     };
 #ifdef _WIN32
-    // Avoid competing with shaders and game data during initial loading.
-    std::chrono::seconds interval = 30s;
     // NXEMU_ZERO_TRIM_STRESS=1: a pass every 2 s with no back-off and no wait for bulk mapping,
     // so passes overlap the guest's map/unmap/protect calls (the Lichii #1769 crash window).
     const char* const stress_flag = std::getenv("NXEMU_ZERO_TRIM_STRESS");
     const bool stress = stress_flag != nullptr && std::strcmp(stress_flag, "1") == 0;
     if (stress) {
-        interval = 2s;
         LOG_WARNING(HW_Memory, "Zero-page trim stress mode: a pass every 2 s");
     }
+    // Wait briefly for initial game boot and Vulkan guest-RAM import before the first pass.
+    std::chrono::seconds next_wait = stress ? 2s : 8s;
+    bool wait_for_event = false;
     u64 passes = 0;
     u64 trimmed_total = 0;
-#else
-    std::chrono::seconds interval = 60s;
-#endif
     while (true) {
-        if (wait_or_stop(interval)) {
+        if (wait_for_event && !stress) {
+            bool woken_by_event = false;
+            {
+                std::unique_lock lock{trim_wake_mutex};
+                woken_by_event = trim_wake_cv.wait_for(lock, stop, 300s, [this] {
+                    return trim_requested.load(std::memory_order_acquire);
+                });
+            }
+            if (stop.stop_requested()) {
+                return;
+            }
+            if (woken_by_event && wait_or_stop(3s)) {
+                return;
+            }
+        } else if (wait_or_stop(next_wait)) {
             return;
         }
-#ifdef _WIN32
         // Lichii #1580: avoid competing with bulk guest map/unmap/protect.
-        // Sampling the counter is free unless the optional trim is enabled.
         u64 previously_mapped = buffer.MappedBytes();
         for (int attempt = 0; attempt < (stress ? 0 : 10); ++attempt) {
             if (wait_or_stop(500ms)) {
@@ -103,6 +120,7 @@ void DeviceMemory::MaintainGuestMemory(std::stop_token stop) {
             }
             previously_mapped = mapped;
         }
+        trim_requested.store(false, std::memory_order_release);
         try {
             const auto start = std::chrono::steady_clock::now();
             const auto [resident, zeros] = buffer.TrimZeroPages();
@@ -112,31 +130,40 @@ void DeviceMemory::MaintainGuestMemory(std::stop_token stop) {
             ++passes;
             trimmed_total += zeros;
             if (stress) {
+                next_wait = 2s;
+                wait_for_event = false;
                 if (passes % 30 == 0) {
                     LOG_INFO(HW_Memory,
                              "Zero-page trim stress: {} passes, last {} MiB zero of {} MiB "
                              "resident in {} ms, {} MiB trimmed in total",
                              passes, zeros >> 20, resident >> 20, elapsed, trimmed_total >> 20);
                 }
-            } else if (zeros < (size_t{64} << 20)) {
-                interval = std::min(interval * 2, 300s);
-            } else {
-                interval = 5s;
+            } else if (zeros >= (size_t{64} << 20)) {
+                next_wait = 5s;
+                wait_for_event = false;
                 LOG_INFO(HW_Memory,
                          "Zero guest pages: {} MiB out of {} MiB resident, scanned in {} ms",
                          zeros >> 20, resident >> 20, elapsed);
+            } else {
+                wait_for_event = true;
             }
         } catch (const std::exception& e) {
             // Trimming is opportunistic; allocation pressure must never crash the game.
-            interval = stress ? 2s : 300s;
+            next_wait = stress ? 2s : 300s;
+            wait_for_event = false;
             LOG_WARNING(HW_Memory, "Skipping zero-page trim: {}", e.what());
         }
+    }
 #elif defined(__linux__) && defined(__GLIBC__) && !defined(__ANDROID__)
+    while (true) {
+        if (wait_or_stop(60s)) {
+            return;
+        }
         // glibc-safe operation; it can contend with other malloc callers,
         // hence the low-priority, opt-in background worker.
-        malloc_trim(0);
-#endif
+        Common::PurgeHostHeap();
     }
+#endif
 #else
     (void)stop;
 #endif

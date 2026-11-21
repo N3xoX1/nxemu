@@ -195,9 +195,7 @@ public:
     }
 
     void Map(size_t virtual_offset, size_t host_offset, size_t length, MemoryPermission perms) {
-        if (track_trim_activity) {
-            mapped_bytes.fetch_add(length, std::memory_order_relaxed);
-        }
+        NoteTrimActivity(length);
         std::unique_lock lock{placeholder_mutex};
         if (!IsNiechePlaceholder(virtual_offset, length)) {
             Split(virtual_offset, length);
@@ -209,9 +207,7 @@ public:
     }
 
     void Unmap(size_t virtual_offset, size_t length) {
-        if (track_trim_activity) {
-            mapped_bytes.fetch_add(length, std::memory_order_relaxed);
-        }
+        NoteTrimActivity(length);
         std::scoped_lock lock{placeholder_mutex};
 
         // Unmap until there are no more placeholders
@@ -220,9 +216,7 @@ public:
     }
 
     void Protect(size_t virtual_offset, size_t length, bool read, bool write, bool execute) {
-        if (track_trim_activity) {
-            mapped_bytes.fetch_add(length, std::memory_order_relaxed);
-        }
+        NoteTrimActivity(length);
         DWORD new_flags{};
         if (read && write) {
             new_flags = PAGE_READWRITE;
@@ -342,6 +336,28 @@ public:
         return mapped_bytes.load(std::memory_order_relaxed);
     }
 
+    void SetTrimActivityCallback(std::function<void()> callback) {
+        std::scoped_lock lock{trim_callback_mutex};
+        trim_activity_callback = std::move(callback);
+    }
+
+    void NoteTrimActivity(size_t length) {
+        if (!track_trim_activity || length == 0) {
+            return;
+        }
+        mapped_bytes.fetch_add(length, std::memory_order_relaxed);
+        constexpr u64 NotifyThreshold = u64{64} << 20;
+        if (trim_pending_bytes.fetch_add(length, std::memory_order_relaxed) + length >=
+            NotifyThreshold) {
+            if (trim_pending_bytes.exchange(0, std::memory_order_relaxed) >= NotifyThreshold) {
+                std::scoped_lock lock{trim_callback_mutex};
+                if (trim_activity_callback) {
+                    trim_activity_callback();
+                }
+            }
+        }
+    }
+
     void EnableDirectMappedAddress() {
         // TODO
         UNREACHABLE();
@@ -358,7 +374,7 @@ private:
 
     static bool ZeroTrimEnabled() {
         const char* const flag = std::getenv("NXEMU_ZERO_TRIM");
-        return flag && std::strcmp(flag, "1") == 0;
+        return flag == nullptr || std::strcmp(flag, "0") != 0;
     }
 
     static bool LazyCommitEnabled() {
@@ -516,6 +532,9 @@ private:
     const bool lazy_commit{LazyCommitEnabled()};
     const bool track_trim_activity{ZeroTrimEnabled()};
     std::atomic<u64> mapped_bytes{0};
+    std::atomic<u64> trim_pending_bytes{0};
+    std::mutex trim_callback_mutex;
+    std::function<void()> trim_activity_callback;
     std::mutex commit_mutex;
     std::unique_ptr<std::atomic<u64>[]> committed_granules;
 
@@ -806,24 +825,45 @@ public:
         }
         // Set MADV_REMOVE on backing map to destroy it instantly.
         // This also deletes the area from the backing file.
-        static std::atomic_bool madvise_remove_works{true};
-        if (madvise_remove_works.load(std::memory_order_relaxed) &&
+        enum class HolePunchMode : u8 { MadviseRemove, FallocatePunch, Unsupported };
+        static std::atomic<u8> hole_punch_mode{static_cast<u8>(HolePunchMode::MadviseRemove)};
+        const auto is_permanent_unsupported = [](int err) {
+            return err == EOPNOTSUPP || err == EINVAL || err == ENOSYS || err == EPERM ||
+                   err == EACCES;
+        };
+        const auto mode = static_cast<HolePunchMode>(hole_punch_mode.load(std::memory_order_relaxed));
+        if (mode == HolePunchMode::Unsupported) {
+            return false;
+        }
+        if (mode == HolePunchMode::MadviseRemove &&
             madvise(backing_base + physical_offset, length, MADV_REMOVE) == 0) {
             return true;
         }
         // Some Android kernels reject MADV_REMOVE on the memfd. Punching the hole in the file
         // frees the pages the same way; the memset fallback would keep them resident as zeros.
-        if (fd >= 0 && fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-                                 static_cast<off_t>(physical_offset),
-                                 static_cast<off_t>(length)) == 0) {
-            if (madvise_remove_works.exchange(false, std::memory_order_relaxed)) {
-                LOG_WARNING(HW_Memory, "MADV_REMOVE unsupported; punching holes in the backing instead");
+        if (fd >= 0) {
+            int ret;
+            do {
+                ret = fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+                                static_cast<off_t>(physical_offset), static_cast<off_t>(length));
+            } while (ret != 0 && errno == EINTR);
+            if (ret == 0) {
+                if (hole_punch_mode.exchange(static_cast<u8>(HolePunchMode::FallocatePunch),
+                                             std::memory_order_relaxed) ==
+                    static_cast<u8>(HolePunchMode::MadviseRemove)) {
+                    LOG_WARNING(HW_Memory,
+                                "MADV_REMOVE unsupported; punching holes in the backing instead");
+                }
+                return true;
             }
-            return true;
         }
         // Let HostMemory zero the region instead of terminating the emulator.
-        static std::once_flag warning_once;
         const int error = errno;
+        if (fd < 0 || is_permanent_unsupported(error)) {
+            hole_punch_mode.store(static_cast<u8>(HolePunchMode::Unsupported),
+                                  std::memory_order_relaxed);
+        }
+        static std::once_flag warning_once;
         std::call_once(warning_once, [error] {
             LOG_WARNING(HW_Memory, "MADV_REMOVE and hole punching unsupported ({}); using memset fallback",
                         strerror(error));
@@ -1122,6 +1162,11 @@ void HostMemory::MarkBackingDirty(size_t physical_offset, size_t length) {
             granules[index].fetch_or(GranuleUsed | GranuleDirty, std::memory_order_release);
         }
     }
+#ifdef _WIN32
+    if (impl) {
+        impl->NoteTrimActivity(length);
+    }
+#endif
 }
 
 bool HostMemory::IsBackingDirty(size_t physical_offset) const {
@@ -1131,25 +1176,34 @@ bool HostMemory::IsBackingDirty(size_t physical_offset) const {
 }
 
 bool HostMemory::ReleaseFreeBacking(size_t physical_offset) {
+    return ReleaseFreeBackingRange(physical_offset, size_t{1} << GranuleShift);
+}
+
+bool HostMemory::ReleaseFreeBackingRange(size_t physical_offset, size_t length) {
     constexpr size_t GranuleSize = size_t{1} << GranuleShift;
-    if (!impl || physical_offset % GranuleSize != 0 || physical_offset > backing_size ||
-        backing_size - physical_offset < GranuleSize) {
+    if (!impl || length == 0 || physical_offset % GranuleSize != 0 ||
+        length % GranuleSize != 0 || physical_offset > backing_size ||
+        backing_size - physical_offset < length) {
         return false;
     }
 #ifdef _WIN32
     // Windows frees an all-zero page that leaves the working set without writing it to the
     // pagefile, so zeroing and trimming returns the RAM (not the commit).
-    std::memset(backing_base + physical_offset, 0, GranuleSize);
-    VirtualUnlock(backing_base + physical_offset, GranuleSize);
+    std::memset(backing_base + physical_offset, 0, length);
+    VirtualUnlock(backing_base + physical_offset, length);
 #elif defined(__linux__) || defined(__APPLE__)
-    if (!impl->ClearBackingRegion(physical_offset, GranuleSize)) {
+    if (!impl->ClearBackingRegion(physical_offset, length)) {
         return false;
     }
 #else
     return false;
 #endif
-    granules[physical_offset >> GranuleShift].fetch_and(static_cast<u8>(~GranuleDirty),
-                                                       std::memory_order_release);
+    const size_t first = physical_offset >> GranuleShift;
+    const size_t count = length >> GranuleShift;
+    for (size_t i = 0; i < count; ++i) {
+        granules[first + i].fetch_and(static_cast<u8>(~GranuleDirty),
+                                      std::memory_order_release);
+    }
     return true;
 }
 
@@ -1231,16 +1285,28 @@ std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
         }
         return true;
     };
-    std::sort(backing_pages.begin(), backing_pages.end());
     std::sort(view_pages.begin(), view_pages.end());
     // The working-set snapshot is no longer needed. Reuse its capacity for trim candidates.
     auto trim = std::move(entries);
     trim.clear();
+    // Cache physical page checks so pages resident in both backing_base and virtual_base
+    // are read at most once per pass, avoiding redundant memory traffic and binary searches.
+    constexpr u8 PageChecked = 1;
+    constexpr u8 PageZero = 2;
+    const size_t total_backing_pages = backing_size / page_size;
+    std::vector<u8> page_state(total_backing_pages, 0);
     size_t zero_bytes = 0;
     for (const uintptr_t page : backing_pages) {
+        const size_t pfn = (page - backing_begin) / page_size;
+        if (pfn >= total_backing_pages) {
+            continue;
+        }
         if (is_zero_page(reinterpret_cast<const u8*>(page))) {
+            page_state[pfn] = PageChecked | PageZero;
             trim.push_back(page);
             zero_bytes += page_size;
+        } else {
+            page_state[pfn] = PageChecked;
         }
     }
     size_t covered_begin = 0;
@@ -1266,15 +1332,20 @@ std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
         if (!impl->IsBackingCommitted(physical)) {
             continue;
         }
+        const size_t pfn = physical / page_size;
         const uintptr_t physical_page = backing_begin + physical;
-        if (is_zero_page(reinterpret_cast<const u8*>(physical_page))) {
+        u8 state = page_state[pfn];
+        if ((state & PageChecked) == 0) {
+            const bool zero = is_zero_page(reinterpret_cast<const u8*>(physical_page));
+            state = static_cast<u8>(PageChecked | (zero ? PageZero : 0));
+            page_state[pfn] = state;
+            // The inspection itself can make a physical page resident. Evict it
+            // again since it was not present in the original working-set scan.
+            trim.push_back(physical_page);
+        }
+        if ((state & PageZero) != 0) {
             trim.push_back(page);
             zero_bytes += page_size;
-        }
-        // The inspection itself can make a physical page resident. Evict it
-        // again unless it was already present in the original working-set scan.
-        if (!std::binary_search(backing_pages.begin(), backing_pages.end(), physical_page)) {
-            trim.push_back(physical_page);
         }
     }
 
@@ -1312,6 +1383,14 @@ u64 HostMemory::MappedBytes() const noexcept {
     return impl ? impl->MappedBytes() : 0;
 #else
     return 0;
+#endif
+}
+
+void HostMemory::SetTrimActivityCallback([[maybe_unused]] std::function<void()> callback) {
+#ifdef _WIN32
+    if (impl) {
+        impl->SetTrimActivityCallback(std::move(callback));
+    }
 #endif
 }
 

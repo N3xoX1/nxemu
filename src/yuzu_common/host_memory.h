@@ -4,6 +4,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <utility>
 #include "yuzu_common/common_funcs.h"
@@ -85,10 +86,11 @@ public:
 
     /// Whether the 64 KiB granule at `physical_offset` may hold data.
     [[nodiscard]] bool IsBackingDirty(size_t physical_offset) const;
-    /// Gives the host memory of a dirty 64 KiB granule that the kernel holds free back to the
-    /// host, leaving it zero and clean. The caller guarantees nobody uses it meanwhile.
+    /// Gives the host memory of dirty 64 KiB granules that the kernel holds free back to the
+    /// host, leaving them zero and clean. The caller guarantees nobody uses them meanwhile.
     /// Returns false where the platform cannot do it without a cost (then nothing changed).
     bool ReleaseFreeBacking(size_t physical_offset);
+    bool ReleaseFreeBackingRange(size_t physical_offset, size_t length);
 
     /// Ensure physical backing is accessible before a kernel allocation is used.
     /// On Windows with lazy guest commitment this commits the corresponding section pages;
@@ -103,6 +105,10 @@ public:
     /// Approximate bytes touched by Map/Unmap/Protect, for idle-time Windows
     /// reclamation scheduling. Zero on other platforms and if trimming is off.
     [[nodiscard]] u64 MappedBytes() const noexcept;
+
+    /// Windows: register a callback fired when significant map/unmap/free activity accumulates,
+    /// so the maintenance thread can wake on memory transitions instead of polling on a fixed timer.
+    void SetTrimActivityCallback(std::function<void()> callback);
 
     [[nodiscard]] u8* BackingBasePointer() noexcept {
         return backing_base;

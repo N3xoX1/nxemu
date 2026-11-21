@@ -68,33 +68,37 @@ void KMemoryManager::CommitBackingPages(KPhysicalAddress address, size_t num_pag
 void KMemoryManager::ReleaseFreeBacking() {
 #if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
     static const bool enabled = [] {
-#ifdef __APPLE__
-        // Reclaim only while the pool lock guarantees that no guest can write the pages.
-        const char* const trim = std::getenv("NXEMU_ZERO_TRIM");
-        if (!trim || std::strcmp(trim, "1") != 0) {
-            return false;
-        }
-#endif
         const char* const flag = std::getenv("NXEMU_FREE_RELEASE");
         return flag == nullptr || std::strcmp(flag, "0") != 0;
     }();
-    if (!enabled) {
+    if (!enabled || !m_has_dirty_free_granules.load(std::memory_order_acquire)) {
         return;
     }
-    // One pass a second, from whichever thread frees pages (it already takes the pool locks).
-    static std::atomic<s64> next_pass_ms{0};
+    // One pass a second, from whichever thread allocates or frees pages.
     const s64 now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::steady_clock::now().time_since_epoch())
                            .count();
-    s64 due = next_pass_ms.load(std::memory_order_relaxed);
-    if (now_ms < due ||
-        !next_pass_ms.compare_exchange_strong(due, now_ms + 1000, std::memory_order_relaxed)) {
+    s64 due = m_next_release_pass_ms.load(std::memory_order_relaxed);
+    if (now_ms < due || !m_next_release_pass_ms.compare_exchange_strong(
+                            due, now_ms + 1000, std::memory_order_relaxed)) {
         return;
     }
-    // Each release zeroes 64 KiB on this thread: bound the pass to keep it well under a ms.
+    // Clear before scanning so a concurrent Close() always arms another pass.
+    m_has_dirty_free_granules.store(false, std::memory_order_release);
+
+#ifdef __linux__
+    // Hole punching does not memset in userspace; coalesced ranges release quickly.
+    constexpr size_t MaxReleasesPerPass = 1024; // 64 MiB
+    constexpr size_t MaxRunGranules = 32;       // 2 MiB per syscall
+#else
+    // Each release zeroes 64 KiB on this thread: bound the pass well under a ms,
+    // and cap each Windows VirtualUnlock / macOS madvise run at 1 MiB.
     constexpr size_t MaxReleasesPerPass = 128; // 8 MiB
+    constexpr size_t MaxRunGranules = 16;      // 1 MiB per run
+#endif
     size_t releases = 0;
     size_t free_dirty = 0;
+    bool skipped_optimized_free = false;
     auto& buffer = m_system.DeviceMemory().buffer;
     for (size_t i = 0; i < m_num_managers; ++i) {
         Impl& manager = m_managers[i];
@@ -102,34 +106,67 @@ void KMemoryManager::ReleaseFreeBacking() {
         const size_t heap_offset = heap.GetAddress().GetValue() - Core::DramMemoryMap::Base;
         const size_t pool = static_cast<size_t>(manager.GetPool());
         KScopedLightLock lk(m_pool_locks[pool]);
-        // An optimized process can reuse its previous page contents without a fill.
-        if (m_has_optimized_process[pool] || heap.GetNumFreeGranules() == 0) {
+        if (heap.GetNumFreeGranules() == 0) {
             continue;
         }
-        for (size_t granule = 0; granule < heap.GetNumGranules(); ++granule) {
+        // An optimized process can reuse its previous page contents without a fill.
+        if (m_has_optimized_process[pool]) {
+            skipped_optimized_free = true;
+            continue;
+        }
+        const size_t num_granules = heap.GetNumGranules();
+        size_t run_begin = 0;
+        size_t run_count = 0;
+        const auto flush_run = [&] {
+            if (run_count == 0) {
+                return;
+            }
+            const size_t run_offset = heap_offset + (run_begin << KPageHeap::GranuleShift);
+            const size_t run_length = run_count << KPageHeap::GranuleShift;
+            if (buffer.ReleaseFreeBackingRange(run_offset, run_length)) {
+                releases += run_count;
+                for (size_t g = run_begin; g < run_begin + run_count; ++g) {
+                    heap.GranuleReleaseState(g) = 0;
+                }
+            }
+            run_count = 0;
+        };
+        for (size_t granule = 0; granule < num_granules; ++granule) {
             u8& seen_free = heap.GranuleReleaseState(granule);
             const size_t offset = heap_offset + (granule << KPageHeap::GranuleShift);
             if (!heap.IsGranuleFree(granule) || !buffer.IsBackingDirty(offset)) {
                 // In use, or already zero: a granule freed and soon taken again keeps its RAM.
+                flush_run();
                 seen_free = 0;
                 continue;
             }
             ++free_dirty;
             if (seen_free == 0) {
+                flush_run();
                 seen_free = 1;
                 continue;
             }
-            if (releases < MaxReleasesPerPass && buffer.ReleaseFreeBacking(offset)) {
-                ++releases;
-                seen_free = 0;
+            if (releases + run_count < MaxReleasesPerPass) {
+                if (run_count == 0) {
+                    run_begin = granule;
+                }
+                ++run_count;
+                if (run_count == MaxRunGranules || releases + run_count == MaxReleasesPerPass) {
+                    flush_run();
+                }
+            } else {
+                flush_run();
             }
         }
+        flush_run();
     }
-    static std::atomic<u64> released_total{0};
-    const u64 total = released_total.fetch_add(releases) + releases;
-    static std::atomic<s64> next_log_ms{0};
-    if (now_ms >= next_log_ms.load(std::memory_order_relaxed)) {
-        next_log_ms.store(now_ms + 30000, std::memory_order_relaxed);
+    if (free_dirty > releases || skipped_optimized_free) {
+        m_has_dirty_free_granules.store(true, std::memory_order_release);
+    }
+    const u64 total =
+        m_released_granules_total.fetch_add(releases, std::memory_order_relaxed) + releases;
+    if (now_ms >= m_next_release_log_ms.load(std::memory_order_relaxed)) {
+        m_next_release_log_ms.store(now_ms + 30000, std::memory_order_relaxed);
         LOG_INFO(Kernel, "Free guest memory released: {} MiB total, {} MiB free and not yet zero",
                  (total << KPageHeap::GranuleShift) >> 20,
                  ((free_dirty - releases) << KPageHeap::GranuleShift) >> 20);
@@ -141,11 +178,13 @@ void KMemoryManager::MarkBackingPagesDirty(KPhysicalAddress address, size_t num_
     // Freed pages may hold data: the next allocation that clears them must really clear them.
     m_system.DeviceMemory().buffer.MarkBackingDirty(address.GetValue() - Core::DramMemoryMap::Base,
                                                     num_pages * PageSize);
+    m_has_dirty_free_granules.store(true, std::memory_order_release);
 }
 
 void KMemoryManager::Initialize(KVirtualAddress management_region, size_t management_region_size) {
     // A kernel started again over the same backing memory finds the previous run's data.
     m_system.DeviceMemory().buffer.ForgetBackingContents();
+    m_has_dirty_free_granules.store(true, std::memory_order_release);
 
     // Clear the management region to zero.
     const KVirtualAddress management_region_end = management_region + management_region_size;
@@ -279,15 +318,19 @@ Result KMemoryManager::InitializeOptimizedMemory(u64 process_id, Pool pool) {
     // Check that we don't already have an optimized process.
     R_UNLESS(!m_has_optimized_process[pool_index], ResultBusy);
 
+    // Clear the management area for the optimized process before publishing it.
+    try {
+        for (auto* manager = this->GetFirstManager(pool, Direction::FromFront); manager != nullptr;
+             manager = this->GetNextManager(manager, Direction::FromFront)) {
+            manager->InitializeOptimizedMemory(m_system.Kernel());
+        }
+    } catch (const std::bad_alloc&) {
+        R_THROW(ResultOutOfMemory);
+    }
+
     // Set the optimized process id.
     m_optimized_process_ids[pool_index] = process_id;
     m_has_optimized_process[pool_index] = true;
-
-    // Clear the management area for the optimized process.
-    for (auto* manager = this->GetFirstManager(pool, Direction::FromFront); manager != nullptr;
-         manager = this->GetNextManager(manager, Direction::FromFront)) {
-        manager->InitializeOptimizedMemory(m_system.Kernel());
-    }
 
     R_SUCCEED();
 }
@@ -301,6 +344,7 @@ void KMemoryManager::FinalizeOptimizedMemory(u64 process_id, Pool pool) {
     // If the process was optimized, clear it.
     if (m_has_optimized_process[pool_index] && m_optimized_process_ids[pool_index] == process_id) {
         m_has_optimized_process[pool_index] = false;
+        m_has_dirty_free_granules.store(true, std::memory_order_release);
     }
 }
 
@@ -321,48 +365,52 @@ KPhysicalAddress KMemoryManager::AllocateAndOpenContinuous(size_t num_pages, siz
         return 0;
     }
 
-    // Lock the pool that we're allocating from.
-    const auto [pool, dir] = DecodeOption(option);
-    KScopedLightLock lk(m_pool_locks[static_cast<std::size_t>(pool)]);
-
-    // Choose a heap based on our page size request.
-    const s32 heap_index = KPageHeap::GetAlignedBlockIndex(num_pages, align_pages);
-    if (heap_index < 0) {
-        return 0;
-    }
-
-    // Loop, trying to iterate from each block.
-    Impl* chosen_manager = nullptr;
     KPhysicalAddress allocated_block = 0;
-    for (chosen_manager = this->GetFirstManager(pool, dir); chosen_manager != nullptr;
-         chosen_manager = this->GetNextManager(chosen_manager, dir)) {
-        allocated_block = chosen_manager->AllocateAligned(heap_index, num_pages, align_pages);
-        if (allocated_block != 0) {
-            break;
+    {
+        // Lock the pool that we're allocating from.
+        const auto [pool, dir] = DecodeOption(option);
+        KScopedLightLock lk(m_pool_locks[static_cast<std::size_t>(pool)]);
+
+        // Choose a heap based on our page size request.
+        const s32 heap_index = KPageHeap::GetAlignedBlockIndex(num_pages, align_pages);
+        if (heap_index < 0) {
+            return 0;
         }
+
+        // Loop, trying to iterate from each block.
+        Impl* chosen_manager = nullptr;
+        for (chosen_manager = this->GetFirstManager(pool, dir); chosen_manager != nullptr;
+             chosen_manager = this->GetNextManager(chosen_manager, dir)) {
+            allocated_block = chosen_manager->AllocateAligned(heap_index, num_pages, align_pages);
+            if (allocated_block != 0) {
+                break;
+            }
+        }
+
+        // If we failed to allocate, quit now.
+        if (allocated_block == 0) {
+            return 0;
+        }
+
+        // Commit physical backing before the kernel or an alias can touch the new pages.
+        try {
+            CommitBackingPages(allocated_block, num_pages);
+        } catch (const std::bad_alloc&) {
+            chosen_manager->Free(allocated_block, num_pages);
+            return 0;
+        }
+
+        // Maintain the optimized memory bitmap, if we should.
+        if (m_has_optimized_process[static_cast<size_t>(pool)]) {
+            chosen_manager->TrackUnoptimizedAllocation(m_system.Kernel(), allocated_block,
+                                                       num_pages);
+        }
+
+        // Open the first reference to the pages.
+        chosen_manager->OpenFirst(allocated_block, num_pages);
     }
 
-    // If we failed to allocate, quit now.
-    if (allocated_block == 0) {
-        return 0;
-    }
-
-    // Commit physical backing before the kernel or an alias can touch the new pages.
-    try {
-        CommitBackingPages(allocated_block, num_pages);
-    } catch (const std::bad_alloc&) {
-        chosen_manager->Free(allocated_block, num_pages);
-        return 0;
-    }
-
-    // Maintain the optimized memory bitmap, if we should.
-    if (m_has_optimized_process[static_cast<size_t>(pool)]) {
-        chosen_manager->TrackUnoptimizedAllocation(m_system.Kernel(), allocated_block, num_pages);
-    }
-
-    // Open the first reference to the pages.
-    chosen_manager->OpenFirst(allocated_block, num_pages);
-
+    ReleaseFreeBacking();
     return allocated_block;
 }
 
@@ -442,33 +490,36 @@ Result KMemoryManager::AllocateAndOpen(KPageGroup* out, size_t num_pages, u32 op
     // Early return if we're allocating no pages.
     R_SUCCEED_IF(num_pages == 0);
 
-    // Lock the pool that we're allocating from.
-    const auto [pool, dir] = DecodeOption(option);
-    KScopedLightLock lk(m_pool_locks[static_cast<size_t>(pool)]);
+    {
+        // Lock the pool that we're allocating from.
+        const auto [pool, dir] = DecodeOption(option);
+        KScopedLightLock lk(m_pool_locks[static_cast<size_t>(pool)]);
 
-    // Allocate the page group.
-    R_TRY(this->AllocatePageGroupImpl(out, num_pages, pool, dir,
-                                      m_has_optimized_process[static_cast<size_t>(pool)], true));
+        // Allocate the page group.
+        R_TRY(this->AllocatePageGroupImpl(out, num_pages, pool, dir,
+                                          m_has_optimized_process[static_cast<size_t>(pool)], true));
 
-    // Open the first reference to the pages.
-    for (const auto& block : *out) {
-        KPhysicalAddress cur_address = block.GetAddress();
-        size_t remaining_pages = block.GetNumPages();
-        while (remaining_pages > 0) {
-            // Get the manager for the current address.
-            auto& manager = this->GetManager(cur_address);
+        // Open the first reference to the pages.
+        for (const auto& block : *out) {
+            KPhysicalAddress cur_address = block.GetAddress();
+            size_t remaining_pages = block.GetNumPages();
+            while (remaining_pages > 0) {
+                // Get the manager for the current address.
+                auto& manager = this->GetManager(cur_address);
 
-            // Process part or all of the block.
-            const size_t cur_pages =
-                std::min(remaining_pages, manager.GetPageOffsetToEnd(cur_address));
-            manager.OpenFirst(cur_address, cur_pages);
+                // Process part or all of the block.
+                const size_t cur_pages =
+                    std::min(remaining_pages, manager.GetPageOffsetToEnd(cur_address));
+                manager.OpenFirst(cur_address, cur_pages);
 
-            // Advance.
-            cur_address += cur_pages * PageSize;
-            remaining_pages -= cur_pages;
+                // Advance.
+                cur_address += cur_pages * PageSize;
+                remaining_pages -= cur_pages;
+            }
         }
     }
 
+    ReleaseFreeBacking();
     R_SUCCEED();
 }
 
@@ -564,6 +615,7 @@ Result KMemoryManager::AllocateForProcess(KPageGroup* out, size_t num_pages, u32
         }
     }
 
+    ReleaseFreeBacking();
     R_SUCCEED();
 }
 
@@ -594,9 +646,15 @@ size_t KMemoryManager::Impl::Initialize(KPhysicalAddress address, size_t size,
 
 void KMemoryManager::Impl::InitializeOptimizedMemory(KernelCore& kernel) {
     auto optimize_pa = KPageTable::GetHeapPhysicalAddress(kernel, m_management_region);
+    const size_t optimize_size = CalculateOptimizedProcessOverheadSize(m_heap.GetSize());
+#ifdef _WIN32
+    // DramPoolManagement lies beyond the 64 MiB bootstrap commit window under lazy guest commit.
+    kernel.System().DeviceMemory().buffer.CommitBackingRegion(
+        optimize_pa.GetValue() - Core::DramMemoryMap::Base, optimize_size);
+#endif
     auto* optimize_map = kernel.System().DeviceMemory().GetPointer<u64>(optimize_pa);
 
-    std::memset(optimize_map, 0, CalculateOptimizedProcessOverheadSize(m_heap.GetSize()));
+    std::memset(optimize_map, 0, optimize_size);
 }
 
 void KMemoryManager::Impl::TrackUnoptimizedAllocation(KernelCore& kernel, KPhysicalAddress block,

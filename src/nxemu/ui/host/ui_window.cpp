@@ -56,7 +56,7 @@ constexpr int kDoubleClickReach = 4;
 Rml::Span<const Rml::byte> MapFontFile(const std::filesystem::path & path)
 {
 #if defined(_WIN32)
-    const HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    const HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE)
     {
         return {};
@@ -93,6 +93,15 @@ Rml::Span<const Rml::byte> MapFontFile(const std::filesystem::path & path)
         return {};
     }
     return {static_cast<const Rml::byte *>(view), static_cast<size_t>(info.st_size)};
+#endif
+}
+
+void UnmapFontFile(std::span<const uint8_t> data)
+{
+#if defined(_WIN32)
+    UnmapViewOfFile(data.data());
+#else
+    munmap(const_cast<uint8_t *>(data.data()), data.size());
 #endif
 }
 
@@ -142,11 +151,7 @@ UiWindow::~UiWindow()
     }
     for (const auto data : m_mappedFonts)
     {
-#if defined(_WIN32)
-        UnmapViewOfFile(data.data());
-#else
-        munmap(const_cast<uint8_t *>(data.data()), data.size());
-#endif
+        UnmapFontFile(data);
     }
     m_renderer.reset();
     m_presenter.reset();
@@ -731,12 +736,13 @@ bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
         const Rml::Span<const Rml::byte> data = MapFontFile(font.path);
         if (!data.empty())
         {
-            // RmlUi borrows the bytes until shutdown.
-            m_mappedFonts.emplace_back(data.data(), data.size());
             if (Rml::LoadFontFace(data, {}, Rml::Style::FontStyle::Normal, Rml::Style::FontWeight::Normal, true, font.faceIndex))
             {
+                // RmlUi borrows the bytes until shutdown.
+                m_mappedFonts.emplace_back(data.data(), data.size());
                 continue;
             }
+            UnmapFontFile({data.data(), data.size()});
         }
         Rml::LoadFontFace(Common::FS::PathToUTF8String(font.path), true, Rml::Style::FontWeight::Normal, font.faceIndex);
     }

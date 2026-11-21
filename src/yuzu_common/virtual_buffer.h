@@ -8,8 +8,10 @@
 namespace Common {
 
 void* AllocateMemoryPages(std::size_t size) noexcept;
+void* AllocateLazyMemoryPages(std::size_t size) noexcept;
 void GuardUntouchedPages(void* data, std::size_t size);
 void FreeMemoryPages(void* base, std::size_t size) noexcept;
+void PurgeHostHeap() noexcept;
 
 template <typename T>
 class VirtualBuffer final {
@@ -34,8 +36,8 @@ public:
     VirtualBuffer& operator=(const VirtualBuffer&) = delete;
 
     VirtualBuffer(VirtualBuffer&& other) noexcept
-        : alloc_size{std::exchange(other.alloc_size, 0)}, base_ptr{std::exchange(other.base_ptr),
-                                                                   nullptr} {}
+        : alloc_size{std::exchange(other.alloc_size, 0)},
+          base_ptr{std::exchange(other.base_ptr, nullptr)} {}
 
     VirtualBuffer& operator=(VirtualBuffer&& other) noexcept {
         if (this == &other) {
@@ -57,6 +59,19 @@ public:
 
         alloc_size = new_size;
         base_ptr = reinterpret_cast<T*>(AllocateMemoryPages(alloc_size));
+    }
+
+    void resize_lazy(std::size_t count) {
+        const auto new_size = count * sizeof(T);
+        if (new_size == alloc_size) {
+            return;
+        }
+
+        FreeMemoryPages(base_ptr, alloc_size);
+
+        alloc_size = new_size;
+        base_ptr = alloc_size != 0 ? reinterpret_cast<T*>(AllocateLazyMemoryPages(alloc_size))
+                                   : nullptr;
     }
 
     [[nodiscard]] constexpr const T& operator[](std::size_t index) const {

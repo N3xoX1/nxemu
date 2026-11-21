@@ -25,6 +25,7 @@
 #include "yuzu_common/fs/fs.h"
 #include "yuzu_common/fs/path_util.h"
 #include "yuzu_common/thread_worker.h"
+#include "yuzu_common/virtual_buffer.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_shader_recompiler/frontend/maxwell/control_flow.h"
@@ -1139,6 +1140,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         LOG_ERROR(Common_Filesystem, "Failed to create pipeline cache directories");
         return;
     }
+    // Return temporary warmup heap pages (SPIR-V/IR/recipes) to the OS once loading finishes.
+    SCOPE_EXIT {
+        Common::PurgeHostHeap();
+    };
     if(const char* output=std::getenv("NXEMU_NXSHADER_RUNTIME_REPORT");output && *output)
         runtime_report=std::make_unique<VideoCommon::ShaderProfile::Runtime::Report>(std::filesystem::u8path(output));
     pipeline_cache_filename = base_dir / "vulkan.nxc";

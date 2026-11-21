@@ -78,6 +78,20 @@ void CheckBacking() {
         }
     }
     Check(data[Granule - 1] == 0x5a && data[2 * Granule] == 0x5a, "reclaim crossed granule");
+
+    // Coalesced range release must clear every granule in the span without crossing bounds.
+    buffer.ClearBackingRegion(0, 3 * Granule, 0x3c);
+    Check(!buffer.ReleaseFreeBackingRange(0, 0), "released empty range");
+    Check(!buffer.ReleaseFreeBackingRange(0, Granule / 2), "released unaligned length");
+    Check(!buffer.ReleaseFreeBackingRange(Granule, 3 * Granule), "released past end of backing");
+    if (buffer.ReleaseFreeBackingRange(0, 2 * Granule)) {
+        Check(!buffer.IsBackingDirty(0) && !buffer.IsBackingDirty(Granule),
+              "coalesced release left dirty granule");
+        Check(buffer.IsBackingDirty(2 * Granule), "coalesced release cleared neighbor dirty bit");
+        Check(std::all_of(data, data + 2 * Granule, [](u8 b) { return b == 0; }),
+              "coalesced release did not zero full span");
+        Check(data[2 * Granule] == 0x3c, "coalesced release crossed range end");
+    }
 }
 
 #ifdef _WIN32
@@ -94,6 +108,29 @@ void CheckGuardLifetime() {
     destination[Size - 1] = 42;
     Check(destination[Size - 1] == 42, "moved guard page inaccessible");
 }
+
+void CheckLazyCommitLifetime() {
+    constexpr size_t Size = 64 << 20;
+    Common::VirtualBuffer<u8> buf;
+    buf.resize_lazy(Size);
+    MEMORY_BASIC_INFORMATION info{};
+    Check(VirtualQuery(buf.data(), &info, sizeof(info)) && info.State == MEM_RESERVE,
+          "lazy buffer was committed upfront");
+    // Reading an untouched page must fault-commit a zeroed chunk without committing the rest.
+    Check(buf[0] == 0, "lazy read was not zero");
+    buf[Size - 1] = 73;
+    Check(buf[Size - 1] == 73, "lazy write failed");
+    Check(VirtualQuery(buf.data(), &info, sizeof(info)) && info.State == MEM_COMMIT,
+          "touched start chunk not committed");
+    Check(VirtualQuery(buf.data() + (Size / 2), &info, sizeof(info)) && info.State == MEM_RESERVE,
+          "untouched middle chunk was committed");
+    auto* raw = buf.data();
+    Common::VirtualBuffer<u8> moved = std::move(buf);
+    Check(moved[Size - 1] == 73, "moved lazy buffer lost contents");
+    moved.resize_lazy(0);
+    Check(VirtualQuery(raw, &info, sizeof(info)) && info.State == MEM_FREE,
+          "freed lazy buffer still mapped");
+}
 #endif
 } // namespace
 
@@ -103,5 +140,6 @@ int main() {
     CheckBacking();
 #ifdef _WIN32
     CheckGuardLifetime();
+    CheckLazyCommitLifetime();
 #endif
 }

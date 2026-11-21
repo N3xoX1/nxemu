@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <tuple>
 
 #include "yuzu_common/common_funcs.h"
@@ -382,6 +383,10 @@ private:
     size_t m_num_managers{};
     PoolArray<u64> m_optimized_process_ids{};
     PoolArray<bool> m_has_optimized_process{};
+    std::atomic<bool> m_has_dirty_free_granules{false};
+    std::atomic<s64> m_next_release_pass_ms{0};
+    std::atomic<u64> m_released_granules_total{0};
+    std::atomic<s64> m_next_release_log_ms{0};
 };
 
 } // namespace Kernel
