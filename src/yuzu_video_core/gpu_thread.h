@@ -156,6 +156,7 @@ struct SynchState final {
     CommandQueue queue;
     u64 last_fence{};
     std::atomic<u64> signaled_fence{};
+    bool stopping{};
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
 
@@ -223,7 +224,6 @@ private:
     VideoCore::RasterizerInterface* rasterizer = nullptr;
 
     std::shared_ptr<SynchState> state{std::make_shared<SynchState>()};
-    std::stop_source stop_source;
     std::jthread thread;
     std::jthread decode_thread;
 };
