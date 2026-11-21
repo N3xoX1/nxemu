@@ -15,6 +15,7 @@
 #include "yuzu_common/polyfill_ranges.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/yuzu_assert.h"
+#include "yuzu_video_core/renderer_vulkan/pipeline_crash_trace.h"
 #include "yuzu_video_core/vulkan_common/nsight_aftermath_tracker.h"
 #include "yuzu_video_core/vulkan_common/vma.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
@@ -821,7 +822,44 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
                  descriptor_set_limits.maxPerStageDescriptorSampledImages);
     }
 
-    logical = vk::Device::Create(physical, queue_cis, ExtensionListForVulkan(loaded_extensions), first_next, dld);
+    const auto enabled_extensions{ExtensionListForVulkan(loaded_extensions)};
+    {
+        // Diagnostic: lets pipeline_probe create an identical device outside the emulator.
+        PipelineReplay::Device capture;
+        capture.device_name = properties.properties.deviceName;
+        std::ranges::replace(capture.device_name, ' ', '_');
+        capture.vendor_id = properties.properties.vendorID;
+        capture.device_id = properties.properties.deviceID;
+        capture.driver_version = properties.properties.driverVersion;
+        capture.api_version = instance_version;
+        capture.extensions.assign(enabled_extensions.begin(), enabled_extensions.end());
+        for (auto* s = static_cast<const VkBaseInStructure*>(first_next); s != nullptr;
+             s = s->pNext) {
+            size_t size{};
+            if (s == reinterpret_cast<const VkBaseInStructure*>(&features2)) {
+                size = sizeof(features2);
+            } else if (s == reinterpret_cast<const VkBaseInStructure*>(&diagnostics_nv)) {
+                size = sizeof(diagnostics_nv);
+            }
+#define FEATURE(prefix, struct_name, macro_name, var_name)                                             if (s == reinterpret_cast<const VkBaseInStructure*>(&features.var_name)) {                             size = sizeof(features.var_name);                                                              }
+            FOR_EACH_VK_FEATURE_1_1(FEATURE);
+            FOR_EACH_VK_FEATURE_1_2(FEATURE);
+            FOR_EACH_VK_FEATURE_1_3(FEATURE);
+            FOR_EACH_VK_FEATURE_EXT(FEATURE);
+#undef FEATURE
+            if (size == 0) {
+                capture.unknown_structures.push_back(static_cast<u32>(s->sType));
+                continue;
+            }
+            const auto* bytes{reinterpret_cast<const u8*>(s)};
+            capture.features.push_back({
+                .type = static_cast<u32>(s->sType),
+                .body = std::vector<u8>(bytes + sizeof(VkBaseInStructure), bytes + size),
+            });
+        }
+        PipelineCrashTrace::RecordDevice(capture);
+    }
+    logical = vk::Device::Create(physical, queue_cis, enabled_extensions, first_next, dld);
 
     graphics_queue = logical.GetQueue(graphics_family);
     present_queue = logical.GetQueue(present_family);
