@@ -234,6 +234,7 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
       accelerate_dma(buffer_cache, texture_cache, scheduler),
       fence_manager(*this, gpu, texture_cache, buffer_cache, query_cache, device, scheduler) {
     scheduler.SetQueryCache(query_cache);
+    pipeline_cache.SetBeforeBlockingLookup([this] { ReleaseDrawLocks(); });
 }
 
 RasterizerVulkan::~RasterizerVulkan() {
@@ -245,8 +246,15 @@ RasterizerVulkan::~RasterizerVulkan() {
 template <typename Func>
 void RasterizerVulkan::PrepareDraw(bool is_indexed, DrawArguments arguments, Func&& draw_func) {
     SCOPE_EXIT {
-        gpu.TickWork();
+        // Sync requests may wait for threads that take the cache locks
+        if (gpu.HasTickWork()) {
+            ReleaseDrawLocks();
+            gpu.TickWork();
+        }
     };
+    if (OthersWaitForDrawLocks()) {
+        ReleaseDrawLocks();
+    }
     FlushWork();
     gpu_memory->FlushCaching();
 
@@ -276,7 +284,16 @@ void RasterizerVulkan::PrepareDraw(bool is_indexed, DrawArguments arguments, Fun
             return;
         }
     }
-    std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
+    // Taking the cache locks for each draw costs more than the setup of most draws
+    if (!std::exchange(draw_locks_kept, false)) {
+        std::lock(buffer_cache.mutex, texture_cache.mutex);
+    }
+    SCOPE_EXIT {
+        draw_locks_kept = true;
+        if (++draws_under_locks == MAX_DRAWS_UNDER_LOCKS || OthersWaitForDrawLocks()) {
+            ReleaseDrawLocks();
+        }
+    };
     // update engine as channel may be different.
     pipeline->SetEngine(maxwell3d, gpu_memory);
     pipeline->SetVtgInstanceCount(std::exchange(vtg_instance_count, 0));
@@ -1000,7 +1017,9 @@ bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
     which = device_memory.FilterFlushCaches(addr, size, which);
     if ((True(which & VideoCommon::CacheType::BufferCache))) {
         if (buffer_cache.MayHaveGpuWrites(addr, size)) {
-            std::scoped_lock lock{buffer_cache.mutex};
+            // The decode thread asks this while the GPU thread keeps the lock across draws
+            buffer_cache.mutex.lock_spin();
+            std::scoped_lock lock{std::adopt_lock, buffer_cache.mutex};
             if (buffer_cache.IsRegionGpuModified(addr, size)) {
                 return true;
             }
@@ -1015,7 +1034,8 @@ bool RasterizerVulkan::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
         return false;
     }
     if (True(which & VideoCommon::CacheType::TextureCache)) {
-        std::scoped_lock lock{texture_cache.mutex};
+        texture_cache.mutex.lock_spin();
+        std::scoped_lock lock{std::adopt_lock, texture_cache.mutex};
         return texture_cache.IsRegionGpuModified(addr, size);
     }
     return false;
@@ -1191,6 +1211,8 @@ void RasterizerVulkan::SignalMemoryOperationFence(std::function<void()>&& func) 
 }
 
 void RasterizerVulkan::WaitForFence() {
+    // The fence thread takes the cache locks
+    ReleaseDrawLocks();
     fence_manager.WaitForFence();
 }
 
@@ -1207,7 +1229,21 @@ void RasterizerVulkan::SignalReference() {
 }
 
 void RasterizerVulkan::ReleaseFences(bool force) {
+    ReleaseDrawLocks();
     fence_manager.WaitPendingFences(force);
+}
+
+bool RasterizerVulkan::OthersWaitForDrawLocks() const noexcept {
+    return buffer_cache.mutex.HasWaiters() || texture_cache.mutex.HasWaiters();
+}
+
+void RasterizerVulkan::ReleaseDrawLocks() {
+    if (!std::exchange(draw_locks_kept, false)) {
+        return;
+    }
+    draws_under_locks = 0;
+    texture_cache.mutex.unlock();
+    buffer_cache.mutex.unlock();
 }
 
 void RasterizerVulkan::FlushAndInvalidateRegion(DAddr addr, u64 size,

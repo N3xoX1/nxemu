@@ -127,6 +127,10 @@ public:
 
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipeline();
 
+    void SetBeforeBlockingLookup(std::function<void()>&& callback) {
+        before_blocking_lookup = std::move(callback);
+    }
+
     /// Waits for the pipeline of the current draw when CurrentGraphicsPipeline skipped it only
     /// because its build had not finished. Returns null otherwise.
     [[nodiscard]] GraphicsPipeline* WaitForCurrentGraphicsPipeline();
@@ -238,6 +242,7 @@ private:
     bool large_texture_arrays_in_table{};
     bool urgent_graphics_build{};
     bool skipped_unfinished{};
+    std::function<void()> before_blocking_lookup = [] {};
     bool wait_for_current_draw{};
     bool use_vulkan_pipeline_cache{};
 

@@ -8,6 +8,7 @@
 #include <shared_mutex>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_common/spin_lock.h"
 
 namespace Common {
 
@@ -23,8 +24,29 @@ public:
             ++depth;
             return;
         }
-        plain_lock.lock();
+        if (!plain_lock.try_lock()) {
+            waiters.fetch_add(1, std::memory_order_relaxed);
+            plain_lock.lock();
+            waiters.fetch_sub(1, std::memory_order_relaxed);
+        }
         TakeOwnership(self);
+    }
+
+    /// Spins on the owner, so the holder's unlock doesn't have to wake this thread
+    void lock_spin() {
+        if (try_lock()) {
+            return;
+        }
+        waiters.fetch_add(1, std::memory_order_relaxed);
+        if (!TrySpinLock()) {
+            plain_lock.lock();
+        }
+        waiters.fetch_sub(1, std::memory_order_relaxed);
+        TakeOwnership(ThisThreadId());
+    }
+
+    [[nodiscard]] bool HasWaiters() const noexcept {
+        return waiters.load(std::memory_order_relaxed) != 0;
     }
 
     bool try_lock() {
@@ -44,12 +66,13 @@ public:
         if (--depth != 0) {
             return;
         }
-        owner.store(NoOwner, std::memory_order_relaxed);
+        ReleaseOwnership();
         plain_lock.unlock();
     }
 
 private:
     static constexpr u64 NoOwner = 0;
+    static constexpr u32 MaxSpins = 4096;
 
 #ifdef _MSC_VER
     // MSVC's std::shared_mutex is a bare SRW lock, with less bookkeeping than its std::mutex
@@ -73,7 +96,22 @@ private:
         depth = 1;
     }
 
+    void ReleaseOwnership() noexcept {
+        owner.store(NoOwner, std::memory_order_relaxed);
+    }
+
+    bool TrySpinLock() noexcept {
+        for (u32 spin = 0; spin < MaxSpins; ++spin) {
+            if (IsOwnedBy(NoOwner) && plain_lock.try_lock()) {
+                return true;
+            }
+            ThreadPause();
+        }
+        return false;
+    }
+
     std::atomic<u64> owner{NoOwner};
+    std::atomic<u32> waiters{0};
     u32 depth = 0;
     PlainLock plain_lock;
 };

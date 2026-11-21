@@ -49,6 +49,7 @@ struct Raster {
   void FragmentBarrier() {}
   void InvalidateGPUCache() {}
   void TiledCacheBarrier() {}
+  void ReleaseDrawLocks() {}
 };
 struct Macro {
   void ClearCode(u32) {}

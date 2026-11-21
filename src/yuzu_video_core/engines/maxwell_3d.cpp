@@ -534,7 +534,12 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
 void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argument)
 {
     // A method with side effects can change what the next draw reads without changing a value
-    ++generations[dirty.generation_kinds[method]];
+    const u8 kind = dirty.generation_kinds[method];
+    ++generations[kind];
+    if (kind != GEN_NONE)
+    {
+        rasterizer->ReleaseDrawLocks();
+    }
     switch (method)
     {
     case MAXWELL3D_REG_INDEX(wait_for_idle):
@@ -928,6 +933,7 @@ void Maxwell3D::DrainStream(bool verify)
     stream_draining = true;
     stream_run_open = false;
     RunWords(stream.data(), stream.size(), hle_calls);
+    rasterizer->ReleaseDrawLocks();
     stream.clear();
     hle_count = 0;
     stream_writes_memory = false;
@@ -973,6 +979,7 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             pos += count;
             break;
         case StreamInline:
+            rasterizer->ReleaseDrawLocks();
             ++generations[GEN_STATE];
             upload_state.ProcessData(words + pos, count);
             pos += count;
@@ -995,6 +1002,10 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             // Execute writes registers directly, before and after its draws
             const GenerationKind kind = call.program->ChangesDrawState() ? GEN_STATE : GEN_NONE;
             ++generations[kind];
+            if (kind != GEN_NONE)
+            {
+                rasterizer->ReleaseDrawLocks();
+            }
             back_hle = &call;
             call.program->Execute(call.params, call.method);
             back_hle = nullptr;

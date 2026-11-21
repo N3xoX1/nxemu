@@ -173,6 +173,9 @@ public:
     /// The guest may have written memory it ordered before this point, without reporting it
     virtual void OnGuestSynchronization() {}
 
+    /// Before work that may wait for another thread, and when the GPU thread runs out of work
+    virtual void ReleaseDrawLocks() {}
+
     /// Sync memory between guest and host.
     virtual void InvalidateGPUCache() = 0;
 

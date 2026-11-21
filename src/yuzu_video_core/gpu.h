@@ -177,6 +177,8 @@ public:
 
     void WaitForSyncOperation(u64 fence);
 
+    [[nodiscard]] bool HasTickWork() const;
+
     /// Tick pending requests within the GPU.
     void TickWork();
 

@@ -226,11 +226,16 @@ struct GPU::Impl :
         sync_request_cv.wait(lck, [this, fence] { return CurrentSyncRequestFence() >= fence; });
     }
 
+    bool HasTickWork() const
+    {
+        return last_sync_fence.load(std::memory_order_acquire) !=
+               current_sync_fence.load(std::memory_order_relaxed);
+    }
+
     /// Tick pending requests within the GPU.
     void TickWork()
     {
-        if (last_sync_fence.load(std::memory_order_acquire) ==
-            current_sync_fence.load(std::memory_order_relaxed))
+        if (!HasTickWork())
         {
             return;
         }
@@ -763,6 +768,11 @@ uint64_t GPU::CurrentSyncRequestFence() const
 void GPU::WaitForSyncOperation(uint64_t fence)
 {
     return impl->WaitForSyncOperation(fence);
+}
+
+bool GPU::HasTickWork() const
+{
+    return impl->HasTickWork();
 }
 
 void GPU::TickWork()

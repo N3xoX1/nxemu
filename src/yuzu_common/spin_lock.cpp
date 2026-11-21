@@ -17,7 +17,7 @@
 #endif
 #endif
 
-namespace {
+namespace Common {
 
 void ThreadPause() {
 #if __x86_64__
@@ -28,10 +28,6 @@ void ThreadPause() {
     asm("yield");
 #endif
 }
-
-} // Anonymous namespace
-
-namespace Common {
 
 void SpinLock::lock() {
     while (lck.test_and_set(std::memory_order_acquire)) {

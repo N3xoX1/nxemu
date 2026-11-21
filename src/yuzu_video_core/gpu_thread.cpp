@@ -114,6 +114,7 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
     gpu.RegisterHostThread();
 
     Core::Frontend::GraphicsContext::Scoped current_context = context.Acquire();
+    VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
     std::deque<BackQueue::Work> batch;
     while (!stop_token.stop_requested()) {
         {
@@ -132,6 +133,7 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
                     break;
                 }
                 work();
+                rasterizer->ReleaseDrawLocks();
             }
             batch.clear();
             gpu.ProcessPendingComposite();
@@ -231,6 +233,7 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             {
                 ASSERT(false);
             }
+            rasterizer->ReleaseDrawLocks();
             gpu.ProcessPendingComposite();
         }
         state.signaled_fence.store(next.fence);
