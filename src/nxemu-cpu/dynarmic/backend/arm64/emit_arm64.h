@@ -98,12 +98,17 @@ struct BlockRelocation {
     BlockRelocationType type;
 };
 
+struct FastmemPatchEntry {
+    std::ptrdiff_t offset;
+    FastmemPatchInfo info;
+};
+
 struct EmittedBlockInfo {
     CodePtr entry_point;
     size_t size;
     std::vector<Relocation> relocations;
     tsl::robin_map<IR::LocationDescriptor, std::vector<BlockRelocation>> block_relocations;
-    tsl::robin_map<std::ptrdiff_t, FastmemPatchInfo> fastmem_patch_info;
+    std::vector<FastmemPatchEntry> fastmem_patch_info;
 };
 
 struct EmitConfig {
