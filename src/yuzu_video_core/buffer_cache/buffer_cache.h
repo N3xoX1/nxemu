@@ -25,6 +25,14 @@ BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, R
         device_memory.UpdatePagesGpuModifiedCount(addr, size, delta);
     });
     inline_buffer_id = NULL_BUFFER_ID;
+    if constexpr (!IS_OPENGL) {
+        // Before any GPU command: engine writes made before the import go untracked
+        guest_ram_imported = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
+                                                               device_memory.PhysicalSize());
+        if (guest_ram_imported) {
+            device_memory.EnableInPlaceReads();
+        }
+    }
 
     if (!runtime.CanReportMemoryUsage()) {
         minimum_memory = DEFAULT_EXPECTED_MEMORY;
@@ -295,8 +303,9 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
 
-    Tegra::Memory::DeviceGuestMemoryScoped<u8, GuestMemoryFlags::UnsafeReadWrite> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
-    tmp.SetAddressAndSize(*cpu_dest_address, amount);
+    Tegra::Memory::DeviceGuestMemory<u8, GuestMemoryFlags::UnsafeRead> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
+    device_memory.PrepareEngineWrite(*cpu_dest_address, amount);
+    device_memory.WriteBlockUnsafe(*cpu_dest_address, tmp.data(), amount);
     return true;
 }
 
@@ -1249,6 +1258,20 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
+    const bool gpu_modified = memory_tracker.IsRegionGpuModified(device_addr, size);
+    if constexpr (!IS_OPENGL) {
+        const bool rewritten_every_draw = size <= channel_state->uniform_buffer_skip_cache_size;
+        const bool in_place = guest_ram_imported && binding.buffer_id != NULL_BUFFER_ID &&
+                              !rewritten_every_draw && !gpu_modified &&
+                              !device_memory.IsExcludedFromInPlace(device_addr, size);
+        if (in_place) {
+            if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
+                pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
+                device_memory.HoldInPlaceRead(device_addr, size, runtime.CurrentTick());
+                return;
+            }
+        }
+    }
     Buffer& buffer = slot_buffers[binding.buffer_id];
     TouchBuffer(buffer, binding.buffer_id);
     bool stream_modified_uniform{};
@@ -1262,7 +1285,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
                                  (size <= channel_state->uniform_buffer_skip_cache_size ||
                                   stream_modified_uniform) &&
-                                 !memory_tracker.IsRegionGpuModified(device_addr, size);
+                                 !gpu_modified;
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {
             if (runtime.HasFastBufferSubData()) {

@@ -227,6 +227,13 @@ public:
 
     bool OnCPUWrite(DAddr device_addr, u64 size);
 
+    template <typename Wait>
+    void WaitInPlaceReads(DAddr device_addr, u64 size, Wait&& wait) {
+        if constexpr (!IS_OPENGL) {
+            device_memory.ReleaseInPlaceReads(device_addr, size, std::forward<Wait>(wait));
+        }
+    }
+
     void DownloadMemory(DAddr device_addr, u64 size);
 
     std::optional<RasterizerDownloadArea> GetFlushArea(DAddr device_addr, u64 size);
@@ -729,6 +736,7 @@ private:
     };
     Common::LeastRecentlyUsedCache<LRUItemParams> lru_cache;
     u64 frame_tick = 0;
+    bool guest_ram_imported = false;
     /// Buffers created since the last TickFrame; ResolveOverlaps does not cut these
     std::vector<BufferId> frame_created_buffers;
     u64 total_used_memory = 0;
