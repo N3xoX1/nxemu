@@ -777,11 +777,7 @@ bool TextureCache<P>::RenderTargetsDrawnBefore() const {
 
 template <class P>
 typename P::Framebuffer* TextureCache<P>::GetFramebuffer() {
-    if (!last_framebuffer_id || !(last_framebuffer_key == render_targets)) {
-        last_framebuffer_id = GetFramebufferId(render_targets);
-        last_framebuffer_key = render_targets;
-    }
-    return &slot_framebuffers[last_framebuffer_id];
+    return &slot_framebuffers[GetFramebufferId(render_targets)];
 }
 
 template <class P>
@@ -3527,9 +3523,6 @@ void TextureCache<P>::RemoveFramebuffers(std::span<const ImageViewId> removed_vi
             ASSERT(framebuffer_id);
             sentenced_framebuffers.Push(std::move(slot_framebuffers[framebuffer_id]));
             slot_framebuffers.erase(framebuffer_id);
-            if (framebuffer_id == last_framebuffer_id) {
-                last_framebuffer_id = FramebufferId{};
-            }
             it = framebuffers.erase(it);
         } else {
             ++it;

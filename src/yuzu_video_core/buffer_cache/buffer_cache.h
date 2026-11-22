@@ -1119,11 +1119,9 @@ void BufferCache<P>::BindHostVertexBuffers() {
     auto& flags = maxwell3d->dirty.flags;
     for (u32 index = 0; index < NUM_VERTEX_BUFFERS; ++index) {
         const Binding& binding = channel_state->vertex_buffers[index];
-        if (binding.buffer_id != NULL_BUFFER_ID && binding.size != 0) {
-            Buffer& buffer = slot_buffers[binding.buffer_id];
-            TouchBuffer(buffer, binding.buffer_id);
-            SynchronizeBuffer(buffer, binding.device_addr, binding.size);
-        }
+        Buffer& buffer = slot_buffers[binding.buffer_id];
+        TouchBuffer(buffer, binding.buffer_id);
+        SynchronizeBuffer(buffer, binding.device_addr, binding.size);
         if (!flags[Dirty::VertexBuffer0 + index]) {
             continue;
         }
@@ -1980,7 +1978,6 @@ void BufferCache<P>::ChangeRegister(BufferId buffer_id) {
         device_memory.RegisterFlushCacheRegion(buffer.CpuAddr(), size, CacheType::BufferCache);
         total_used_memory += Common::AlignUp(size, 1024);
         buffer.setLRUID(lru_cache.Insert(buffer_id, frame_tick));
-        buffer.SetLRUTick(frame_tick);
     } else {
         total_used_memory -= Common::AlignUp(size, 1024);
         lru_cache.Free(buffer.getLRUID());
@@ -2000,9 +1997,7 @@ void BufferCache<P>::ChangeRegister(BufferId buffer_id) {
 
 template <class P>
 void BufferCache<P>::TouchBuffer(Buffer& buffer, BufferId buffer_id) noexcept {
-    // A buffer already touched this frame skips the LRU pool
-    if (buffer_id != NULL_BUFFER_ID && buffer.LRUTick() < frame_tick) {
-        buffer.SetLRUTick(frame_tick);
+    if (buffer_id != NULL_BUFFER_ID) {
         lru_cache.Touch(buffer.getLRUID(), frame_tick);
     }
 }

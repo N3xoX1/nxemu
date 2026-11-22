@@ -213,9 +213,6 @@ private:
     void UpdateVertexInput(Tegra::Engines::Maxwell3D::Regs& regs);
     void RefreshVertexInput(Tegra::Engines::Maxwell3D::Regs& regs);
 
-    /// Host format of each guest vertex attribute type and size, VK_FORMAT_UNDEFINED until first used
-    std::array<VkFormat, 512> vertex_format_cache{};
-
     Tegra::GPU& gpu;
     Tegra::MaxwellDeviceMemoryManager& device_memory;
 
