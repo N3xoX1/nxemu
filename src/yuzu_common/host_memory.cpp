@@ -1289,6 +1289,38 @@ std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
     // The working-set snapshot is no longer needed. Reuse its capacity for trim candidates.
     auto trim = std::move(entries);
     trim.clear();
+    const auto flush_trim = [&trim, page_size] {
+        if (trim.empty()) {
+            return;
+        }
+        std::sort(trim.begin(), trim.end());
+        trim.erase(std::unique(trim.begin(), trim.end()), trim.end());
+        for (size_t first = 0; first < trim.size();) {
+            size_t last = first + 1;
+            // At most 1 MiB per unlock, so no single call holds the working set long (Lichii
+            // 2b37c841fa, from Fritchii)
+            constexpr size_t MaxUnlockBytes = size_t{1} << 20;
+            while (last < trim.size() && trim[last] == trim[last - 1] + page_size &&
+                   (last - first) * page_size < MaxUnlockBytes) {
+                ++last;
+            }
+            const uintptr_t begin = trim[first];
+            const size_t length = trim[last - 1] + page_size - begin;
+            if (!VirtualUnlock(reinterpret_cast<void*>(begin), length) &&
+                GetLastError() != ERROR_NOT_LOCKED) {
+                // A run may span two separate mapped views. Retry per page rather
+                // than assuming that VirtualUnlock accepts it as one region.
+                for (size_t i = first; i < last; ++i) {
+                    VirtualUnlock(reinterpret_cast<void*>(trim[i]), page_size);
+                }
+            }
+            first = last;
+        }
+        trim.clear();
+    };
+    // Evict in 16 MiB batches so reading untouched backing_base pages during the view_pages
+    // scan never creates a multi-GiB temporary working-set spike.
+    constexpr size_t FlushBatchPages = 4096;
     // Cache physical page checks so pages resident in both backing_base and virtual_base
     // are read at most once per pass, avoiding redundant memory traffic and binary searches.
     constexpr u8 PageChecked = 1;
@@ -1305,10 +1337,14 @@ std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
             page_state[pfn] = PageChecked | PageZero;
             trim.push_back(page);
             zero_bytes += page_size;
+            if (trim.size() >= FlushBatchPages) {
+                flush_trim();
+            }
         } else {
             page_state[pfn] = PageChecked;
         }
     }
+    flush_trim();
     size_t covered_begin = 0;
     size_t covered_end = 0;
     size_t covered_physical = 0;
@@ -1347,31 +1383,11 @@ std::pair<size_t, size_t> HostMemory::TrimZeroPages() const {
             trim.push_back(page);
             zero_bytes += page_size;
         }
-    }
-
-    std::sort(trim.begin(), trim.end());
-    trim.erase(std::unique(trim.begin(), trim.end()), trim.end());
-    for (size_t first = 0; first < trim.size();) {
-        size_t last = first + 1;
-        // At most 1 MiB per unlock, so no single call holds the working set long (Lichii
-        // 2b37c841fa, from Fritchii)
-        constexpr size_t MaxUnlockBytes = size_t{1} << 20;
-        while (last < trim.size() && trim[last] == trim[last - 1] + page_size &&
-               (last - first) * page_size < MaxUnlockBytes) {
-            ++last;
+        if (trim.size() >= FlushBatchPages) {
+            flush_trim();
         }
-        const uintptr_t begin = trim[first];
-        const size_t length = trim[last - 1] + page_size - begin;
-        if (!VirtualUnlock(reinterpret_cast<void*>(begin), length) &&
-            GetLastError() != ERROR_NOT_LOCKED) {
-            // A run may span two separate mapped views. Retry per page rather
-            // than assuming that VirtualUnlock accepts it as one region.
-            for (size_t i = first; i < last; ++i) {
-                VirtualUnlock(reinterpret_cast<void*>(trim[i]), page_size);
-            }
-        }
-        first = last;
     }
+    flush_trim();
     return {(backing_pages.size() + view_pages.size()) * page_size, zero_bytes};
 #else
     return {0, 0};

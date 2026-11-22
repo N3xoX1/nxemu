@@ -118,8 +118,44 @@ public:
 
     bool ShouldStreamUniformBuffer(const Buffer& buffer, u32 offset, u32 size) const;
 
+    /// Prepares the guest RAM backing for on-demand device import (VK_EXT_external_memory_host),
+    /// so buffers that only the guest CPU writes can be bound in place without importing or
+    /// faulting unused guest RAM up front. Returns false when the device can't.
     bool InitHostMappedGuestMemory(const u8* base, uint64_t size);
-    bool BindHostMappedUniformBuffer(const u8* pointer, u32 size);
+
+    /// Binds `size` bytes at `pointer` (inside the guest RAM backing) as a uniform buffer.
+    /// Imports the owning 32 MiB chunk on first use; returns false when the range can't be bound
+    /// in place (e.g. crosses a chunk boundary or unaligned).
+    bool BindHostMappedUniformBuffer(const u8* pointer, u32 size) {
+        const uint64_t offset = static_cast<uint64_t>(pointer - host_mapped_base);
+        if (offset >= host_mapped_size || host_mapped_size - offset < size ||
+            (offset & (host_mapped_ubo_alignment - 1)) != 0) {
+            return false;
+        }
+        const size_t chunk_index = static_cast<size_t>(offset >> HostMappedChunkBits);
+        const uint64_t local_offset = offset & (HostMappedChunkSize - 1);
+        if (local_offset + size > HostMappedChunkSize) [[unlikely]] {
+            return false;
+        }
+        const HostMappedChunk& chunk = host_mapped_chunks[chunk_index];
+        VkBuffer buffer = chunk.buffer;
+        if (buffer == VK_NULL_HANDLE) [[unlikely]] {
+            if (chunk.failed) {
+                return false;
+            }
+            buffer = ImportHostMappedChunk(chunk_index);
+            if (buffer == VK_NULL_HANDLE) {
+                return false;
+            }
+        }
+        if (local_offset + size > host_mapped_chunks[chunk_index].size) [[unlikely]] {
+            return false;
+        }
+        BindBuffer(buffer, static_cast<u32>(local_offset), size);
+        return true;
+    }
+
+    ~BufferCacheRuntime();
 
     u32 GetStorageBufferAlignment() const;
 
@@ -306,13 +342,28 @@ private:
 
     vk::Buffer null_buffer;
 
-    static constexpr uint64_t HostMappedWindowSize = uint64_t{1} << 30;
-    /// Declared before the windows: they must be destroyed before their memory
-    std::vector<vk::DeviceMemory> host_mapped_memories;
-    std::vector<vk::Handle<VkBuffer, VkDevice, vk::DeviceDispatch>> host_mapped_windows;
+    /// Guest RAM imported on demand in disjoint 32 MiB chunks so unused guest DRAM is never
+    /// faulted into the working set by a monolithic multi-GiB VK_EXT_external_memory_host import.
+    static constexpr size_t HostMappedChunkBits = 25;
+    static constexpr uint64_t HostMappedChunkSize = uint64_t{1} << HostMappedChunkBits;
+    struct HostMappedChunk {
+        VkBuffer buffer{};
+        VkDeviceMemory memory{};
+        uint64_t size{};
+        bool failed{};
+    };
+    VkBuffer ImportHostMappedChunk(size_t chunk_index);
+
+    std::vector<HostMappedChunk> host_mapped_chunks;
+    PFN_vkGetMemoryHostPointerPropertiesEXT pfn_get_host_pointer_properties{};
+    PFN_vkGetBufferMemoryRequirements pfn_get_buffer_memory_requirements{};
     const u8* host_mapped_base{};
     uint64_t host_mapped_size{};
-    uint64_t host_mapped_ubo_alignment{};
+    uint64_t host_mapped_ubo_alignment{256};
+    uint64_t host_mapped_min_alignment{4096};
+    u32 host_mapped_type_bits{};
+    size_t host_mapped_imported_chunks{};
+    uint64_t host_mapped_imported_bytes{};
 
     std::array<u32, 32> vertex_binding_map = VertexInputMapping{}.bindings;
     bool compact_vertex_bindings{};
