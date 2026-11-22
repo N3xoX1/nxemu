@@ -24,6 +24,8 @@ namespace Core {
 // intervals, at most 1/15 s (a slower frame slows the game down, as on the console) and at least 1/240 s. A set
 // that lets a game run faster than it was made for can use +12 to step back while a video plays, for a game that
 // shows one movie frame per game frame.
+// The same pages count the command lists that signal a fence, for sets that wait for the GPU: +16 those the host GPU
+// has finished, +20 those submitted (32-bit integers that wrap; completed - submitted < 0 while some are in flight).
 class FrameStep
 {
 public:
@@ -34,14 +36,21 @@ public:
     [[nodiscard]] bool Active() const;
     // video_playing: the game has a video decoder open
     void OnPresent(Memory::Memory & memory, bool video_playing);
+    void OnGpuListSubmitted();
+    void OnGpuListCompleted();
 
 private:
     static bool Write(Memory::Memory & memory, u64 address, f32 seconds, bool video_playing);
     void Store(Memory::Memory & memory, f32 seconds);
+    void StoreGpuCount(u32 offset, u32 count);
 
     std::atomic<bool> m_active{false};
     std::mutex m_mutex;
     std::vector<u64> m_addresses;
+    // The GPU thread stores the counts, so they go to the pages' host memory rather than through Memory
+    std::vector<u8 *> m_pages;
+    std::atomic<u32> m_gpu_submitted{};
+    std::atomic<u32> m_gpu_completed{};
     bool m_has_last{};
     std::chrono::steady_clock::time_point m_last{};
     std::array<f64, 5> m_samples{};
