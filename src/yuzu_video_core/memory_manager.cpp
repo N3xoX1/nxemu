@@ -632,10 +632,20 @@ void MemoryManager::ReadBlockUnsafe(GPUVAddr gpu_src_addr, void * dest_buffer, c
     ReadBlockImpl<false>(gpu_src_addr, dest_buffer, size, VideoCommon::CacheType::None);
 }
 
-template <bool is_safe>
-void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size,
+template <bool is_safe, bool record_range>
+std::optional<DAddr> MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size,
                                    [[maybe_unused]] VideoCommon::CacheType which)
 {
+    std::optional<DAddr> single_range;
+    auto record = [&](DAddr address, std::size_t copy_amount) {
+        if constexpr (record_range)
+        {
+            if (copy_amount == size)
+            {
+                single_range = address;
+            }
+        }
+    };
     auto just_advance = [&]([[maybe_unused]] std::size_t page_index, [[maybe_unused]] std::size_t offset, std::size_t copy_amount) {
         src_buffer = static_cast<const u8 *>(src_buffer) + copy_amount;
     };
@@ -646,6 +656,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
+        record(dev_addr_base, copy_amount);
         memory.PrepareEngineWrite(dev_addr_base, copy_amount);
         // A delayed readback can complete after the guest memory was unmapped at shutdown.
         if (u8 * physical = memory.GetPointer<u8>(dev_addr_base))
@@ -661,6 +672,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
+        record(dev_addr_base, copy_amount);
         memory.PrepareEngineWrite(dev_addr_base, copy_amount);
         if (!IsBigPageContinuous(page_index)) [[unlikely]]
         {
@@ -677,6 +689,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         MemoryOperation<false>(base, copy_amount, mapped_normal, just_advance, just_advance);
     };
     MemoryOperation<true>(gpu_dest_addr, size, mapped_big, just_advance, write_short_pages);
+    return single_range;
 }
 
 void MemoryManager::WriteBlock(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size, VideoCommon::CacheType which)
@@ -696,10 +709,19 @@ void MemoryManager::WriteBlockCached(GPUVAddr gpu_dest_addr, const void * src_bu
     accumulated_other_than_const_buffers = true;
 }
 
-void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
+std::optional<DAddr> MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr,
+                                                          const void * src_buffer,
+                                                          std::size_t size)
 {
-    WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
+    const auto single_range = WriteBlockImpl<false, true>(gpu_dest_addr, src_buffer, size,
+                                                          VideoCommon::CacheType::None);
     accumulator->Add(gpu_dest_addr, size);
+    if (single_range)
+    {
+        return single_range;
+    }
+    const auto address = GpuToCpuAddress(gpu_dest_addr);
+    return address && IsContinuousRange(gpu_dest_addr, size) ? address : std::nullopt;
 }
 
 void MemoryManager::PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size)

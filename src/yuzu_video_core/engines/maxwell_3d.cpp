@@ -1516,10 +1516,9 @@ void Maxwell3D::ProcessCBMultiData(const u32 * start_base, u32 amount)
 
     const GPUVAddr address{buffer_address + regs.const_buffer.offset};
     const size_t copy_size = amount * sizeof(u32);
-    memory_manager.WriteConstBufferCached(address, start_base, copy_size);
+    const auto device_addr = memory_manager.WriteConstBufferCached(address, start_base, copy_size);
     ++generations[GEN_BUFFERS];
-    const auto device_addr = memory_manager.GpuToCpuAddress(address);
-    if (device_addr && memory_manager.IsContinuousRange(address, copy_size))
+    if (device_addr)
     {
         buffer_changes.AddWrite(*device_addr, copy_size);
     }

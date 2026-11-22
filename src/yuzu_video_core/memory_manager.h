@@ -106,7 +106,8 @@ public:
     void WriteBlockUnsafe(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
     void WriteBlockCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
     /// WriteBlockCached for constant buffer uploads, which the 3D engine keeps track of itself
-    void WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
+    std::optional<DAddr> WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void* src_buffer,
+                                               std::size_t size);
 
     void PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size);
 
@@ -186,9 +187,9 @@ private:
     void ReadBlockImpl(GPUVAddr gpu_src_addr, void* dest_buffer, std::size_t size,
                        VideoCommon::CacheType which) const;
 
-    template <bool is_safe>
-    void WriteBlockImpl(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size,
-                        VideoCommon::CacheType which);
+    template <bool is_safe, bool record_range = false>
+    std::optional<DAddr> WriteBlockImpl(GPUVAddr gpu_dest_addr, const void* src_buffer,
+                                        std::size_t size, VideoCommon::CacheType which);
 
     template <bool is_big_page>
     [[nodiscard]] std::size_t PageEntryIndex(GPUVAddr gpu_addr) const {
