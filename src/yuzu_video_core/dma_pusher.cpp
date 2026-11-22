@@ -139,8 +139,8 @@ bool DmaPusher::Step()
     // SYNC_WAIT applies to the current GP entry, including zero-length entries.
     if (header.sync)
     {
-        // The fence must come after the queued Maxwell3D work
-        DrainMaxwell3D();
+        // The queue orders the fence after the pending Maxwell3D work.
+        PublishMaxwell3D();
         switch (memory_operation_sync_state)
         {
         case MemoryOperationSyncState::Skip:
@@ -179,7 +179,7 @@ bool DmaPusher::Step()
             if (!IsThreaded())
             {
                 // The queued draws must mark their GPU writes before the dirty check
-                DrainMaxwell3D();
+                PublishMaxwell3D();
                 subchannel->current_dirty =
                     memory_manager.IsMemoryDirty(dma_state.dma_get, words * sizeof(u32));
             }
@@ -223,7 +223,7 @@ bool DmaPusher::Step()
             const size_t size = header.size * sizeof(u32);
             if (memory_manager.IsMemoryDirty(address, size))
             {
-                DrainMaxwell3D();
+                PublishMaxwell3D();
                 gpu.BackQueue().RunExclusive([&]() { memory_manager.FlushRegion(address, size); });
             }
             use_safe = false;
@@ -252,7 +252,7 @@ bool DmaPusher::Step()
         const CommandListHeader & next_header = command_list.command_lists[next_entry_index];
         if (next_header.sync)
         {
-            DrainMaxwell3D();
+            PublishMaxwell3D();
             ASSERT(memory_operation_sync_state == MemoryOperationSyncState::None);
             // The look-ahead probe can't see the work still queued for the GPU thread
             if (!IsThreaded() && CanSkipCleanMemoryOperationSync(next_header))
@@ -278,7 +278,7 @@ bool DmaPusher::Step()
 void DmaPusher::SynchronizeMemoryOperations()
 {
     ASSERT(rasterizer != nullptr);
-    DrainMaxwell3D();
+    PublishMaxwell3D();
     gpu.BackQueue().RunExclusive([this]() { rasterizer->WaitForFence(); });
 }
 
@@ -458,17 +458,11 @@ void DmaPusher::PublishMaxwell3D() const
     }
 }
 
-void DmaPusher::DrainMaxwell3D() const
-{
-    PublishMaxwell3D();
-    gpu.BackQueue().WaitIdle();
-}
-
 void DmaPusher::DrainMaxwell3DMemoryWrites() const
 {
-    // With the decode thread this would be a sync point at nearly every GP entry. Push
-    // buffers written by inline constant buffer data or I2M are not handled there.
-    if (maxwell3d_engine != nullptr && !IsThreaded())
+    // The decode thread handles GPU-written payloads and ordered fetches at their
+    // respective synchronization points. Here only the synchronous path has local writes.
+    if (!IsThreaded() && maxwell3d_engine != nullptr)
     {
         auto * const maxwell3d = static_cast<Engines::Maxwell3D *>(maxwell3d_engine);
         if (maxwell3d->HasPendingMemoryWrites())
@@ -581,7 +575,7 @@ void DmaPusher::CallMethod(u32 argument) const
         // the rasterizer
         if (!IsThreaded() || dma_state.method == static_cast<u32>(BufferMethods::BindObject))
         {
-            DrainMaxwell3D();
+            PublishMaxwell3D();
             puller.CallPullerMethod(method_call);
             return;
         }
@@ -640,7 +634,7 @@ void DmaPusher::CallMethod(u32 argument) const
                 front_sinks[dma_state.subchannel].clear();
                 return;
             }
-            DrainMaxwell3D();
+            PublishMaxwell3D();
         }
         if (!subchannel->method_sink.empty())
         {
@@ -657,7 +651,7 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
     {
         if (!IsThreaded() || dma_state.method == static_cast<u32>(BufferMethods::BindObject))
         {
-            DrainMaxwell3D();
+            PublishMaxwell3D();
             puller.CallMultiMethod(dma_state.method, dma_state.subchannel, base_start, num_methods, dma_state.method_count);
             return;
         }
@@ -706,7 +700,7 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
                 front_sinks[dma_state.subchannel].clear();
                 return;
             }
-            DrainMaxwell3D();
+            PublishMaxwell3D();
         }
         if (!subchannel->method_sink.empty())
         {

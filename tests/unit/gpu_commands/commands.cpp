@@ -203,7 +203,7 @@ struct Dma {
   mutable std::array<std::vector<std::pair<u32, u32>>, 8> front_sinks;
   mutable std::vector<Engines::Puller::MethodCall> pending_puller;
   bool IsThreaded() const { return false; }
-  void DrainMaxwell3D() const {}
+  void PublishMaxwell3D() const {}
   void PostBack(std::function<void()> &&work) const { work(); }
   std::vector<std::pair<u32, u32>> &SinkFor(u32) const;
   void ProcessCommands(std::span<const CommandHeader>);

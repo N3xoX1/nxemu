@@ -131,7 +131,10 @@ protected:
 
     const void* terminal_handler_pop_rsb_hint;
     const void* terminal_handler_fast_dispatch_hint = nullptr;
+    const void* terminal_handler_rsb_miss = nullptr;
+    const void* terminal_handler_fast_dispatch_miss = nullptr;
     FastDispatchEntry& (*fast_dispatch_table_lookup)(u64, FastDispatchEntry*) = nullptr;
+    void EmitInlineLocationDescriptor();
     void GenTerminalHandlers();
     void GenWriteMarkThunks();
 

@@ -1198,8 +1198,11 @@ bool GraphicsPipeline::ConfigureReused(bool is_indexed) {
         return false;
     }
     texture_cache.CheckFeedbackLoop(descriptor_views);
-    // A feedback loop barrier or an 8-bit index conversion ends the render pass
-    RequestRenderPass();
+    // The previous bindings still target the same pass. Reopen it if a feedback
+    // barrier or index conversion ended it.
+    if (!scheduler.IsInsideRenderPass()) {
+        RequestRenderPass();
+    }
     return true;
 }
 

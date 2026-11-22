@@ -88,7 +88,7 @@ struct Dma {
  mutable std::vector<Engines::Puller::MethodCall> pending_puller;
  mutable std::array<std::vector<std::pair<u32,u32>>,8> front_sinks;
  bool IsThreaded() const { return false; }
- void DrainMaxwell3D() const {}
+ void PublishMaxwell3D() const {}
  bool IsPullerRegisterOnly(u32) const { return false; }
  bool IsPullerWait(u32,u32) const { return false; }
  bool PullerWaitMet(u32,u32) const { return false; }
