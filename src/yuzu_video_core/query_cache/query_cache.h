@@ -248,14 +248,15 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         return;
     }
     DAddr cpu_addr = *cpu_addr_opt;
+    const u64 report_size = has_timestamp ? 16 : 4;
+    impl->device_memory.PrepareEngineWrite(cpu_addr, report_size);
     // Fast readback publishes payloads at submission, like ordinary fences, unless a readback
     // the CPU could read before its publication keeps them behind it. Commit before this
     // report exists: the fence also prepares the pending queries.
     const bool fast_payload = !Settings::IsGpuReadbackExact() && counter_type == QueryType::Payload;
     const bool behind_readback = fast_payload && !impl->rasterizer.CommitReadbacksForEarlySignal();
-    impl->device_memory.InvalidateNativeReadRegion(cpu_addr, has_timestamp ? 16 : 4);
-    impl->device_memory.RegisterFlushCacheRegion(cpu_addr, has_timestamp ? 16 : 4,
-                                                CacheType::QueryCache);
+    impl->device_memory.InvalidateNativeReadRegion(cpu_addr, report_size);
+    impl->device_memory.RegisterFlushCacheRegion(cpu_addr, report_size, CacheType::QueryCache);
     const size_t new_query_id = streamer->WriteCounter(cpu_addr, has_timestamp, payload, subreport);
     auto* query = streamer->GetQuery(new_query_id);
     if (is_fence) {

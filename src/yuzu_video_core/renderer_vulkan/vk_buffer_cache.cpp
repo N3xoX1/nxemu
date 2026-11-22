@@ -523,21 +523,6 @@ void BufferCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) {
     staging_pool.FreeDeferred(ref);
 }
 
-BufferCacheRuntime::~BufferCacheRuntime() {
-    const auto& dld = device.GetDispatchLoader();
-    const VkDevice handle = *device.GetLogical();
-    for (const VkBuffer window : host_mapped_windows) {
-        dld.vkDestroyBuffer(handle, window, nullptr);
-    }
-    if (host_mapped_memory) {
-        dld.vkFreeMemory(handle, host_mapped_memory, nullptr);
-    }
-}
-
-void BufferCacheRuntime::MarkInPlaceBind() noexcept {
-    in_place_tick = scheduler.CurrentTick();
-}
-
 bool BufferCacheRuntime::AllocatePrefetch(u32 size, u32& offset, u8*& pointer) {
     if (prefetch_span.empty() || size == 0 || size > PrefetchRingSize / 8) {
         return false;
@@ -578,114 +563,134 @@ void BufferCacheRuntime::ReleasePrefetch(u64 position) {
     prefetch_releases.emplace_back(position, tick);
 }
 
-bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, size_t size) {
-    if (host_mapped_size != 0) {
-        return true;
-    }
-    // Importing the guest RAM backing can make Metal command buffers fail with
-    // out-of-memory errors even when the Vulkan memory import succeeds.
+bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, uint64_t size) {
+    // MoltenVK can accept the import and then fail Metal command buffers with out-of-memory errors
     if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK ||
         !device.IsExtExternalMemoryHostSupported() || base == nullptr || size == 0) {
         return false;
     }
-    const auto& dld = device.GetDispatchLoader();
-    const VkDevice handle = *device.GetLogical();
-    const auto get_properties = reinterpret_cast<PFN_vkGetMemoryHostPointerPropertiesEXT>(
-        dld.vkGetDeviceProcAddr(handle, "vkGetMemoryHostPointerPropertiesEXT"));
-    const auto get_requirements = reinterpret_cast<PFN_vkGetBufferMemoryRequirements>(
-        dld.vkGetDeviceProcAddr(handle, "vkGetBufferMemoryRequirements"));
-    if (!get_properties || !get_requirements) {
-        return false;
-    }
-    VkMemoryHostPointerPropertiesEXT pointer_properties{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT,
+    const vk::Device& logical = device.GetLogical();
+    const vk::DeviceDispatch& dld = device.GetDispatchLoader();
+    const auto get_host_pointer_properties =
+        reinterpret_cast<PFN_vkGetMemoryHostPointerPropertiesEXT>(
+            dld.vkGetDeviceProcAddr(*logical, "vkGetMemoryHostPointerPropertiesEXT"));
+    VkPhysicalDeviceExternalMemoryHostPropertiesEXT host_properties{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT,
+        .pNext = nullptr,
+        .minImportedHostPointerAlignment = 0,
     };
-    void* const pointer = const_cast<u8*>(base);
-    if (get_properties(handle, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, pointer,
-                       &pointer_properties) != VK_SUCCESS ||
-        pointer_properties.memoryTypeBits == 0) {
-        LOG_WARNING(Render_Vulkan, "Guest RAM can't be imported as device memory");
+    VkPhysicalDeviceProperties2 properties{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &host_properties,
+        .properties = {},
+    };
+    device.GetPhysical().GetProperties2(properties);
+    const uint64_t alignment = host_properties.minImportedHostPointerAlignment;
+    if (alignment == 0 || reinterpret_cast<uintptr_t>(base) % alignment != 0 ||
+        size % alignment != 0 || HostMappedWindowSize % alignment != 0) {
+        LOG_WARNING(Render_Vulkan, "Guest RAM isn't aligned for import");
         return false;
     }
-    const VkBufferUsageFlags usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                     VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-                                     VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-                                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    if (get_host_pointer_properties == nullptr) {
+        return false;
+    }
+    // The CPU keeps using guest RAM, and writes it without flushing for the GPU
+    constexpr VkMemoryPropertyFlags host_flags =
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    const VkPhysicalDeviceMemoryProperties memory_properties =
+        device.GetPhysical().GetMemoryProperties().memoryProperties;
+    u32 host_type_bits = 0;
+    for (u32 type = 0; type < memory_properties.memoryTypeCount; ++type) {
+        if ((memory_properties.memoryTypes[type].propertyFlags & host_flags) == host_flags) {
+            host_type_bits |= 1U << type;
+        }
+    }
     const VkExternalMemoryBufferCreateInfo external_info{
         .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
         .pNext = nullptr,
         .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
     };
-    std::vector<VkBuffer> windows;
-    const auto destroy_windows = [&] {
-        for (const VkBuffer window : windows) {
-            dld.vkDestroyBuffer(handle, window, nullptr);
+    // One import per window: NVIDIA refuses a single allocation of all the guest RAM
+    std::vector<vk::DeviceMemory> memories;
+    std::vector<vk::Handle<VkBuffer, VkDevice, vk::DeviceDispatch>> windows;
+    for (uint64_t start = 0; start < size; start += HostMappedWindowSize) {
+        const uint64_t window_size = std::min(size - start, HostMappedWindowSize);
+        void* const pointer = const_cast<u8*>(base) + start;
+        VkMemoryHostPointerPropertiesEXT pointer_properties{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT,
+            .pNext = nullptr,
+            .memoryTypeBits = 0,
+        };
+        if (get_host_pointer_properties(*logical,
+                                        VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+                                        pointer, &pointer_properties) != VK_SUCCESS) {
+            LOG_WARNING(Render_Vulkan, "Guest RAM can't be imported as device memory");
+            return false;
         }
-    };
-    u32 type_bits = pointer_properties.memoryTypeBits;
-    for (size_t start = 0; start < size; start += size_t{1} << HostMappedWindowBits) {
-        const size_t window_size =
-            std::min(size - start, (size_t{1} << HostMappedWindowBits) + HostMappedWindowTail);
-        const VkBufferCreateInfo buffer_info{
+        const VkBufferCreateInfo window_ci{
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             .pNext = &external_info,
             .flags = 0,
             .size = window_size,
-            .usage = usage,
+            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
             .queueFamilyIndexCount = 0,
             .pQueueFamilyIndices = nullptr,
         };
         VkBuffer window{};
-        if (dld.vkCreateBuffer(handle, &buffer_info, nullptr, &window) != VK_SUCCESS) {
-            destroy_windows();
+        if (dld.vkCreateBuffer(*logical, &window_ci, nullptr, &window) != VK_SUCCESS) {
             return false;
         }
-        windows.push_back(window);
-        VkMemoryRequirements requirements{};
-        get_requirements(handle, window, &requirements);
-        type_bits &= requirements.memoryTypeBits;
-    }
-    if (type_bits == 0) {
-        destroy_windows();
-        LOG_WARNING(Render_Vulkan, "No memory type fits guest RAM buffers");
-        return false;
-    }
-    const VkImportMemoryHostPointerInfoEXT import_info{
-        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT,
-        .pNext = nullptr,
-        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
-        .pHostPointer = pointer,
-    };
-    const VkMemoryAllocateInfo allocate_info{
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .pNext = &import_info,
-        .allocationSize = size,
-        .memoryTypeIndex = static_cast<u32>(std::countr_zero(type_bits)),
-    };
-    VkDeviceMemory memory{};
-    if (dld.vkAllocateMemory(handle, &allocate_info, nullptr, &memory) != VK_SUCCESS) {
-        destroy_windows();
-        LOG_WARNING(Render_Vulkan, "Importing {} MiB of guest RAM failed", size >> 20);
-        return false;
-    }
-    for (size_t i = 0; i < windows.size(); ++i) {
-        if (dld.vkBindBufferMemory(handle, windows[i], memory, i << HostMappedWindowBits) !=
-            VK_SUCCESS) {
-            destroy_windows();
-            dld.vkFreeMemory(handle, memory, nullptr);
+        windows.emplace_back(window, *logical, dld);
+        const u32 memory_type_bits = pointer_properties.memoryTypeBits & host_type_bits &
+                                     logical.GetBufferMemoryRequirements(window).memoryTypeBits;
+        if (memory_type_bits == 0) {
+            LOG_WARNING(Render_Vulkan, "No host coherent memory type can import guest RAM");
             return false;
         }
+        const VkImportMemoryHostPointerInfoEXT import_info{
+            .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT,
+            .pNext = nullptr,
+            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+            .pHostPointer = pointer,
+        };
+        vk::DeviceMemory memory = logical.TryAllocateMemory(VkMemoryAllocateInfo{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .pNext = &import_info,
+            .allocationSize = window_size,
+            .memoryTypeIndex = static_cast<u32>(std::countr_zero(memory_type_bits)),
+        });
+        if (!memory) {
+            LOG_WARNING(Render_Vulkan, "Importing {} MiB of guest RAM at {} MiB failed",
+                        window_size >> 20, start >> 20);
+            return false;
+        }
+        if (dld.vkBindBufferMemory(*logical, window, *memory, 0) != VK_SUCCESS) {
+            return false;
+        }
+        memories.push_back(std::move(memory));
     }
-    host_mapped_memory = memory;
+    host_mapped_memories = std::move(memories);
     host_mapped_windows = std::move(windows);
     host_mapped_base = base;
     host_mapped_size = size;
-    host_mapped_ubo_alignment =
-        std::max<size_t>(16, static_cast<size_t>(device.GetUniformBufferAlignment()));
-    LOG_INFO(Render_Vulkan, "Guest RAM imported as device memory: {} MiB, {} windows",
-             size >> 20, host_mapped_windows.size());
+    host_mapped_ubo_alignment = std::max<uint64_t>(16, device.GetUniformBufferAlignment());
+    LOG_INFO(Render_Vulkan, "Guest RAM imported as device memory: {} MiB", size >> 20);
+    return true;
+}
+
+bool BufferCacheRuntime::BindHostMappedUniformBuffer(const u8* pointer, u32 size) {
+    const uint64_t offset = static_cast<uint64_t>(pointer - host_mapped_base);
+    if (offset >= host_mapped_size || host_mapped_size - offset < size ||
+        offset % host_mapped_ubo_alignment != 0) {
+        return false;
+    }
+    const uint64_t window = offset / HostMappedWindowSize;
+    const uint64_t window_offset = offset % HostMappedWindowSize;
+    if (HostMappedWindowSize - window_offset < size) {
+        return false;
+    }
+    BindBuffer(*host_mapped_windows[window], static_cast<u32>(window_offset), size);
     return true;
 }
 

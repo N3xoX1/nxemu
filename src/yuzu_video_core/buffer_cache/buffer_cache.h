@@ -25,6 +25,14 @@ BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, R
         device_memory.UpdatePagesGpuModifiedCount(addr, size, delta);
     });
     inline_buffer_id = NULL_BUFFER_ID;
+    if constexpr (!IS_OPENGL) {
+        // Before any GPU command: engine writes made before the import go untracked
+        guest_ram_imported = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
+                                                               device_memory.PhysicalSize());
+        if (guest_ram_imported) {
+            device_memory.EnableInPlaceReads();
+        }
+    }
 
     if (!runtime.CanReportMemoryUsage()) {
         minimum_memory = DEFAULT_EXPECTED_MEMORY;
@@ -297,8 +305,9 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
 
-    Tegra::Memory::DeviceGuestMemoryScoped<u8, GuestMemoryFlags::UnsafeReadWrite> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
-    tmp.SetAddressAndSize(*cpu_dest_address, amount);
+    Tegra::Memory::DeviceGuestMemory<u8, GuestMemoryFlags::UnsafeRead> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
+    device_memory.PrepareEngineWrite(*cpu_dest_address, amount);
+    device_memory.WriteBlockUnsafe(*cpu_dest_address, tmp.data(), amount);
     return true;
 }
 
@@ -408,7 +417,7 @@ bool BufferCache<P>::PrefetchUniform(size_t stage, u32 index, DAddr device_addr,
         // change in the GPU timeline, after this point of the stream.
         if (device_memory.HasEngineWrite(device_addr, size) ||
             (size > channel_state->uniform_buffer_skip_cache_size &&
-             !device_memory.HasTimelineWrite(device_addr, size))) {
+             !device_memory.IsExcludedFromInPlace(device_addr, size))) {
             return false;
         }
         u8* pointer{};
@@ -1317,27 +1326,18 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
-    // Every GPU modified mark is recorded in the history first, which is cheaper to test
     const bool gpu_modified = gpu_write_history.MayHaveWrites(device_addr, size) &&
                               memory_tracker.IsRegionGpuModified(device_addr, size);
     if constexpr (!IS_OPENGL) {
-        // The guest RAM is device memory: a range that no GPU engine wrote (inline data,
-        // I2M, DMA, shader writes) is read by the GPU in place, as on the console.
-        if (!host_mapped_tried) [[unlikely]] {
-            host_mapped_tried = true;
-            host_mapped_ready = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
-                                                                  device_memory.PhysicalSize());
-        }
-        // Small buffers are rewritten almost every draw: protecting them now actually faults
-        // (see HoldInPlaceRead), so only the rarer-written, larger ones are worth the zero-copy.
-        if (host_mapped_ready && binding.buffer_id != NULL_BUFFER_ID &&
-            size > channel_state->uniform_buffer_skip_cache_size) {
-            if (!gpu_modified && !device_memory.HasTimelineWrite(device_addr, size)) {
-                if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
-                    pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
-                    device_memory.HoldInPlaceRead(device_addr, size, runtime.InPlaceTick());
-                    return;
-                }
+        const bool rewritten_every_draw = size <= channel_state->uniform_buffer_skip_cache_size;
+        const bool in_place = guest_ram_imported && binding.buffer_id != NULL_BUFFER_ID &&
+                              !rewritten_every_draw && !gpu_modified &&
+                              !device_memory.IsExcludedFromInPlace(device_addr, size);
+        if (in_place) {
+            if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
+                pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
+                device_memory.HoldInPlaceRead(device_addr, size, runtime.CurrentTick());
+                return;
             }
         }
     }

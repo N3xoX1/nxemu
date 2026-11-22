@@ -5,6 +5,8 @@
 
 #include <array>
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 #include <boost/container/static_vector.hpp>
 
@@ -141,11 +143,10 @@ public:
     void OnCacheInvalidation(DAddr addr, u64 size) override;
     void OnCoarseCacheInvalidation(DAddr addr, u64 size) override;
     bool OnCPUWrite(DAddr addr, u64 size) override;
-    void OnGuestSynchronization() override;
     void WaitInPlaceReads(DAddr addr, u64 size) override;
-    void WaitInPlaceReadsForEngineWrite(DAddr addr, u64 size) override;
     void ServiceInPlaceWaits() override;
     void StopInPlaceWaits() override;
+    void OnGuestSynchronization() override;
     void InvalidateGPUCache() override;
     void UnmapMemory(DAddr addr, u64 size) override;
     void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size, bool preserve_contents = false) override;
@@ -301,6 +302,7 @@ private:
     std::atomic<u64> memory_epoch{};
 
     void WaitInPlaceTick(u64 tick);
+    /// Has the GPU thread submit `tick`, false when it stopped
     bool RequestInPlaceSubmit(u64 tick);
 
     std::mutex in_place_wait_mutex;

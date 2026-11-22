@@ -523,6 +523,16 @@ target_link_libraries(test_gpu_modified_protection PRIVATE nxemu_test_support
     fmt bc_decoder stb_dxt)
 nxemu_unit_test(test_gpu_modified_protection)
 
+add_executable(test_in_place_reads gpu_modified_ranges/in_place.cpp)
+target_include_directories(test_in_place_reads PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_in_place_reads video_core yuzu_common common)
+target_link_libraries(test_in_place_reads PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_in_place_reads)
+
 # Each test suite owns its build and CTest registration.
 file(GLOB unit_suites RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*/CMakeLists.txt")

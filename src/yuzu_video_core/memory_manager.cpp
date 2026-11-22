@@ -649,9 +649,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
-        // Queued draws may read these pages in place on the host GPU
-        rasterizer->WaitInPlaceReadsForEngineWrite(dev_addr_base, copy_amount);
-        memory.MarkTimelineWrite(dev_addr_base, copy_amount);
+        memory.PrepareEngineWrite(dev_addr_base, copy_amount);
         // A delayed readback can complete after the guest memory was unmapped at shutdown.
         if (u8 * physical = memory.GetPointer<u8>(dev_addr_base))
         {
@@ -666,9 +664,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
         }
-        // Queued draws may read these pages in place on the host GPU
-        rasterizer->WaitInPlaceReadsForEngineWrite(dev_addr_base, copy_amount);
-        memory.MarkTimelineWrite(dev_addr_base, copy_amount);
+        memory.PrepareEngineWrite(dev_addr_base, copy_amount);
         if (!IsBigPageContinuous(page_index)) [[unlikely]]
         {
             memory.WriteBlockUnsafe(dev_addr_base, src_buffer, copy_amount);
@@ -707,6 +703,29 @@ void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * 
 {
     WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
     accumulator->Add(gpu_dest_addr, size);
+}
+
+void MemoryManager::PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size)
+{
+    if (!memory.InPlaceReadsEnabled())
+    {
+        return;
+    }
+    auto do_nothing = [&]([[maybe_unused]] std::size_t page_index,
+                          [[maybe_unused]] std::size_t offset,
+                          [[maybe_unused]] std::size_t copy_amount) {};
+
+    auto mapped_normal = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
+        memory.PrepareEngineWrite((static_cast<DAddr>(page_table[page_index]) << cpu_page_bits) + offset, copy_amount);
+    };
+    auto mapped_big = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
+        memory.PrepareEngineWrite((static_cast<DAddr>(big_page_table_dev[page_index]) << cpu_page_bits) + offset, copy_amount);
+    };
+    auto prepare_short_pages = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
+        GPUVAddr base = (page_index << big_page_bits) + offset;
+        MemoryOperation<false>(base, copy_amount, mapped_normal, do_nothing, do_nothing);
+    };
+    MemoryOperation<true>(gpu_addr, size, mapped_big, do_nothing, prepare_short_pages);
 }
 
 void MemoryManager::FlushRegion(GPUVAddr gpu_addr, size_t size, VideoCommon::CacheType which) const
@@ -846,10 +865,9 @@ void MemoryManager::InvalidateRegion(GPUVAddr gpu_addr, size_t size, VideoCommon
 void MemoryManager::CopyBlock(GPUVAddr gpu_dest_addr, GPUVAddr gpu_src_addr, std::size_t size,
                               VideoCommon::CacheType which)
 {
-    Tegra::Memory::GpuGuestMemoryScoped<u8, GuestMemoryFlags::SafeReadWrite> data(
-        *this, gpu_src_addr, size);
-    data.SetAddressAndSize(gpu_dest_addr, size);
+    Tegra::Memory::GpuGuestMemory<u8, GuestMemoryFlags::SafeRead> data(*this, gpu_src_addr, size);
     FlushRegion(gpu_dest_addr, size, which);
+    WriteBlock(gpu_dest_addr, data.data(), size);
 }
 
 bool MemoryManager::IsGranularRange(GPUVAddr gpu_addr, std::size_t size) const

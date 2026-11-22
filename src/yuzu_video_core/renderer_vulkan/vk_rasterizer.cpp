@@ -1160,11 +1160,18 @@ void RasterizerVulkan::InvalidateInner(std::span<const std::pair<DAddr, std::siz
 }
 
 void RasterizerVulkan::WaitInPlaceReads(DAddr addr, u64 size) {
-    buffer_cache.WaitInPlaceReads(addr, size, [this](u64 tick) { WaitInPlaceTick(tick); });
-}
-
-void RasterizerVulkan::WaitInPlaceReadsForEngineWrite(DAddr addr, u64 size) {
-    WaitInPlaceReads(addr, size);
+    // Kept descriptors read a buffer in place again without binding it, in later ticks than its
+    // hold: wait for all the work recorded so far, once for the range
+    bool waited = false;
+    u64 waited_tick{};
+    buffer_cache.WaitInPlaceReads(addr, size, [&](u64 hold_tick) {
+        if (waited && hold_tick <= waited_tick) {
+            return;
+        }
+        waited = true;
+        waited_tick = scheduler.CurrentTick();
+        WaitInPlaceTick(waited_tick);
+    });
 }
 
 void RasterizerVulkan::WaitInPlaceTick(u64 tick) {
@@ -1172,13 +1179,12 @@ void RasterizerVulkan::WaitInPlaceTick(u64 tick) {
         return;
     }
     if (tick >= scheduler.CurrentTick()) {
-        // The work is still recorded: only the thread that records may submit it
+        // Still recorded: only the thread that records may submit it
         switch (VideoCore::gpu_thread_role) {
         case VideoCore::GpuThreadRole::Draw:
             scheduler.Flush();
             break;
         case VideoCore::GpuThreadRole::Decode: {
-            // Excludes the GPU thread once it ran the queued work
             const Tegra::ExecutionLock lock = gpu.LockExecution();
             if (tick >= scheduler.CurrentTick()) {
                 scheduler.Flush();
@@ -1192,7 +1198,6 @@ void RasterizerVulkan::WaitInPlaceTick(u64 tick) {
             break;
         }
     }
-    // Submitted: the GPU signals it, or the device is lost and the wait returns
     scheduler.GetMasterSemaphore().Wait(tick);
 }
 
@@ -1211,7 +1216,7 @@ bool RasterizerVulkan::RequestInPlaceSubmit(u64 tick) {
 }
 
 void RasterizerVulkan::ServiceInPlaceWaits() {
-    // Only the thread that records submits: a puller method can run on the decode thread
+    // A puller method can run on the decode thread, which doesn't record
     if (VideoCore::gpu_thread_role != VideoCore::GpuThreadRole::Draw) {
         return;
     }
@@ -1228,7 +1233,7 @@ void RasterizerVulkan::ServiceInPlaceWaits() {
         scheduler.Flush();
     }
     {
-        // The waiters check the tick under the lock: none misses the notification
+        // The waiters test the tick under the lock, so none misses the notification
         std::scoped_lock lock{in_place_wait_mutex};
     }
     in_place_wait_cv.notify_all();

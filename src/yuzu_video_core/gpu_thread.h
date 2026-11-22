@@ -124,10 +124,7 @@ public:
         WaitIdle();
     }
 
-    // Used by ThreadManager and the GPU thread
-
-    /// GPU thread: waits for work and takes all queued items, false
-    /// when woken without work
+    /// GPU thread: takes all queued work, false when woken without any
     bool PopWait(std::deque<Work>& out, std::stop_token stop_token, const std::atomic<bool>& wake,
                  const std::atomic<bool>& service);
     void FinishMany(u64 count);
@@ -168,7 +165,6 @@ struct SynchState final {
     bool stopping{};
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
-    /// Another thread waits for recorded GPU work, see RasterizerInterface::ServiceInPlaceWaits
     std::atomic<bool> service_ready{};
 
     void NotifyComposite() {
@@ -219,7 +215,6 @@ public:
 
     void TickGPU();
 
-    /// Wakes the GPU thread to run RasterizerInterface::ServiceInPlaceWaits
     void WakeForService() {
         state->NotifyService();
     }

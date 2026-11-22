@@ -229,8 +229,6 @@ public:
 
     bool OnCPUWrite(DAddr device_addr, u64 size);
 
-    /// Called on the guest CPU thread before it writes the range, without the cache lock:
-    /// waits for queued GPU work that reads it in place.
     template <typename Wait>
     void WaitInPlaceReads(DAddr device_addr, u64 size, Wait&& wait) {
         if constexpr (!IS_OPENGL) {
@@ -768,9 +766,7 @@ private:
     };
     Common::LeastRecentlyUsedCache<LRUItemParams> lru_cache;
     u64 frame_tick = 0;
-    /// Guest RAM imported as device memory (Vulkan): uniform buffers that only the CPU wrote bind in place
-    bool host_mapped_tried = false;
-    bool host_mapped_ready = false;
+    bool guest_ram_imported = false;
     /// Buffers created since the last TickFrame; ResolveOverlaps does not cut these
     std::vector<BufferId> frame_created_buffers;
     u64 total_used_memory = 0;

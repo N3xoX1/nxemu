@@ -145,7 +145,7 @@ void Puller::ProcessSemaphoreAcquire() {
         regs.acquire_active = true;
         regs.acquire_value = value;
         rasterizer->ReleaseFences();
-        // The guest thread that releases the semaphore may wait for recorded work first
+        // The guest thread that releases the semaphore may be waiting for recorded work
         rasterizer->ServiceInPlaceWaits();
         word = memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress());
         // TODO(kemathe73) figure out how to do the acquire_timeout

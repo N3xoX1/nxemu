@@ -57,8 +57,7 @@ bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
     };
     if (items.empty() && !stopping && !woken()) {
         back_waiting = true;
-        cv.wait(lock, stop_token,
-                [this, &woken] { return !items.empty() || stopping || woken(); });
+        cv.wait(lock, stop_token, [this, &woken] { return !items.empty() || stopping || woken(); });
         back_waiting = false;
     }
     if (items.empty()) {
@@ -108,7 +107,6 @@ static void SignalFence(SynchState& state, u64 fence, bool block) {
     }
 }
 
-/// GPU thread: submits the recorded work another thread waits for
 static void ServiceWaits(SynchState& state, VideoCore::RasterizerInterface* rasterizer) {
     // Cleared first: a request made after this wakes the thread again
     state.service_ready.store(false, std::memory_order_relaxed);
@@ -124,7 +122,7 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
     gpu.RegisterHostThread();
     VideoCore::gpu_thread_role = VideoCore::GpuThreadRole::Draw;
 
-    auto current_context = context.Acquire();
+    Core::Frontend::GraphicsContext::Scoped current_context = context.Acquire();
     VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
     std::deque<BackQueue::Work> batch;
     while (!stop_token.stop_requested()) {
@@ -301,6 +299,10 @@ Tegra::ExecutionLock ThreadManager::LockExecution()
 
 void ThreadManager::StopThread()
 {
+    if (rasterizer != nullptr)
+    {
+        rasterizer->StopInPlaceWaits();
+    }
     // Wake any producer blocked on a full command queue before acquiring write_lock
     // or stopping the consumer thread.
     state->queue.Close();
@@ -309,11 +311,6 @@ void ThreadManager::StopThread()
         state->stopping = true;
     }
     state->cv.notify_all();
-    if (rasterizer != nullptr)
-    {
-        // Nothing submits recorded work from now on
-        rasterizer->StopInPlaceWaits();
-    }
     if (decode_thread.joinable())
     {
         // Keep the consumer alive until the decoder has finished its queued work.

@@ -293,10 +293,8 @@ public:
     /// sensible, false otherwise
     bool OnCPUWrite(DAddr addr, u64 size);
 
-    /// Waits for queued GPU work that reads this area in place, before the CPU writes it
     void WaitInPlaceReads(DAddr addr, u64 size);
 
-    /// Wakes the GPU thread to run RasterizerInterface::ServiceInPlaceWaits
     void WakeGpuThread();
 
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated

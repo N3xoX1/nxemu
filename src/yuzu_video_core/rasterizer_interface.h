@@ -29,7 +29,7 @@ struct ChannelState;
 
 namespace VideoCore {
 
-/// The GPU thread that records host GPU work, and the decode thread when the GPU work is split
+/// Draw records the host GPU work. Decode runs DmaPusher ahead of it when the GPU work is split.
 enum class GpuThreadRole : u8 { None, Draw, Decode };
 inline thread_local GpuThreadRole gpu_thread_role{};
 
@@ -214,19 +214,9 @@ public:
 
     /// The guest may have written memory it ordered before this point, without reporting it
     virtual void OnGuestSynchronization() {}
-    /// Called before every guest CPU write to cached memory: waits for queued GPU work that
-    /// reads it in place.
-    virtual void WaitInPlaceReads(PAddr addr, u64 size) {}
-
-    /// Called before a GPU engine writes guest memory (inline data, I2M, DMA): earlier
-    /// queued draws may still read it in place on the host GPU.
-    virtual void WaitInPlaceReadsForEngineWrite(PAddr addr, u64 size) {}
-
-    /// GPU thread: submits the recorded work other threads wait for (see WaitInPlaceReads).
-    /// Called between work items and while the GPU thread waits on guest memory.
+    virtual void WaitInPlaceReads(DAddr addr, u64 size) {}
+    /// GPU thread only
     virtual void ServiceInPlaceWaits() {}
-
-    /// Releases the threads waiting in WaitInPlaceReads: the GPU thread stops.
     virtual void StopInPlaceWaits() {}
 
     /// Sync memory between guest and host.
