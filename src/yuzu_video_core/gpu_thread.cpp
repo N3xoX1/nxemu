@@ -251,7 +251,14 @@ ThreadManager::~ThreadManager() = default;
 void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Frontend::GraphicsContext & context, Tegra::Control::Scheduler & scheduler)
 {
     rasterizer = renderer.ReadRasterizer();
-    if (is_async)
+#if defined(__linux__) && !defined(__ANDROID__)
+    // Keep asynchronous submission and execute DMA decoding and draw work on one worker.
+    // This preserves guest memory ordering without waiting on the draw queue at each GP entry.
+    const bool split_gpu_thread = false;
+#else
+    const bool split_gpu_thread = is_async;
+#endif
+    if (split_gpu_thread)
     {
         state->back.threaded = true;
         thread = std::jthread(RunDrawThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(*state));
