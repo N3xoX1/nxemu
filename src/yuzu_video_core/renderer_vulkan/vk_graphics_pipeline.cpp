@@ -390,12 +390,12 @@ u32 HandleConstBufferMask(const Shader::Info& info) {
     return mask;
 }
 
-bool WritesStorageBuffers(const Shader::Info& info) {
+bool WritesStorageBuffers(const CompactStageInfo& info) {
     return std::ranges::any_of(info.storage_buffers_descriptors,
                                [](const auto& desc) { return desc.is_written; });
 }
 
-bool BindsOnlyUniformBuffers(const Shader::Info& info) {
+bool BindsOnlyUniformBuffers(const CompactStageInfo& info) {
     return info.storage_buffers_descriptors.empty() && info.texture_buffer_descriptors.empty() &&
            info.image_buffer_descriptors.empty();
 }
@@ -435,10 +435,11 @@ std::pair<VkBuffer, VkDeviceSize> VtgScratchAllocator::Allocate(VkDeviceSize siz
 
 struct GraphicsPipeline::VtgState {
     struct Stage {
-        /// Shader information including the storage buffers added to the stage
-        Shader::Info info;
-        /// Shader information of the resources bound by the guest
-        Shader::Info guest_info;
+        /// Compile-time shader information including the storage buffers added to the stage;
+        /// released once the compute pipeline has been built.
+        std::unique_ptr<Shader::Info> build_info;
+        /// Compact shader information of the resources bound by the guest
+        CompactStageInfo guest_info;
         size_t num_descriptor_entries{};
         vk::ShaderModule module;
         vk::DescriptorSetLayout descriptor_set_layout;
@@ -596,12 +597,20 @@ GraphicsPipeline::GraphicsPipeline(
     if (shader_notify) {
         shader_notify->MarkShaderBuilding();
     }
+    build_stage_infos = std::make_unique<std::array<Shader::Info, NUM_STAGES>>();
+    size_t num_enabled_stages{};
+    for (const Shader::Info* const info : infos) {
+        num_enabled_stages += info != nullptr ? 1U : 0U;
+    }
+    stage_infos.reserve(num_enabled_stages);
     for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
         const Shader::Info* const info{infos[stage]};
         if (!info) {
             continue;
         }
-        stage_infos[stage] = *info;
+        (*build_stage_infos)[stage] = *info;
+        stage_slots[stage] = static_cast<u8>(stage_infos.size());
+        stage_infos.emplace_back(*info);
         enabled_stage_mask |= 1U << stage;
         handle_cbuf_masks[stage] = HandleConstBufferMask(*info);
         const auto is_written = [](const auto& desc) { return desc.is_written; };
@@ -620,8 +629,15 @@ GraphicsPipeline::GraphicsPipeline(
         num_image_elements += Shader::NumDescriptors(info->texture_descriptors);
         num_image_elements += Shader::NumDescriptors(info->image_descriptors);
     }
-    if (stage_infos[NUM_STAGES - 1].input_attachment_mask != 0) {
-        for (const auto& desc : stage_infos[NUM_STAGES - 1].texture_descriptors) {
+    if (const Shader::Info* const frag = infos[NUM_STAGES - 1]) {
+        for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
+            if (frag->stores_frag_color[index]) {
+                fragment_color_write_mask |= static_cast<u8>(1U << index);
+            }
+        }
+    }
+    if (const auto& frag_info = StageInfo(NUM_STAGES - 1); frag_info.input_attachment_mask != 0) {
+        for (const auto& desc : frag_info.texture_descriptors) {
             if (desc.pixel_local_read != Shader::PixelLocalRead::None) {
                 attachment_read_kinds.push_back(desc.pixel_local_read);
             }
@@ -630,7 +646,7 @@ GraphicsPipeline::GraphicsPipeline(
     if (vtg_info && vtg_info->is_transform_feedback) {
         // The compute stage reuses the guest resources bound for the vertex stage
         const Shader::Info& info{vtg_info->infos[VtgPipelineInfo::VERTEX]};
-        const Shader::Info& vertex{stage_infos[0]};
+        const Shader::Info& vertex{(*build_stage_infos)[0]};
         const auto same_count{[](const auto& lhs, const auto& rhs) {
             return Shader::NumDescriptors(lhs) == Shader::NumDescriptors(rhs);
         }};
@@ -641,9 +657,9 @@ GraphicsPipeline::GraphicsPipeline(
             same_count(info.image_descriptors, vertex.image_descriptors) &&
             info.constant_buffer_mask == vertex.constant_buffer_mask) {
             xfb = std::make_unique<XfbState>();
-            xfb->stage.info = info;
+            xfb->stage.build_info = std::make_unique<Shader::Info>(info);
             xfb->stage.num_descriptor_entries = NumDescriptorUpdateEntries(device, info);
-            xfb->stage.guest_info = info;
+            xfb->stage.guest_info = CompactStageInfo(info);
             xfb->stage.guest_info.storage_buffers_descriptors.resize(vtg_info->vertex_bindings.base);
             xfb->stage.module = std::move(vtg_info->modules[VtgPipelineInfo::VERTEX]);
             xfb->bindings = vtg_info->vertex_bindings;
@@ -664,9 +680,10 @@ GraphicsPipeline::GraphicsPipeline(
         vtg->uniform_sizes = uniform_buffer_sizes;
         for (size_t index = 0; index < vtg->stages.size(); ++index) {
             VtgState::Stage& stage{vtg->stages[index]};
-            stage.info = vtg_info->infos[index];
-            stage.num_descriptor_entries = NumDescriptorUpdateEntries(device, stage.info);
-            stage.guest_info = stage.info;
+            const Shader::Info& stage_info{vtg_info->infos[index]};
+            stage.build_info = std::make_unique<Shader::Info>(stage_info);
+            stage.num_descriptor_entries = NumDescriptorUpdateEntries(device, stage_info);
+            stage.guest_info = CompactStageInfo(stage_info);
             stage.guest_info.storage_buffers_descriptors.resize(guest_storage_buffers[index]);
             // The compute stages retain guest images absent from the generated vertex shader.
             num_textures += NumCombinedSamplers(stage.guest_info);
@@ -675,8 +692,8 @@ GraphicsPipeline::GraphicsPipeline(
             num_image_elements += Shader::NumDescriptors(stage.guest_info.texture_descriptors);
             num_image_elements += Shader::NumDescriptors(stage.guest_info.image_descriptors);
             stage.module = std::move(vtg_info->modules[index]);
-            vtg->uniform_masks[compute_stages[index]] = stage.info.constant_buffer_mask;
-            std::ranges::copy(stage.info.constant_buffer_used_sizes,
+            vtg->uniform_masks[compute_stages[index]] = stage_info.constant_buffer_mask;
+            std::ranges::copy(stage_info.constant_buffer_used_sizes,
                               vtg->uniform_sizes[compute_stages[index]].begin());
         }
         vtg->vertex_bindings = vtg_info->vertex_bindings;
@@ -692,11 +709,9 @@ GraphicsPipeline::GraphicsPipeline(
     binds_only_uniform_buffers = std::ranges::all_of(stage_infos, BindsOnlyUniformBuffers);
     has_stable_bindings = image_write_stages == 0 && !xfb && !vtg && !uses_texture_table &&
                           std::ranges::none_of(stage_infos, WritesStorageBuffers);
-    descriptor_views.resize(num_image_elements);
-    descriptor_samplers.resize(num_textures);
     // Number of leading components the vertex shader may read from each attribute. Used to keep
     // vertex formats within their binding stride without discarding data the shader reads.
-    const Shader::Info& vertex_info{stage_infos[0]};
+    const Shader::Info& vertex_info{(*build_stage_infos)[0]};
     if (!vtg && key.state.dynamic_vertex_input == 0 &&
         (device.GetMaxVertexInputAttributes() < Maxwell::NumVertexAttributes ||
          device.GetMaxVertexInputBindings() < Maxwell::NumVertexArrays)) {
@@ -722,18 +737,19 @@ GraphicsPipeline::GraphicsPipeline(
     if (vtg) {
         configure_func = [](GraphicsPipeline* pl, bool is_indexed) { pl->ConfigureVtg(is_indexed); };
     } else {
-        configure_func = ConfigureFunc(spv_modules, stage_infos);
+        configure_func = ConfigureFunc(spv_modules, *build_stage_infos);
     }
     auto func{[this, shader_notify, &render_pass_cache, &descriptor_pool, pipeline_statistics, runtime_event=VideoCommon::ShaderProfile::Runtime::current] {
         VideoCommon::ShaderProfile::Runtime::Span runtime_timer(runtime_event,VideoCommon::ShaderProfile::Runtime::Work::Native);
         bool success{};
         try {
             DescriptorLayoutBuilder builder{MakeBuilder(
-                device, stage_infos, static_cast<u32>(NumAttachments(key.state)))};
+                device, *build_stage_infos, static_cast<u32>(NumAttachments(key.state)))};
             uses_push_descriptor = builder.CanUsePushDescriptor();
             descriptor_set_layout = builder.CreateDescriptorSetLayout(uses_push_descriptor);
             if (!uses_push_descriptor) {
-                descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, stage_infos);
+                descriptor_allocator =
+                    descriptor_pool.Allocator(*descriptor_set_layout, *build_stage_infos);
             }
             const VkDescriptorSetLayout set_layout{*descriptor_set_layout};
             if (builder.HasTextureTable()) {
@@ -775,14 +791,14 @@ GraphicsPipeline::GraphicsPipeline(
 
             const auto build_compute_stage{[&](VtgState::Stage& stage) {
                 DescriptorLayoutBuilder stage_builder{device};
-                stage_builder.Add(stage.info, VK_SHADER_STAGE_COMPUTE_BIT);
+                stage_builder.Add(*stage.build_info, VK_SHADER_STAGE_COMPUTE_BIT);
                 stage.descriptor_set_layout = stage_builder.CreateDescriptorSetLayout(false);
                 stage.pipeline_layout =
                     stage_builder.CreatePipelineLayout(*stage.descriptor_set_layout);
                 stage.descriptor_update_template = stage_builder.CreateTemplate(
                     *stage.descriptor_set_layout, *stage.pipeline_layout, false);
                 stage.descriptor_allocator =
-                    descriptor_pool.Allocator(*stage.descriptor_set_layout, stage.info);
+                    descriptor_pool.Allocator(*stage.descriptor_set_layout, *stage.build_info);
                 stage.pipeline = Timing::Measure(Timing::current, Timing::Phase::NativeCompute, [&] { return device.GetLogical().CreateComputePipeline(
                     {
                         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
@@ -828,12 +844,15 @@ GraphicsPipeline::GraphicsPipeline(
         for (auto& module : spv_modules) {
             module.reset();
         }
+        build_stage_infos.reset();
         if (xfb) {
             xfb->stage.module.reset();
+            xfb->stage.build_info.reset();
         }
         if (vtg) {
             for (auto& stage : vtg->stages) {
                 stage.module.reset();
+                stage.build_info.reset();
             }
         }
         VideoCommon::ShaderProfile::Runtime::NativeResult(runtime_event,success);
@@ -885,14 +904,15 @@ void GraphicsPipeline::AddTransition(GraphicsPipeline* transition,
 
 template <typename Spec>
 void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
-    auto& views = descriptor_views;
-    auto& samplers = descriptor_samplers;
+    auto& cache = EnsureDrawCache();
+    auto& views = cache.descriptor_views;
+    auto& samplers = cache.descriptor_samplers;
     size_t view_index{};
     size_t sampler_index{};
 
     texture_cache.SynchronizeGraphicsDescriptors();
 
-    sampler_handles.resize(samplers.size());
+    auto& sampler_handles = cache.sampler_handles;
     if (num_textures > INLINE_IMAGE_ELEMENTS) {
         if (!sampler_lookup) {
             sampler_lookup = std::make_unique<DrawDescriptorCache<VideoCommon::SamplerId>>();
@@ -910,7 +930,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     const bool via_header_index{regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding};
     size_t attachment_read_slot{};
     const auto config_stage{[&](size_t stage) LAMBDA_FORCEINLINE {
-        const Shader::Info& info{stage_infos[stage]};
+        const CompactStageInfo& info{StageInfo(stage)};
         if constexpr (Spec::has_storage_buffers) {
             BindStorageBuffers(stage);
         } else {
@@ -999,36 +1019,36 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     const u64 descriptor_epoch = texture_cache.GraphicsDescriptorEpoch();
     bool reuse_descriptors = descriptor_epoch != 0 &&
                              descriptor_epoch == cached_descriptor_epoch &&
-                             cached_view_indices.size() == views.size() &&
-                             cached_sampler_handles.size() == samplers.size();
+                             cache.cached_view_indices.size() == views.size() &&
+                             cache.cached_sampler_handles.size() == samplers.size();
     for (size_t i = 0; reuse_descriptors && i < views.size(); ++i) {
-        reuse_descriptors = views[i].index == cached_view_indices[i];
+        reuse_descriptors = views[i].index == cache.cached_view_indices[i];
     }
     for (size_t i = 0; reuse_descriptors && i < samplers.size(); ++i) {
-        reuse_descriptors = sampler_handles[i] == cached_sampler_handles[i];
+        reuse_descriptors = sampler_handles[i] == cache.cached_sampler_handles[i];
     }
     if (reuse_descriptors) {
         for (size_t i = 0; i < views.size(); ++i) {
-            views[i].id = cached_view_ids[i];
+            views[i].id = cache.cached_view_ids[i];
         }
         if constexpr (Spec::has_images) {
             texture_cache.ResetBlacklistedScaleRatings(std::span(views.data(), views.size()));
         }
-        std::ranges::copy(cached_samplers, samplers.begin());
+        std::ranges::copy(cache.cached_samplers, samplers.begin());
     } else {
         for (size_t i = 0; i < samplers.size(); ++i) {
             samplers[i] = memoize_samplers ? sampler_lookup->Get(sampler_handles[i], lookup_sampler)
                                            : lookup_sampler(sampler_handles[i]);
         }
         texture_cache.FillGraphicsImageViews<Spec::has_images>(std::span(views.data(), views.size()));
-        cached_view_indices.resize(views.size());
-        cached_view_ids.resize(views.size());
+        cache.cached_view_indices.resize(views.size());
+        cache.cached_view_ids.resize(views.size());
         for (size_t i = 0; i < views.size(); ++i) {
-            cached_view_indices[i] = views[i].index;
-            cached_view_ids[i] = views[i].id;
+            cache.cached_view_indices[i] = views[i].index;
+            cache.cached_view_ids[i] = views[i].id;
         }
-        cached_sampler_handles.assign(sampler_handles.begin(), sampler_handles.end());
-        cached_samplers.assign(samplers.begin(), samplers.end());
+        cache.cached_sampler_handles.assign(sampler_handles.begin(), sampler_handles.end());
+        cache.cached_samplers.assign(samplers.begin(), samplers.end());
         cached_descriptor_epoch = texture_cache.GraphicsDescriptorEpoch();
     }
     attachment_reads = attachment_read_kinds.empty()
@@ -1076,9 +1096,9 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
         kept_uniform_entries[stage] = static_cast<u32>(guest_descriptor_queue.Entries().size());
         buffer_cache.BindHostStageBuffers(stage);
         kept_image_entries[stage] = static_cast<u32>(guest_descriptor_queue.Entries().size());
-        PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage], rescaling,
+        const auto& info{StageInfo(stage)};
+        PushImageDescriptors(texture_cache, guest_descriptor_queue, info, rescaling,
                              samplers_it, views_it, &texture_table_scratch);
-        const auto& info{stage_infos[stage]};
         if (info.uses_render_area) {
             render_area.uses_render_area = true;
             render_area.words = {static_cast<float>(regs.surface_clip.width),
@@ -1100,7 +1120,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     if constexpr (Spec::enabled_stages[4]) {
         prepare_stage(4);
         // The fragment stage is the last, its input attachments end the descriptor set
-        for (u32 mask = stage_infos[4].input_attachment_mask; mask != 0; mask &= mask - 1) {
+        for (u32 mask = StageInfo(4).input_attachment_mask; mask != 0; mask &= mask - 1) {
             const VideoCommon::ImageViewId id{
                 texture_cache.ColorBufferViewId(static_cast<size_t>(std::countr_zero(mask)))};
             const ImageView& image_view{texture_cache.GetImageView(id)};
@@ -1166,7 +1186,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
 void GraphicsPipeline::BindStorageBuffers(size_t stage) {
     buffer_cache.UnbindGraphicsStorageBuffers(stage);
     size_t ssbo_index{};
-    for (const auto& desc : stage_infos[stage].storage_buffers_descriptors) {
+    for (const auto& desc : StageInfo(stage).storage_buffers_descriptors) {
         ASSERT(desc.count == 1);
         buffer_cache.BindGraphicsStorageBuffer(stage, ssbo_index, desc.cbuf_index,
                                                desc.cbuf_offset, desc.is_written,
@@ -1194,7 +1214,7 @@ void GraphicsPipeline::BindTextureBuffers(size_t stage,
             ++views_it;
         }
     }};
-    const Shader::Info& info{stage_infos[stage]};
+    const CompactStageInfo& info{StageInfo(stage)};
     for (const auto& desc : info.texture_buffer_descriptors) {
         add_buffer(desc);
     }
@@ -1209,7 +1229,7 @@ bool GraphicsPipeline::ConfigureReused(bool is_indexed) {
     if (is_indexed && !buffer_cache.RebindIndexBuffer()) {
         return false;
     }
-    texture_cache.CheckFeedbackLoop(descriptor_views);
+    texture_cache.CheckFeedbackLoop(EnsureDrawCache().descriptor_views);
     // A feedback loop barrier or an 8-bit index conversion ends the render pass
     RequestRenderPass();
     return true;
@@ -1242,8 +1262,9 @@ bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
 
     const bool push_images = textures == KeptTextures::Changed;
     RescalingPushConstant rescaling;
-    const VideoCommon::SamplerId* samplers_it{descriptor_samplers.data()};
-    const VideoCommon::ImageViewInOut* views_it{descriptor_views.data()};
+    auto& cache = EnsureDrawCache();
+    const VideoCommon::SamplerId* samplers_it{cache.descriptor_samplers.data()};
+    const VideoCommon::ImageViewInOut* views_it{cache.descriptor_views.data()};
     guest_descriptor_queue.Acquire(num_descriptor_entries);
     size_t entry{};
     for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
@@ -1259,7 +1280,7 @@ bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
             }
         }
         if (push_images) {
-            PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[stage],
+            PushImageDescriptors(texture_cache, guest_descriptor_queue, StageInfo(stage),
                                  rescaling, samplers_it, views_it);
             entry = guest_descriptor_queue.Entries().size();
         }
@@ -1273,7 +1294,7 @@ bool GraphicsPipeline::ConfigureKeptBuffers(bool is_indexed) {
 }
 
 bool GraphicsPipeline::ConfigureKeptImages(bool is_indexed) {
-    const VideoCommon::ImageViewInOut* texture_buffer_it{descriptor_views.data()};
+    const VideoCommon::ImageViewInOut* texture_buffer_it{EnsureDrawCache().descriptor_views.data()};
     for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
         const size_t stage = static_cast<size_t>(std::countr_zero(mask));
         BindStorageBuffers(stage);
@@ -1298,8 +1319,16 @@ bool GraphicsPipeline::ConfigureKeptImages(bool is_indexed) {
 }
 
 GraphicsPipeline::KeptTextures GraphicsPipeline::UpdateKeptTextures(bool may_change) {
-    auto& views = descriptor_views;
-    auto& samplers = descriptor_samplers;
+    auto& cache = EnsureDrawCache();
+    auto& views = cache.descriptor_views;
+    auto& samplers = cache.descriptor_samplers;
+    auto& sampler_handles = cache.sampler_handles;
+    if (cache.cached_view_indices.size() != views.size() ||
+        cache.cached_view_ids.size() != views.size() ||
+        cache.cached_sampler_handles.size() != samplers.size() ||
+        cache.cached_samplers.size() != samplers.size()) {
+        return KeptTextures::Failed;
+    }
     const u64 descriptor_epoch = texture_cache.GraphicsDescriptorEpoch();
     texture_cache.SynchronizeGraphicsDescriptors();
     if (!ReadTextureHandles()) {
@@ -1307,8 +1336,8 @@ GraphicsPipeline::KeptTextures GraphicsPipeline::UpdateKeptTextures(bool may_cha
     }
     bool changed{};
     for (size_t i = 0; i < views.size(); ++i) {
-        if (views[i].index == cached_view_indices[i]) {
-            views[i].id = cached_view_ids[i];
+        if (views[i].index == cache.cached_view_indices[i]) {
+            views[i].id = cache.cached_view_ids[i];
             continue;
         }
         if (!may_change) {
@@ -1318,7 +1347,7 @@ GraphicsPipeline::KeptTextures GraphicsPipeline::UpdateKeptTextures(bool may_cha
         texture_cache.FillGraphicsImageViews<true>(std::span(views.data() + i, 1));
     }
     for (size_t i = 0; i < samplers.size(); ++i) {
-        if (sampler_handles[i] == cached_sampler_handles[i]) {
+        if (sampler_handles[i] == cache.cached_sampler_handles[i]) {
             continue;
         }
         if (!may_change) {
@@ -1335,23 +1364,25 @@ GraphicsPipeline::KeptTextures GraphicsPipeline::UpdateKeptTextures(bool may_cha
         return KeptTextures::Same;
     }
     for (size_t i = 0; i < views.size(); ++i) {
-        cached_view_indices[i] = views[i].index;
-        cached_view_ids[i] = views[i].id;
+        cache.cached_view_indices[i] = views[i].index;
+        cache.cached_view_ids[i] = views[i].id;
     }
-    std::copy_n(sampler_handles.begin(), samplers.size(), cached_sampler_handles.begin());
-    std::ranges::copy(samplers, cached_samplers.begin());
+    std::copy_n(sampler_handles.begin(), samplers.size(), cache.cached_sampler_handles.begin());
+    std::ranges::copy(samplers, cache.cached_samplers.begin());
     return KeptTextures::Changed;
 }
 
 bool GraphicsPipeline::ReadTextureHandles() {
-    auto& views = descriptor_views;
+    auto& cache = EnsureDrawCache();
+    auto& views = cache.descriptor_views;
+    auto& sampler_handles = cache.sampler_handles;
     const bool via_header_index{maxwell3d->regs.sampler_binding ==
                                 Maxwell::SamplerBinding::ViaHeaderBinding};
     size_t view_index{};
     size_t sampler_index{};
     for (u32 mask = enabled_stage_mask; mask != 0; mask &= mask - 1) {
         const size_t stage = static_cast<size_t>(std::countr_zero(mask));
-        const Shader::Info& info{stage_infos[stage]};
+        const CompactStageInfo& info{StageInfo(stage)};
         StageHandleReader handles{*gpu_memory, maxwell3d->state.shader_stages[stage].const_buffers,
                                   via_header_index};
         const auto read_images = [&](const auto& desc, bool blacklist) {
@@ -1396,7 +1427,7 @@ bool GraphicsPipeline::ReadTextureHandles() {
             read_images(desc, desc.is_written);
         }
     }
-    return view_index == views.size() && sampler_index == descriptor_samplers.size();
+    return view_index == views.size() && sampler_index == cache.descriptor_samplers.size();
 }
 
 void GraphicsPipeline::AddKeptEntries(size_t& entry, size_t end) {
@@ -1409,7 +1440,7 @@ void GraphicsPipeline::ConfigureKeptDraw() {
     const auto entries = guest_descriptor_queue.Entries();
     ASSERT(entries.size() == kept_entries.size());
     kept_entries.assign(entries.begin(), entries.end());
-    texture_cache.CheckFeedbackLoop(descriptor_views);
+    texture_cache.CheckFeedbackLoop(EnsureDrawCache().descriptor_views);
     RenderAreaPushConstant render_area;
     render_area.uses_render_area = kept_uses_render_area;
     render_area.words = kept_render_area;
@@ -1443,7 +1474,7 @@ u32 GraphicsPipeline::SelectAttachmentReads(std::span<VideoCommon::ImageViewInOu
         const f32 height{static_cast<f32>(size.height)};
         return host.x == 0.0f && host.width == width && host.y == height && host.height == -height;
     }};
-    const u32 mask{stage_infos[NUM_STAGES - 1].input_attachment_mask};
+    const u32 mask{StageInfo(NUM_STAGES - 1).input_attachment_mask};
     u32 reads{NO_ATTACHMENT_READS};
     for (size_t slot = 0; slot < attachment_read_kinds.size(); ++slot) {
         if (regs.window_origin.mode == Maxwell::WindowOrigin::Mode::LowerLeft &&
@@ -1495,8 +1526,9 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
     state.indirect_commands.reset();
     const bool indirect{std::exchange(state.indirect, false) && !is_indexed};
 
-    auto& views = descriptor_views;
-    auto& samplers = descriptor_samplers;
+    auto& cache = EnsureDrawCache();
+    auto& views = cache.descriptor_views;
+    auto& samplers = cache.descriptor_samplers;
     size_t sampler_index{};
     size_t view_index{};
 
@@ -1505,15 +1537,15 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
     buffer_cache.SetUniformBuffersState(state.uniform_masks, &state.uniform_sizes);
 
     // The guest resources of the stages running as compute are bound as the stages they replace
-    const std::array<std::pair<size_t, const Shader::Info*>, 3> stages{{
+    const std::array<std::pair<size_t, const CompactStageInfo*>, 3> stages{{
         {0, &state.stages[VtgPipelineInfo::VERTEX].guest_info},
         {3, &state.stages[VtgPipelineInfo::GEOMETRY].guest_info},
-        {FRAGMENT_STAGE, &stage_infos[FRAGMENT_STAGE]},
+        {FRAGMENT_STAGE, &StageInfo(FRAGMENT_STAGE)},
     }};
     const auto& regs{maxwell3d->regs};
     const bool via_header_index{regs.sampler_binding == Maxwell::SamplerBinding::ViaHeaderBinding};
     for (const auto& [stage, info_pointer] : stages) {
-        const Shader::Info& info{*info_pointer};
+        const CompactStageInfo& info{*info_pointer};
         buffer_cache.UnbindGraphicsStorageBuffers(stage);
         size_t ssbo_index{};
         for (const auto& desc : info.storage_buffers_descriptors) {
@@ -1603,7 +1635,7 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
 
     VideoCommon::ImageViewInOut* texture_buffer_it{views.data()};
     for (const auto& [stage, info_pointer] : stages) {
-        const Shader::Info& info{*info_pointer};
+        const CompactStageInfo& info{*info_pointer};
         size_t index{};
         const auto add_buffer{[&](const auto& desc) {
             constexpr bool is_image = std::is_same_v<decltype(desc), const ImageBufferDescriptor&>;
@@ -1959,9 +1991,10 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
     RescalingPushConstant rescaling;
     RenderAreaPushConstant render_area;
     buffer_cache.BindHostStageBuffers(FRAGMENT_STAGE);
-    PushImageDescriptors(texture_cache, guest_descriptor_queue, stage_infos[FRAGMENT_STAGE],
+    const CompactStageInfo& fragment_info = StageInfo(FRAGMENT_STAGE);
+    PushImageDescriptors(texture_cache, guest_descriptor_queue, fragment_info,
                          rescaling, samplers_it, views_it, &texture_table_scratch);
-    if (stage_infos[FRAGMENT_STAGE].uses_render_area) {
+    if (fragment_info.uses_render_area) {
         render_area.uses_render_area = true;
         render_area.words = {static_cast<float>(regs.surface_clip.width),
                              static_cast<float>(regs.surface_clip.height)};
@@ -2125,8 +2158,8 @@ void GraphicsPipeline::ConfigureTransformFeedback(bool is_indexed) {
         });
     }
     // The stage reads the resources of the vertex stage, which come first
-    const VideoCommon::SamplerId* samplers_it{descriptor_samplers.data()};
-    const VideoCommon::ImageViewInOut* views_it{descriptor_views.data()};
+    const VideoCommon::SamplerId* samplers_it{draw_cache->descriptor_samplers.data()};
+    const VideoCommon::ImageViewInOut* views_it{draw_cache->descriptor_views.data()};
     VtgState::Stage& stage{state.stage};
     guest_descriptor_queue.Acquire(stage.num_descriptor_entries);
     buffer_cache.BindHostStageUniformAndStorageBuffers(0);
@@ -2250,10 +2283,10 @@ VkDescriptorSet GraphicsPipeline::WorkerDescriptorSet(const void* data, u64 tick
 u32 GraphicsPipeline::ColorWriteMask() const {
     u32 color_write_mask{};
     const auto& regs = maxwell3d->regs;
-    const Shader::Info& fragment_info = stage_infos[4];
     for (size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
         const auto& mask = regs.color_mask[regs.color_mask_common ? 0 : index];
-        if ((mask.R || mask.G || mask.B || mask.A) && fragment_info.stores_frag_color[index]) {
+        if ((mask.R || mask.G || mask.B || mask.A) &&
+            ((fragment_color_write_mask >> index) & 1U) != 0) {
             color_write_mask |= 1U << index;
         }
     }
@@ -2514,7 +2547,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         }
         for (size_t index = 0; index < key.state.attributes.size(); ++index) {
             const auto& attribute = key.state.attributes[index];
-            if (!attribute.enabled || !stage_infos[0].loads.Generic(index)) {
+            if (!attribute.enabled || !(*build_stage_infos)[0].loads.Generic(index)) {
                 continue;
             }
             const VkFormat format =
@@ -2706,9 +2739,9 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         provoking_vertex.pNext = std::exchange(rasterization_ci.pNext, &provoking_vertex);
     }
 
-    const bool supports_alpha_output = stage_infos[NUM_STAGES - 1].stores_frag_color[0];
+    const bool supports_alpha_output = (*build_stage_infos)[NUM_STAGES - 1].stores_frag_color[0];
     const bool emulates_alpha_dither = key.state.EmulatesAlphaToCoverageDither() &&
-                                       stage_infos[NUM_STAGES - 1].stores_frag_alpha[0];
+                                       (*build_stage_infos)[NUM_STAGES - 1].stores_frag_alpha[0];
     const VkPipelineMultisampleStateCreateInfo multisample_ci{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .pNext = nullptr,

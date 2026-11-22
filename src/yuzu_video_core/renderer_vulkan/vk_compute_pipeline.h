@@ -66,7 +66,8 @@ private:
     const Device& device;
     vk::PipelineCache& pipeline_cache;
     GuestDescriptorQueue& guest_descriptor_queue;
-    Shader::Info info;
+    CompactStageInfo info;
+    std::unique_ptr<Shader::Info> build_info;
     bool writes_images{};
     StagingBufferPool& staging_pool;
     StagingBufferRef runtime_image_write_mask{};
@@ -74,10 +75,9 @@ private:
     bool has_runtime_image_candidates{};
 
     u32 num_textures{};
+    u32 num_image_elements{};
     size_t num_descriptor_entries{};
 
-    boost::container::small_vector<VideoCommon::ImageViewInOut, 64> descriptor_views;
-    boost::container::small_vector<VideoCommon::SamplerId, 64> descriptor_samplers;
     std::unique_ptr<DrawDescriptorCache<VideoCommon::SamplerId>> sampler_lookup;
 
     VideoCommon::ComputeUniformBufferSizes uniform_buffer_sizes{};
