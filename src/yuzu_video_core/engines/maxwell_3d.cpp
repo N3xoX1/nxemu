@@ -30,8 +30,11 @@ constexpr u32 MacroRegistersStart = 0xE00;
 /// Stream size at which the decode thread hands a block to the GPU thread
 constexpr size_t PublishWords = 4096;
 
-/// A long query report: the 64-bit value and its timestamp
-constexpr u64 MaxQueryReportSize = 16;
+struct LongQueryReport
+{
+    u64 value;
+    u64 timestamp;
+};
 
 namespace
 {
@@ -715,7 +718,7 @@ void Maxwell3D::FrontMethodCall(u32 method, u32 argument, u32 nonshadow_argument
         stream_writes_memory = true;
         return;
     case MAXWELL3D_REG_INDEX(report_semaphore.query):
-        FrontMemoryWrite(front_regs.report_semaphore.Address(), MaxQueryReportSize);
+        FrontMemoryWrite(front_regs.report_semaphore.Address(), sizeof(LongQueryReport));
         stream_writes_memory = true;
         return;
     case MAXWELL3D_REG_INDEX(launch_dma):
@@ -889,7 +892,9 @@ void Maxwell3D::Publish(bool verify)
     stream_writes_memory = false;
     back_queue->AddWrites(stream_write_ranges);
     stream_write_ranges.clear();
-    const bool writes_known = !std::exchange(stream_writes_anywhere, false);
+    const auto writes = std::exchange(stream_writes_anywhere, false)
+                            ? VideoCommon::GPUThread::BackQueue::Writes::Anywhere
+                            : VideoCommon::GPUThread::BackQueue::Writes::AddedRanges;
     if (verify && SplitVerifyFile() != nullptr) [[unlikely]]
     {
         if (!block->front)
@@ -902,7 +907,7 @@ void Maxwell3D::Publish(bool verify)
     {
         block->front.reset();
     }
-    back_queue->Push([this, block]() { RunBlock(block); }, writes_known);
+    back_queue->Push([this, block]() { RunBlock(block); }, writes);
 }
 
 void Maxwell3D::FrontMemoryWrite(GPUVAddr address, u64 size)

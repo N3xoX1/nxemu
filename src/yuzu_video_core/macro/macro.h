@@ -145,9 +145,8 @@ public:
         return true;
     }
 
-    /// HLE macros only. Decode side: passes the guest memory Execute writes to
-    /// Maxwell3D::FrontMemoryWrite and returns true, or returns false when it can't tell.
-    /// `params_final` is false when the GPU may still write the parameters.
+    /// HLE macros only. Passes what Execute writes to Maxwell3D::FrontMemoryWrite, false when it
+    /// may write memory it can't tell.
     virtual bool FrontMemoryWrites([[maybe_unused]] const std::vector<u32>& parameters,
                                    [[maybe_unused]] bool params_final) {
         return false;

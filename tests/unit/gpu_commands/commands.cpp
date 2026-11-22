@@ -92,7 +92,9 @@ struct Fixture : Engines::EngineInterface {
   bool stream_writes_memory{};
   std::vector<std::pair<GPUVAddr, GPUVAddr>> stream_write_ranges;
   bool stream_writes_anywhere{};
-  static constexpr u64 MaxQueryReportSize = 16;
+  struct LongQueryReport {
+    u64 value, timestamp;
+  };
   void FrontMemoryWrite(GPUVAddr address, u64 size) {
     stream_write_ranges.emplace_back(address, address + size);
   }

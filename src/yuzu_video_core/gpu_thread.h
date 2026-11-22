@@ -105,15 +105,13 @@ public:
     }
 
     using WriteRanges = std::vector<std::pair<GPUVAddr, GPUVAddr>>;
+    enum class Writes { Anywhere, AddedRanges, Nothing };
 
-    /// Decode thread: queues work. Runs it at once without the decode thread. The work may write
-    /// any guest memory, unless `writes_known` says it writes only the ranges given to AddWrites.
-    void Push(Work&& work, bool writes_known = false);
+    /// Decode thread: queues work. Runs it at once without the decode thread.
+    void Push(Work&& work, Writes writes = Writes::Anywhere);
 
-    /// Decode thread: the work pushed next writes guest memory in these [begin, end) ranges
+    /// Decode thread, without a lock: only it adds and reads the write ranges
     void AddWrites(const WriteRanges& ranges);
-
-    /// Decode thread: whether queued work may still write guest memory in [begin, end)
     bool MayWrite(GPUVAddr begin, GPUVAddr end);
 
     /// Decode thread: waits until the GPU thread has run all queued work
@@ -149,7 +147,6 @@ private:
     std::deque<Work> items;
     u64 pushed{};
     u64 done{};
-    /// Only the decode thread uses these
     WriteRanges write_ranges;
     bool writes_anywhere{};
     bool stopping{};

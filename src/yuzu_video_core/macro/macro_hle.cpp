@@ -45,7 +45,6 @@ bool IsTopologySafe(Maxwell3D::Regs::PrimitiveTopology topology) {
     }
 }
 
-/// Guest address in the first two parameters, high word first
 GPUVAddr ParameterAddress(const std::vector<u32>& parameters) {
     return (GPUVAddr{parameters[0]} << 32) | parameters[1];
 }

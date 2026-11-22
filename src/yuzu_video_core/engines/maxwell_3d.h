@@ -3293,7 +3293,6 @@ public:
         FrontWrite(method, value);
     }
 
-    /// Decode side: the queued methods write guest memory [address, address + size)
     void FrontMemoryWrite(GPUVAddr address, u64 size);
 
     /// Decode side: queues an HLE macro call for the execute side.

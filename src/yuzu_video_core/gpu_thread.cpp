@@ -18,16 +18,15 @@
 namespace VideoCommon::GPUThread {
 
 namespace {
-/// Beyond this many merged ranges the queued work is taken to write anywhere
 constexpr size_t MaxWriteRanges = 1024;
 } // namespace
 
-void BackQueue::Push(Work&& work, bool writes_known) {
+void BackQueue::Push(Work&& work, Writes writes) {
     if (!threaded) {
         work();
         return;
     }
-    writes_anywhere |= !writes_known;
+    writes_anywhere |= writes == Writes::Anywhere;
     bool wake;
     {
         std::scoped_lock lock{mutex};
@@ -242,7 +241,7 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
         }
         state.back.Push(
             [&state, fence = next.fence, block = next.block] { SignalFence(state, fence, block); },
-            true);
+            BackQueue::Writes::Nothing);
     }
 }
 

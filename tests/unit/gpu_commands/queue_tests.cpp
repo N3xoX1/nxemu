@@ -59,11 +59,10 @@ void QueueTests() {
     Check(observed == 123, "dependent read overtook queued memory write");
     Check(execution_thread == manager.thread.get_id(), "renderer work ran on decode thread");
 
-    // Decode waits for queued work only when that work may write what it reads next
     std::atomic<bool> release{};
-    queue.Push([&] { release.wait(false); }, true);
+    queue.Push([&] { release.wait(false); }, BackQueue::Writes::Nothing);
     queue.AddWrites({{0x1000, 0x1100}});
-    queue.Push([] {}, true);
+    queue.Push([] {}, BackQueue::Writes::AddedRanges);
     Check(queue.MayWrite(0x10F0, 0x1200), "queued write to the range was missed");
     Check(!queue.MayWrite(0x1100, 0x1200), "work that writes elsewhere made decode wait");
     queue.Push([] {});
