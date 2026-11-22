@@ -4,7 +4,6 @@
  */
 
 #include <cstddef>
-#include <cstdlib>
 #include <iterator>
 #include <optional>
 #include <type_traits>
@@ -1123,6 +1122,11 @@ void EmitX64::EmitAdd32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitAdd64(EmitContext& ctx, IR::Inst* inst) {
+    if (!ctx.folded_addresses.empty() && ctx.folded_addresses.contains(inst)) {
+        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
+        ctx.reg_alloc.DefineValue(inst, args[0]);
+        return;
+    }
     EmitAdd(code, ctx, inst, 64);
 }
 

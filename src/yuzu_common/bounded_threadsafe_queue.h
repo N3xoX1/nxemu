@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -28,8 +29,21 @@ public:
     }
 
     template <typename... Args>
-    void EmplaceWait(Args&&... args) {
-        Emplace<PushMode::Wait>(std::forward<Args>(args)...);
+    bool EmplaceWait(Args&&... args) {
+        return Emplace<PushMode::Wait>(std::forward<Args>(args)...);
+    }
+
+    void Close() {
+        {
+            std::scoped_lock lock{producer_cv_mutex};
+            m_closed.store(true, std::memory_order::release);
+        }
+        producer_cv.notify_all();
+    }
+
+    void ResetClosed() {
+        std::scoped_lock lock{producer_cv_mutex};
+        m_closed.store(false, std::memory_order::release);
     }
 
     bool TryPop(T& t) {
@@ -97,16 +111,23 @@ private:
         const size_t write_index = m_write_index.load(std::memory_order::relaxed);
 
         if constexpr (Mode == PushMode::Try) {
+            if (m_closed.load(std::memory_order::acquire)) {
+                return false;
+            }
             // Check if we have free slots to write to.
             if ((write_index - m_read_index.load(std::memory_order::acquire)) == Capacity) {
                 return false;
             }
         } else if constexpr (Mode == PushMode::Wait) {
-            // Wait until we have free slots to write to.
+            // Wait until we have free slots to write to or the queue is closed.
             std::unique_lock lock{producer_cv_mutex};
             producer_cv.wait(lock, [this, write_index] {
-                return (write_index - m_read_index.load(std::memory_order::acquire)) < Capacity;
+                return m_closed.load(std::memory_order::acquire) ||
+                       (write_index - m_read_index.load(std::memory_order::acquire)) < Capacity;
             });
+            if (m_closed.load(std::memory_order::acquire)) {
+                return false;
+            }
         } else {
             static_assert(Mode < PushMode::Count, "Invalid PushMode.");
         }
@@ -173,6 +194,7 @@ private:
 
     alignas(128) std::atomic_size_t m_read_index{0};
     alignas(128) std::atomic_size_t m_write_index{0};
+    std::atomic<bool> m_closed{false};
 
     std::array<T, Capacity> m_data;
 
@@ -192,9 +214,18 @@ public:
     }
 
     template <typename... Args>
-    void EmplaceWait(Args&&... args) {
+    bool EmplaceWait(Args&&... args) {
         std::scoped_lock lock{write_mutex};
-        spsc_queue.EmplaceWait(std::forward<Args>(args)...);
+        return spsc_queue.EmplaceWait(std::forward<Args>(args)...);
+    }
+
+    void Close() {
+        spsc_queue.Close();
+    }
+
+    void ResetClosed() {
+        std::scoped_lock lock{write_mutex};
+        spsc_queue.ResetClosed();
     }
 
     bool TryPop(T& t) {
@@ -242,9 +273,18 @@ public:
     }
 
     template <typename... Args>
-    void EmplaceWait(Args&&... args) {
+    bool EmplaceWait(Args&&... args) {
         std::scoped_lock lock{write_mutex};
-        spsc_queue.EmplaceWait(std::forward<Args>(args)...);
+        return spsc_queue.EmplaceWait(std::forward<Args>(args)...);
+    }
+
+    void Close() {
+        spsc_queue.Close();
+    }
+
+    void ResetClosed() {
+        std::scoped_lock lock{write_mutex};
+        spsc_queue.ResetClosed();
     }
 
     bool TryPop(T& t) {

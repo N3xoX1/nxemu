@@ -123,9 +123,7 @@ public:
             });
     }
 
-    /// Returns a value that changes each time a command is recorded, the command buffer
-    /// changes or its state is invalidated. While it stays the same, the bindings of the last
-    /// recorded draw are still the current ones.
+    /// While unchanged, the bindings of the last recorded draw are still bound
     [[nodiscard]] u64 RecordEpoch() const noexcept {
         return record_epoch;
     }

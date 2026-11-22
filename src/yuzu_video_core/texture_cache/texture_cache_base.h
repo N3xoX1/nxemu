@@ -18,11 +18,11 @@
 #include <queue>
 
 #include "yuzu_common/common_types.h"
-#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/hash.h"
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
 #include "yuzu_common/polyfill_ranges.h"
+#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/scratch_buffer.h"
 #include "yuzu_common/slot_vector.h"
 #include "yuzu_common/thread_worker.h"
@@ -171,6 +171,9 @@ public:
     template <bool has_blacklists>
     void FillGraphicsImageViews(std::span<ImageViewInOut> views);
 
+    /// Keeps blacklisted images from scaling up while a draw reuses its resolved views
+    void ResetBlacklistedScaleRatings(std::span<const ImageViewInOut> views);
+
     /// Fill image_view_ids with the compute images in indices
     void FillComputeImageViews(std::span<ImageViewInOut> views);
 
@@ -207,12 +210,14 @@ public:
     /// Refresh the state for graphics image view and sampler descriptors
     void SynchronizeGraphicsDescriptors();
 
-    /// Changes whenever graphics texture and sampler descriptors may resolve or need preparing
-    /// differently: a draw with the same handles and epoch as an earlier one gets the same
-    /// views and samplers. Zero when the descriptor tables cannot be tracked.
+    /// Changes whenever graphics descriptors may resolve or need preparing differently, zero when the tables can't be tracked
     [[nodiscard]] u64 GraphicsDescriptorEpoch() const noexcept {
         return tables_tracked ? descriptor_epoch : 0;
     }
+
+    /// Guest memory written without WriteMemory: bumps the descriptor epoch when the write
+    /// reaches the descriptor tables
+    void NotifyUnsafeWrite(GPUVAddr gpu_addr, size_t size);
 
     /// Refresh the state for compute image view and sampler descriptors
     void SynchronizeComputeDescriptors();
@@ -511,7 +516,8 @@ private:
         ImageId, const ImageViewInfo& view_info);
 
     /// Returns true if the current clear parameters clear the whole image of a given image view
-    [[nodiscard]] bool IsFullClear(ImageViewId id);
+    [[nodiscard]] bool IsFullClear(ImageViewId id, bool is_color, size_t index,
+                                   u32 clear_layer_count);
 
     [[nodiscard]] std::pair<u32, u32> PrepareDmaImage(ImageId dst_id, GPUVAddr base_addr,
                                                       bool mark_as_modified);
@@ -657,9 +663,9 @@ private:
                                        u32 tsc_limit);
     void UntrackGraphicsDescriptorTables();
     [[nodiscard]] bool OverlapsDescriptorTables(DAddr addr, size_t size) const noexcept;
+    [[nodiscard]] bool OverlapsDescriptorTablesGPU(GPUVAddr gpu_addr, size_t size) const noexcept;
 
-    // CPU and GPU writes to the guest descriptor tables reach WriteMemory, their pages are
-    // tracked as cached for that
+    // The descriptor table pages are counted as cached so that writes to them reach WriteMemory
     u64 descriptor_epoch = 1;
     const void* tracked_channel{};
     GPUVAddr tracked_tic_addr{};

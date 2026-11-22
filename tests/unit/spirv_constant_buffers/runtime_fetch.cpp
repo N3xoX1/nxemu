@@ -269,6 +269,72 @@ void ImpossibleUniformFetch(bool same_word, bool uniform = true) {
         assert(program.info.runtime_sampler_count == 0);
     }
 }
+
+void ContradictoryOuterPredicateHandle() {
+    using namespace Shader;
+    ObjectPool<IR::Inst> pool;
+    IR::Block entry{pool}, outer_body{pool}, load_tex{pool}, merge_tex{pool},
+        or_samp{pool}, merge_samp{pool}, fetch_body{pool}, merge_fetch{pool}, end{pool};
+    IR::IREmitter entry_ir{entry}, body_ir{outer_body}, tex_ir{load_tex}, samp_ir{or_samp},
+        fetch_ir{fetch_body};
+    const auto a = entry_ir.GetAttributeU32(IR::Attribute::Generic0X);
+    const auto b = entry_ir.GetAttributeU32(IR::Attribute::Generic0Y);
+    const auto stale = IR::U32{IR::Value{&*entry.PrependNewInst(entry.end(), IR::Opcode::UndefU32)}};
+    const auto outer_cond = entry_ir.LogicalNot(entry_ir.IGreaterThanEqual(a, b, false));
+    // Re-emitted opposite comparison inside outer_body, matching Maxwell predicated loop peels.
+    const auto inner_cond = body_ir.IGreaterThanEqual(a, b, false);
+    const auto tex_handle = tex_ir.GetCbuf(tex_ir.Imm32(2), tex_ir.Imm32(360));
+    auto phi_tex = merge_tex.PrependNewInst(merge_tex.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U32));
+    phi_tex->AddPhiOperand(&outer_body, stale);
+    phi_tex->AddPhiOperand(&load_tex, tex_handle);
+    const auto combined = samp_ir.BitwiseOr(IR::U32{IR::Value{&*phi_tex}},
+                                            samp_ir.GetCbuf(samp_ir.Imm32(2), samp_ir.Imm32(1392)));
+    auto phi_combined = merge_samp.PrependNewInst(merge_samp.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U32));
+    phi_combined->AddPhiOperand(&merge_tex, IR::Value{&*phi_tex});
+    phi_combined->AddPhiOperand(&or_samp, combined);
+    IR::TextureInstInfo flags{};
+    flags.type.Assign(TextureType::Color2D);
+    const auto fetch = fetch_ir.ImageFetch(IR::U32{IR::Value{&*phi_combined}},
+        fetch_ir.CompositeConstruct(fetch_ir.Imm32(0), fetch_ir.Imm32(0)), {}, fetch_ir.Imm32(0), {}, flags);
+    IR::Program program{};
+    program.stage = Stage::Compute;
+    program.blocks = {&entry, &outer_body, &load_tex, &merge_tex, &or_samp, &merge_samp,
+                      &fetch_body, &merge_fetch, &end};
+    program.post_order_blocks = {&end, &merge_fetch, &fetch_body, &merge_samp, &or_samp,
+                                 &merge_tex, &load_tex, &outer_body, &entry};
+    using Node = IR::AbstractSyntaxNode;
+    program.syntax_list = {
+        {.data = {.block = &entry}, .type = Node::Type::Block},
+        {.data = {.if_node = {outer_cond, &outer_body, &end}}, .type = Node::Type::If},
+        {.data = {.block = &outer_body}, .type = Node::Type::Block},
+        {.data = {.if_node = {inner_cond, &load_tex, &merge_tex}}, .type = Node::Type::If},
+        {.data = {.block = &load_tex}, .type = Node::Type::Block},
+        {.data = {.end_if = {&merge_tex}}, .type = Node::Type::EndIf},
+        {.data = {.block = &merge_tex}, .type = Node::Type::Block},
+        {.data = {.if_node = {inner_cond, &or_samp, &merge_samp}}, .type = Node::Type::If},
+        {.data = {.block = &or_samp}, .type = Node::Type::Block},
+        {.data = {.end_if = {&merge_samp}}, .type = Node::Type::EndIf},
+        {.data = {.block = &merge_samp}, .type = Node::Type::Block},
+        {.data = {.if_node = {inner_cond, &fetch_body, &merge_fetch}}, .type = Node::Type::If},
+        {.data = {.block = &fetch_body}, .type = Node::Type::Block},
+        {.data = {.end_if = {&merge_fetch}}, .type = Node::Type::EndIf},
+        {.data = {.block = &merge_fetch}, .type = Node::Type::Block},
+        {.data = {.end_if = {&end}}, .type = Node::Type::EndIf},
+        {.data = {.block = &end}, .type = Node::Type::Block},
+    };
+    FetchEnvironment env;
+    env.has_pool = false;
+    HostTranslateInfo host{};
+    host.support_separate_sampler = true;
+    host.max_bindless_descriptors_per_stage = 32;
+    Optimization::TexturePass(env, program, host);
+    assert(fetch.Inst()->GetOpcode() == IR::Opcode::ImageFetch);
+    assert(program.info.texture_descriptors.size() == 1);
+    const auto& desc = program.info.texture_descriptors.front();
+    assert(!desc.is_direct && desc.count == 1);
+    assert(desc.cbuf_index == 2 && desc.cbuf_offset == 360);
+    assert(desc.has_secondary && desc.secondary_cbuf_index == 2 && desc.secondary_cbuf_offset == 1392);
+}
 } // namespace
 
 void TestRuntimeTextureFetch() {
@@ -284,4 +350,5 @@ void TestRuntimeTextureFetch() {
     ImpossibleUniformFetch(true);
     ImpossibleUniformFetch(false);
     ImpossibleUniformFetch(true, false); // SSA/loop-varying predicates stay conservative.
+    ContradictoryOuterPredicateHandle();
 }

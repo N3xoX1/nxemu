@@ -431,6 +431,11 @@ void EmitIR<IR::Opcode::A64SetNZCVAtExits>(oaknut::CodeGenerator&, EmitContext&,
 }
 
 template<>
+void EmitIR<IR::Opcode::A64SetRegAtExits>(oaknut::CodeGenerator&, EmitContext&, IR::Inst*) {
+    ASSERT_FALSE("A64SetRegAtExits is only produced by the x64 backend.");
+}
+
+template<>
 void EmitIR<IR::Opcode::A64SetPC>(oaknut::CodeGenerator& code, EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
     auto Xvalue = ctx.reg_alloc.ReadX(args[0]);

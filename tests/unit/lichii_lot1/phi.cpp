@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include "nxemu-video/video_settings.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv_instructions.h"
 #include "yuzu_shader_recompiler/backend/spirv/spirv_emit_context.h"
 #include <array>
@@ -6,6 +7,8 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+
+VideoSettings videoSettings{};
 
 namespace IR = Shader::IR;
 namespace SPIRV = Shader::Backend::SPIRV;

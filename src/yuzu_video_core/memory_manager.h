@@ -271,8 +271,7 @@ private:
 
     const size_t unique_identifier;
     std::unique_ptr<VideoCommon::InvalidationAccumulator> accumulator;
-    /// The accumulator holds writes other than constant buffer uploads
-    bool accumulated_other_writes{};
+    bool accumulated_other_than_const_buffers{};
 
     static std::atomic<size_t> unique_identifier_generator;
 

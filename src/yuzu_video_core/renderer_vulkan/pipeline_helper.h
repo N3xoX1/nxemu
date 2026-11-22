@@ -335,7 +335,6 @@ class RescalingPushConstant {
 public:
     explicit RescalingPushConstant() noexcept {}
 
-    /// The words pushed for an earlier draw
     explicit RescalingPushConstant(
         const std::array<u32, NUM_TEXTURE_AND_IMAGE_SCALING_WORDS>& data) noexcept
         : words{data} {}

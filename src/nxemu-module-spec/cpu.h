@@ -106,7 +106,7 @@ nxinterface IMemory
     virtual bool WriteExclusive128(uint64_t addr, uint64_t valueHi, uint64_t valueLow, uint64_t expectedHi, uint64_t expectedLow) = 0;
     // Readback-capable caches need native CPU reads tracked independently of buffer writes.
     virtual void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) {}
-    // Pages the GPU still reads in place: CPU writes must fault, CPU reads stay native.
+    // Pages holding GPU-written buffer data: CPU writes must fault, CPU reads stay native.
     virtual void RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) {}
     // Whether a CPU access to a read-cached region faults until the cache releases it.
     virtual bool ProtectsReadCachedRegions() { return false; }
@@ -137,12 +137,7 @@ nxinterface IKProcessPageTable
 {
     virtual uint32_t GetAddressSpaceWidth() const = 0;
     virtual uint8_t * FastmemArena() const = 0;
-    // Map the JIT marks on fastmem writes, or null. See Dynarmic's write_track_map.
-    virtual uint8_t * WriteTrackMap(uint32_t & l2_offset, uint32_t & l1_offset) const
-    {
-        l2_offset = l1_offset = 0;
-        return nullptr;
-    }
+    virtual uint8_t * WriteTrackMap(uint32_t & l2_offset, uint32_t & l1_offset) const = 0;
     virtual void ** PageTable() const = 0;
     virtual uint32_t GetNceWindows(uint64_t * starts, uint64_t * ends, uint32_t max) const = 0;
     virtual uint64_t GetNceAtomicTable() const = 0;

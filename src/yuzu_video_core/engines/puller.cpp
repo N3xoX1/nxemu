@@ -62,6 +62,7 @@ void Puller::ProcessBindMethod(const MethodCall& method_call) {
 void Puller::ProcessFenceActionMethod() {
     switch (regs.fence_action.op) {
     case Puller::FenceOperation::Acquire: {
+        rasterizer->OnGuestSynchronization();
         // UNIMPLEMENTED_MSG("Channel Scheduling pending.");
         // A syncpoint the host has already reached needs no wait. Otherwise, without channel
         // scheduling, the pending fences are released as before.
@@ -91,6 +92,7 @@ void Puller::ProcessSemaphoreTriggerMethod() {
         rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload,
                           VideoCommon::QueryPropertiesFlags::HasTimeout, payload, 0);
     } else {
+        rasterizer->OnGuestSynchronization();
         do {
             const u32 word{memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress())};
             regs.acquire_source = true;
@@ -129,6 +131,7 @@ void Puller::ProcessSemaphoreRelease() {
 }
 
 void Puller::ProcessSemaphoreAcquire() {
+    rasterizer->OnGuestSynchronization();
     u32 word = memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress());
     const auto value = regs.semaphore_acquire;
     while (word != value) {

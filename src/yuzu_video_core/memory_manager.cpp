@@ -700,7 +700,7 @@ void MemoryManager::WriteBlockCached(GPUVAddr gpu_dest_addr, const void * src_bu
 {
     WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
     accumulator->Add(gpu_dest_addr, size);
-    accumulated_other_writes = true;
+    accumulated_other_than_const_buffers = true;
 }
 
 void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
@@ -1054,7 +1054,7 @@ void MemoryManager::FlushCaching()
     accumulator->Callback([this](GPUVAddr addr, size_t size) {
         GetSubmappedRangeImpl<false>(addr, size, page_stash2);
     });
-    if (std::exchange(accumulated_other_writes, false))
+    if (std::exchange(accumulated_other_than_const_buffers, false))
     {
         rasterizer->InnerInvalidation(page_stash2);
     }

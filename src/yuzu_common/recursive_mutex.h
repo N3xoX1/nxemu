@@ -4,6 +4,7 @@
 #pragma once
 
 #include <atomic>
+#include <mutex>
 #include <shared_mutex>
 
 #if defined(_M_X64) || defined(__x86_64__)
@@ -14,9 +15,6 @@
 
 namespace Common {
 
-/// Recursive mutex for locks taken many times per frame with little contention.
-/// The owner check avoids the thread id lookup and bookkeeping of std::recursive_mutex.
-/// The inner lock is std::shared_mutex, which MSVC implements as a plain SRW lock.
 class RecursiveMutex {
 public:
     RecursiveMutex() = default;
@@ -24,50 +22,43 @@ public:
     RecursiveMutex& operator=(const RecursiveMutex&) = delete;
 
     void lock() {
-        const u32 self = ThisThread();
-        if (owner.load(std::memory_order_relaxed) == self) {
+        const u64 self = ThisThreadId();
+        if (IsOwnedBy(self)) {
             ++depth;
             return;
         }
-        if (!inner.try_lock()) {
+        if (!plain_lock.try_lock()) {
             waiters.fetch_add(1, std::memory_order_relaxed);
-            inner.lock();
+            plain_lock.lock();
             waiters.fetch_sub(1, std::memory_order_relaxed);
         }
-        owner.store(self, std::memory_order_relaxed);
-        depth = 1;
+        TakeOwnership(self);
     }
 
     bool try_lock() {
-        const u32 self = ThisThread();
-        if (owner.load(std::memory_order_relaxed) == self) {
+        const u64 self = ThisThreadId();
+        if (IsOwnedBy(self)) {
             ++depth;
             return true;
         }
-        if (!inner.try_lock()) {
+        if (!plain_lock.try_lock()) {
             return false;
         }
-        owner.store(self, std::memory_order_relaxed);
-        depth = 1;
+        TakeOwnership(self);
         return true;
     }
 
-    /// For a thread that checks state the lock holder changes often: waits by reading the
-    /// owner instead of queueing on the inner lock, so the holder's unlock never has to wake
-    /// it. Falls back to lock() after a while.
+    // Brief polls avoid a scheduler wake-up for the decode thread checks between draws.
     void lock_spin() {
-        const u32 self = ThisThread();
         if (try_lock()) {
             return;
         }
-        // Counted from the first failed try, so that a holder that keeps the lock between its
-        // own uses hands it over
         waiters.fetch_add(1, std::memory_order_relaxed);
-        bool locked{};
         for (u32 spins = 0; spins < 4096; ++spins) {
-            if (owner.load(std::memory_order_relaxed) == 0 && inner.try_lock()) {
-                locked = true;
-                break;
+            if (owner.load(std::memory_order_relaxed) == NoOwner && plain_lock.try_lock()) {
+                waiters.fetch_sub(1, std::memory_order_relaxed);
+                TakeOwnership(ThisThreadId());
+                return;
             }
 #if defined(_M_X64) || defined(__x86_64__)
             _mm_pause();
@@ -75,15 +66,11 @@ public:
             asm volatile("yield");
 #endif
         }
-        if (!locked) {
-            inner.lock();
-        }
+        plain_lock.lock();
         waiters.fetch_sub(1, std::memory_order_relaxed);
-        owner.store(self, std::memory_order_relaxed);
-        depth = 1;
+        TakeOwnership(ThisThreadId());
     }
 
-    /// True while another thread waits for the lock
     [[nodiscard]] bool HasWaiters() const noexcept {
         return waiters.load(std::memory_order_relaxed) != 0;
     }
@@ -92,23 +79,39 @@ public:
         if (--depth != 0) {
             return;
         }
-        owner.store(0, std::memory_order_relaxed);
-        inner.unlock();
+        owner.store(NoOwner, std::memory_order_relaxed);
+        plain_lock.unlock();
     }
 
 private:
-    /// Small nonzero id of the calling thread
-    static u32 ThisThread() noexcept {
-        static std::atomic<u32> next_id{1};
-        thread_local const u32 id = next_id.fetch_add(1, std::memory_order_relaxed);
+    static constexpr u64 NoOwner = 0;
+
+#ifdef _MSC_VER
+    // MSVC's std::shared_mutex is a bare SRW lock, with less bookkeeping than its std::mutex
+    using PlainLock = std::shared_mutex;
+#else
+    using PlainLock = std::mutex;
+#endif
+
+    static u64 ThisThreadId() noexcept {
+        static std::atomic<u64> next_id{NoOwner + 1};
+        thread_local const u64 id = next_id.fetch_add(1, std::memory_order_relaxed);
         return id;
     }
 
-    // Only the owner writes its own id, so another thread never reads its own id here
-    std::atomic<u32> owner{0};
+    bool IsOwnedBy(u64 thread_id) const noexcept {
+        return owner.load(std::memory_order_relaxed) == thread_id;
+    }
+
+    void TakeOwnership(u64 thread_id) noexcept {
+        owner.store(thread_id, std::memory_order_relaxed);
+        depth = 1;
+    }
+
+    std::atomic<u64> owner{NoOwner};
     std::atomic<u32> waiters{0};
     u32 depth = 0;
-    std::shared_mutex inner;
+    PlainLock plain_lock;
 };
 
 } // namespace Common

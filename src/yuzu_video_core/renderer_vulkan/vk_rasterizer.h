@@ -139,7 +139,9 @@ public:
     void InnerConstBufferInvalidation(
         std::span<const std::pair<DAddr, std::size_t>> sequences) override;
     void OnCacheInvalidation(DAddr addr, u64 size) override;
+    void OnCoarseCacheInvalidation(DAddr addr, u64 size) override;
     bool OnCPUWrite(DAddr addr, u64 size) override;
+    void OnGuestSynchronization() override;
     void WaitInPlaceReads(DAddr addr, u64 size) override;
     void WaitInPlaceReadsForEngineWrite(DAddr addr, u64 size) override;
     void ServiceInPlaceWaits() override;
@@ -188,8 +190,35 @@ private:
 
     static constexpr VkDeviceSize DEFAULT_BUFFER_SIZE = 4 * sizeof(float);
 
+    enum class DrawArguments { Registers, Indirect };
+
     template <typename Func>
-    void PrepareDraw(bool is_indexed, Func&&);
+    void PrepareDraw(bool is_indexed, DrawArguments arguments, Func&&);
+
+    /// What the bindings of a draw were resolved from
+    struct DrawBindings {
+        const GraphicsPipeline* pipeline{};
+        const Tegra::Engines::Maxwell3D* maxwell3d{};
+        u64 state_generation{};
+        u64 record_epoch{};
+        u64 descriptor_epoch{};
+        u64 deleted_buffers_epoch{};
+        u64 gpu_write_epoch{};
+        u64 memory_epoch{};
+        Maxwell::PrimitiveTopology topology{};
+        bool is_indexed{};
+
+        bool operator==(const DrawBindings&) const = default;
+    };
+
+    [[nodiscard]] DrawBindings CurrentDrawBindings(const GraphicsPipeline* pipeline,
+                                                   bool is_indexed) const;
+    [[nodiscard]] bool CanKeepBindingsOf(const GraphicsPipeline* pipeline) const;
+    [[nodiscard]] bool ConfigureFromLastDraw(GraphicsPipeline* pipeline, bool is_indexed);
+    void InvalidateInner(std::span<const std::pair<DAddr, std::size_t>> sequences,
+                         bool const_buffer_uploads);
+    /// After the caches take a change, so a draw that sees the new epoch sees the change
+    void ChangeMemoryEpoch();
 
     void DrawVtgAsCompute(const GraphicsPipeline* pipeline);
 
@@ -266,48 +295,19 @@ private:
     std::array<VideoCommon::ImageViewId, MAX_IMAGE_VIEWS> image_view_ids;
     boost::container::static_vector<VkSampler, MAX_TEXTURES> sampler_handles;
 
-    /// What the bindings of the last direct draw were resolved from. A draw that matches all of
-    /// it reads the same state and data, and keeps those bindings: see HasLastDrawState.
-    struct DrawBindings {
-        const GraphicsPipeline* pipeline{};
-        const Tegra::Engines::Maxwell3D* maxwell3d{};
-        u64 state_generation{};
-        u64 buffer_generation{};
-        u64 record_epoch{};
-        u64 descriptor_epoch{};
-        u64 deleted_buffers_epoch{};
-        u64 gpu_write_epoch{};
-        u64 memory_epoch{};
-        Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology topology{};
-        bool is_indexed{};
-    };
-    [[nodiscard]] DrawBindings CurrentDrawBindings(const GraphicsPipeline* pipeline,
-                                                   bool is_indexed) const;
-    /// True when the draw reads the same state as the last direct draw, with the same
-    /// pipeline and nothing recorded in between. Its buffers may differ.
-    [[nodiscard]] bool HasLastDrawState(const DrawBindings& current) const;
-    void InnerInvalidationImpl(std::span<const std::pair<DAddr, std::size_t>> sequences,
-                               bool const_buffers_only);
     DrawBindings last_draw_bindings{};
-    /// Set by Draw for PrepareDraw: only direct draws keep earlier bindings
-    bool preparing_direct_draw{};
-    /// Changes each time guest memory is written, invalidated or unmapped. Constant buffer
-    /// uploads leave it when only buffers held their pages: Maxwell3D::BufferChanges has them.
+    u64 last_draw_buffer_generation{};
+    /// Unchanged by the constant buffer uploads that Maxwell3D::BufferChanges records
     std::atomic<u64> memory_epoch{};
 
-    /// Waits until the host GPU ran the work of `tick`, which reads guest memory in place
     void WaitInPlaceTick(u64 tick);
-    /// Another thread than the GPU thread: has the GPU thread submit `tick`, false when the
-    /// GPU thread stopped
     bool RequestInPlaceSubmit(u64 tick);
 
-    /// Ticks other threads wait for, that only the GPU thread can submit
     std::mutex in_place_wait_mutex;
     std::condition_variable in_place_wait_cv;
     u64 in_place_submit_tick{};
     bool in_place_waits_stopped{};
     std::atomic<bool> in_place_submit_requested{};
-    /// The buffer and texture cache locks, kept from one draw to the next
     bool draw_locks_held{};
     u32 draws_under_locks{};
 

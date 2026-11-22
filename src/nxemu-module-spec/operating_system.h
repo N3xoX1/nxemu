@@ -524,6 +524,8 @@ nxinterface IDeviceMemory
 nxinterface ICacheInvalidator
 {
     virtual void OnCacheInvalidation(uint64_t address, uint32_t size) = 0;
+    // The CPU wrote somewhere in the range, not necessarily all of it
+    virtual void OnCoarseCacheInvalidation(uint64_t address, uint32_t size) = 0;
 };
 
 typedef void (*DeviceEnumCallback)(const char * device, void * userData);

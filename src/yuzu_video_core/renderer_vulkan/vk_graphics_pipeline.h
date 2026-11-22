@@ -162,36 +162,10 @@ public:
 
     void Configure(bool is_indexed);
 
-    /// For a draw that reads the same state and data as the previous one of this pipeline, with
-    /// nothing recorded in between: keeps the bindings of that draw, binding only the index
-    /// buffer again and checking feedback loops. Returns false when the draw has to be
-    /// configured in full.
+    // False when the draw has to be configured in full
     [[nodiscard]] bool ConfigureReused(bool is_indexed);
-
-    /// For a draw that reads the same state as the previous one of this pipeline, with nothing
-    /// recorded in between, but other buffers: keeps the textures, samplers and render targets
-    /// of that draw, and binds again the geometry and the uniform buffers that changed, see
-    /// Maxwell3D::BufferChanges. Returns false when the draw has to be configured in full.
     [[nodiscard]] bool ConfigureKeptBuffers(bool is_indexed);
 
-private:
-    /// ConfigureKeptBuffers of a pipeline with storage, texture or image buffers: binds all its
-    /// buffers again and keeps its images
-    [[nodiscard]] bool ConfigureKeptImages(bool is_indexed);
-
-    /// True when the texture handles in the constant buffers are the ones of the last draw
-    [[nodiscard]] bool HasKeptHandles();
-
-    enum class KeptTextures { Failed, Same, Changed };
-
-    /// Reads the texture handles again and resolves the views and samplers that changed since
-    /// the last draw, keeping the others
-    [[nodiscard]] KeptTextures UpdateKeptTextures();
-
-public:
-
-    /// True when the last Configure left bindings that a later draw can keep: nothing in them
-    /// is written by the draw or changes from one draw to the next
     [[nodiscard]] bool HasReusableBindings() const noexcept {
         return reusable_bindings;
     }
@@ -298,8 +272,21 @@ private:
     /// Returns the color attachments the draw writes
     [[nodiscard]] u32 ColorWriteMask() const;
 
+    void RequestRenderPass();
+
     void ConfigureDraw(const RescalingPushConstant& rescaling,
                        const RenderAreaPushConstant& render_are);
+
+    enum class KeptTextures { Same, Changed, Failed };
+
+    [[nodiscard]] KeptTextures UpdateKeptTextures(bool may_change);
+    [[nodiscard]] bool ReadTextureHandles();
+    [[nodiscard]] bool ConfigureKeptImages(bool is_indexed);
+
+    void BindStorageBuffers(size_t stage);
+    void BindTextureBuffers(size_t stage, const VideoCommon::ImageViewInOut*& views_it);
+    void AddKeptEntries(size_t& entry, size_t end);
+    void ConfigureKeptDraw();
 
     /// Reads the pixel local textures of the fragment stage from the color attachments they
     /// sample when the draw allows it, unbinding their views. Returns the shader selectors.
@@ -348,30 +335,25 @@ private:
     boost::container::small_vector<VideoCommon::ImageViewInOut, 64> descriptor_views;
     boost::container::small_vector<VideoCommon::SamplerId, 64> descriptor_samplers;
     std::unique_ptr<DrawDescriptorCache<VideoCommon::SamplerId>> sampler_lookup;
-    // Textures and samplers resolved for the last draw, see ConfigureImpl
     boost::container::small_vector<u32, 64> sampler_handles;
     boost::container::small_vector<u32, 64> cached_view_indices;
     boost::container::small_vector<VideoCommon::ImageViewId, 64> cached_view_ids;
     boost::container::small_vector<u32, 64> cached_sampler_handles;
     boost::container::small_vector<VideoCommon::SamplerId, 64> cached_samplers;
     u64 cached_descriptor_epoch{};
-    bool reusable_bindings{};
 
-    // Descriptors of the last draw, for ConfigureKeptBuffers
-    /// Per stage, the constant buffer slots that texture handles are read from
-    std::array<u32, NUM_STAGES> handle_cbuf_masks{};
-    /// No storage, texture or image buffers: uniform buffers are the only buffer descriptors
-    bool binds_only_uniform_buffers{};
     u32 enabled_stage_mask{};
-    bool has_kept_entries{};
+    std::array<u32, NUM_STAGES> handle_cbuf_masks{};
+    bool binds_only_uniform_buffers{};
+    /// No binding is written by the draw or changes with each draw
+    bool has_stable_bindings{};
+    bool reusable_bindings{};
     std::vector<DescriptorUpdateEntry> kept_entries;
-    /// Per stage, the first entry, where its uniform buffers start
-    std::array<u32, NUM_STAGES> kept_stage_entries{};
-    /// Per stage, the first entry after its buffers, where its images start
-    std::array<u32, NUM_STAGES> kept_stage_images{};
+    std::array<u32, NUM_STAGES> kept_uniform_entries{};
+    std::array<u32, NUM_STAGES> kept_image_entries{};
     std::array<u32, Shader::Backend::SPIRV::NUM_TEXTURE_AND_IMAGE_SCALING_WORDS> kept_rescaling{};
-    std::array<f32, 4> kept_render_area{};
     bool kept_uses_render_area{};
+    std::array<f32, 4> kept_render_area{};
 
     // Pixel local texture reads of the fragment stage in selector order, and their views
     boost::container::static_vector<Shader::PixelLocalRead, Shader::MAX_PIXEL_LOCAL_READS>

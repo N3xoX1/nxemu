@@ -140,9 +140,7 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
         {
             std::scoped_lock execution_lock{state.execution_mutex};
             for (BackQueue::Work& work : batch) {
-                // On exit the guest memory is unmapped before the GPU stops: the rest of the
-                // batch would decode shaders and buffers from unmapped memory and keep the
-                // exit waiting for a long time
+                // On exit the guest memory is unmapped before the GPU stops
                 if (stop_token.stop_requested()) {
                     break;
                 }
@@ -275,11 +273,15 @@ ThreadManager::~ThreadManager() = default;
 
 void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Frontend::GraphicsContext & context, Tegra::Control::Scheduler & scheduler)
 {
+    {
+        std::scoped_lock lk{state->write_lock};
+        state->stopping = false;
+    }
+    state->queue.ResetClosed();
     rasterizer = renderer.ReadRasterizer();
     if (is_async)
     {
         state->back.threaded = true;
-        state->back.execution_mutex = &state->execution_mutex;
         thread = std::jthread(RunDrawThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(*state));
         decode_thread = std::jthread(RunDecodeThread, std::ref(gpu), rasterizer, std::ref(scheduler), std::ref(*state));
         return;
@@ -299,6 +301,14 @@ Tegra::ExecutionLock ThreadManager::LockExecution()
 
 void ThreadManager::StopThread()
 {
+    // Wake any producer blocked on a full command queue before acquiring write_lock
+    // or stopping the consumer thread.
+    state->queue.Close();
+    {
+        std::scoped_lock lk{state->write_lock};
+        state->stopping = true;
+    }
+    state->cv.notify_all();
     if (rasterizer != nullptr)
     {
         // Nothing submits recorded work from now on
@@ -306,10 +316,11 @@ void ThreadManager::StopThread()
     }
     if (decode_thread.joinable())
     {
+        // Keep the consumer alive until the decoder has finished its queued work.
         decode_thread.request_stop();
+        decode_thread.join();
         thread.request_stop();
         state->back.Stop();
-        decode_thread.join();
     }
     if (thread.joinable())
     {
@@ -371,13 +382,20 @@ u64 ThreadManager::PushCommand(CommandData && command_data, bool block)
     }
 
     std::unique_lock lk(state->write_lock);
+    if (state->stopping)
+    {
+        return state->last_fence;
+    }
     const u64 fence{++state->last_fence};
-    state->queue.EmplaceWait(std::move(command_data), fence, block);
+    if (!state->queue.EmplaceWait(std::move(command_data), fence, block))
+    {
+        return fence;
+    }
 
     if (block)
     {
-        Common::CondvarWait(state->cv, lk, thread.get_stop_token(), [this, fence] {
-            return fence <= state->signaled_fence.load(std::memory_order_relaxed);
+        state->cv.wait(lk, [this, fence] {
+            return state->stopping || fence <= state->signaled_fence.load(std::memory_order_relaxed);
         });
     }
 

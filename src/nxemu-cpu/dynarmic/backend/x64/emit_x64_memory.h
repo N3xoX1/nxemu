@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: 0BSD
  */
 
-#include <cstdlib>
+#include <optional>
 
 #include <mcl/bit_cast.hpp>
 #include <xbyak/xbyak.h>
@@ -201,23 +201,21 @@ template<>
     }
 }
 
-// Marks the page of a fastmem write in the write tracking map. The upper levels are only
-// written when the page byte was clear, so most writes only load one byte.
-// True when the whole map fits below 2 GiB, so it is addressed with a 32-bit displacement
-// and needs no base register
+// Then the map is addressed without a base register
 template<typename Config>
 bool WriteTrackMapIsLow(const Config& conf) {
     const u64 end = reinterpret_cast<u64>(conf.write_track_map) + conf.write_track_l1_offset + (u64{1} << 20);
     return end < (u64{1} << 31);
 }
 
-// `map` is only needed when the map is not low. `offset` is added to vaddr first.
+// `map` is only needed when the map is not low. `check_range` skips a page past the map, for an
+// address that is not known to be valid.
 template<typename EmitContext>
-void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 offset = 0) {
-    const auto& conf = ctx.conf;
-    const u32 l2_offset = conf.write_track_l2_offset;
-    const u32 l1_offset = conf.write_track_l1_offset;
-    const u32 low_base = map ? 0 : static_cast<u32>(reinterpret_cast<u64>(conf.write_track_map));
+void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 offset, bool check_range) {
+    const u32 l2_offset = ctx.conf.write_track_l2_offset;
+    const u32 l1_offset = ctx.conf.write_track_l1_offset;
+    const u64 map_address = reinterpret_cast<u64>(ctx.conf.write_track_map);
+    const u32 low_base = map ? 0 : static_cast<u32>(map_address);
     SharedLabel mark = GenSharedLabel(), marked = GenSharedLabel();
 
     if (offset != 0) {
@@ -225,9 +223,13 @@ void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xby
     } else {
         code.mov(page, vaddr);
     }
-    code.shr(page, 12);
+    code.shr(page, page_bits);
+    if (check_range) {
+        code.cmp(page, l2_offset);
+        code.jae(*marked, code.T_NEAR);
+    }
     if (map) {
-        code.mov(*map, reinterpret_cast<u64>(conf.write_track_map));
+        code.mov(*map, map_address);
         code.cmp(code.byte[*map + page], 0);
     } else {
         code.cmp(code.byte[page + low_base], 0);
@@ -257,6 +259,14 @@ void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xby
         }
         code.jmp(*marked, code.T_NEAR);
     });
+}
+
+template<std::size_t bitsize, typename EmitContext>
+void EmitWriteTrackAccess(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 disp = 0) {
+    EmitWriteTrack(code, ctx, vaddr, page, map, disp, false);
+    if constexpr (bitsize > 8) {
+        EmitWriteTrack(code, ctx, vaddr, page, map, disp + static_cast<s32>(bitsize / 8 - 1), false);
+    }
 }
 
 template<std::size_t bitsize>

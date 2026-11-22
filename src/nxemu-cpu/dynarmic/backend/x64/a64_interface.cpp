@@ -78,7 +78,8 @@ static bool SameGeneratedCode(const UserConfig& a, const UserConfig& b) {
         && a.fastmem_exclusive_access == b.fastmem_exclusive_access
         && a.recompile_on_exclusive_fastmem_failure == b.recompile_on_exclusive_fastmem_failure
         && a.write_track_map == b.write_track_map && a.write_track_l2_offset == b.write_track_l2_offset
-        && a.write_track_l1_offset == b.write_track_l1_offset && a.define_unpredictable_behaviour == b.define_unpredictable_behaviour
+        && a.write_track_l1_offset == b.write_track_l1_offset
+        && a.define_unpredictable_behaviour == b.define_unpredictable_behaviour
         && a.wall_clock_cntpct == b.wall_clock_cntpct && a.check_halt_on_memory_access == b.check_halt_on_memory_access
         && a.enable_cycle_counting == b.enable_cycle_counting && a.notify_compilation == b.notify_compilation
         && a.code_cache_size == b.code_cache_size && a.very_verbose_debugging_output == b.very_verbose_debugging_output
@@ -464,7 +465,6 @@ private:
                 return block->entrypoint;
             }
         }
-        // Each area against its own size, see BlockOfCode::SpaceLow
         if (block_of_code.SpaceLow(8) && !shared->clear_pending.load()) {
             shared->RequestClear();
         }
@@ -506,7 +506,7 @@ private:
     SharedCodeCache::Core core_link;
 
     const UserConfig conf;
-    alignas(64) A64JitState jit_state;
+    A64JitState jit_state;
     std::shared_ptr<SharedCodeCache> shared;
     BlockOfCode& block_of_code;
     A64EmitX64& emitter;

@@ -113,16 +113,15 @@ public:
     /// Decode thread: waits until the GPU thread has run all queued work
     void WaitIdle();
 
-    /// Decode thread: runs `func` while the GPU thread is idle and can't start new work
+    /// Decode thread: runs `func` on the GPU thread and waits for completion.
     template <typename Func>
     void RunExclusive(Func&& func) {
         if (!threaded) {
             func();
             return;
         }
+        Push([&func] { func(); });
         WaitIdle();
-        std::scoped_lock lock{*execution_mutex};
-        func();
     }
 
     // Used by ThreadManager and the GPU thread
@@ -139,7 +138,6 @@ private:
     friend class ThreadManager;
 
     bool threaded{};
-    std::recursive_mutex* execution_mutex{};
     std::mutex mutex;
     std::condition_variable_any cv;
     std::condition_variable_any idle_cv;
@@ -167,6 +165,7 @@ struct SynchState final {
     CommandQueue queue;
     u64 last_fence{};
     std::atomic<u64> signaled_fence{};
+    bool stopping{};
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
     /// Another thread waits for recorded GPU work, see RasterizerInterface::ServiceInPlaceWaits

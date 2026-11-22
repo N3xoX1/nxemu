@@ -205,8 +205,15 @@ public:
     /// Notify rasterizer that any caches of the specified region are desync with guest
     virtual void OnCacheInvalidation(PAddr addr, u64 size) = 0;
 
+    /// The CPU wrote somewhere in the range, not necessarily all of it
+    virtual void OnCoarseCacheInvalidation(PAddr addr, u64 size) {
+        OnCacheInvalidation(addr, size);
+    }
+
     virtual bool OnCPUWrite(PAddr addr, u64 size) = 0;
 
+    /// The guest may have written memory it ordered before this point, without reporting it
+    virtual void OnGuestSynchronization() {}
     /// Called before every guest CPU write to cached memory: waits for queued GPU work that
     /// reads it in place.
     virtual void WaitInPlaceReads(PAddr addr, u64 size) {}

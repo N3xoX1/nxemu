@@ -114,6 +114,8 @@ struct PageTable {
      */
     void Resize(std::size_t address_space_width_in_bits, std::size_t page_size_in_bits);
 
+    void EnableWriteTracking();
+
     std::size_t GetAddressSpaceBits() const {
         return current_address_space_width_in_bits;
     }
@@ -141,8 +143,7 @@ struct PageTable {
 
     u8* fastmem_arena{};
 
-    // One byte per page, set by the JIT on fastmem writes, then two summary levels. The
-    // memory system owns it. Null when CPU writes are tracked by page protection.
+    // One byte per page set by the JIT on fastmem writes, then two summary levels
     u8* write_track_map{};
     u32 write_track_l2_offset{};
     u32 write_track_l1_offset{};

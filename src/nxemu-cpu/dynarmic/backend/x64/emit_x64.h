@@ -6,7 +6,6 @@
 #pragma once
 
 #include <array>
-#include <cstdlib>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -100,12 +99,24 @@ struct EmitContext {
     }
     /// The guest NZCV is in the host flags and not yet in cpsr_nzcv
     bool nzcv_pending = false;
+    /// A guest register write that only side exits need (a later write of the same register
+    /// replaces it on the hot path). Its SetW/SetX became A64SetRegAtExits (the A64 emitter's
+    /// PlanRegistersAtExits) and each side exit before the later write stores it.
+    struct SetAtExit {
+        size_t offset;       // in the JIT state
+        bool is_w;           // a W write: the upper half is stored as zero
+        bool zero_extended;  // a W value whose register already has the upper half clear
+        IR::Value value;     // an immediate, or an instruction that is still live at the exits
+    };
+    tsl::robin_map<const IR::Inst*, std::vector<SetAtExit>> sets_at_exits;  // by A64SideExit
 
-    /// Fastmem writes whose write tracking mark is done by a later write of the same group
+    /// Fastmem writes whose write tracking mark is done by the last write of their group
     tsl::robin_set<const IR::Inst*> write_track_skip;
-    /// Last write of a group -> offsets from its address to the lowest and highest address
-    /// of the group, both marked by that write
+    /// Last write of a group -> offsets from its address to the first and the last byte the
+    /// group writes
     tsl::robin_map<const IR::Inst*, std::pair<s32, s32>> write_track_group;
+    /// Add64s that emit nothing: the one fastmem access using each adds its immediate itself
+    tsl::robin_set<const IR::Inst*> folded_addresses;
 };
 
 using SharedLabel = std::shared_ptr<Xbyak::Label>;
@@ -126,6 +137,12 @@ inline bool BaselineCodegen() {
 /// differential tests
 inline bool BaselineLoadsAndImmediates() {
     return (jit_test_variant & 256) != 0;
+}
+
+/// Test variant bit 8192: FRECPE calls the FP code for every input (the code generation before)
+/// instead of the inline estimate for normal inputs, for differential tests
+inline bool OutOfLineRecipEstimate() {
+    return (jit_test_variant & 8192) != 0;
 }
 
 /// True when the value is known to have every bit above `kept_bits` clear, wherever it lives:

@@ -5,7 +5,6 @@
 
 #include "dynarmic/backend/x64/a64_emit_x64.h"
 
-#include <algorithm>
 #include <atomic>
 #include <utility>
 
@@ -26,6 +25,7 @@
 #include "dynarmic/backend/x64/stack_layout.h"
 #include "dynarmic/frontend/A64/a64_location_descriptor.h"
 #include "dynarmic/frontend/A64/a64_types.h"
+#include "dynarmic/ir/acc_type.h"
 #include "dynarmic/ir/basic_block.h"
 #include "dynarmic/ir/cond.h"
 #include "dynarmic/ir/microinstruction.h"
@@ -59,9 +59,8 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
     GenFastmemFallbacks();
     GenTerminalHandlers();
     GenWriteMarkThunks();
-    // Half of the cache for the cold code of the blocks (fallbacks and link stubs): in TOTK
-    // it emptied the whole cache when it held a quarter. Test variant bit 32 keeps the old
-    // layout, with the cold code after each block.
+    // Reserve half the cache for deferred fallbacks and link stubs.
+    // Test variant bit 32 keeps the old layout, with the cold code after each block.
     if ((conf.test_variant & 32) == 0) {
         code.ReserveFarCode(conf.code_cache_size / 2);
     }
@@ -75,22 +74,74 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
 
 A64EmitX64::~A64EmitX64() = default;
 
+// The emitted code of these leaves EFLAGS alone: moves only. The host flag tracking in Emit and
+// PlanNZCVAtExits both use this list. vector_moves is false for test variant bit 512.
+static bool IsHostFlagNeutral(const IR::Inst& inst, bool vector_moves) {
+    switch (inst.GetOpcode()) {
+    case IR::Opcode::Void:
+    case IR::Opcode::A64SetNZCVAtExits:
+    case IR::Opcode::A64SetRegAtExits:
+    case IR::Opcode::A64GetW:
+    case IR::Opcode::A64GetX:
+    case IR::Opcode::A64GetSP:
+    case IR::Opcode::A64SetW:
+    case IR::Opcode::A64SetX:
+    case IR::Opcode::A64SetSP:
+    case IR::Opcode::Identity:
+        return true;
+    // Vector register moves and zero extensions: SSE moves, lane extracts and mov r32, r32,
+    // which leave EFLAGS alone. An immediate is loaded into an XMM with xorps or movaps, but
+    // into a GPR with xor.
+    case IR::Opcode::A64GetS:
+    case IR::Opcode::A64GetD:
+    case IR::Opcode::A64GetQ:
+    case IR::Opcode::A64SetS:
+    case IR::Opcode::A64SetD:
+    case IR::Opcode::A64SetQ:
+    case IR::Opcode::VectorGetElement32:
+    case IR::Opcode::VectorGetElement64:
+    case IR::Opcode::VectorZeroUpper:
+    case IR::Opcode::ZeroExtendLongToQuad:
+        return vector_moves;
+    case IR::Opcode::ZeroExtendWordToLong:
+        return vector_moves && !inst.GetArg(0).IsImmediate();
+    default:
+        return false;
+    }
+}
+
 namespace {
-bool IsPlainWrite(IR::Opcode op) {
+s64 PlainWriteBytes(IR::Opcode op) {
     switch (op) {
     case IR::Opcode::A64WriteMemory8:
+        return 1;
     case IR::Opcode::A64WriteMemory16:
+        return 2;
     case IR::Opcode::A64WriteMemory32:
+        return 4;
     case IR::Opcode::A64WriteMemory64:
+        return 8;
     case IR::Opcode::A64WriteMemory128:
+        return 16;
+    default:
+        return 0;
+    }
+}
+
+bool IsPlainRead(IR::Opcode op) {
+    switch (op) {
+    case IR::Opcode::A64ReadMemory8:
+    case IR::Opcode::A64ReadMemory16:
+    case IR::Opcode::A64ReadMemory32:
+    case IR::Opcode::A64ReadMemory64:
+    case IR::Opcode::A64ReadMemory128:
         return true;
     default:
         return false;
     }
 }
 
-// Ops after which the block may stop before its end: a write before them must be marked
-// before them
+// The block may stop after these, so the writes before them must be marked first
 bool MayLeaveBlock(IR::Opcode op) {
     switch (op) {
     case IR::Opcode::A64CallSupervisor:
@@ -118,15 +169,17 @@ bool MayLeaveBlock(IR::Opcode op) {
     }
 }
 
-// Splits an address into an IR base value and a constant offset
+bool HasRegisterAndImmediateOperands(const IR::Inst& inst) {
+    return !inst.GetArg(0).IsImmediate() && inst.GetArg(1).IsImmediate() && inst.GetArg(2).IsImmediate() && !inst.GetArg(2).GetU1();
+}
+
 std::pair<const IR::Inst*, s64> SplitAddress(const IR::Value& address) {
     if (address.IsImmediate()) {
         return {nullptr, 0};
     }
     const IR::Inst* inst = address.GetInstRecursive();
-    const auto op = inst->GetOpcode();
-    if ((op == IR::Opcode::Add64 || op == IR::Opcode::Sub64) && !inst->GetArg(0).IsImmediate() && inst->GetArg(1).IsImmediate()
-        && inst->GetArg(2).IsImmediate() && !inst->GetArg(2).GetU1()) {
+    const IR::Opcode op = inst->GetOpcode();
+    if ((op == IR::Opcode::Add64 || op == IR::Opcode::Sub64) && HasRegisterAndImmediateOperands(*inst)) {
         const s64 imm = static_cast<s64>(inst->GetArg(1).GetU64());
         return {inst->GetArg(0).GetInstRecursive(), op == IR::Opcode::Add64 ? imm : -imm};
     }
@@ -134,83 +187,37 @@ std::pair<const IR::Inst*, s64> SplitAddress(const IR::Value& address) {
 }
 }  // namespace
 
-// Fastmem writes off the same base value with offsets less than a page apart touch at
-// most two pages. In a group of three or more, only the last write marks the write map,
-// for the lowest and highest address of the group. The group ends before anything that may
-// leave the block, so no write is left unmarked.
-void A64EmitX64::PlanWriteTracking(A64EmitContext& ctx) const {
-    if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
+constexpr s64 max_write_group_span = 4096;
+// The slow path stub negates it and write tracking adds a group offset: both stay 32-bit
+constexpr s64 max_folded_displacement = INT32_MAX - max_write_group_span;
+
+// Only without the address check is a fastmem access [r13 + vaddr]
+void A64EmitX64::PlanFoldedAddresses(A64EmitContext& ctx) const {
+    if ((conf.test_variant & 4096) != 0 || !conf.fastmem_pointer || conf.fastmem_address_space_bits != 64) {
         return;
     }
-    std::vector<std::pair<IR::Inst*, s64>> group;
-    const IR::Inst* base = nullptr;
-    s64 lowest = 0, highest = 0;
-    const auto close = [&] {
-        if (group.size() >= 3) {
-            const s64 last = group.back().second;
-            for (size_t i = 0; i + 1 < group.size(); ++i) {
-                ctx.write_track_skip.insert(group[i].first);
-            }
-            ctx.write_track_group.emplace(group.back().first, std::make_pair(static_cast<s32>(lowest - last), static_cast<s32>(highest - last)));
+    for (IR::Inst& inst : ctx.block) {
+        const bool is_write = PlainWriteBytes(inst.GetOpcode()) != 0;
+        if (!is_write && !IsPlainRead(inst.GetOpcode())) {
+            continue;
         }
-        group.clear();
-        base = nullptr;
-    };
-    for (auto& inst : ctx.block) {
-        const auto op = inst.GetOpcode();
-        if (IsPlainWrite(op)) {
-            const auto [write_base, offset] = SplitAddress(inst.GetArg(1));
-            if (write_base == nullptr || !ShouldFastmem(ctx, &inst)) {
-                close();
-                continue;
-            }
-            if (write_base != base || std::max(highest, offset) - std::min(lowest, offset) >= 4096) {
-                close();
-                base = write_base;
-                lowest = highest = offset;
-            }
-            lowest = std::min(lowest, offset);
-            highest = std::max(highest, offset);
-            group.emplace_back(&inst, offset);
-        } else if (MayLeaveBlock(op)) {
-            close();
+        const IR::AccType acc = inst.GetArg(is_write ? 3 : 2).GetAccType();
+        if (acc == IR::AccType::ORDERED || acc == IR::AccType::ORDEREDRW || acc == IR::AccType::LIMITEDORDERED) {
+            continue;
         }
-    }
-    close();
-}
-
-// The emitted code of these leaves EFLAGS alone: moves only. The host flag tracking in Emit and
-// PlanNZCVAtExits both use this list. vector_moves is false for test variant bit 512.
-static bool IsHostFlagNeutral(const IR::Inst& inst, bool vector_moves) {
-    switch (inst.GetOpcode()) {
-    case IR::Opcode::Void:
-    case IR::Opcode::A64SetNZCVAtExits:
-    case IR::Opcode::A64GetW:
-    case IR::Opcode::A64GetX:
-    case IR::Opcode::A64GetSP:
-    case IR::Opcode::A64SetW:
-    case IR::Opcode::A64SetX:
-    case IR::Opcode::A64SetSP:
-    case IR::Opcode::Identity:
-        return true;
-    // Vector register moves and zero extensions: SSE moves, lane extracts and mov r32, r32,
-    // which leave EFLAGS alone. An immediate is loaded into an XMM with xorps or movaps, but
-    // into a GPR with xor.
-    case IR::Opcode::A64GetS:
-    case IR::Opcode::A64GetD:
-    case IR::Opcode::A64GetQ:
-    case IR::Opcode::A64SetS:
-    case IR::Opcode::A64SetD:
-    case IR::Opcode::A64SetQ:
-    case IR::Opcode::VectorGetElement32:
-    case IR::Opcode::VectorGetElement64:
-    case IR::Opcode::VectorZeroUpper:
-    case IR::Opcode::ZeroExtendLongToQuad:
-        return vector_moves;
-    case IR::Opcode::ZeroExtendWordToLong:
-        return vector_moves && !inst.GetArg(0).IsImmediate();
-    default:
-        return false;
+        const IR::Value vaddr = inst.GetArg(1);
+        if (vaddr.IsImmediate()) {
+            continue;
+        }
+        const IR::Inst* add = vaddr.GetInst();
+        if (add->GetOpcode() != IR::Opcode::Add64 || add->UseCount() != 1 || !HasRegisterAndImmediateOperands(*add)) {
+            continue;
+        }
+        const s64 disp = static_cast<s64>(add->GetArg(1).GetU64());
+        if (disp < -max_folded_displacement || disp > max_folded_displacement || !ShouldFastmem(ctx, &inst)) {
+            continue;
+        }
+        ctx.folded_addresses.insert(add);
     }
 }
 
@@ -300,6 +307,78 @@ void A64EmitX64::PlanNZCVAtExits(A64EmitContext& ctx) const {
     }
 }
 
+// A block that runs past conditional branches (side exits) stores every write of a guest
+// register before each exit, so a register written between several exits is stored several
+// times on the hot path. A SetW/SetX followed by a later write of the same register, with only
+// side exits in between that could see it, becomes A64SetRegAtExits: the hot path stores just
+// the last write, and each side exit in between stores the value from wherever it is at that
+// exit. The value stays live until after the last of those exits (A64SetRegAtExits uses it
+// there), so its host location is still its own at every exit.
+void A64EmitX64::PlanRegistersAtExits(A64EmitContext& ctx) const {
+    IR::Block& block = ctx.block;
+    const auto is_set = [](const IR::Inst& inst) {
+        return inst.GetOpcode() == IR::Opcode::A64SetW || inst.GetOpcode() == IR::Opcode::A64SetX;
+    };
+    const auto is_get = [](const IR::Inst& inst) {
+        return inst.GetOpcode() == IR::Opcode::A64GetW || inst.GetOpcode() == IR::Opcode::A64GetX;
+    };
+    for (auto it = block.begin(); it != block.end(); ++it) {
+        IR::Inst& set = *it;
+        if (!is_set(set)) {
+            continue;
+        }
+        const A64::Reg reg = set.GetArg(0).GetA64RegRef();
+        std::vector<const IR::Inst*> exits;
+        bool ok = true;
+        bool replaced = false;
+        for (auto next = std::next(it); next != block.end(); ++next) {
+            const IR::Inst& inst = *next;
+            const IR::Opcode op = inst.GetOpcode();
+            if (is_set(inst) && inst.GetArg(0).GetA64RegRef() == reg) {
+                replaced = true;
+                break;
+            }
+            if (is_get(inst) && inst.GetArg(0).GetA64RegRef() == reg) {
+                ok = false;  // reads it back from the JIT state
+                break;
+            }
+            if (op == IR::Opcode::A64SideExit) {
+                exits.push_back(&inst);
+                continue;
+            }
+            if (inst.CausesCPUException() || op == IR::Opcode::A64CallSupervisor || op == IR::Opcode::A64ExceptionRaised
+                || op == IR::Opcode::CallHostFunction || op == IR::Opcode::A64DataCacheOperationRaised
+                || op == IR::Opcode::A64InstructionCacheOperationRaised) {
+                ok = false;  // something outside the block may look at the guest state
+                break;
+            }
+        }
+        if (!ok || !replaced || exits.empty()) {
+            continue;
+        }
+
+        const IR::Value value = set.GetArg(1);
+        const bool is_w = set.GetOpcode() == IR::Opcode::A64SetW;
+        const EmitContext::SetAtExit pending{
+            offsetof(A64JitState, reg) + sizeof(u64) * static_cast<size_t>(reg),
+            is_w,
+            is_w && GprZeroExtended32(value),
+            value.IsImmediate() ? value : IR::Value(value.GetInstRecursive()),
+        };
+        for (const IR::Inst* exit : exits) {
+            ctx.sets_at_exits[exit].push_back(pending);
+        }
+        // The write moves to just after the last of its exits, as A64SetRegAtExits: its use of
+        // the value keeps the value's host location until then, and it emits nothing.
+        auto after_last = block.begin();
+        while (&*after_last != exits.back()) {
+            ++after_last;
+        }
+        block.PrependNewInst(std::next(after_last), IR::Opcode::A64SetRegAtExits, {pending.value});
+        set.Invalidate();
+    }
+}
+
 // Store the guest NZCV that the host flags hold (CF = guest C) in the layout cpsr_nzcv keeps:
 // the lahf byte in bits 8-15 and OF in bit 0. Clobbers RAX, keeps the flags. mov eax, 0 (not
 // xor, which would change the flags) breaks the dependency on RAX's last writer for lahf.
@@ -308,6 +387,51 @@ void A64EmitX64::EmitStoreNZCVFromHostFlags() {
     code.lahf();
     code.seto(code.al);
     code.mov(dword[r15 + offsetof(A64JitState, cpsr_nzcv)], eax);
+}
+
+// Writes off one base that span less than a page touch at most two pages: in a group of three
+// or more, only the last write marks the map, for the group's first and last byte.
+void A64EmitX64::PlanWriteTracking(A64EmitContext& ctx) const {
+    if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
+        return;
+    }
+    std::vector<std::pair<IR::Inst*, s64>> group;
+    const IR::Inst* base = nullptr;
+    s64 first = 0, last = 0;
+    const auto close = [&] {
+        if (group.size() >= 3) {
+            const s64 offset = group.back().second;
+            for (size_t i = 0; i + 1 < group.size(); ++i) {
+                ctx.write_track_skip.insert(group[i].first);
+            }
+            ctx.write_track_group.emplace(group.back().first, std::make_pair(static_cast<s32>(first - offset), static_cast<s32>(last - offset)));
+        }
+        group.clear();
+        base = nullptr;
+    };
+    for (IR::Inst& inst : ctx.block) {
+        const IR::Opcode op = inst.GetOpcode();
+        if (const s64 bytes = PlainWriteBytes(op); bytes != 0) {
+            const auto [write_base, offset] = SplitAddress(inst.GetArg(1));
+            if (write_base == nullptr || !ShouldFastmem(ctx, &inst)) {
+                close();
+                continue;
+            }
+            const s64 write_last = offset + bytes - 1;
+            if (write_base != base || std::max(last, write_last) - std::min(first, offset) >= max_write_group_span) {
+                close();
+                base = write_base;
+                first = offset;
+                last = write_last;
+            }
+            first = std::min(first, offset);
+            last = std::max(last, write_last);
+            group.emplace_back(&inst, offset);
+        } else if (MayLeaveBlock(op)) {
+            close();
+        }
+    }
+    close();
 }
 
 A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
@@ -335,27 +459,11 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
         if (conf.fastmem_pointer) {
             gprs.erase(std::find(gprs.begin(), gprs.end(), HostLoc::R13));
         }
-        // Callee-saved registers first: they survive host calls. RAX, RCX and RDX last: many
-        // emitters ask for them by name.
-        std::stable_partition(gprs.begin(), gprs.end(), [](HostLoc loc) {
-            return std::find(ABI_ALL_CALLEE_SAVE.begin(), ABI_ALL_CALLEE_SAVE.end(), loc) != ABI_ALL_CALLEE_SAVE.end();
-        });
-        std::stable_partition(gprs.begin(), gprs.end(), [](HostLoc loc) {
-            return loc != HostLoc::RAX && loc != HostLoc::RCX && loc != HostLoc::RDX;
-        });
         return gprs;
     }();
 
-    static const std::vector<HostLoc> xmm_order = [] {
-        std::vector<HostLoc> xmms{any_xmm};
-        std::stable_partition(xmms.begin(), xmms.end(), [](HostLoc loc) {
-            return std::find(ABI_ALL_CALLEE_SAVE.begin(), ABI_ALL_CALLEE_SAVE.end(), loc) != ABI_ALL_CALLEE_SAVE.end();
-        });
-        return xmms;
-    }();
-    RegAlloc reg_alloc{code, gpr_order, xmm_order};
+    RegAlloc reg_alloc{code, gpr_order, any_xmm};
     A64EmitContext ctx{conf, reg_alloc, block};
-    PlanWriteTracking(ctx);
     ctx.reuse_host_flags = (conf.test_variant & 8) == 0 && !conf.very_verbose_debugging_output;
     // Test variant bit 1024 stores NZCV at every flag-setting instruction (the code generation before).
     // A memory access that halts on an abort leaves the block in the middle, so the guest state must
@@ -363,12 +471,19 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     if (ctx.reuse_host_flags && (conf.test_variant & 1024) == 0 && !conf.check_halt_on_memory_access) {
         PlanNZCVAtExits(ctx);
     }
+    // Test variant bit 2048 stores every guest register write on the hot path (the code
+    // generation before). Not with the memory-abort check either, for the same reason.
+    if ((conf.test_variant & 2048) == 0 && !conf.check_halt_on_memory_access) {
+        PlanRegistersAtExits(ctx);
+    }
     // Test variant bit 512: block ends reload NZCV and the check bit, and vector moves count as
     // changing the host flags (the code generation before)
     const bool flags_to_block_end = (conf.test_variant & 512) == 0;
     const IR::Terminal terminal = block.GetTerminal();
     ctx.check_bit_exit_on_flags = flags_to_block_end && !conf.enable_cycle_counting && boost::get<IR::Term::CheckBit>(&terminal) != nullptr;
     terminal_check_bit_in_zf = false;
+    PlanWriteTracking(ctx);
+    PlanFoldedAddresses(ctx);
 
     // Start emitting.
     code.align();
@@ -501,8 +616,27 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
     return RegisterBlock(descriptor, entrypoint, size);
 }
 
-// The marking of a page is rare and the same for every write of a register pair: the cold
-// code of a write only calls it.
+void A64EmitX64::ClearCache() {
+    EmitX64::ClearCache();
+    link_sites.clear();
+    pending_link_stubs.clear();
+    block_ranges.ClearCache();
+    ClearFastDispatchTable();
+    fastmem_patch_info.clear();
+}
+
+void A64EmitX64::InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges) {
+    InvalidateBasicBlocks(block_ranges.InvalidateRanges(ranges));
+}
+
+void A64EmitX64::ClearFastDispatchTable() {
+    if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
+        for (FastDispatchTable* table : fast_dispatch_tables) {
+            table->fill({});
+        }
+    }
+}
+
 void A64EmitX64::GenWriteMarkThunks() {
     if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
         return;
@@ -541,27 +675,6 @@ void A64EmitX64::GenWriteMarkThunks() {
     }
 }
 
-void A64EmitX64::ClearCache() {
-    EmitX64::ClearCache();
-    link_sites.clear();
-    pending_link_stubs.clear();
-    block_ranges.ClearCache();
-    ClearFastDispatchTable();
-    fastmem_patch_info.clear();
-}
-
-void A64EmitX64::InvalidateCacheRanges(const boost::icl::interval_set<u64>& ranges) {
-    InvalidateBasicBlocks(block_ranges.InvalidateRanges(ranges));
-}
-
-void A64EmitX64::ClearFastDispatchTable() {
-    if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
-        for (FastDispatchTable* table : fast_dispatch_tables) {
-            table->fill({});
-        }
-    }
-}
-
 void A64EmitX64::AddFastDispatchTable(FastDispatchTable* table) {
     table->fill({});
     fast_dispatch_tables.push_back(table);
@@ -571,21 +684,19 @@ void A64EmitX64::RemoveFastDispatchTable(FastDispatchTable* table) {
     std::erase(fast_dispatch_tables, table);
 }
 
-// PC ends up in rbp, location_descriptor ends up in rbx
-void A64EmitX64::EmitInlineLocationDescriptor() {
-    // This calculation has to match up with A64::LocationDescriptor::UniqueHash
-    // TODO: Optimization is available here based on known state of fpcr.
-    code.mov(rbp, qword[r15 + offsetof(A64JitState, pc)]);
-    code.mov(rcx, A64::LocationDescriptor::pc_mask);
-    code.and_(rcx, rbp);
-    code.mov(ebx, dword[r15 + offsetof(A64JitState, fpcr)]);
-    code.and_(ebx, A64::LocationDescriptor::fpcr_mask);
-    code.shl(rbx, A64::LocationDescriptor::fpcr_shift);
-    code.or_(rbx, rcx);
-}
-
 void A64EmitX64::GenTerminalHandlers() {
-    const auto calculate_location_descriptor = [this] { EmitInlineLocationDescriptor(); };
+    // PC ends up in rbp, location_descriptor ends up in rbx
+    const auto calculate_location_descriptor = [this] {
+        // This calculation has to match up with A64::LocationDescriptor::UniqueHash
+        // TODO: Optimization is available here based on known state of fpcr.
+        code.mov(rbp, qword[r15 + offsetof(A64JitState, pc)]);
+        code.mov(rcx, A64::LocationDescriptor::pc_mask);
+        code.and_(rcx, rbp);
+        code.mov(ebx, dword[r15 + offsetof(A64JitState, fpcr)]);
+        code.and_(ebx, A64::LocationDescriptor::fpcr_mask);
+        code.shl(rbx, A64::LocationDescriptor::fpcr_shift);
+        code.or_(rbx, rcx);
+    };
 
     Xbyak::Label fast_dispatch_cache_miss, rsb_cache_miss;
 
@@ -611,7 +722,6 @@ void A64EmitX64::GenTerminalHandlers() {
         terminal_handler_fast_dispatch_hint = code.getCurr<const void*>();
         calculate_location_descriptor();
         code.L(rsb_cache_miss);
-        terminal_handler_rsb_miss = code.getCurr<const void*>();
         code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
         code.mov(rbp, rbx);
         if (code.HasHostFeature(HostFeature::SSE42)) {
@@ -623,7 +733,6 @@ void A64EmitX64::GenTerminalHandlers() {
         code.jne(fast_dispatch_cache_miss);
         code.jmp(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)]);
         code.L(fast_dispatch_cache_miss);
-        terminal_handler_fast_dispatch_miss = code.getCurr<const void*>();
         code.mov(qword[rbp + offsetof(FastDispatchEntry, location_descriptor)], rbx);
         code.LookupBlock();
         code.mov(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)], rax);
@@ -724,6 +833,12 @@ void A64EmitX64::EmitA64SetNZCVAtExits(A64EmitContext& ctx, IR::Inst* inst) {
     }
     ASSERT_MSG(get && ctx.host_flags_nzcv == get && !ctx.host_flags_fcmp, "NZCV planned for the host flags is not in them");
     ctx.nzcv_pending = true;
+}
+
+// A register write that PlanRegistersAtExits moved to the side exits, placed after the last of
+// them. Nothing to emit; reading the argument ends the value's use here.
+void A64EmitX64::EmitA64SetRegAtExits(A64EmitContext& ctx, IR::Inst* inst) {
+    ctx.reg_alloc.GetArgumentInfo(inst);
 }
 
 void A64EmitX64::EmitA64GetW(A64EmitContext& ctx, IR::Inst* inst) {
@@ -1075,13 +1190,92 @@ void A64EmitX64::EmitA64SideExit(A64EmitContext& ctx, IR::Inst* inst) {
     // and link to the target block, and store NZCV if it is still only in the host
     // flags (PlanNZCVAtExits); nothing is live once the block is left, so RAX is free.
     const bool store_nzcv = ctx.nzcv_pending;
+
+    // Register writes only the side exits store (PlanRegistersAtExits), from where each value
+    // is now. Values in registers are stored first, with moves (the flags may still hold NZCV);
+    // spilled values and 64-bit immediates go through RAX once NZCV is stored.
+    struct ExitStore {
+        size_t offset;
+        bool is_w;
+        bool zero_extended;
+        bool immediate;
+        u64 imm;
+        HostLoc loc;
+        std::optional<Xbyak::Address> spill;
+        bool FitsMove() const {  // a mov of a sign-extended 32-bit immediate stores it
+            const u64 stored = is_w ? (imm & 0xFFFFFFFF) : imm;
+            return static_cast<u64>(static_cast<s64>(static_cast<s32>(stored))) == stored;
+        }
+    };
+    std::vector<ExitStore> exit_stores;
+    if (const auto found = ctx.sets_at_exits.find(inst); found != ctx.sets_at_exits.end()) {
+        for (const auto& pending : found->second) {
+            ExitStore store{pending.offset, pending.is_w, pending.zero_extended, pending.value.IsImmediate(), 0, HostLoc::RAX, std::nullopt};
+            if (store.immediate) {
+                store.imm = pending.is_w ? pending.value.GetImmediateAsU64() & 0xFFFFFFFF : pending.value.GetImmediateAsU64();
+            } else {
+                const auto loc = ctx.reg_alloc.CurrentLocation(pending.value.GetInst());
+                ASSERT_MSG(loc, "a register write planned for the side exits is no longer live");
+                store.loc = *loc;
+                if (HostLocIsSpill(store.loc)) {
+                    store.spill = ctx.reg_alloc.SpillAddress(store.loc);
+                }
+            }
+            exit_stores.push_back(store);
+        }
+    }
+
     ctx.deferred_emits.emplace_back([=, this] {
         code.L(*exit);
+        for (const ExitStore& store : exit_stores) {
+            const auto addr = qword[r15 + store.offset];
+            if (store.immediate) {
+                if (store.FitsMove()) {
+                    code.mov(addr, static_cast<s32>(store.imm));
+                }
+            } else if (HostLocIsGPR(store.loc)) {
+                const Xbyak::Reg64 reg = HostLocToReg64(store.loc);
+                if (store.is_w && !store.zero_extended) {
+                    code.mov(dword[r15 + store.offset], reg.cvt32());
+                    code.mov(dword[r15 + store.offset + 4], 0);
+                } else {
+                    code.mov(addr, reg);
+                }
+            } else if (HostLocIsXMM(store.loc)) {
+                const Xbyak::Xmm xmm = HostLocToXmm(store.loc);
+                if (store.is_w) {
+                    code.movd(dword[r15 + store.offset], xmm);
+                    code.mov(dword[r15 + store.offset + 4], 0);
+                } else {
+                    code.movq(addr, xmm);
+                }
+            }
+        }
         if (store_nzcv) {
             if (exit_cmc) {
                 code.cmc();
             }
             EmitStoreNZCVFromHostFlags();
+        }
+        for (const ExitStore& store : exit_stores) {
+            const auto addr = qword[r15 + store.offset];
+            if (store.immediate) {
+                if (!store.FitsMove()) {
+                    if (store.is_w) {
+                        code.mov(eax, static_cast<u32>(store.imm));
+                    } else {
+                        code.mov(rax, store.imm);
+                    }
+                    code.mov(addr, rax);
+                }
+            } else if (HostLocIsSpill(store.loc)) {
+                if (store.is_w) {
+                    code.mov(eax, dword[store.spill->getRegExp()]);
+                } else {
+                    code.mov(rax, qword[store.spill->getRegExp()]);
+                }
+                code.mov(addr, rax);
+            }
         }
         if (conf.enable_cycle_counting) {
             EmitAddCycles(cycles);
@@ -1292,20 +1486,7 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::PopRSBHint, IR::LocationDescriptor, 
         return;
     }
 
-    // Each block gets its own copy of the lookup and its own indirect jump, which the host
-    // predicts per site. A miss takes the shared path with the same registers.
-    if (!terminal_handler_rsb_miss) {
-        code.jmp(terminal_handler_pop_rsb_hint);
-        return;
-    }
-    EmitInlineLocationDescriptor();
-    code.mov(eax, dword[r15 + offsetof(A64JitState, rsb_ptr)]);
-    code.sub(eax, 1);
-    code.and_(eax, u32(A64JitState::RSBPtrMask));
-    code.mov(dword[r15 + offsetof(A64JitState, rsb_ptr)], eax);
-    code.cmp(rbx, qword[r15 + offsetof(A64JitState, rsb_location_descriptors) + rax * sizeof(u64)]);
-    code.jne(terminal_handler_rsb_miss);
-    code.jmp(qword[r15 + offsetof(A64JitState, rsb_codeptrs) + rax * sizeof(u64)]);
+    code.jmp(terminal_handler_pop_rsb_hint);
 }
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::FastDispatchHint, IR::LocationDescriptor, bool is_single_step) {
@@ -1314,21 +1495,7 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::FastDispatchHint, IR::LocationDescri
         return;
     }
 
-    if (!terminal_handler_fast_dispatch_miss) {
-        code.jmp(terminal_handler_fast_dispatch_hint);
-        return;
-    }
-    EmitInlineLocationDescriptor();
-    code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
-    code.mov(rbp, rbx);
-    if (code.HasHostFeature(HostFeature::SSE42)) {
-        code.crc32(rbp, r12);
-    }
-    code.and_(ebp, fast_dispatch_table_mask);
-    code.lea(rbp, ptr[r12 + rbp]);
-    code.cmp(rbx, qword[rbp + offsetof(FastDispatchEntry, location_descriptor)]);
-    code.jne(terminal_handler_fast_dispatch_miss);
-    code.jmp(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)]);
+    code.jmp(terminal_handler_fast_dispatch_hint);
 }
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::If terminal, IR::LocationDescriptor initial_location, bool is_single_step) {

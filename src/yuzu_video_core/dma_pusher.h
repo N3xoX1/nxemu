@@ -151,6 +151,7 @@ private:
     void SetState(const CommandHeader& command_header);
 
     /// Hands the queued Maxwell3D methods to the GPU thread
+    void PublishMaxwell3D() const;
     void DrainMaxwell3D() const;
     void DrainMaxwell3DMemoryWrites() const;
 

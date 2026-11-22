@@ -234,6 +234,7 @@ bool Inst::WritesToCoreRegister() const {
     case Opcode::A64SetQ:
     case Opcode::A64SetSP:
     case Opcode::A64SetPC:
+    case Opcode::A64SetRegAtExits:
         return true;
 
     default:

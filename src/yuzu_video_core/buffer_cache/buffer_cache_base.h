@@ -22,11 +22,13 @@
 #include "yuzu_common/lru_cache.h"
 #include "yuzu_common/range_sets.h"
 #include "yuzu_common/readback_reference.h"
+#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/slot_vector.h"
 #include "yuzu_video_core/buffer_cache/buffer_base.h"
 #include "yuzu_video_core/buffer_cache/empty_storage_buffer_warning.h"
+#include "yuzu_video_core/buffer_cache/gpu_modified_ranges.h"
 #include "yuzu_video_core/buffer_cache/uniform_stream_reuse.h"
 #include "yuzu_video_core/control/channel_state_cache.h"
 #include "yuzu_video_core/delayed_destruction_ring.h"
@@ -204,6 +206,8 @@ class BufferCache : public VideoCommon::ChannelSetupCaches<BufferCacheChannelInf
 
     struct OverlapResult {
         boost::container::small_vector<BufferId, 16> ids;
+        /// Large buffers that only share a single caching page: deleted instead of joined
+        boost::container::small_vector<BufferId, 2> cut;
         DAddr begin;
         DAddr end;
         bool has_stream_leap = false;
@@ -217,6 +221,9 @@ public:
     void TickFrame();
 
     void WriteMemory(DAddr device_addr, u64 size);
+
+    /// The CPU wrote somewhere in the range: keeps what the GPU wrote there
+    void CoarseWriteMemory(DAddr device_addr, u64 size);
 
     void CachedWriteMemory(DAddr device_addr, u64 size);
 
@@ -409,35 +416,23 @@ public:
         current_draw_indirect = current_draw_indirect_;
     }
 
-    /// Changes each time a buffer is deleted. While it stays the same, the bindings resolved for
-    /// an earlier draw still point to live buffers.
     [[nodiscard]] u64 DeletedBuffersEpoch() const noexcept {
         return deleted_buffers_epoch;
     }
 
-    /// Changes each time a GPU engine writes buffer memory (shaders, copies, DMA). While it
-    /// stays the same, the data bound for an earlier draw is still the current one.
     [[nodiscard]] u64 GpuWriteEpoch() const noexcept {
         return gpu_write_epoch.load(std::memory_order_relaxed);
     }
 
-    /// True when the last graphics update bound a sparse or written assembled buffer
     [[nodiscard]] bool HasSparseBindings() const noexcept {
         return has_bound_sparse || has_written_sparse;
     }
 
-    /// Resolves and binds the index buffer of the current draw again, for a draw that keeps
-    /// every other binding of the previous one. Returns false when that deleted buffers, as
-    /// the other bindings may then point to them.
+    // False when the update deleted a buffer or bound a sparse one: kept bindings may be stale
     [[nodiscard]] bool RebindIndexBuffer();
-
-    /// For a draw that keeps the bindings of the previous one but its geometry and some uniform
-    /// buffers: resolves the index buffer, the changed vertex streams and the rebound uniform
-    /// buffers. Returns false when that deleted buffers or bound a sparse index buffer.
     [[nodiscard]] bool UpdateKeptDrawBuffers(bool is_indexed);
+    [[nodiscard]] bool UpdateKeptGraphicsBuffers(bool is_indexed);
 
-    /// Binds uniform buffer `index` of `stage` for a draw updated by UpdateKeptDrawBuffers.
-    /// Adds one descriptor, as the uniform buffers bound by BindHostStageBuffers.
     void BindKeptUniformBuffer(size_t stage, u32 index);
 
     [[nodiscard]] std::pair<Buffer*, u32> GetDrawIndirectCount();
@@ -542,6 +537,11 @@ private:
 
     /// A tracked write is one the bitmap of written pages records
     void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size, bool tracked = false);
+
+    void MarkGpuWriteHistory(DAddr device_addr, u64 size) noexcept {
+        gpu_write_history.Mark(device_addr, size);
+        gpu_write_epoch.fetch_add(1, std::memory_order_relaxed);
+    }
 
     /// Write tracking words of a written binding, or disabled ones when it cannot be tracked
     bool SetWriteTrackingSlot(u32 slot, DAddr device_addr, u32 texel_size);
@@ -720,14 +720,10 @@ private:
     u64 deleted_buffers_epoch = 0;
     std::atomic<u64> gpu_write_epoch{};
 
-    void MarkGpuWriteHistory(DAddr addr, u64 size) noexcept {
-        gpu_write_history.Mark(addr, size);
-        gpu_write_epoch.fetch_add(1, std::memory_order_relaxed);
-    }
     u64 content_version = 0;
 
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
-    Common::RangeSet<DAddr> gpu_modified_ranges;
+    GpuModifiedRanges<DAddr, Core::DEVICE_PAGESIZE> gpu_modified_ranges;
     GpuWriteHistory<> gpu_write_history;
 
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges;
@@ -775,6 +771,8 @@ private:
     /// Guest RAM imported as device memory (Vulkan): uniform buffers that only the CPU wrote bind in place
     bool host_mapped_tried = false;
     bool host_mapped_ready = false;
+    /// Buffers created since the last TickFrame; ResolveOverlaps does not cut these
+    std::vector<BufferId> frame_created_buffers;
     u64 total_used_memory = 0;
     u64 minimum_memory = 0;
     u64 critical_memory = 0;

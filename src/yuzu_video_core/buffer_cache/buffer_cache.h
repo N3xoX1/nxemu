@@ -21,7 +21,9 @@ BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, R
     : runtime{runtime_}, device_memory{device_memory_}, memory_tracker{device_memory} {
     // Ensure the first slot is used for the null buffer
     void(slot_buffers.insert(runtime, NullBufferParams{}));
-    gpu_modified_ranges.Clear();
+    gpu_modified_ranges.SetOnPages([this](DAddr addr, u64 size, s32 delta) {
+        device_memory.UpdatePagesGpuModifiedCount(addr, size, delta);
+    });
     inline_buffer_id = NULL_BUFFER_ID;
 
     if (!runtime.CanReportMemoryUsage()) {
@@ -72,6 +74,7 @@ void BufferCache<P>::TickFrame() {
         return;
     }
     runtime.TickFrame(slot_buffers);
+    frame_created_buffers.clear();
 
     // Calculate hits and shots and move hit bits to the right
     const u32 hits = std::reduce(channel_state->uniform_cache_hits.begin(),
@@ -121,6 +124,13 @@ void BufferCache<P>::WriteMemory(DAddr device_addr, u64 size) {
         InvalidateReadbackReferences(device_addr, size);
     }
     memory_tracker.MarkRegionAsCpuModified(device_addr, size);
+}
+
+template <class P>
+void BufferCache<P>::CoarseWriteMemory(DAddr device_addr, u64 size) {
+    gpu_modified_ranges.ForEachNotInRange(device_addr, size, [&](DAddr start, DAddr end) {
+        WriteMemory(start, end - start);
+    });
 }
 
 template <class P>
@@ -512,11 +522,19 @@ bool BufferCache<P>::UpdateKeptDrawBuffers(bool is_indexed) {
 }
 
 template <class P>
+bool BufferCache<P>::UpdateKeptGraphicsBuffers(bool is_indexed) {
+    const u64 epoch = deleted_buffers_epoch;
+    UpdateGraphicsBuffers(is_indexed);
+    return deleted_buffers_epoch == epoch && !HasSparseBindings();
+}
+
+template <class P>
 void BufferCache<P>::BindKeptUniformBuffer(size_t stage, u32 index) {
     u32 binding_index = 0;
     if constexpr (NEEDS_BIND_UNIFORM_INDEX) {
+        const u32 lower_slots = (1U << index) - 1;
         binding_index = static_cast<u32>(
-            std::popcount(channel_state->enabled_uniform_buffer_masks[stage] & ((1U << index) - 1)));
+            std::popcount(channel_state->enabled_uniform_buffer_masks[stage] & lower_slots));
     }
     BindHostGraphicsUniformBuffer(stage, index, binding_index, true);
 }
@@ -1993,8 +2011,14 @@ typename BufferCache<P>::OverlapResult BufferCache<P>::ResolveOverlaps(DAddr dev
                                                                        u32 wanted_size) {
     static constexpr int STREAM_LEAP_THRESHOLD = 16;
     boost::container::small_vector<BufferId, 16> overlap_ids;
+    boost::container::small_vector<BufferId, 2> cut_ids;
     DAddr begin = device_addr;
     DAddr end = device_addr + wanted_size;
+    const DAddr wanted_begin = begin;
+    const DAddr wanted_end = end;
+    // Do not chain a >=128 MiB buffer from an earlier frame that shares at most one caching
+    // page with the wanted range; download and delete it instead to prevent multi-GiB growth.
+    static constexpr u64 CHAIN_LIMIT = 128_MiB;
     int stream_score = 0;
     bool has_stream_leap = false;
     auto expand_begin = [&](DAddr add_value) {
@@ -2018,6 +2042,7 @@ typename BufferCache<P>::OverlapResult BufferCache<P>::ResolveOverlaps(DAddr dev
     if (begin == 0) {
         return OverlapResult{
             .ids = std::move(overlap_ids),
+            .cut = std::move(cut_ids),
             .begin = begin,
             .end = end,
             .has_stream_leap = has_stream_leap,
@@ -2033,9 +2058,20 @@ typename BufferCache<P>::OverlapResult BufferCache<P>::ResolveOverlaps(DAddr dev
         if (overlap.IsPicked()) {
             continue;
         }
+        const DAddr overlap_device_addr = overlap.CpuAddr();
+        if (overlap.SizeBytes() >= CHAIN_LIMIT &&
+            std::ranges::find(frame_created_buffers, overlap_id) == frame_created_buffers.end()) {
+            const DAddr shared_begin = (std::max)(overlap_device_addr, wanted_begin);
+            const DAddr shared_end =
+                (std::min)(overlap_device_addr + overlap.SizeBytes(), wanted_end);
+            if (shared_end <= shared_begin + CACHING_PAGESIZE) {
+                overlap.Pick();
+                cut_ids.push_back(overlap_id);
+                continue;
+            }
+        }
         overlap_ids.push_back(overlap_id);
         overlap.Pick();
-        const DAddr overlap_device_addr = overlap.CpuAddr();
         const bool expands_left = overlap_device_addr < begin;
         if (expands_left) {
             begin = overlap_device_addr;
@@ -2060,6 +2096,7 @@ typename BufferCache<P>::OverlapResult BufferCache<P>::ResolveOverlaps(DAddr dev
     }
     return OverlapResult{
         .ids = std::move(overlap_ids),
+        .cut = std::move(cut_ids),
         .begin = begin,
         .end = end,
         .has_stream_leap = has_stream_leap,
@@ -2092,8 +2129,13 @@ BufferId BufferCache<P>::CreateBuffer(DAddr device_addr, u32 wanted_size) {
     device_addr = Common::AlignDown(device_addr, CACHING_PAGESIZE);
     wanted_size = static_cast<u32>(device_addr_end - device_addr);
     const OverlapResult overlap = ResolveOverlaps(device_addr, wanted_size);
+    for (const BufferId cut_id : overlap.cut) {
+        DownloadBufferMemory(slot_buffers[cut_id]);
+        DeleteBuffer(cut_id);
+    }
     const u32 size = static_cast<u32>(overlap.end - overlap.begin);
     const BufferId new_buffer_id = slot_buffers.insert(runtime, overlap.begin, size);
+    frame_created_buffers.push_back(new_buffer_id);
     auto& new_buffer = slot_buffers[new_buffer_id];
     const size_t size_bytes = new_buffer.SizeBytes();
     runtime.ClearBuffer(new_buffer, 0, size_bytes, 0);

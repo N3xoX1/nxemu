@@ -112,6 +112,8 @@ protected:
     void ClearFastDispatchTable();
 
     void PlanNZCVAtExits(A64EmitContext& ctx) const;
+    void PlanRegistersAtExits(A64EmitContext& ctx) const;
+    void PlanFoldedAddresses(A64EmitContext& ctx) const;
     void EmitStoreNZCVFromHostFlags();
 
     void (*memory_read_128)();
@@ -129,9 +131,6 @@ protected:
 
     const void* terminal_handler_pop_rsb_hint;
     const void* terminal_handler_fast_dispatch_hint = nullptr;
-    const void* terminal_handler_rsb_miss = nullptr;            // expects the location descriptor in rbx
-    const void* terminal_handler_fast_dispatch_miss = nullptr;  // expects rbx and the table entry in rbp
-    void EmitInlineLocationDescriptor();
     FastDispatchEntry& (*fast_dispatch_table_lookup)(u64, FastDispatchEntry*) = nullptr;
     void GenTerminalHandlers();
     void GenWriteMarkThunks();

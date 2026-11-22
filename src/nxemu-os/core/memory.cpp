@@ -46,14 +46,22 @@ extern IModuleSettings* g_settings;
 
 namespace Core::Memory {
 
-bool UseWriteTrackMap()
+static bool ProtectOnlyReadCachedPages()
 {
-#if !defined(__APPLE__) && (defined(_M_X64) || defined(__x86_64__))
-    // A write found in the map is reported for its whole page. Pages holding GPU-written
-    // image data that was not downloaded stay protected with reactive flushing, so their
-    // writes still fault and are reported exactly.
-    static const bool enabled = osSettings.use_reactive_flushing;
+#if !defined(__APPLE__)
+    // Vulkan only downloads images on a CPU read, OpenGL also downloads buffers
+    static const bool enabled = osSettings.use_reactive_flushing &&
+                                g_settings->GetInt(NXVideoSetting::GraphicsAPI) == static_cast<int32_t>(RendererBackend::Vulkan);
     return enabled;
+#else
+    return false;
+#endif
+}
+
+static bool UseWriteTrackMap()
+{
+#if defined(_M_X64) || defined(__x86_64__)
+    return ProtectOnlyReadCachedPages();
 #else
     return false;
 #endif
@@ -82,6 +90,9 @@ struct Memory::Impl {
                              g_settings->GetBool(NXCpuSetting::CpuoptFastmem);
         if (std::addressof(process) == system.ApplicationProcess() && fastmem) {
             current_page_table->fastmem_arena = system.DeviceMemory().buffer.VirtualBasePointer();
+            if (UseWriteTrackMap()) {
+                current_page_table->EnableWriteTracking();
+            }
         } else {
             current_page_table->fastmem_arena = nullptr;
         }
@@ -630,25 +641,20 @@ struct Memory::Impl {
         }
 #if defined(__APPLE__)
         std::scoped_lock nce_lock{nce_write_mutex};
+#else
+        std::scoped_lock read_cached_lock{read_cached_mutex};
+        const u64 region_vaddr = vaddr;
 #endif
 
 #if !defined(__APPLE__)
-        std::scoped_lock read_cached_lock{read_cached_mutex};
         if (WriteTracking())
         {
-            // The JIT marks CPU writes in the write map, pages stay writable. Only pages
-            // holding GPU-written image data that was not downloaded are protected.
-            if (cached)
-            {
-                ClearWriteMarks(vaddr, size);
-            }
-            ProtectReadCachedPages(vaddr, size, cached);
+            // CPU writes are marked in the write map. Only pages that need a download or hold
+            // GPU-written buffer data are protected.
+            ProtectTrackedPages(vaddr, size, cached);
         }
-        else if (current_page_table->fastmem_arena && cached &&
-            osSettings.use_reactive_flushing)
+        else if (current_page_table->fastmem_arena && cached && ProtectOnlyReadCachedPages())
         {
-            // Write tracking only, except on pages holding GPU-written image data that was
-            // not downloaded yet: a CPU read must fault there to download it.
             ProtectCachedRegion(vaddr, size);
         }
         else if (current_page_table->fastmem_arena)
@@ -657,12 +663,7 @@ struct Memory::Impl {
 #endif
         {
             Common::MemoryPermission perm{};
-#if defined(__APPLE__)
             bool deny_reads = cached && osSettings.use_reactive_flushing;
-#else
-            // Reads of pages that need a download are denied by ProtectCachedRegion
-            constexpr bool deny_reads = false;
-#endif
 #if defined(__APPLE__)
             // Buffer caches only need write tracking. Texture readback protection is applied
             // separately below, including when a texture overlaps an already cached buffer.
@@ -757,6 +758,14 @@ struct Memory::Impl {
                 }
             }
         }
+#if !defined(__APPLE__)
+        if (cached && WriteTracking())
+        {
+            // After the pages are cached, so that a harvest keeps the marks of later writes. A write
+            // in between loses its mark, but the caller uploads the region after this.
+            ClearWriteMarks(region_vaddr, size);
+        }
+#endif
     }
 
     /**
@@ -963,22 +972,20 @@ struct Memory::Impl {
         size_t core;
     };
 
-    static void HandleRasterizerWriteCollect(uint64_t address, uint64_t size, void * user_data)
-    {
-        auto & context = *static_cast<RasterizerWriteCollectContext *>(user_data);
-        context.impl->gpu_dirty_managers[context.core].Collect(address, size);
-    }
-
     static void HandleRasterizerWriteCollectExact(uint64_t address, uint64_t size, void * user_data)
     {
         auto & context = *static_cast<RasterizerWriteCollectContext *>(user_data);
         context.impl->gpu_dirty_managers[context.core].CollectExact(address, size);
     }
 
+    static void HandleRasterizerWriteCollectCoarse(uint64_t address, uint64_t size, void * user_data)
+    {
+        auto & context = *static_cast<RasterizerWriteCollectContext *>(user_data);
+        context.impl->gpu_dirty_managers[context.core].CollectCoarse(address, size);
+    }
+
 #if !defined(__APPLE__)
-    // Pages holding GPU-written image data that was not downloaded yet. Counted per guest
-    // page, since several images can share a page. The bitmap lets CPU reads of cached
-    // pages skip the GPU when nothing on the page needs a download.
+    // Pages holding GPU-written image data that was not downloaded yet
     struct FreeBits
     {
         void operator()(u64 * bits) const
@@ -992,7 +999,6 @@ struct Memory::Impl {
         u64 * bits = read_cached_bits.load(std::memory_order_relaxed);
         if (bits == nullptr)
         {
-            // calloc gets zeroed pages from the system, only the touched ones use memory
             const size_t pages = current_page_table->pointers.size();
             bits = static_cast<u64 *>(std::calloc((pages + 63) / 64, sizeof(u64)));
             if (bits == nullptr)
@@ -1039,66 +1045,69 @@ struct Memory::Impl {
 
     bool WriteTracking() const
     {
-        return current_page_table->fastmem_arena != nullptr && UseWriteTrackMap();
+        return current_page_table->write_track_map != nullptr;
     }
 
-    // Marks set before the region was cached would hide later writes: the JIT only sets the
-    // summary levels when the page byte is clear
+    // The JIT only sets the summary levels when the page byte is clear, so an old mark would
+    // hide the writes to a page that becomes cached
     void ClearWriteMarks(u64 vaddr, u64 size)
     {
         u8 * const map = current_page_table->write_track_map;
         const u64 end = (vaddr + size + YUZU_PAGEMASK) >> YUZU_PAGEBITS;
         for (u64 page = vaddr >> YUZU_PAGEBITS; page < end; ++page)
         {
-            if (map[page] != 0)
+            std::atomic_ref<u8> mark(map[page]);
+            if (mark.load(std::memory_order_relaxed) != 0)
             {
-                std::atomic_ref<u8>(map[page]).store(0, std::memory_order_relaxed);
+                mark.store(0, std::memory_order_relaxed);
             }
         }
     }
 
-    // Caller holds read_cached_mutex. Pages that need a download deny every access while
-    // cached, and are opened again when the region is not cached anymore.
-    void ProtectReadCachedPages(u64 vaddr, u64 size, bool cached)
+    // Caller holds read_cached_mutex
+    void ProtectTrackedPages(u64 vaddr, u64 size, bool cached)
     {
-        if (read_cached_bits.load(std::memory_order_acquire) == nullptr)
+        if (read_cached_bits.load(std::memory_order_acquire) == nullptr && write_protected_counts.empty())
         {
             return;
         }
-        const auto perm = cached ? Common::MemoryPermission{} : Common::MemoryPermission::ReadWrite;
         u64 run_begin = 0, run_end = 0;
+        Common::MemoryPermission run_perm{};
         const auto flush = [&] {
             if (run_begin != run_end)
             {
-                buffer->Protect(run_begin, run_end - run_begin, perm);
+                buffer->Protect(run_begin, run_end - run_begin, run_perm);
             }
             run_begin = run_end = 0;
         };
         const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
         for (u64 page = Common::AlignDown(vaddr, YUZU_PAGESIZE); page < end; page += YUZU_PAGESIZE)
         {
-            if (!IsReadCachedPage(page >> YUZU_PAGEBITS))
+            const u64 index = page >> YUZU_PAGEBITS;
+            const bool read_cached = IsReadCachedPage(index);
+            if (!read_cached && !write_protected_counts.contains(index))
             {
                 flush();
                 continue;
             }
-            if (!cached && write_protected_counts.contains(page >> YUZU_PAGEBITS))
+            const Common::MemoryPermission perm = !cached       ? Common::MemoryPermission::ReadWrite
+                                                  : read_cached ? Common::MemoryPermission{}
+                                                                : Common::MemoryPermission::Read;
+            if (run_begin != run_end && run_perm != perm)
             {
                 flush();
-                buffer->Protect(page, YUZU_PAGESIZE, Common::MemoryPermission::Read);
-                continue;
             }
             if (run_begin == run_end)
             {
                 run_begin = page;
+                run_perm = perm;
             }
             run_end = page + YUZU_PAGESIZE;
         }
         flush();
     }
 
-    // Calls func for each set byte of bytes[begin, end), and clears the byte when func
-    // returns true
+    // Calls func for each set byte of bytes[begin, end) and clears the byte when it returns true
     template <typename Func>
     static void ScanMarks(u8 * bytes, u64 begin, u64 end, Func && func)
     {
@@ -1110,9 +1119,10 @@ struct Memory::Impl {
             }
             for (u64 index = std::max(word, begin); index < std::min(word + 8, end); ++index)
             {
-                if (bytes[index] != 0 && func(index))
+                std::atomic_ref<u8> mark(bytes[index]);
+                if (mark.load(std::memory_order_relaxed) != 0 && func(index))
                 {
-                    std::atomic_ref<u8>(bytes[index]).store(0, std::memory_order_relaxed);
+                    mark.store(0, std::memory_order_relaxed);
                 }
             }
         }
@@ -1124,20 +1134,20 @@ struct Memory::Impl {
         {
             return;
         }
+        std::scoped_lock lk{harvest_mutex};
         u8 * const map = current_page_table->write_track_map;
         u8 * const l2 = map + current_page_table->write_track_l2_offset;
         u8 * const l1 = map + current_page_table->write_track_l1_offset;
         const u64 pages = current_page_table->pointers.size();
         harvested_pages.clear();
-        // A summary byte is cleared before the level below is read: a write that marks it
+        // A summary byte is cleared before the level below is read, so a write that sets it
         // again is found by the next harvest
         ScanMarks(l1, 0, (pages >> 18) + 1, [&](u64 l1_index) {
             std::atomic_ref<u8>(l1[l1_index]).store(0, std::memory_order_seq_cst);
             ScanMarks(l2, l1_index << 9, std::min((l1_index + 1) << 9, (pages >> 9) + 1), [&](u64 l2_index) {
                 std::atomic_ref<u8>(l2[l2_index]).store(0, std::memory_order_seq_cst);
                 ScanMarks(map, l2_index << 9, std::min((l2_index + 1) << 9, pages), [&](u64 page) {
-                    // Pages not cached keep their mark: the JIT does not mark them again, and
-                    // ClearWriteMarks resets them when they become cached
+                    // Pages that are not cached keep their mark, ClearWriteMarks clears it when they become cached
                     if (current_page_table->pointers[page].Type() != Common::PageType::RasterizerCachedMemory)
                     {
                         return false;
@@ -1151,24 +1161,22 @@ struct Memory::Impl {
         });
         for (const u64 page : harvested_pages)
         {
-            HandleRasterizerWrite(page << YUZU_PAGEBITS, YUZU_PAGESIZE);
+            HandleRasterizerWrite(page << YUZU_PAGEBITS, YUZU_PAGESIZE, WriteReport::Coarse);
         }
     }
 
-    // Caller holds read_cached_mutex. The region becomes cached: deny writes everywhere and
-    // reads only on pages that need a download.
+    // Caller holds read_cached_mutex
     void ProtectCachedRegion(u64 vaddr, u64 size)
     {
         const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
         u64 begin = Common::AlignDown(vaddr, YUZU_PAGESIZE);
         const auto permission = [&](u64 page) {
-            return IsReadCachedPage(page >> YUZU_PAGEBITS) ? Common::MemoryPermission{}
-                                                           : Common::MemoryPermission::Read;
+            return IsReadCachedPage(page >> YUZU_PAGEBITS) ? Common::MemoryPermission{} : Common::MemoryPermission::Read;
         };
-        auto current = permission(begin);
+        Common::MemoryPermission current = permission(begin);
         for (u64 page = begin + YUZU_PAGESIZE; page < end; page += YUZU_PAGESIZE)
         {
-            const auto next = permission(page);
+            const Common::MemoryPermission next = permission(page);
             if (next != current)
             {
                 buffer->Protect(begin, page - begin, current);
@@ -1184,7 +1192,7 @@ struct Memory::Impl {
 
     void RasterizerMarkRegionReadCached(u64 vaddr, u64 size, s32 delta)
     {
-        if (size == 0 || delta == 0 || !AddressSpaceContains(*current_page_table, vaddr, size))
+        if (size == 0 || delta == 0 || !ProtectOnlyReadCachedPages() || !AddressSpaceContains(*current_page_table, vaddr, size))
         {
             return;
         }
@@ -1194,8 +1202,7 @@ struct Memory::Impl {
         {
             return;
         }
-        const bool protect = current_page_table->fastmem_arena &&
-                             osSettings.use_reactive_flushing;
+        const bool protect = current_page_table->fastmem_arena != nullptr;
         u64 run_begin{}, run_end{};
         Common::MemoryPermission run_perm{};
         const auto flush = [&] {
@@ -1211,7 +1218,7 @@ struct Memory::Impl {
             const u64 index = page >> YUZU_PAGEBITS;
             bool was_cached{};
             bool now_cached{};
-            auto it = read_cached_counts.find(index);
+            std::unordered_map<u64, u32>::iterator it = read_cached_counts.find(index);
             if (delta > 0)
             {
                 was_cached = it != read_cached_counts.end();
@@ -1252,10 +1259,10 @@ struct Memory::Impl {
             }
             if (protect && current_page_table->pointers[index].Type() == Common::PageType::RasterizerCachedMemory)
             {
-                const auto perm = now_cached ? Common::MemoryPermission{}
-                                  : WriteTracking() && !write_protected_counts.contains(index)
-                                      ? Common::MemoryPermission::ReadWrite
-                                      : Common::MemoryPermission::Read;
+                const Common::MemoryPermission perm = now_cached ? Common::MemoryPermission{}
+                                                      : WriteTracking() && !write_protected_counts.contains(index)
+                                                          ? Common::MemoryPermission::ReadWrite
+                                                          : Common::MemoryPermission::Read;
                 if (run_begin != run_end && (run_end != page || run_perm != perm))
                 {
                     flush();
@@ -1275,18 +1282,24 @@ struct Memory::Impl {
         flush();
     }
 
-    // Pages the GPU reads in place deny CPU writes until that GPU work is done, so a write
-    // faults and waits for it. Reads stay native: under write tracking cached pages are
-    // writable, and the read-cached path would make every read fault too. Without write
-    // tracking cached pages already deny writes.
+    // A harvested page doesn't tell which of its bytes the CPU wrote, so pages holding
+    // GPU-written buffer data deny writes: a write faults and is reported exactly.
     void RasterizerMarkRegionWriteProtected(u64 vaddr, u64 size, s32 delta)
     {
-        if (size == 0 || delta == 0 || !AddressSpaceContains(*current_page_table, vaddr, size))
+        if (size == 0 || delta == 0 || !WriteTracking() || !AddressSpaceContains(*current_page_table, vaddr, size))
         {
             return;
         }
         std::scoped_lock lk{read_cached_mutex};
-        const bool protect = WriteTracking();
+        u64 run_begin{}, run_end{};
+        Common::MemoryPermission run_perm{};
+        const auto flush = [&] {
+            if (run_begin != run_end)
+            {
+                buffer->Protect(run_begin, run_end - run_begin, run_perm);
+            }
+            run_begin = run_end = 0;
+        };
         const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
         for (u64 page = Common::AlignDown(vaddr, YUZU_PAGESIZE); page < end; page += YUZU_PAGESIZE)
         {
@@ -1317,18 +1330,26 @@ struct Memory::Impl {
                     now_protected = true;
                 }
             }
-            // Read-cached pages deny every access already, and keep this on release
-            if (!protect || was_protected == now_protected || IsReadCachedPage(index))
+            // Read-cached pages deny every access already. Uncached pages are protected when they become cached.
+            if (was_protected == now_protected || IsReadCachedPage(index) ||
+                current_page_table->pointers[index].Type() != Common::PageType::RasterizerCachedMemory)
             {
+                flush();
                 continue;
             }
-            if (current_page_table->pointers[index].Type() != Common::PageType::RasterizerCachedMemory)
+            const Common::MemoryPermission perm = now_protected ? Common::MemoryPermission::Read : Common::MemoryPermission::ReadWrite;
+            if (run_begin != run_end && run_perm != perm)
             {
-                continue;
+                flush();
             }
-            buffer->Protect(page, YUZU_PAGESIZE,
-                            now_protected ? Common::MemoryPermission::Read : Common::MemoryPermission::ReadWrite);
+            if (run_begin == run_end)
+            {
+                run_begin = page;
+                run_perm = perm;
+            }
+            run_end = page + YUZU_PAGESIZE;
         }
+        flush();
     }
 #endif
 
@@ -1686,7 +1707,7 @@ struct Memory::Impl {
         }
         for (const auto & [address, size] : written)
         {
-            HandleRasterizerWrite(address, size, true);
+            HandleRasterizerWrite(address, size);
         }
     }
 #endif
@@ -1726,9 +1747,7 @@ struct Memory::Impl {
             return false;
         }
 #else
-        // Only GPU-written image data needs a download before the CPU reads it. Other cached
-        // pages are tracked for writes only.
-        if (!IsRegionReadCached(v_address, size))
+        if (ProtectOnlyReadCachedPages() && !IsRegionReadCached(v_address, size))
         {
             return false;
         }
@@ -1739,7 +1758,15 @@ struct Memory::Impl {
         return false;
     }
 
-    void HandleRasterizerWrite(VAddr v_address, size_t size, bool exact = false)
+    enum class WriteReport
+    {
+        Exact,
+        Coarse,
+    };
+
+    // Exact even for small writes: a 64-byte block around one can hold GPU-written bytes, which
+    // a widened report would replace with stale guest memory
+    void HandleRasterizerWrite(VAddr v_address, uint64_t size, WriteReport report = WriteReport::Exact)
     {
         const auto * p = GetPointerImpl(v_address, []() {}, []() {});
         constexpr size_t sys_core = Hardware::NUM_CPU_CORES - 1;
@@ -1758,8 +1785,13 @@ struct Memory::Impl {
         };
 
         RasterizerWriteCollectContext context{this, core};
+        if (report == WriteReport::Coarse)
+        {
+            system.GetVideo().HandleRasterizerCoarseWrite(p, size, HandleRasterizerWriteCollectCoarse, &context);
+            return;
+        }
         system.GetVideo().HandleRasterizerWrite(p, size, &rasterizer_write_areas[core].last_address,
-            exact ? HandleRasterizerWriteCollectExact : HandleRasterizerWriteCollect, &context);
+            HandleRasterizerWriteCollectExact, &context);
     }
 
     struct GPUDirtyState
@@ -1800,7 +1832,8 @@ struct Memory::Impl {
     std::unordered_map<u64, u32> write_protected_counts;
     std::unique_ptr<u64[], FreeBits> read_cached_storage;
     std::atomic<u64 *> read_cached_bits{};
-    size_t read_cached_page_count{};
+    uint64_t read_cached_page_count{};
+    std::mutex harvest_mutex;
     std::vector<u64> harvested_pages;
 #endif
 
@@ -2047,10 +2080,7 @@ void Memory::RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32
 }
 
 void Memory::RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) {
-#if defined(__APPLE__)
-    // The NCE path tracks in-place reads with the read-cached pages
-    impl->RasterizerMarkRegionReadCached(vaddr, size, delta);
-#else
+#if !defined(__APPLE__)
     impl->RasterizerMarkRegionWriteProtected(vaddr, size, delta);
 #endif
 }
@@ -2069,7 +2099,7 @@ bool Memory::ProtectsReadCachedRegions() {
     // arena, so a CPU read faults into the slow path, which downloads first. Without the arena
     // the JIT reads cached pages through the slow path anyway.
     return impl->current_page_table && impl->current_page_table->fastmem_arena &&
-           osSettings.use_reactive_flushing;
+           ProtectOnlyReadCachedPages();
 #endif
 }
 

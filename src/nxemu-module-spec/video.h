@@ -284,6 +284,8 @@ nxinterface IVideo
     virtual void PushCommandBuffer(int32_t bindId, const uint32_t * commandList, uint32_t commandListSize) = 0;
     virtual RasterizerDownloadArea HandleRasterizerDownload(const uint8_t * pointer, uint64_t size, RasterizerDownloadArea current_area) = 0;
     virtual void HandleRasterizerWrite(const uint8_t * pointer, uint64_t size, uint64_t * last_page, RasterizerDirtyCollect collect, void * user_data) = 0;
+    // A write somewhere in the range, which the GPU caches must not take as covering all of it
+    virtual void HandleRasterizerCoarseWrite(const uint8_t * pointer, uint64_t size, RasterizerDirtyCollect collect, void * user_data) = 0;
     virtual void Host1xUnregisterProcess(uint64_t asid) = 0;
     virtual void DeregisterHostAction(uint32_t syncpoint_id, uint32_t handle) = 0;
     virtual uint32_t HostSyncpointValue(uint32_t id) = 0;

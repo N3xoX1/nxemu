@@ -49,7 +49,7 @@ void DmaPusher::DispatchCalls()
         }
     }
 
-    DrainMaxwell3D();
+    PublishMaxwell3D();
 
     if (memory_operation_sync_state == MemoryOperationSyncState::Armed)
     {
@@ -73,7 +73,8 @@ bool DmaPusher::IsThreaded() const
 
 void DmaPusher::PostBack(std::function<void()> && work) const
 {
-    DrainMaxwell3D();
+    // Both items run on the same queue, so the order does not require an idle wait.
+    PublishMaxwell3D();
     gpu.BackQueue().Push(std::move(work));
 }
 
@@ -449,12 +450,18 @@ void DmaPusher::SetState(const CommandHeader & command_header)
     dma_state.method_count = command_header.method_count;
 }
 
-void DmaPusher::DrainMaxwell3D() const
+void DmaPusher::PublishMaxwell3D() const
 {
     if (maxwell3d_engine != nullptr)
     {
         static_cast<Engines::Maxwell3D *>(maxwell3d_engine)->Publish();
     }
+}
+
+void DmaPusher::DrainMaxwell3D() const
+{
+    PublishMaxwell3D();
+    gpu.BackQueue().WaitIdle();
 }
 
 void DmaPusher::DrainMaxwell3DMemoryWrites() const

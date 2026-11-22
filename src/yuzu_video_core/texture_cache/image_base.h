@@ -119,8 +119,6 @@ struct ImageBase {
     u64 gpu_write_tick = 0;
     /// Attachment barrier tick, plus one, of the last write to the image as a render target
     u64 attachment_write_tick = 0;
-    /// Frame in which the image was first bound as a render target
-    u64 first_render_frame = std::numeric_limits<u64>::max();
     /// Last frame in which the image was bound as a render target
     u64 last_render_frame = std::numeric_limits<u64>::max();
     /// Bit N is set when the image was bound as a render target N frames before last_render_frame

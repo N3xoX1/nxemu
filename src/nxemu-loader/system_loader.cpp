@@ -140,6 +140,11 @@ struct Systemloader::Impl
         m_appLoader.reset();
     }
 
+    Loader::AppLoader_NX * NxLoader() const
+    {
+        return m_appLoader ? m_appLoader->AsNx() : nullptr;
+    }
+
     FileSys::VirtualFile m_file;
     std::shared_ptr<Loader::AppLoader> m_appLoader;
     std::unique_ptr<PreparedRom> m_preparedRom;
@@ -309,8 +314,7 @@ bool Systemloader::PrepareRom(const char * fileName, uint64_t program_id, int32_
     impl->m_preparedRom->fileName = fileName;
     impl->m_preparedRom->title = std::move(title);
     impl->m_preparedRom->nacpData = std::move(nacp_data);
-    impl->m_preparedRom->version = app_loader->GetFileType()==LoaderFileType::NX ?
-        static_cast<Loader::AppLoader_NX*>(app_loader)->SelectedVersion() : pm.GetGameVersion().value_or(0);
+    impl->m_preparedRom->version = impl->NxLoader() != nullptr ? impl->NxLoader()->SelectedVersion() : pm.GetGameVersion().value_or(0);
     impl->m_preparedRom->mainThreadPriority = load_parameters->main_thread_priority;
     impl->m_preparedRom->mainThreadStackSize = load_parameters->main_thread_stack_size;
     return true;
@@ -347,10 +351,9 @@ bool Systemloader::StartPreparedRom()
     // current_process_game_card use correct StorageId
     StorageId baseGameStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(impl->m_titleID, LoaderContentRecordType::Program));
     StorageId updateStorageId = GetStorageIdForFrontendSlot(impl->m_contentProvider->GetSlotForEntry(FileSys::GetUpdateTitleID(impl->m_titleID), LoaderContentRecordType::Program));
-    if (impl->m_appLoader && impl->m_appLoader->GetFileType()==LoaderFileType::NX) {
-        const auto& selected=*static_cast<Loader::AppLoader_NX*>(impl->m_appLoader.get());
+    if (const Loader::AppLoader_NX * nx_loader = impl->NxLoader()) {
         baseGameStorageId=StorageId::Host;
-        updateStorageId=selected.UpdateSelected() ? StorageId::Host : StorageId::None;
+        updateStorageId=nx_loader->UpdateSelected() ? StorageId::Host : StorageId::None;
     }
 
     g_settings->SetInt(NXCoreSetting::GameLoadResult, (int32_t)LoaderResultStatus::Success);
@@ -465,9 +468,8 @@ FileSystemController & Systemloader::GetFileSystemController()
 
 FileSys::ContentProvider & Systemloader::GetContentProvider()
 {
-    if (impl->m_appLoader && impl->m_appLoader->GetFileType()==LoaderFileType::NX) {
-        auto& nx_loader=*static_cast<Loader::AppLoader_NX*>(impl->m_appLoader.get());
-        if (nx_loader.GetStatus()==LoaderResultStatus::Success) return nx_loader.ContentProvider(*impl->m_contentProvider);
+    if (Loader::AppLoader_NX * nx_loader = impl->NxLoader()) {
+        if (nx_loader->GetStatus()==LoaderResultStatus::Success) return nx_loader->ContentProvider(*impl->m_contentProvider);
     }
     return *impl->m_contentProvider;
 }
@@ -570,8 +572,8 @@ bool Systemloader::GetActiveProgramContent(uint64_t program_id, ActiveProgramCon
     if (!impl->m_appLoader) return false;
     u64 loaded_id{};
     if (impl->m_appLoader->ReadProgramId(loaded_id) != LoaderResultStatus::Success || loaded_id != program_id) return false;
-    if (impl->m_appLoader->GetFileType()==LoaderFileType::NX)
-        return static_cast<Loader::AppLoader_NX*>(impl->m_appLoader.get())->ActiveContent(out);
+    if (Loader::AppLoader_NX * nx_loader = impl->NxLoader())
+        return nx_loader->ActiveContent(out);
     auto & provider = GetContentProvider();
     const FileSys::PatchManager pm(program_id, GetFileSystemController(), provider);
     const auto patches = pm.GetPatches();
@@ -637,7 +639,7 @@ IFileSysNACP * Systemloader::ReadControlData()
 
 IFileSysNACP * Systemloader::GetPMControlMetadata(uint64_t programID)
 {
-    if (impl->m_appLoader && impl->m_appLoader->GetFileType()==LoaderFileType::NX) {
+    if (impl->NxLoader() != nullptr) {
         uint64_t active=0;
         if (impl->m_appLoader->ReadProgramId(active)!=LoaderResultStatus::Success || active!=programID) return nullptr;
         return ReadControlData();
@@ -655,7 +657,7 @@ LoaderResultStatus Systemloader::GetPMControlData(uint64_t program_id, uint8_t *
                                                  uint32_t buffer_size, uint32_t & actual_size)
 {
     actual_size = 0;
-    if (impl->m_appLoader && impl->m_appLoader->GetFileType()==LoaderFileType::NX) {
+    if (impl->NxLoader() != nullptr) {
         uint64_t active=0; FileSys::NACP nacp;
         if (impl->m_appLoader->ReadProgramId(active)!=LoaderResultStatus::Success || active!=program_id ||
             impl->m_appLoader->ReadControlData(nacp)!=LoaderResultStatus::Success) return LoaderResultStatus::ErrorNoControl;

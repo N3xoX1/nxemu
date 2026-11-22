@@ -5,13 +5,11 @@
 
 #include <array>
 #include <initializer_list>
-#include <mutex>
 #include <tuple>
 #include <utility>
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
-#include <mcl/macro/concatenate_tokens.hpp>
 #include <mcl/type_traits/integer_of_size.hpp>
 #include <xbyak/xbyak.h>
 

@@ -348,7 +348,6 @@ void TextureCache<P>::RunGarbageCollector() {
 
 template <class P>
 void TextureCache<P>::TickFrame() {
-    // Prepared images are touched in the LRU once per frame
     BumpDescriptorEpoch();
     // If we can obtain the memory info, use it instead of the estimate.
     if (runtime.CanReportMemoryUsage()) {
@@ -400,6 +399,15 @@ template <bool has_blacklists>
 void TextureCache<P>::FillGraphicsImageViews(std::span<ImageViewInOut> views) {
     FillImageViews<has_blacklists>(channel_state->graphics_image_table,
                                    channel_state->graphics_image_view_ids, views);
+}
+
+template <class P>
+void TextureCache<P>::ResetBlacklistedScaleRatings(std::span<const ImageViewInOut> views) {
+    for (const ImageViewInOut& view : views) {
+        if (view.blacklist && view.id != NULL_IMAGE_VIEW_ID) {
+            slot_images[slot_image_views[view.id].image_id].scale_rating = 0;
+        }
+    }
 }
 
 template <class P>
@@ -586,7 +594,6 @@ void TextureCache<P>::TrackGraphicsDescriptorTables(GPUVAddr tic_addr, u32 tic_l
     tracked_tic_limit = tic_limit;
     tracked_tsc_addr = tsc_addr;
     tracked_tsc_limit = tsc_limit;
-    // Large tables are not worth tracking page by page, their draws resolve every time
     constexpr u64 MAX_TABLE_BYTES = 4ULL << 20;
     constexpr u64 PAGE = 4096;
     bool trackable = true;
@@ -597,7 +604,7 @@ void TextureCache<P>::TrackGraphicsDescriptorTables(GPUVAddr tic_addr, u32 tic_l
         }
         const GPUVAddr end = gpu_addr + size;
         for (GPUVAddr page = gpu_addr & ~(PAGE - 1); page < end && trackable; page += PAGE) {
-            const auto device_addr = gpu_memory->GpuToCpuAddress(page);
+            const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(page);
             if (!device_addr) {
                 trackable = false;
                 return;
@@ -616,8 +623,10 @@ void TextureCache<P>::TrackGraphicsDescriptorTables(GPUVAddr tic_addr, u32 tic_l
         table_ranges.clear();
         return;
     }
-    for (const auto& [addr, size] : table_ranges) {
-        device_memory.UpdatePagesCachedCount(addr, size, 1);
+    for (const std::pair<DAddr, size_t>& range : table_ranges) {
+        device_memory.UpdatePagesCachedCount(range.first, range.second, 1);
+        // Writes to pages without an image skip WriteMemory unless the filter knows the tables
+        device_memory.RegisterFlushCacheRegion(range.first, range.second, CacheType::TextureCache);
     }
     tables_tracked = true;
 }
@@ -625,8 +634,8 @@ void TextureCache<P>::TrackGraphicsDescriptorTables(GPUVAddr tic_addr, u32 tic_l
 template <class P>
 void TextureCache<P>::UntrackGraphicsDescriptorTables() {
     if (tables_tracked) {
-        for (const auto& [addr, size] : table_ranges) {
-            device_memory.UpdatePagesCachedCount(addr, size, -1);
+        for (const std::pair<DAddr, size_t>& range : table_ranges) {
+            device_memory.UpdatePagesCachedCount(range.first, range.second, -1);
         }
     }
     table_ranges.clear();
@@ -636,9 +645,39 @@ void TextureCache<P>::UntrackGraphicsDescriptorTables() {
 }
 
 template <class P>
+bool TextureCache<P>::OverlapsDescriptorTablesGPU(GPUVAddr gpu_addr, size_t size) const noexcept {
+    if (!tables_checked) {
+        return false;
+    }
+    const auto overlaps = [&](GPUVAddr table_addr, u64 table_size) {
+        return gpu_addr < table_addr + table_size && table_addr < gpu_addr + size;
+    };
+    return overlaps(tracked_tic_addr, (u64{tracked_tic_limit} + 1) * sizeof(TICEntry)) ||
+           overlaps(tracked_tsc_addr, (u64{tracked_tsc_limit} + 1) * sizeof(TSCEntry));
+}
+
+template <class P>
+void TextureCache<P>::NotifyUnsafeWrite(GPUVAddr gpu_addr, size_t size) {
+    if (table_ranges.empty()) {
+        return;
+    }
+    constexpr GPUVAddr PAGE = 4096;
+    const GPUVAddr end = gpu_addr + size;
+    for (GPUVAddr addr = gpu_addr; addr < end;) {
+        const GPUVAddr next = std::min<GPUVAddr>((addr & ~(PAGE - 1)) + PAGE, end);
+        const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(addr);
+        if (device_addr && OverlapsDescriptorTables(*device_addr, next - addr)) {
+            BumpDescriptorEpoch();
+            return;
+        }
+        addr = next;
+    }
+}
+
+template <class P>
 bool TextureCache<P>::OverlapsDescriptorTables(DAddr addr, size_t size) const noexcept {
-    for (const auto& [table_addr, table_size] : table_ranges) {
-        if (addr < table_addr + table_size && table_addr < addr + size) {
+    for (const std::pair<DAddr, size_t>& range : table_ranges) {
+        if (addr < range.first + range.second && range.first < addr + size) {
             return true;
         }
     }
@@ -782,11 +821,14 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear, u32 clear_layer_count) 
     if (!flags[Dirty::RenderTargets]) {
         for (size_t index = 0; index < NUM_RT; ++index) {
             ImageViewId& color_buffer_id = render_targets.color_buffer_ids[index];
-            PrepareImageView(color_buffer_id, true, is_clear && IsFullClear(color_buffer_id));
+            PrepareImageView(color_buffer_id, true,
+                             is_clear &&
+                                 IsFullClear(color_buffer_id, true, index, clear_layer_count));
             MarkRenderTarget(color_buffer_id);
         }
         const ImageViewId depth_buffer_id = render_targets.depth_buffer_id;
-        PrepareImageView(depth_buffer_id, true, is_clear && IsFullClear(depth_buffer_id));
+        PrepareImageView(depth_buffer_id, true,
+                         is_clear && IsFullClear(depth_buffer_id, false, 0, clear_layer_count));
         MarkRenderTarget(depth_buffer_id);
         return;
     }
@@ -800,12 +842,14 @@ void TextureCache<P>::UpdateRenderTargets(bool is_clear, u32 clear_layer_count) 
 
     for (size_t index = 0; index < NUM_RT; ++index) {
         ImageViewId& color_buffer_id = render_targets.color_buffer_ids[index];
-        PrepareImageView(color_buffer_id, true, is_clear && IsFullClear(color_buffer_id));
+        PrepareImageView(color_buffer_id, true,
+                         is_clear && IsFullClear(color_buffer_id, true, index, clear_layer_count));
         MarkRenderTarget(color_buffer_id);
     }
     const ImageViewId depth_buffer_id = render_targets.depth_buffer_id;
 
-    PrepareImageView(depth_buffer_id, true, is_clear && IsFullClear(depth_buffer_id));
+    PrepareImageView(depth_buffer_id, true,
+                     is_clear && IsFullClear(depth_buffer_id, false, 0, clear_layer_count));
     MarkRenderTarget(depth_buffer_id);
 
     for (size_t index = 0; index < NUM_RT; ++index) {
@@ -835,8 +879,7 @@ void TextureCache<P>::MarkRenderTarget(ImageViewId view_id) {
     if (!view.IsBuffer()) {
         Image& image = slot_images[view.image_id];
         if (image.last_render_frame != frame_tick) {
-            if (image.first_render_frame > frame_tick) {
-                image.first_render_frame = frame_tick;
+            if (image.last_render_frame > frame_tick) {
                 has_new_render_targets = true;
                 image.render_frame_bits = 1;
             } else {
@@ -863,6 +906,9 @@ bool TextureCache<P>::RenderTargetsDrawnBefore() const {
         // target drawn now and then (an icon or another texture the game renders once and keeps,
         // even one reused for different contents) keeps whatever this draw leaves in it.
         const Image& image = slot_images[view.image_id];
+        if (image.last_render_frame > frame_tick) {
+            return false;
+        }
         u32 bits = image.render_frame_bits;
         if (image.last_render_frame != frame_tick) {
             const u64 age = frame_tick - image.last_render_frame;
@@ -1177,8 +1223,11 @@ void TextureCache<P>::UnmapMemory(DAddr cpu_addr, size_t size) {
 template <class P>
 void TextureCache<P>::UnmapGPUMemory(size_t as_id, GPUVAddr gpu_addr, size_t size,
                                     bool preserve_contents) {
-    // The tables may now translate to other memory
-    UntrackGraphicsDescriptorTables();
+    // Mapping changes happen anywhere in the address space, only the tables' own ones move them
+    if (OverlapsDescriptorTablesGPU(gpu_addr, size)) {
+        UntrackGraphicsDescriptorTables();
+    }
+    BumpDescriptorEpoch();
     boost::container::small_vector<ImageId, 16> deleted_images;
     ForEachImageInRegionGPU(as_id, gpu_addr, size,
                             [&](ImageId id, Image&) { deleted_images.push_back(id); });
@@ -3038,7 +3087,9 @@ ImageViewId TextureCache<P>::FindRenderTargetView(const ImageInfo& info, GPUVAdd
     } while (has_deleted_images);
     has_deleted_images = delete_state;
     if (!image_id) {
-        return NULL_IMAGE_VIEW_ID;
+        // Leave the attachment absent rather than binding the null view, which has no
+        // render target handle and hands vkCreateFramebuffer a null VkImageView.
+        return ImageViewId{};
     }
     Image& image = slot_images[image_id];
     const ImageViewType view_type = RenderTargetImageViewType(info);
@@ -3690,7 +3741,6 @@ void TextureCache<P>::RefreshUnpublishedRead(DAddr addr, size_t size) {
 template <class P>
 void TextureCache<P>::MarkModification(ImageBase& image, ImageId image_id) noexcept {
     if (!image.aliased_images.empty()) {
-        // Images sampled from its aliases synchronize with it when prepared
         BumpDescriptorEpoch();
     }
     image.flags |= ImageFlagBits::GpuModified;
@@ -3959,26 +4009,19 @@ std::pair<FramebufferId, ImageViewId> TextureCache<P>::RenderTargetFromImage(
 }
 
 template <class P>
-bool TextureCache<P>::IsFullClear(ImageViewId id) {
+bool TextureCache<P>::IsFullClear(ImageViewId id, bool is_color, size_t index,
+                                  u32 clear_layer_count) {
     if (!id) {
         return true;
     }
     const ImageViewBase& image_view = slot_image_views[id];
     const ImageBase& image = slot_images[image_view.image_id];
-    const Extent3D size = image_view.size;
-    const auto& regs = maxwell3d->regs;
-    const auto& scissor = regs.scissor_test[0];
-    if (image.info.resources.levels > 1 || image.info.resources.layers > 1) {
-        // Images with multiple resources can't be cleared in a single call
+    const GPUVAddr target_address =
+        is_color ? maxwell3d->regs.rt[index].Address() : maxwell3d->regs.zeta.Address();
+    if (image_view.size != image.info.size || image.gpu_addr != target_address) {
         return false;
     }
-    if (regs.clear_control.use_scissor == 0) {
-        // If scissor testing is disabled, the clear is always full
-        return true;
-    }
-    // Make sure the clear covers all texels in the subresource
-    return scissor.min_x == 0 && scissor.min_y == 0 && scissor.max_x >= size.width &&
-           scissor.max_y >= size.height;
+    return CanDiscardOnClear(image.info, is_color, index, clear_layer_count);
 }
 
 template <class P>

@@ -37,7 +37,7 @@ add their executable targets as dependencies of `nxemu_unit_tests`.
 
 | Test | Checks |
 |---|---|
-| `test_conditional_runtime` | Host conditional rendering pause/resume/compare, predicate lifetime and polarity, with fake GPU dependencies (ASan, UBSan); Python 3 extracts unchanged production methods |
+| `test_conditional_engine` / `test_conditional_runtime` | Register/override/address transitions, deferred draw order, predicate lifetime and polarity, with fake GPU dependencies (ASan, UBSan); Python 3 extracts unchanged production methods |
 | `test_session_lifecycle` | Host thread state across kernel sessions, cancellation of Host1x fence waits (ASan, UBSan) |
 | `test_spirv_constant_buffers` | SPIR-V declarations of constant buffers |
 | `test_shader_constant_folding` | Integer bitfields and AND/OR/XOR with Zero/Sign flags, algebraic identities, SSA aliases, runtime operands and unsupported flags (ASan, UBSan) |

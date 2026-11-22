@@ -183,6 +183,8 @@ private:
     void SerializeGraphicsEnvironments(const GraphicsPipelineCacheKey& key,
                                        GraphicsEnvironments& environments);
 
+    [[nodiscard]] bool CanReuseLastLookup(
+        Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology topology) const;
     [[nodiscard]] GraphicsPipeline* LookupGraphicsPipeline();
 
     [[nodiscard]] GraphicsPipeline* CurrentGraphicsPipelineSlowPath();

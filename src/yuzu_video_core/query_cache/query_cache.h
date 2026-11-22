@@ -282,9 +282,10 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         }
         query_base->value += streamer->GetAmendValue();
         streamer->SetAccumulationValue(query_base->value);
-        if (pointer == nullptr || pointer_timestamp == nullptr) [[unlikely]] {
+        const bool with_timestamp = True(query_base->flags & QueryFlagBits::HasTimestamp);
+        if (pointer == nullptr || (with_timestamp && pointer_timestamp == nullptr)) [[unlikely]] {
             // The guest memory was unmapped before the report, as on exit
-        } else if (True(query_base->flags & QueryFlagBits::HasTimestamp)) {
+        } else if (with_timestamp) {
             u64 timestamp = impl->gpu.GetTicks();
             std::memcpy(pointer_timestamp, &timestamp, sizeof(timestamp));
             std::memcpy(pointer, &query_base->value, sizeof(query_base->value));
@@ -302,7 +303,8 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
     // without submitting more work.
     if (fast_payload && !behind_readback) {
         const auto publish = [&] {
-            if (pointer == nullptr || pointer_timestamp == nullptr) [[unlikely]] {
+            if (pointer == nullptr || (has_timestamp && pointer_timestamp == nullptr))
+                [[unlikely]] {
                 return;
             }
             if (has_timestamp) {
@@ -391,10 +393,8 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
 template <typename Traits>
 void QueryCacheBase<Traits>::MarkRewritten(QueryBase* old_query, const QueryBase* new_query,
                                            DAddr address) {
-    // A cache entry can outlive its query, and its slot may hold the new query by now. The new
-    // query must not drop itself: its result would never be written, and a guest waiting for
-    // it waits forever (Ace Combat 7 GPU timers). A slot reused at another address isn't the
-    // older payload either.
+    // A cache entry can outlive its query: the slot may now hold the new query, or another
+    // query at a different address
     if (old_query == nullptr || old_query == new_query || old_query->guest_address != address) {
         return;
     }
@@ -465,9 +465,8 @@ bool QueryCacheBase<Traits>::HasPendingResult(VAddr addr, size_t size) {
         }
         constexpr auto done = QueryFlagBits::IsRewritten | QueryFlagBits::IsInvalidated |
                               QueryFlagBits::IsWritten;
-        const auto* query = streamer->GetQuery(query_id);
-        // A cache entry can outlive its query: the slot may hold another query since. It
-        // is not pending at this address, and it may never be written (a fast payload).
+        const QueryBase* query = streamer->GetQuery(query_id);
+        // A cache entry can outlive its query: the slot may hold another query since
         if (query->guest_address >= addr + size || query->guest_address + sizeof(u32) <= addr) {
             return;
         }

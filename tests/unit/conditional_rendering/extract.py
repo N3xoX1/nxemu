@@ -19,6 +19,13 @@ def method(source, name):
         end += 1
     return source[start:end]
 
+source = (root / 'src/yuzu_video_core/engines/maxwell_3d.cpp').read_text()
+engine = [method(source, 'Maxwell3D::' + name).replace('Maxwell3D::', 'Fixture::')
+          for name in ['IsMethodExecutable', 'ProcessShadowRam', 'ProcessMethodCall',
+                       'ProcessQueryCondition', 'CallMethod']]
+source = (root / 'src/yuzu_video_core/dma_pusher.cpp').read_text()
+engine.append(method(source, 'DmaPusher::CallMethod').replace('DmaPusher::', 'Dma::'))
+(output / 'engine.inc').write_text('\n\n'.join(engine))
 source = (root / 'src/yuzu_video_core/renderer_vulkan/vk_query_cache.cpp').read_text()
 names = ['EndHostConditionalRendering', 'PauseHostConditionalRendering',
          'ResumeHostConditionalRendering', 'HostConditionalRenderingCompareValueImpl',

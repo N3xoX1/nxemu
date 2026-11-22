@@ -21,10 +21,22 @@ code generation before). Most forward branches are side exits, so add 64 to both
 test the block ends.
 Bit 1024 stores NZCV at every flag-setting instruction (the code generation before) instead of
 leaving it in the host flags for the side exits and the block end to store.
+Bit 2048 stores every guest register write on the hot path (the code generation before) instead
+of leaving a write that a later write of the same register replaces to the side exits before it.
+Bit 4096 turns off fastmem address folding (an address register + immediate put into the access
+itself); it only applies with FASTMEM 2.
+Bit 8192 makes FRECPE call the FP code for every input (the code generation before) instead of
+the inline estimate for normal inputs.
+With FASTMEM 1 or 2 each JIT also gets a write tracking map, and an arena page written without its
+mark is a failure.
 
   jit_fuzz.py DLL run SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]
   jit_fuzz.py DLL bench SEED COUNT VARIANT_A VARIANT_B FASTMEM [REPORT]   also times execution
                                                    (JIT_FUZZ_REPS runs of each sequence, default 200)
+
+FASTMEM: 0 off, 1 with the address check (20 address bits), 2 without it (64 bits, as nxemu at
+Auto accuracy), with a faulting MiB after the arena; sequences that would leave the 2 MiB are
+skipped. bench does not run with FASTMEM 2.
 
 JIT_FUZZ_FOCUS=FCMP_float,B_cond picks these instructions (decoder names) half of the time.
   jit_fuzz.py DLL shrink SEED ITERATION VARIANT_A VARIANT_B FASTMEM [REPORT]

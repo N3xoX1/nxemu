@@ -3048,44 +3048,37 @@ public:
     /// these.
     Regs regs{};
 
-    /// What a change made by the execute side can change for the draws that follow
     enum GenerationKind : u8 {
-        /// State a draw reads, other than the two kinds below
-        GEN_STATE = 0,
-        /// The draw range registers (first, count, base vertex and instance)
-        GEN_NONE = 1,
-        /// Constant buffer data, the addresses bound to constant buffer slots and the vertex
-        /// stream addresses, see BufferChanges
-        GEN_BUFFERS = 2,
+        GEN_STATE,
+        /// The draw range and the draw triggers, which each draw reads again
+        GEN_NONE,
+        GEN_BUFFERS,
     };
-
-    /// Change each time the execute side changes something of their kind. Two draws with the
-    /// same values read the same registers and the same buffer data.
-    std::array<u64, 3> generations{1, 0, 1};
 
     [[nodiscard]] u64 DrawStateGeneration() const noexcept {
         return generations[GEN_STATE];
     }
+
     [[nodiscard]] u64 BufferGeneration() const noexcept {
         return generations[GEN_BUFFERS];
     }
 
-    /// The constant buffer changes since the rasterizer last cleared them, after a draw
+    /// Writes are device ranges, so every GPU address mapping the memory sees them
     struct BufferChanges {
         static constexpr size_t MAX_WRITES = 8;
-        /// Per stage, the slots bound to another address or given prefetched data
         std::array<u32, Regs::MaxShaderStage> rebound_slots{};
-        /// Constant buffer data written, until there are too many ranges to keep
-        std::array<std::pair<GPUVAddr, u64>, MAX_WRITES> writes{};
+        std::array<std::pair<DAddr, u64>, MAX_WRITES> writes{};
         u32 num_writes{};
-        bool too_many_writes{};
+        bool untracked_writes{};
+
+        void AddWrite(DAddr address, u64 size) noexcept;
+        [[nodiscard]] bool IsWritten(DAddr address, u64 size) const noexcept;
     };
-    BufferChanges buffer_changes;
+
+    [[nodiscard]] u32 ChangedConstBuffers(size_t stage, u32 slots) const noexcept;
 
     void ClearBufferChanges() noexcept {
-        buffer_changes.rebound_slots = {};
-        buffer_changes.num_writes = 0;
-        buffer_changes.too_many_writes = false;
+        buffer_changes = {};
     }
 
     /// Registers of the decode side. Shadow RAM and the macro engine read these. Method calls
@@ -3121,7 +3114,8 @@ public:
             if (find(key) != end()) {
                 return;
             }
-            ASSERT(count < entries.size());
+            // With debug asserts off, a full table drops the entry rather than writing past it.
+            ASSERT_OR_EXECUTE(count < entries.size(), { return; });
             entries[count++] = value_type{key, value};
         }
         void clear() noexcept {
@@ -3346,6 +3340,8 @@ private:
 
     void InitializePipelineKeyRegisters();
 
+    void InitializeGenerationKinds();
+
     void ProcessMacro(u32 method, const u32* base_start, u32 amount, bool is_last_call);
 
     u32 ProcessShadowRam(u32 method, u32 argument);
@@ -3504,6 +3500,9 @@ private:
     std::unique_ptr<MacroEngine> macro_engine;
 
     Upload::State upload_state;
+
+    std::array<u64, 3> generations{};
+    BufferChanges buffer_changes;
 
     bool execute_on{true};
 

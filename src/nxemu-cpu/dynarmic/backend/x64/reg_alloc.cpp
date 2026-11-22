@@ -6,7 +6,6 @@
 #include "dynarmic/backend/x64/reg_alloc.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <bit>
 #include <boost/container/small_vector.hpp>
 #include <numeric>
@@ -684,10 +683,11 @@ void RegAlloc::MoveOutOfTheWay(HostLoc reg) {
     // A free callee-saved register is cheaper than the stack, and host calls do not clobber it.
     // Registers handed out during this instruction are skipped: the emitter may still use them
     // after it ended its alloc scope (a value moved there would be overwritten).
-    // Test variants: bit 0 spills XMM values instead, bit 1 drops the handed-out check (the old bug).
+    // Test variants: bit 0 spills instead (the allocator before this change), bit 1 drops the
+    // handed-out check (the old bug).
     const std::vector<HostLoc>& order = HostLocIsGPR(reg) ? gpr_order : xmm_order;
     const bool check_handed_out = (jit_test_variant & 2) == 0;
-    if (HostLocIsGPR(reg) || (jit_test_variant & 1) == 0) {
+    if ((jit_test_variant & 1) == 0) {
         for (const HostLoc loc : order) {
             if (loc == reg || (check_handed_out && HandedOut(loc)) || std::find(ABI_ALL_CALLEE_SAVE.begin(), ABI_ALL_CALLEE_SAVE.end(), loc) == ABI_ALL_CALLEE_SAVE.end()) {
                 continue;

@@ -139,6 +139,9 @@ struct VideoManager::Impl
         if (m_gpuCore)
         {
             m_gpuCore->WaitForComposite();
+            // Stop GPU workers and release sync-operation waiters before OS shutdown
+            // waits for guest threads to terminate.
+            m_gpuCore->Shutdown();
         }
     }
 
@@ -654,6 +657,14 @@ void VideoManager::HandleRasterizerWrite(const uint8_t * pointer, uint64_t size,
             }
             *last_page = subaddress;
         }
+        collect(address, size, user_data);
+    });
+}
+
+void VideoManager::HandleRasterizerCoarseWrite(const uint8_t * pointer, uint64_t size, RasterizerDirtyCollect collect, void * user_data)
+{
+    thread_local Common::ScratchBuffer<u32> scratch;
+    impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
         collect(address, size, user_data);
     });
 }

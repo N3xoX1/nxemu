@@ -1602,7 +1602,7 @@ static void EmitRecipEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
     };
 
     if constexpr (fsize != 16) {
-        if (code.HasHostFeature(HostFeature::SSE42)) {
+        if (code.HasHostFeature(HostFeature::SSE42) && !OutOfLineRecipEstimate()) {
             // Exact inline estimate when every lane is a normal number with a normal result
             // (see EmitFPRecipEstimate in emit_x64_floating_point.cpp). Other lanes: FP code.
             constexpr FPT mask = fsize == 32 ? 0xFFFF8000 : 0xFFFF'F000'0000'0000;
@@ -1634,7 +1634,11 @@ static void EmitRecipEstimate(BlockOfCode& code, EmitContext& ctx, IR::Inst* ins
             code.pand(value, GetVectorOf<fsize, mask>(code));
             code.por(value, GetVectorOf<fsize, half>(code));
             code.movaps(result, GetVectorOf<fsize, FP::FPValue<FPT, false, 0, 1>()>(code));
+            // The host division raises inexact, but FRECPE of a normal input with a normal result
+            // raises no exception: keep MXCSR's flags as they were.
+            code.stmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
             FCODE(divp)(result, value);
+            code.ldmxcsr(dword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, scratch_MXCSR)]);
             ICODE(padd)(result, GetVectorOf<fsize, half>(code));
             code.pand(result, GetVectorOf<fsize, mask>(code));
 
