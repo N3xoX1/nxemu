@@ -284,11 +284,6 @@ if(NOT MSVC)
 endif()
 nxemu_unit_test(test_nce_written_ranges LINUX)
 
-add_executable(test_gpu_modified_ranges gpu_modified_ranges/ranges.cpp)
-target_include_directories(test_gpu_modified_ranges PRIVATE "${CMAKE_SOURCE_DIR}/src"
-    "${CMAKE_SOURCE_DIR}/external/boost")
-nxemu_unit_test(test_gpu_modified_ranges LINUX)
-
 add_executable(test_nce_store_thunk nce_store_thunk/store_thunk.cpp)
 target_include_directories(test_nce_store_thunk PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_compile_options(test_nce_store_thunk PRIVATE
@@ -420,19 +415,6 @@ target_link_libraries(test_strided_handles PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_strided_handles)
 
-# Built from source: linking shader_recompiler.lib defines fmt twice with the test stubs on MSVC.
-add_executable(test_texture_query_type texture_query_type/query_type.cpp
-    "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/ir_opt/texture_pass.cpp")
-foreach(source attribute basic_block condition flow_test ir_emitter microinstruction opcodes patch program type value)
-    target_sources(test_texture_query_type PRIVATE
-        "${CMAKE_SOURCE_DIR}/src/yuzu_shader_recompiler/frontend/ir/${source}.cpp")
-endforeach()
-target_include_directories(test_texture_query_type PRIVATE "${CMAKE_SOURCE_DIR}/src"
-    "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include")
-target_compile_definitions(test_texture_query_type PRIVATE FMT_HEADER_ONLY)
-target_link_libraries(test_texture_query_type PRIVATE nxemu_test_support)
-nxemu_unit_test(test_texture_query_type LINUX)
-
 # Differential tests execute the production DMA and Maxwell register methods.
 set(_gpu_commands_generated "${CMAKE_CURRENT_BINARY_DIR}/gpu_commands")
 add_custom_command(
@@ -468,8 +450,6 @@ set_tests_properties(test_gpu_commands PROPERTIES TIMEOUT 30)
 set(_texture_hotpaths_generated "${CMAKE_CURRENT_BINARY_DIR}/texture_hotpaths")
 add_custom_command(
     OUTPUT "${_texture_hotpaths_generated}/regions.inc" "${_texture_hotpaths_generated}/pages.inc"
-        "${_texture_hotpaths_generated}/descriptors.inc"
-        "${_texture_hotpaths_generated}/descriptor_members.inc"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/texture_hotpaths/extract.py"
         "${CMAKE_SOURCE_DIR}" "${_texture_hotpaths_generated}"
     DEPENDS texture_hotpaths/extract.py
@@ -490,19 +470,6 @@ if(NOT MSVC)
 endif()
 nxemu_unit_test(test_texture_regions)
 
-add_executable(test_texture_descriptors texture_hotpaths/descriptors.cpp
-    "${_texture_hotpaths_generated}/descriptors.inc"
-    "${_texture_hotpaths_generated}/descriptor_members.inc")
-target_include_directories(test_texture_descriptors PRIVATE "${_texture_hotpaths_generated}"
-    "${CMAKE_SOURCE_DIR}/src")
-target_link_libraries(test_texture_descriptors PRIVATE nxemu_test_support)
-if(NOT MSVC)
-    target_compile_options(test_texture_descriptors PRIVATE
-        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
-    target_link_options(test_texture_descriptors PRIVATE -fsanitize=address,undefined)
-endif()
-nxemu_unit_test(test_texture_descriptors)
-
 add_executable(test_mapping_continuity mapping_continuity/mapping.cpp)
 target_include_directories(test_mapping_continuity PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
@@ -512,26 +479,6 @@ target_link_libraries(test_mapping_continuity PRIVATE nxemu_test_support
     $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
     fmt bc_decoder stb_dxt)
 nxemu_unit_test(test_mapping_continuity)
-
-add_executable(test_gpu_modified_protection gpu_modified_ranges/protection.cpp)
-target_include_directories(test_gpu_modified_protection PRIVATE "${CMAKE_SOURCE_DIR}/src"
-    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
-    "${CMAKE_SOURCE_DIR}/external/boost")
-add_dependencies(test_gpu_modified_protection video_core yuzu_common common)
-target_link_libraries(test_gpu_modified_protection PRIVATE nxemu_test_support
-    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
-    fmt bc_decoder stb_dxt)
-nxemu_unit_test(test_gpu_modified_protection)
-
-add_executable(test_in_place_reads gpu_modified_ranges/in_place.cpp)
-target_include_directories(test_in_place_reads PRIVATE "${CMAKE_SOURCE_DIR}/src"
-    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
-    "${CMAKE_SOURCE_DIR}/external/boost")
-add_dependencies(test_in_place_reads video_core yuzu_common common)
-target_link_libraries(test_in_place_reads PRIVATE nxemu_test_support
-    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
-    fmt bc_decoder stb_dxt)
-nxemu_unit_test(test_in_place_reads)
 
 # Each test suite owns its build and CTest registration.
 file(GLOB unit_suites RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS

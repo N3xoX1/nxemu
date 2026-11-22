@@ -26,8 +26,6 @@ using namespace Common::Literals;
 constexpr VkDeviceSize MAX_ALIGNMENT = 256;
 // Stream buffer size in bytes
 constexpr VkDeviceSize MAX_STREAM_BUFFER_SIZE = 128_MiB;
-// Unused tail so a 64 KiB UBO binding near the end of the stream buffer never reads past it.
-constexpr VkDeviceSize STREAM_BUFFER_TAIL = 64_KiB;
 
 size_t GetStreamBufferSize(const Device& device) {
     VkDeviceSize size{0};
@@ -57,7 +55,7 @@ StagingBufferPool::StagingBufferPool(const Device& device_, MemoryAllocator& mem
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .size = stream_buffer_size + STREAM_BUFFER_TAIL,
+        .size = stream_buffer_size,
         .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
                  VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,

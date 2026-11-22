@@ -62,7 +62,6 @@ void Puller::ProcessBindMethod(const MethodCall& method_call) {
 void Puller::ProcessFenceActionMethod() {
     switch (regs.fence_action.op) {
     case Puller::FenceOperation::Acquire: {
-        rasterizer->OnGuestSynchronization();
         // UNIMPLEMENTED_MSG("Channel Scheduling pending.");
         // A syncpoint the host has already reached needs no wait. Otherwise, without channel
         // scheduling, the pending fences are released as before.
@@ -92,7 +91,6 @@ void Puller::ProcessSemaphoreTriggerMethod() {
         rasterizer->Query(sequence_address, VideoCommon::QueryType::Payload,
                           VideoCommon::QueryPropertiesFlags::HasTimeout, payload, 0);
     } else {
-        rasterizer->OnGuestSynchronization();
         do {
             const u32 word{memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress())};
             regs.acquire_source = true;
@@ -131,22 +129,12 @@ void Puller::ProcessSemaphoreRelease() {
 }
 
 void Puller::ProcessSemaphoreAcquire() {
-    rasterizer->OnGuestSynchronization();
     u32 word = memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress());
     const auto value = regs.semaphore_acquire;
     while (word != value) {
-        if (memory_manager.GetPointer(regs.semaphore_address.SemaphoreAddress()) == nullptr)
-            [[unlikely]] {
-            // The guest unmapped the semaphore, as on exit: nothing can release it anymore
-            LOG_WARNING(HW_GPU, "Semaphore acquire on unmapped memory 0x{:x}",
-                        regs.semaphore_address.SemaphoreAddress());
-            break;
-        }
         regs.acquire_active = true;
         regs.acquire_value = value;
         rasterizer->ReleaseFences();
-        // The guest thread that releases the semaphore may be waiting for recorded work
-        rasterizer->ServiceInPlaceWaits();
         word = memory_manager.Read<u32>(regs.semaphore_address.SemaphoreAddress());
         // TODO(kemathe73) figure out how to do the acquire_timeout
         regs.acquire_mode = false;

@@ -4,7 +4,6 @@
 #pragma once
 
 #include <algorithm>
-#include <bit>
 #include <memory>
 #include <numeric>
 
@@ -21,18 +20,8 @@ BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, R
     : runtime{runtime_}, device_memory{device_memory_}, memory_tracker{device_memory} {
     // Ensure the first slot is used for the null buffer
     void(slot_buffers.insert(runtime, NullBufferParams{}));
-    gpu_modified_ranges.SetOnPages([this](DAddr addr, u64 size, s32 delta) {
-        device_memory.UpdatePagesGpuModifiedCount(addr, size, delta);
-    });
+    gpu_modified_ranges.Clear();
     inline_buffer_id = NULL_BUFFER_ID;
-    if constexpr (!IS_OPENGL) {
-        // Before any GPU command: engine writes made before the import go untracked
-        guest_ram_imported = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
-                                                               device_memory.PhysicalSize());
-        if (guest_ram_imported) {
-            device_memory.EnableInPlaceReads();
-        }
-    }
 
     if (!runtime.CanReportMemoryUsage()) {
         minimum_memory = DEFAULT_EXPECTED_MEMORY;
@@ -82,7 +71,6 @@ void BufferCache<P>::TickFrame() {
         return;
     }
     runtime.TickFrame(slot_buffers);
-    frame_created_buffers.clear();
 
     // Calculate hits and shots and move hit bits to the right
     const u32 hits = std::reduce(channel_state->uniform_cache_hits.begin(),
@@ -132,13 +120,6 @@ void BufferCache<P>::WriteMemory(DAddr device_addr, u64 size) {
         InvalidateReadbackReferences(device_addr, size);
     }
     memory_tracker.MarkRegionAsCpuModified(device_addr, size);
-}
-
-template <class P>
-void BufferCache<P>::CoarseWriteMemory(DAddr device_addr, u64 size) {
-    gpu_modified_ranges.ForEachNotInRange(device_addr, size, [&](DAddr start, DAddr end) {
-        WriteMemory(start, end - start);
-    });
 }
 
 template <class P>
@@ -281,7 +262,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         const u64 size = base_address_end - base_address;
         const DAddr diff = base_address - *cpu_src_address;
         const DAddr new_base_address = *cpu_dest_address + diff;
-        MarkGpuWriteHistory(new_base_address, size);
+        gpu_write_history.Mark(new_base_address, size);
         tmp_intervals.push_back({new_base_address, size});
         uncommitted_gpu_modified_ranges.Add(new_base_address, size);
         untracked_gpu_writes.Add(new_base_address, size);
@@ -303,9 +284,8 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
 
-    Tegra::Memory::DeviceGuestMemory<u8, GuestMemoryFlags::UnsafeRead> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
-    device_memory.PrepareEngineWrite(*cpu_dest_address, amount);
-    device_memory.WriteBlockUnsafe(*cpu_dest_address, tmp.data(), amount);
+    Tegra::Memory::DeviceGuestMemoryScoped<u8, GuestMemoryFlags::UnsafeReadWrite> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
+    tmp.SetAddressAndSize(*cpu_dest_address, amount);
     return true;
 }
 
@@ -430,54 +410,6 @@ void BufferCache<P>::BindHostGeometryBuffers(bool is_indexed) {
     if (current_draw_indirect) {
         BindHostDrawIndirectBuffers();
     }
-}
-
-template <class P>
-bool BufferCache<P>::RebindIndexBuffer() {
-    const u64 epoch = deleted_buffers_epoch;
-    maxwell3d->dirty.flags[Dirty::IndexBuffer] = true;
-    BufferOperations([&] { UpdateIndexBuffer(); });
-    if (deleted_buffers_epoch != epoch || channel_state->is_index_buffer_sparse) {
-        return false;
-    }
-    BindHostIndexBuffer();
-    return true;
-}
-
-template <class P>
-bool BufferCache<P>::UpdateKeptDrawBuffers(bool is_indexed) {
-    const u64 epoch = deleted_buffers_epoch;
-    if (is_indexed) {
-        maxwell3d->dirty.flags[Dirty::IndexBuffer] = true;
-    }
-    BufferOperations([&] {
-        if (is_indexed) {
-            UpdateIndexBuffer();
-        }
-        UpdateVertexBuffers();
-        for (size_t stage = 0; stage < NUM_STAGES; ++stage) {
-            UpdateUniformBuffers(stage);
-        }
-    });
-    return deleted_buffers_epoch == epoch && !(is_indexed && channel_state->is_index_buffer_sparse);
-}
-
-template <class P>
-bool BufferCache<P>::UpdateKeptGraphicsBuffers(bool is_indexed) {
-    const u64 epoch = deleted_buffers_epoch;
-    UpdateGraphicsBuffers(is_indexed);
-    return deleted_buffers_epoch == epoch && !HasSparseBindings();
-}
-
-template <class P>
-void BufferCache<P>::BindKeptUniformBuffer(size_t stage, u32 index) {
-    u32 binding_index = 0;
-    if constexpr (NEEDS_BIND_UNIFORM_INDEX) {
-        const u32 lower_slots = (1U << index) - 1;
-        binding_index = static_cast<u32>(
-            std::popcount(channel_state->enabled_uniform_buffer_masks[stage] & lower_slots));
-    }
-    BindHostGraphicsUniformBuffer(stage, index, binding_index, true);
 }
 
 template <class P>
@@ -1258,20 +1190,6 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
-    const bool gpu_modified = memory_tracker.IsRegionGpuModified(device_addr, size);
-    if constexpr (!IS_OPENGL) {
-        const bool rewritten_every_draw = size <= channel_state->uniform_buffer_skip_cache_size;
-        const bool in_place = guest_ram_imported && binding.buffer_id != NULL_BUFFER_ID &&
-                              !rewritten_every_draw && !gpu_modified &&
-                              !device_memory.IsExcludedFromInPlace(device_addr, size);
-        if (in_place) {
-            if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
-                pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
-                device_memory.HoldInPlaceRead(device_addr, size, runtime.CurrentTick());
-                return;
-            }
-        }
-    }
     Buffer& buffer = slot_buffers[binding.buffer_id];
     TouchBuffer(buffer, binding.buffer_id);
     bool stream_modified_uniform{};
@@ -1285,7 +1203,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
                                  (size <= channel_state->uniform_buffer_skip_cache_size ||
                                   stream_modified_uniform) &&
-                                 !gpu_modified;
+                                 !memory_tracker.IsRegionGpuModified(device_addr, size);
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {
             if (runtime.HasFastBufferSubData()) {
@@ -1875,7 +1793,7 @@ void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u3
         untracked_gpu_writes.Add(device_addr, size);
     }
     device_memory.InvalidateNativeReadRegion(device_addr, size);
-    MarkGpuWriteHistory(device_addr, size);
+    gpu_write_history.Mark(device_addr, size);
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
@@ -1929,14 +1847,8 @@ typename BufferCache<P>::OverlapResult BufferCache<P>::ResolveOverlaps(DAddr dev
                                                                        u32 wanted_size) {
     static constexpr int STREAM_LEAP_THRESHOLD = 16;
     boost::container::small_vector<BufferId, 16> overlap_ids;
-    boost::container::small_vector<BufferId, 2> cut_ids;
     DAddr begin = device_addr;
     DAddr end = device_addr + wanted_size;
-    const DAddr wanted_begin = begin;
-    const DAddr wanted_end = end;
-    // Do not chain a >=128 MiB buffer from an earlier frame that shares at most one caching
-    // page with the wanted range; download and delete it instead to prevent multi-GiB growth.
-    static constexpr u64 CHAIN_LIMIT = 128_MiB;
     int stream_score = 0;
     bool has_stream_leap = false;
     auto expand_begin = [&](DAddr add_value) {
@@ -1960,7 +1872,6 @@ typename BufferCache<P>::OverlapResult BufferCache<P>::ResolveOverlaps(DAddr dev
     if (begin == 0) {
         return OverlapResult{
             .ids = std::move(overlap_ids),
-            .cut = std::move(cut_ids),
             .begin = begin,
             .end = end,
             .has_stream_leap = has_stream_leap,
@@ -1976,20 +1887,9 @@ typename BufferCache<P>::OverlapResult BufferCache<P>::ResolveOverlaps(DAddr dev
         if (overlap.IsPicked()) {
             continue;
         }
-        const DAddr overlap_device_addr = overlap.CpuAddr();
-        if (overlap.SizeBytes() >= CHAIN_LIMIT &&
-            std::ranges::find(frame_created_buffers, overlap_id) == frame_created_buffers.end()) {
-            const DAddr shared_begin = (std::max)(overlap_device_addr, wanted_begin);
-            const DAddr shared_end =
-                (std::min)(overlap_device_addr + overlap.SizeBytes(), wanted_end);
-            if (shared_end <= shared_begin + CACHING_PAGESIZE) {
-                overlap.Pick();
-                cut_ids.push_back(overlap_id);
-                continue;
-            }
-        }
         overlap_ids.push_back(overlap_id);
         overlap.Pick();
+        const DAddr overlap_device_addr = overlap.CpuAddr();
         const bool expands_left = overlap_device_addr < begin;
         if (expands_left) {
             begin = overlap_device_addr;
@@ -2014,7 +1914,6 @@ typename BufferCache<P>::OverlapResult BufferCache<P>::ResolveOverlaps(DAddr dev
     }
     return OverlapResult{
         .ids = std::move(overlap_ids),
-        .cut = std::move(cut_ids),
         .begin = begin,
         .end = end,
         .has_stream_leap = has_stream_leap,
@@ -2047,13 +1946,8 @@ BufferId BufferCache<P>::CreateBuffer(DAddr device_addr, u32 wanted_size) {
     device_addr = Common::AlignDown(device_addr, CACHING_PAGESIZE);
     wanted_size = static_cast<u32>(device_addr_end - device_addr);
     const OverlapResult overlap = ResolveOverlaps(device_addr, wanted_size);
-    for (const BufferId cut_id : overlap.cut) {
-        DownloadBufferMemory(slot_buffers[cut_id]);
-        DeleteBuffer(cut_id);
-    }
     const u32 size = static_cast<u32>(overlap.end - overlap.begin);
     const BufferId new_buffer_id = slot_buffers.insert(runtime, overlap.begin, size);
-    frame_created_buffers.push_back(new_buffer_id);
     auto& new_buffer = slot_buffers[new_buffer_id];
     const size_t size_bytes = new_buffer.SizeBytes();
     runtime.ClearBuffer(new_buffer, 0, size_bytes, 0);
@@ -2460,7 +2354,6 @@ void BufferCache<P>::DeleteBuffer(BufferId buffer_id, bool do_not_mark) {
         }
     }
     channel_state->has_deleted_buffers = true;
-    ++deleted_buffers_epoch;
 }
 
 template <class P>
@@ -2819,7 +2712,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
         device_memory.InvalidateNativeReadRegion(device_addr, write_size);
-        MarkGpuWriteHistory(device_addr, write_size);
+        gpu_write_history.Mark(device_addr, write_size);
         memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);
         uncommitted_gpu_modified_ranges.Add(device_addr, write_size);

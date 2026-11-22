@@ -57,18 +57,4 @@ void PageTable::Resize(std::size_t address_space_width_in_bits, std::size_t page
     page_size = 1ULL << page_size_in_bits;
 }
 
-void PageTable::EnableWriteTracking() {
-    if (write_track_map != nullptr) {
-        return;
-    }
-    const std::size_t num_page_table_entries = pointers.size();
-    // The padding keeps 8-byte scans inside the map
-    const uint64_t l2_entries = ((num_page_table_entries >> 9) + 64) & ~uint64_t{63};
-    const uint64_t l1_entries = ((num_page_table_entries >> 18) + 64) & ~uint64_t{63};
-    write_track_storage.resize(num_page_table_entries + l2_entries + l1_entries + 64);
-    write_track_map = write_track_storage.data();
-    write_track_l2_offset = static_cast<u32>(num_page_table_entries);
-    write_track_l1_offset = static_cast<u32>(num_page_table_entries + l2_entries);
-}
-
 } // namespace Common

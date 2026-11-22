@@ -113,16 +113,8 @@ static bool FuseIsZeroWithSideExit(EmitContext& ctx, IR::Inst* inst) {
         return false;
     }
     auto next = std::next(IR::Block::iterator(inst));
-    if (next == ctx.block.end()) {
-        return false;
-    }
-    if (next->GetOpcode() == IR::Opcode::A64SideExit) {
-        return !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
-    }
-    // The SetCheckBit that ends a block with a CheckBit exit (CBZ/CBNZ/TBZ/TBNZ at the end of
-    // a block): the exit jumps on ZF.
-    return ctx.check_bit_exit_on_flags && next->GetOpcode() == IR::Opcode::A64SetCheckBit && std::next(next) == ctx.block.end() &&
-           !next->GetArg(0).IsImmediate() && next->GetArg(0).GetInst() == inst;
+    return next != ctx.block.end() && next->GetOpcode() == IR::Opcode::A64SideExit &&
+           !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
 }
 
 void EmitX64::EmitIsZero32(EmitContext& ctx, IR::Inst* inst) {
@@ -236,7 +228,6 @@ static void EmitConditionalSelect(BlockOfCode& code, EmitContext& ctx, IR::Inst*
         return;
     }
 
-    ASSERT_MSG(!ctx.nzcv_pending, "ConditionalSelect reloads NZCV that is still only in the host flags");
     const Xbyak::Reg32 nzcv = ctx.reg_alloc.ScratchGpr(HostLoc::RAX).cvt32();
     const Xbyak::Reg then_ = ctx.reg_alloc.UseGpr(args[1]).changeBit(bitsize);
     const Xbyak::Reg else_ = ctx.reg_alloc.UseScratchGpr(args[2]).changeBit(bitsize);
@@ -1061,9 +1052,7 @@ static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         return;
     }
 
-    // NZCV kept in the host flags only (see EmitContext::nzcv_at_exits): no RAX, no lahf
-    const bool nzcv_in_flags = nzcv_inst && ctx.IsNzcvInFlagsOnly(nzcv_inst);
-    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_in_flags ? nullptr : nzcv_inst);
+    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_inst);
     const Xbyak::Reg result = ctx.reg_alloc.UseScratchGpr(args[0]).changeBit(bitsize);
     const Xbyak::Reg8 carry = DoCarry(ctx.reg_alloc, carry_in, carry_inst);
     const Xbyak::Reg8 overflow = overflow_inst ? ctx.reg_alloc.ScratchGpr().cvt8() : Xbyak::Reg8{-1};
@@ -1097,9 +1086,7 @@ static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         }
     }
 
-    if (nzcv_in_flags) {
-        ctx.host_flags_nzcv = nzcv_inst;
-    } else if (nzcv_inst) {
+    if (nzcv_inst) {
         code.lahf();
         code.seto(code.al);
         ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
@@ -1122,11 +1109,6 @@ void EmitX64::EmitAdd32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitAdd64(EmitContext& ctx, IR::Inst* inst) {
-    if (!ctx.folded_addresses.empty() && ctx.folded_addresses.contains(inst)) {
-        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-        ctx.reg_alloc.DefineValue(inst, args[0]);
-        return;
-    }
     EmitAdd(code, ctx, inst, 64);
 }
 
@@ -1150,9 +1132,7 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         return;
     }
 
-    // NZCV kept in the host flags only (see EmitContext::nzcv_at_exits): no RAX, no lahf
-    const bool nzcv_in_flags = nzcv_inst && ctx.IsNzcvInFlagsOnly(nzcv_inst);
-    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_in_flags ? nullptr : nzcv_inst);
+    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_inst);
     const Xbyak::Reg result = (is_cmp ? ctx.reg_alloc.UseGpr(args[0]) : ctx.reg_alloc.UseScratchGpr(args[0])).changeBit(bitsize);
     const Xbyak::Reg8 carry = DoCarry(ctx.reg_alloc, carry_in, carry_inst);
     const Xbyak::Reg8 overflow = overflow_inst ? ctx.reg_alloc.ScratchGpr().cvt8() : Xbyak::Reg8{-1};
@@ -1204,11 +1184,9 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         if (invert_output_carry) {
             code.cmc();
         }
-        if (!nzcv_in_flags) {
-            code.lahf();
-            code.seto(code.al);
-            ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
-        }
+        code.lahf();
+        code.seto(code.al);
+        ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
         ctx.host_flags_nzcv = nzcv_inst;
     }
     if (carry_inst) {

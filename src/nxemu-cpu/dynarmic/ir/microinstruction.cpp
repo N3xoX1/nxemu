@@ -184,7 +184,6 @@ bool Inst::WritesToCPSR() const {
     case Opcode::A32UpdateUpperLocationDescriptor:
     case Opcode::A64SetNZCVRaw:
     case Opcode::A64SetNZCV:
-    case Opcode::A64SetNZCVAtExits:
         return true;
 
     default:
@@ -234,7 +233,6 @@ bool Inst::WritesToCoreRegister() const {
     case Opcode::A64SetQ:
     case Opcode::A64SetSP:
     case Opcode::A64SetPC:
-    case Opcode::A64SetRegAtExits:
         return true;
 
     default:

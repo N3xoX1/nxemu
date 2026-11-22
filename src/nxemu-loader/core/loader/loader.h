@@ -30,8 +30,6 @@ class KProcess;
 
 namespace Loader {
 
-class AppLoader_NX;
-
 /**
  * Identifies the type of a bootable file based on the magic value in its header.
  * @param file open file
@@ -78,11 +76,6 @@ public:
      * @return FileType corresponding to the loaded file
      */
     virtual LoaderFileType GetFileType() const = 0;
-
-    virtual AppLoader_NX * AsNx()
-    {
-        return nullptr;
-    }
 
     /**
      * Load the application and return the created Process instance

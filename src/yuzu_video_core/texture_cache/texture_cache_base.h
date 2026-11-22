@@ -22,7 +22,6 @@
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
 #include "yuzu_common/polyfill_ranges.h"
-#include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/scratch_buffer.h"
 #include "yuzu_common/slot_vector.h"
 #include "yuzu_common/thread_worker.h"
@@ -171,9 +170,6 @@ public:
     template <bool has_blacklists>
     void FillGraphicsImageViews(std::span<ImageViewInOut> views);
 
-    /// Keeps blacklisted images from scaling up while a draw reuses its resolved views
-    void ResetBlacklistedScaleRatings(std::span<const ImageViewInOut> views);
-
     /// Fill image_view_ids with the compute images in indices
     void FillComputeImageViews(std::span<ImageViewInOut> views);
 
@@ -210,15 +206,6 @@ public:
     /// Refresh the state for graphics image view and sampler descriptors
     void SynchronizeGraphicsDescriptors();
 
-    /// Changes whenever graphics descriptors may resolve or need preparing differently, zero when the tables can't be tracked
-    [[nodiscard]] u64 GraphicsDescriptorEpoch() const noexcept {
-        return tables_tracked ? descriptor_epoch : 0;
-    }
-
-    /// Guest memory written without WriteMemory: bumps the descriptor epoch when the write
-    /// reaches the descriptor tables
-    void NotifyUnsafeWrite(GPUVAddr gpu_addr, size_t size);
-
     /// Refresh the state for compute image view and sampler descriptors
     void SynchronizeComputeDescriptors();
 
@@ -230,8 +217,8 @@ public:
     /// @param is_clear True when the render targets are being used for clears
     void UpdateRenderTargets(bool is_clear, u32 clear_layer_count = 0);
 
-    /// True when every bound render target was drawn to in most of the recent frames, so that a
-    /// draw skipped now is redrawn by a later frame. UpdateRenderTargets should be called before this
+    /// True when every bound render target was drawn to in an earlier frame, so that a draw
+    /// skipped now is redrawn by a later frame. UpdateRenderTargets should be called before this
     [[nodiscard]] bool RenderTargetsDrawnBefore() const;
 
     /// True when an image was drawn to for the first time since the previous call
@@ -331,7 +318,7 @@ public:
     /// Prepare an image to be used
     void PrepareImage(ImageId image_id, bool is_modification, bool invalidate);
 
-    Common::RecursiveMutex mutex;
+    std::recursive_mutex mutex;
 
 private:
     void DeduplicateDownloads();
@@ -516,8 +503,7 @@ private:
         ImageId, const ImageViewInfo& view_info);
 
     /// Returns true if the current clear parameters clear the whole image of a given image view
-    [[nodiscard]] bool IsFullClear(ImageViewId id, bool is_color, size_t index,
-                                   u32 clear_layer_count);
+    [[nodiscard]] bool IsFullClear(ImageViewId id);
 
     [[nodiscard]] std::pair<u32, u32> PrepareDmaImage(ImageId dst_id, GPUVAddr base_addr,
                                                       bool mark_as_modified);
@@ -655,26 +641,6 @@ private:
 
     u64 modification_tick = 0;
     u64 frame_tick = 0;
-
-    void BumpDescriptorEpoch() noexcept {
-        ++descriptor_epoch;
-    }
-    void TrackGraphicsDescriptorTables(GPUVAddr tic_addr, u32 tic_limit, GPUVAddr tsc_addr,
-                                       u32 tsc_limit);
-    void UntrackGraphicsDescriptorTables();
-    [[nodiscard]] bool OverlapsDescriptorTables(DAddr addr, size_t size) const noexcept;
-    [[nodiscard]] bool OverlapsDescriptorTablesGPU(GPUVAddr gpu_addr, size_t size) const noexcept;
-
-    // The descriptor table pages are counted as cached so that writes to them reach WriteMemory
-    u64 descriptor_epoch = 1;
-    const void* tracked_channel{};
-    GPUVAddr tracked_tic_addr{};
-    GPUVAddr tracked_tsc_addr{};
-    u32 tracked_tic_limit{};
-    u32 tracked_tsc_limit{};
-    bool tables_tracked{};
-    bool tables_checked{};
-    std::vector<std::pair<DAddr, size_t>> table_ranges;
     std::vector<ImageViewId> gc_removed_views;
     bool gc_descriptor_tables_dirty = false;
     struct GCReadback {

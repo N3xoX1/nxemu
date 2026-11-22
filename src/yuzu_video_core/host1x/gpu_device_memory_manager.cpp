@@ -311,15 +311,6 @@ void DeviceMemoryManager<Traits>::Map(DAddr address, VAddr virtual_address, size
     IMemory * process_memory = GetRegisteredProcess(asid);
     size_t start_page_d = address >> DEVICE_PAGEBITS;
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
-    if (InPlaceReadsEnabled())
-    {
-        // Holds protect the CPU page behind each device page: release them before it changes
-        if (device_inter != nullptr)
-        {
-            device_inter->WaitInPlaceReads(address, size);
-        }
-        ForEachPage(address, size, [this](uint64_t page) { ClearPageBit(excluded_pages, page); });
-    }
     std::unique_lock lk(mapping_guard);
     for (size_t i = 0; i < num_pages; i++)
     {
@@ -370,7 +361,6 @@ void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
     size_t start_page_d = address >> DEVICE_PAGEBITS;
     size_t num_pages = Common::AlignUp(size, DEVICE_PAGESIZE) >> DEVICE_PAGEBITS;
     device_inter->InvalidateRegion(address, size);
-    device_inter->WaitInPlaceReads(address, size);
     std::scoped_lock lk(mapping_guard);
     for (size_t i = 0; i < num_pages; i++)
     {
@@ -399,40 +389,6 @@ void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
     {
         UpdateContinuityBoundary(start_page_d + num_pages);
     }
-}
-
-template <typename Traits>
-void DeviceMemoryManager<Traits>::PrepareEngineWrite(DAddr addr, uint64_t size)
-{
-    if (!InPlaceReadsEnabled())
-    {
-        return;
-    }
-    const auto prepare = [this](DAddr range_addr, uint64_t range_size) {
-        if (device_inter != nullptr)
-        {
-            device_inter->WaitInPlaceReads(range_addr, range_size);
-        }
-        ExcludeFromInPlace(range_addr, range_size);
-    };
-    prepare(addr, size);
-    thread_local Common::ScratchBuffer<u32> aliases;
-    ForEachPage(addr, size, [&](uint64_t page) {
-        const u32 physical = compressed_physical_ptr[page];
-        if (physical == 0 || (compressed_device_addr[physical - 1U] >> MULTI_FLAG_BITS) == 0) [[likely]]
-        {
-            return;
-        }
-        const DAddr start = std::max<DAddr>(addr, page << page_bits);
-        const uint64_t length = std::min<DAddr>(addr + size, (page + 1) << page_bits) - start;
-        const PAddr physical_addr = (static_cast<PAddr>(physical - 1U) << page_bits) + (start & page_mask);
-        ApplyOpOnPAddr(physical_addr, aliases, [&](DAddr alias) {
-            if ((alias >> page_bits) != page)
-            {
-                prepare(alias, length);
-            }
-        });
-    });
 }
 
 template <typename Traits>
@@ -795,34 +751,18 @@ void DeviceMemoryManager<Traits>::InvalidateNativeReadRegion(DAddr addr, size_t 
 template <typename Traits>
 void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta)
 {
-    ForEachProcessRange(addr, size, [delta](IMemory& memory, VAddr begin, uint64_t bytes) {
-        memory.RasterizerMarkRegionReadCached(begin, bytes, delta);
-    });
-}
-
-template <typename Traits>
-void DeviceMemoryManager<Traits>::UpdatePagesWriteProtectedCount(DAddr addr, uint64_t size, s32 delta)
-{
-    ForEachProcessRange(addr, size, [delta](IMemory& memory, VAddr begin, uint64_t bytes) {
-        memory.RasterizerMarkRegionWriteProtected(begin, bytes, delta);
-    });
-}
-
-template <typename Traits>
-template <typename Func>
-void DeviceMemoryManager<Traits>::ForEachProcessRange(DAddr addr, uint64_t size, Func&& func)
-{
+#if defined(__APPLE__)
     if (size == 0) return;
     Common::ScopedRangeLock lk(counter_guard, addr, size);
     std::atomic_thread_fence(std::memory_order_acquire);
-    const uint64_t page_end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
-    uint64_t page = addr >> DEVICE_PAGEBITS;
+    const size_t page_end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
+    size_t page = addr >> DEVICE_PAGEBITS;
     IMemory* memory = nullptr;
     Asid current_asid{};
     VAddr begin{};
-    uint64_t bytes{};
+    size_t bytes{};
     const auto flush = [&] {
-        if (bytes && memory) func(*memory, begin, bytes);
+        if (bytes && memory) memory->RasterizerMarkRegionReadCached(begin, bytes, delta);
         bytes = 0;
     };
     for (; page < page_end; ++page)
@@ -844,6 +784,7 @@ void DeviceMemoryManager<Traits>::ForEachProcessRange(DAddr addr, uint64_t size,
         bytes += DEVICE_PAGESIZE;
     }
     flush();
+#endif
 }
 
 template <typename Traits>

@@ -116,9 +116,6 @@ public:
 
     bool ShouldStreamUniformBuffer(const Buffer& buffer, u32 offset, u32 size) const;
 
-    bool InitHostMappedGuestMemory(const u8* base, uint64_t size);
-    bool BindHostMappedUniformBuffer(const u8* pointer, u32 size);
-
     u32 GetStorageBufferAlignment() const;
 
     [[nodiscard]] StagingBufferRef UploadStagingBuffer(size_t size);
@@ -280,15 +277,6 @@ private:
     std::shared_ptr<QuadStripIndexBuffer> quad_strip_index_buffer;
 
     vk::Buffer null_buffer;
-
-    static constexpr uint64_t HostMappedWindowSize = uint64_t{1} << 30;
-    /// Declared before the windows: they must be destroyed before their memory
-    std::vector<vk::DeviceMemory> host_mapped_memories;
-    std::vector<vk::Handle<VkBuffer, VkDevice, vk::DeviceDispatch>> host_mapped_windows;
-    const u8* host_mapped_base{};
-    uint64_t host_mapped_size{};
-    uint64_t host_mapped_ubo_alignment{};
-
     std::array<u32, 32> vertex_binding_map = VertexInputMapping{}.bindings;
     bool compact_vertex_bindings{};
     bool track_vertex_input_strides{};

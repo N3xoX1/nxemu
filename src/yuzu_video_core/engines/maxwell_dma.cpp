@@ -224,17 +224,20 @@ void MaxwellDMA::Launch() {
         };
         if (!is_src_pitch && is_dst_pitch) {
             copy_gob_chunks(src_address, [&](u32 offset, u32 size) {
-                Tegra::Memory::GpuGuestMemory<u8, GuestMemoryFlags::SafeRead> chunk(
-                    memory_manager, convert_linear_2_blocklinear_addr(src_address + offset), size,
-                    &read_buffer);
-                memory_manager.WriteBlockCached(dst_address + offset, chunk.data(), size);
+                Tegra::Memory::GpuGuestMemoryScoped<
+                    u8, GuestMemoryFlags::SafeReadCachedWrite>
+                    tmp_write_buffer(memory_manager,
+                                     convert_linear_2_blocklinear_addr(src_address + offset),
+                                     size, &read_buffer);
+                tmp_write_buffer.SetAddressAndSize(dst_address + offset, size);
             });
         } else if (is_src_pitch && !is_dst_pitch) {
             copy_gob_chunks(dst_address, [&](u32 offset, u32 size) {
-                Tegra::Memory::GpuGuestMemory<u8, GuestMemoryFlags::SafeRead> chunk(
-                    memory_manager, src_address + offset, size, &read_buffer);
-                memory_manager.WriteBlockCached(
-                    convert_linear_2_blocklinear_addr(dst_address + offset), chunk.data(), size);
+                Tegra::Memory::GpuGuestMemoryScoped<
+                    u8, GuestMemoryFlags::SafeReadCachedWrite>
+                    tmp_write_buffer(memory_manager, src_address + offset, size, &read_buffer);
+                tmp_write_buffer.SetAddressAndSize(
+                    convert_linear_2_blocklinear_addr(dst_address + offset), size);
             });
         } else {
             if (!accelerate.BufferCopy(regs.offset_in, regs.offset_out, regs.line_length_in)) {

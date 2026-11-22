@@ -20,7 +20,7 @@ names = ['IsMethodExecutable', 'ProcessShadowRam', 'ProcessDirtyRegisters',
          'PushMethod', 'PushMethodRun', 'ConsumeSinkImpl', 'CallMethod', 'ProcessMethodCall',
          'FrontMethodCall', 'RunWords', 'FrontHLEMacro']
 engine = [method(s, 'Maxwell3D::'+n).replace('Maxwell3D::','Fixture::') for n in names]
-engine += [method(h, 'void ' + n).replace('void '+n+'(', 'void Fixture::'+n+'(', 1) for n in ['FrontWrite', 'StreamHeader']]
+engine += [method(h, n).replace('void '+n+'(', 'void Fixture::'+n+'(', 1) for n in ['FrontWrite', 'StreamHeader']]
 (output / 'engine.inc').write_text('\n\n'.join(engine))
 names = ['SinkFor', 'ProcessCommands', 'SetState', 'CallMethod', 'CallMultiMethod']
 s = (root / 'src/yuzu_video_core/dma_pusher.cpp').read_text()

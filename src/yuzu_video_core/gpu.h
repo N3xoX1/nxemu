@@ -243,9 +243,6 @@ public:
     /// Performs any additional necessary steps to shutdown GPU emulation.
     void NotifyShutdown();
 
-    /// Stops all GPU worker threads and releases any waiters blocked on sync operations.
-    void Shutdown();
-
     /// Returns true while the emulated system is powered on.
     [[nodiscard]] bool IsPoweredOn() const;
 
@@ -286,10 +283,6 @@ public:
     /// Notify rasterizer that CPU is trying to write this area. It returns true if the area is
     /// sensible, false otherwise
     bool OnCPUWrite(DAddr addr, u64 size);
-
-    void WaitInPlaceReads(DAddr addr, u64 size);
-
-    void WakeGpuThread();
 
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(DAddr addr, u64 size);

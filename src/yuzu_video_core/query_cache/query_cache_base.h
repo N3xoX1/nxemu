@@ -62,9 +62,9 @@ public:
 
     void FlushRegion(VAddr addr, std::size_t size) {
         bool result = false;
-        // Visit every query in the range so all finalized values are written out.
         IterateCache<false>(addr, size, [this, &result](QueryLocation location) {
             result |= SemiFlushQueryDirty(location);
+            return result;
         });
         if (result) {
             RequestGuestHostSync();
@@ -138,7 +138,7 @@ protected:
     template <bool remove_from_cache, typename Func>
     void IterateCache(VAddr addr, std::size_t size, Func&& func) {
         static constexpr bool RETURNS_BOOL =
-            std::is_same_v<std::invoke_result_t<Func, QueryLocation>, bool>;
+            std::is_same_v<std::invoke_result<Func, QueryLocation>, bool>;
         const u64 addr_begin = addr;
         const u64 addr_end = addr_begin + size;
 
@@ -180,8 +180,6 @@ protected:
     using ContentCache = std::unordered_map<u64, std::unordered_map<u32, QueryLocation>>;
 
     void InvalidateQuery(QueryLocation location);
-    /// Marks the older query cached at `address` as replaced by `new_query`
-    void MarkRewritten(QueryBase* old_query, const QueryBase* new_query, DAddr address);
     bool IsQueryDirty(QueryLocation location);
     bool SemiFlushQueryDirty(QueryLocation location);
     void RequestGuestHostSync();

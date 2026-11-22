@@ -44,9 +44,6 @@ if(NXEMU_BUILD_FSR_TESTS)
     endif()
 endif()
 
-option(NXEMU_ENABLE_ANDROID_MEDIACODEC
-       "Use Android MediaCodec for H.264/VP9 NVDEC GPU decoding" ${ANDROID})
-
 add_library(video_core STATIC
     command_header.h
     pipeline_cache_store.cpp
@@ -545,20 +542,15 @@ if(ANDROID AND NOT FFmpeg_LIBRARIES)
 endif()
 
 # SYSTEM: the FFmpeg headers do not pass the conversion checks below.
-add_library(nxemu_ffmpeg INTERFACE)
-target_include_directories(nxemu_ffmpeg SYSTEM INTERFACE ${FFmpeg_INCLUDE_DIR})
-target_link_libraries(nxemu_ffmpeg INTERFACE ${FFmpeg_LIBRARIES})
-target_link_libraries(video_core PRIVATE nxemu_ffmpeg)
-if(ANDROID AND NXEMU_ENABLE_ANDROID_MEDIACODEC)
-    target_compile_definitions(video_core PRIVATE NXEMU_ENABLE_ANDROID_MEDIACODEC=1)
-endif()
+target_include_directories(video_core SYSTEM PRIVATE ${FFmpeg_INCLUDE_DIR})
+target_link_libraries(video_core PRIVATE ${FFmpeg_LIBRARIES})
 if(APPLE)
     foreach(framework CoreFoundation CoreMedia CoreVideo VideoToolbox)
         find_library(NXEMU_${framework}_FRAMEWORK ${framework} REQUIRED)
-        target_link_libraries(nxemu_ffmpeg INTERFACE ${NXEMU_${framework}_FRAMEWORK})
+        target_link_libraries(video_core PRIVATE ${NXEMU_${framework}_FRAMEWORK})
     endforeach()
 endif()
-target_link_options(nxemu_ffmpeg INTERFACE ${FFmpeg_LDFLAGS})
+target_link_options(video_core PRIVATE ${FFmpeg_LDFLAGS})
 
 add_dependencies(video_core host_shaders)
 target_include_directories(video_core PRIVATE ${HOST_SHADERS_INCLUDE})

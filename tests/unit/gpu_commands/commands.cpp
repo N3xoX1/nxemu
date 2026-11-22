@@ -63,10 +63,6 @@ struct Upload {
 struct Fixture : Engines::EngineInterface {
   using DirtyState = Maxwell3D::DirtyState;
   DirtyState dirty;
-  using GenerationKind = Maxwell3D::GenerationKind;
-  static constexpr GenerationKind GEN_STATE = Maxwell3D::GEN_STATE;
-  static constexpr GenerationKind GEN_NONE = Maxwell3D::GEN_NONE;
-  std::array<u64, 3> generations{};
   std::vector<std::array<u32, 4>> effects;
   std::vector<std::array<u32, Regs::NUM_REGS>> observed;
   using Regs = Maxwell3D::Regs;
@@ -266,30 +262,6 @@ void MacroStreamTests() {
   call.dirty = false;
   f.RunWords(words.data(), words.size(), f.hle_calls);
   Check(f.refreshes == 1, "CPU-written parameters were not refreshed");
-
-  // Macros lowered to register writes keep the call when the GPU may write the parameters
-  struct Lowered : CachedMacro {
-    Fixture& f;
-    explicit Lowered(Fixture& f_) : f(f_) {}
-    void Execute(const std::vector<u32>& p, u32) override {
-      f.regs.reg_array[0x701] = p[0];
-    }
-    bool LowerToWrites(const std::vector<u32>& p) override {
-      f.FrontWrite(0x701, p[0]);
-      return true;
-    }
-  };
-  Fixture g;
-  Lowered lowered(g);
-  g.FrontHLEMacro(&lowered, {5}, 0);
-  Check(g.hle_count == 0, "clean parameters did not lower to register writes");
-  g.DrainStream();
-  Check(g.regs.reg_array[0x701] == 5, "lowered register write was lost");
-  g.current_macro_payload = true;
-  g.FrontHLEMacro(&lowered, {6}, 0);
-  Check(g.hle_count == 1, "payload parameters were lowered before the GPU wrote them");
-  g.DrainStream();
-  Check(g.regs.reg_array[0x701] == 6, "kept macro call did not run");
 }
 
 void Tests() {

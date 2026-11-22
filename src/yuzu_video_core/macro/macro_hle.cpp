@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <array>
-#include <span>
 #include <vector>
 #include "nxemu-video/video_settings.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -50,23 +49,6 @@ public:
     explicit HLEMacroImpl(Maxwell3D& maxwell3d_) : maxwell3d{maxwell3d_} {}
 
 protected:
-    struct RegisterWrite {
-        u32 method;
-        u32 value;
-    };
-
-    static void SetRegisters(Maxwell3D::Regs& regs, std::span<const RegisterWrite> writes) {
-        for (const RegisterWrite& write : writes) {
-            regs.reg_array[write.method] = write.value;
-        }
-    }
-
-    void FrontWriteRegisters(std::span<const RegisterWrite> writes) {
-        for (const RegisterWrite& write : writes) {
-            maxwell3d.FrontWriteRegister(write.method, write.value);
-        }
-    }
-
     Maxwell3D& maxwell3d;
 };
 
@@ -78,10 +60,6 @@ template <bool extended>
 class HLE_DrawArraysIndirect final : public HLEMacroImpl {
 public:
     explicit HLE_DrawArraysIndirect(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
-
-    bool ChangesDrawState() const override {
-        return false;
-    }
 
     bool FrontEffectsUseParameters() const override {
         return false;
@@ -191,10 +169,6 @@ template <bool extended>
 class HLE_DrawIndexedIndirect final : public HLEMacroImpl {
 public:
     explicit HLE_DrawIndexedIndirect(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
-
-    bool ChangesDrawState() const override {
-        return false;
-    }
 
     bool FrontEffectsUseParameters() const override {
         return false;
@@ -525,34 +499,24 @@ class HLE_C713C83D8F63CCF3 final : public HLEMacroImpl {
 public:
     explicit HLE_C713C83D8F63CCF3(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    bool ChangesDrawState() const override {
-        return false;
-    }
-
-    bool LowerToWrites(const std::vector<u32>& parameters) override {
-        FrontWriteRegisters(Writes(maxwell3d.front_regs, parameters));
-        return true;
-    }
-
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        SetRegisters(maxwell3d.front_regs, Writes(maxwell3d.front_regs, parameters));
+        Maxwell3D::Regs& regs = maxwell3d.front_regs;
+        const u32 address = regs.shadow_scratch[24];
+        regs.const_buffer.size = 0x7000;
+        regs.const_buffer.address_high = (address >> 24) & 0xFF;
+        regs.const_buffer.address_low = address << 8;
+        regs.const_buffer.offset = (parameters[0] & 0x3FFFFFFF) << 2;
     }
 
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
-        SetRegisters(maxwell3d.regs, Writes(maxwell3d.regs, parameters));
-    }
-
-private:
-    static std::array<RegisterWrite, 4> Writes(const Maxwell3D::Regs& regs,
-                                               const std::vector<u32>& parameters) {
-        const u32 address = regs.shadow_scratch[24];
-        return {{
-            {MAXWELL3D_REG_INDEX(const_buffer.size), 0x7000},
-            {MAXWELL3D_REG_INDEX(const_buffer.address_high), (address >> 24) & 0xFF},
-            {MAXWELL3D_REG_INDEX(const_buffer.address_low), address << 8},
-            {MAXWELL3D_REG_INDEX(const_buffer.offset), (parameters[0] & 0x3FFFFFFF) << 2},
-        }};
+        const u32 offset = (parameters[0] & 0x3FFFFFFF) << 2;
+        const u32 address = maxwell3d.regs.shadow_scratch[24];
+        auto& const_buffer = maxwell3d.regs.const_buffer;
+        const_buffer.size = 0x7000;
+        const_buffer.address_high = (address >> 24) & 0xFF;
+        const_buffer.address_low = address << 8;
+        const_buffer.offset = offset;
     }
 };
 
@@ -560,34 +524,24 @@ class HLE_D7333D26E0A93EDE final : public HLEMacroImpl {
 public:
     explicit HLE_D7333D26E0A93EDE(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    bool ChangesDrawState() const override {
-        return false;
-    }
-
-    bool LowerToWrites(const std::vector<u32>& parameters) override {
-        FrontWriteRegisters(Writes(maxwell3d.front_regs, parameters));
-        return true;
-    }
-
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        SetRegisters(maxwell3d.front_regs, Writes(maxwell3d.front_regs, parameters));
+        Maxwell3D::Regs& regs = maxwell3d.front_regs;
+        const size_t index = parameters[0];
+        const u32 address = regs.shadow_scratch[42 + index];
+        regs.const_buffer.size = regs.shadow_scratch[47 + index];
+        regs.const_buffer.address_high = (address >> 24) & 0xFF;
+        regs.const_buffer.address_low = address << 8;
     }
 
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
-        SetRegisters(maxwell3d.regs, Writes(maxwell3d.regs, parameters));
-    }
-
-private:
-    static std::array<RegisterWrite, 3> Writes(const Maxwell3D::Regs& regs,
-                                               const std::vector<u32>& parameters) {
         const size_t index = parameters[0];
-        const u32 address = regs.shadow_scratch[42 + index];
-        return {{
-            {MAXWELL3D_REG_INDEX(const_buffer.size), regs.shadow_scratch[47 + index]},
-            {MAXWELL3D_REG_INDEX(const_buffer.address_high), (address >> 24) & 0xFF},
-            {MAXWELL3D_REG_INDEX(const_buffer.address_low), address << 8},
-        }};
+        const u32 address = maxwell3d.regs.shadow_scratch[42 + index];
+        const u32 size = maxwell3d.regs.shadow_scratch[47 + index];
+        auto& const_buffer = maxwell3d.regs.const_buffer;
+        const_buffer.size = size;
+        const_buffer.address_high = (address >> 24) & 0xFF;
+        const_buffer.address_low = address << 8;
     }
 };
 
@@ -746,7 +700,6 @@ public:
         regs.transform_feedback_enabled = 1;
         // This HLE write bypasses ProcessDirtyRegisters.
         maxwell3d.dirty.InvalidateShaderProfile();
-        maxwell3d.dirty.pipeline_key_changed = true;
         regs.transform_feedback.buffers[0].start_offset = 0;
         regs.transform_feedback.buffers[1].start_offset = 0;
         regs.transform_feedback.buffers[2].start_offset = 0;
