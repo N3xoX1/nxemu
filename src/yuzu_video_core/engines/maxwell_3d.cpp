@@ -1188,7 +1188,12 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             HLECall & call = calls[count];
             if (call.recheck)
             {
-                rasterizer->ReleaseDrawLocks();
+                // Dirty GPU payloads use the unsynchronized read below. Only the safe
+                // read can wait on other GPU work and needs to release the draw locks.
+                if (!call.dirty)
+                {
+                    rasterizer->ReleaseDrawLocks();
+                }
                 // The decode thread fetched the parameters before the queued work ran, so read
                 // them again. GPU written ones are read without a flush, as DmaPusher does
                 // without the thread: a flush would wait for the host GPU even when the draw is
