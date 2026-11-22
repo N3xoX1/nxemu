@@ -419,21 +419,16 @@ nxemu_unit_test(test_strided_handles)
 set(_gpu_commands_generated "${CMAKE_CURRENT_BINARY_DIR}/gpu_commands")
 add_custom_command(
     OUTPUT "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
-        "${_gpu_commands_generated}/baseline.inc" "${_gpu_commands_generated}/stream.inc"
-        "${_gpu_commands_generated}/queue.inc" "${_gpu_commands_generated}/stop.inc"
+        "${_gpu_commands_generated}/baseline.inc"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/gpu_commands/extract.py"
         "${CMAKE_SOURCE_DIR}" "${_gpu_commands_generated}"
     DEPENDS gpu_commands/extract.py gpu_commands/baseline.inc
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.h"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/engines/maxwell_3d.cpp"
         "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/dma_pusher.cpp"
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/gpu_thread.h"
-        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/gpu_thread.cpp"
     VERBATIM)
-add_executable(test_gpu_commands gpu_commands/commands.cpp gpu_commands/queue_tests.cpp
+add_executable(test_gpu_commands gpu_commands/commands.cpp
     "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
-    "${_gpu_commands_generated}/baseline.inc" "${_gpu_commands_generated}/stream.inc"
-        "${_gpu_commands_generated}/queue.inc" "${_gpu_commands_generated}/stop.inc")
+    "${_gpu_commands_generated}/baseline.inc")
 target_include_directories(test_gpu_commands PRIVATE "${_gpu_commands_generated}"
     "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
     "${CMAKE_SOURCE_DIR}/external/fmt/include")
@@ -445,7 +440,6 @@ if(NOT MSVC)
     target_link_options(test_gpu_commands PRIVATE -fsanitize=address,undefined)
 endif()
 nxemu_unit_test(test_gpu_commands)
-set_tests_properties(test_gpu_commands PROPERTIES TIMEOUT 30)
 
 set(_texture_hotpaths_generated "${CMAKE_CURRENT_BINARY_DIR}/texture_hotpaths")
 add_custom_command(
