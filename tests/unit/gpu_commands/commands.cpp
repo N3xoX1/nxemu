@@ -90,6 +90,12 @@ struct Fixture : Engines::EngineInterface {
   u32 stream_run_next{};
   bool stream_run_open{};
   bool stream_writes_memory{};
+  std::vector<std::pair<GPUVAddr, GPUVAddr>> stream_write_ranges;
+  bool stream_writes_anywhere{};
+  static constexpr u64 MaxQueryReportSize = 16;
+  void FrontMemoryWrite(GPUVAddr address, u64 size) {
+    stream_write_ranges.emplace_back(address, address + size);
+  }
   std::vector<HLECall> hle_calls;
   HLECall *back_hle{};
   size_t hle_count{};
@@ -152,6 +158,8 @@ struct Fixture : Engines::EngineInterface {
     RunWords(stream.data(), stream.size(), hle_calls);
     stream.clear();
     stream_writes_memory = false;
+    stream_write_ranges.clear();
+    stream_writes_anywhere = false;
     hle_count = 0;
   }
   void Publish(bool = true) { DrainStream(); }

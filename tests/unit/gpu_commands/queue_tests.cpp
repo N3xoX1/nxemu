@@ -1,5 +1,6 @@
 #include "yuzu_common/bounded_threadsafe_queue.h"
 #include "yuzu_common/common_types.h"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -9,6 +10,7 @@
 #include <mutex>
 #include <thread>
 #include <utility>
+#include <vector>
 
 void Check(bool, const char*);
 namespace QueueRegression {
@@ -56,6 +58,20 @@ void QueueTests() {
     });
     Check(observed == 123, "dependent read overtook queued memory write");
     Check(execution_thread == manager.thread.get_id(), "renderer work ran on decode thread");
+
+    // Decode waits for queued work only when that work may write what it reads next
+    std::atomic<bool> release{};
+    queue.Push([&] { release.wait(false); }, true);
+    queue.AddWrites({{0x1000, 0x1100}});
+    queue.Push([] {}, true);
+    Check(queue.MayWrite(0x10F0, 0x1200), "queued write to the range was missed");
+    Check(!queue.MayWrite(0x1100, 0x1200), "work that writes elsewhere made decode wait");
+    queue.Push([] {});
+    Check(queue.MayWrite(0x8000, 0x8004), "work that may write anywhere did not make decode wait");
+    release.store(true);
+    release.notify_one();
+    queue.WaitIdle();
+    Check(!queue.MayWrite(0x1000, 0x1100), "finished work still made decode wait");
 
     std::atomic<bool> decoder_ready{}, stopping{}, fence_ready{};
     manager.decode_thread = std::jthread([&](std::stop_token stop) {

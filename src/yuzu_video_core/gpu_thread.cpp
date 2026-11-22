@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
@@ -15,11 +17,17 @@
 
 namespace VideoCommon::GPUThread {
 
-void BackQueue::Push(Work&& work) {
+namespace {
+/// Beyond this many merged ranges the queued work is taken to write anywhere
+constexpr size_t MaxWriteRanges = 1024;
+} // namespace
+
+void BackQueue::Push(Work&& work, bool writes_known) {
     if (!threaded) {
         work();
         return;
     }
+    writes_anywhere |= !writes_known;
     bool wake;
     {
         std::scoped_lock lock{mutex};
@@ -41,11 +49,58 @@ void BackQueue::WaitIdle() {
     // Only the decode thread pushes, and the other callers hold the decode mutex
     const u64 target = pushed_spin.load(std::memory_order_relaxed);
     auto idle = [this, target] { return done_spin.load(std::memory_order_acquire) >= target; };
-    if (idle()) {
+    if (!idle()) {
+        std::unique_lock lock{mutex};
+        idle_cv.wait(lock, [this] { return done == pushed || stopping; });
+    }
+    ClearWrites();
+}
+
+void BackQueue::AddWrites(const WriteRanges& ranges) {
+    if (!threaded) {
         return;
     }
-    std::unique_lock lock{mutex};
-    idle_cv.wait(lock, [this] { return done == pushed || stopping; });
+    for (const auto& range : ranges) {
+        if (!write_ranges.empty() && range.first <= write_ranges.back().second &&
+            range.second >= write_ranges.back().first) {
+            write_ranges.back().first = std::min(write_ranges.back().first, range.first);
+            write_ranges.back().second = std::max(write_ranges.back().second, range.second);
+        } else {
+            write_ranges.push_back(range);
+        }
+    }
+    if (write_ranges.size() <= MaxWriteRanges) {
+        return;
+    }
+    std::ranges::sort(write_ranges);
+    size_t last = 0;
+    for (size_t i = 1; i < write_ranges.size(); ++i) {
+        if (write_ranges[i].first <= write_ranges[last].second) {
+            write_ranges[last].second = std::max(write_ranges[last].second, write_ranges[i].second);
+        } else {
+            write_ranges[++last] = write_ranges[i];
+        }
+    }
+    write_ranges.resize(last + 1);
+    if (write_ranges.size() > MaxWriteRanges * 3 / 4) {
+        write_ranges.clear();
+        writes_anywhere = true;
+    }
+}
+
+bool BackQueue::MayWrite(GPUVAddr begin, GPUVAddr end) {
+    if (done_spin.load(std::memory_order_acquire) >= pushed_spin.load(std::memory_order_relaxed)) {
+        ClearWrites();
+        return false;
+    }
+    return writes_anywhere || std::ranges::any_of(write_ranges, [begin, end](const auto& range) {
+               return begin < range.second && end > range.first;
+           });
+}
+
+void BackQueue::ClearWrites() {
+    write_ranges.clear();
+    writes_anywhere = false;
 }
 
 bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
@@ -185,9 +240,9 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
         } else {
             ASSERT(false);
         }
-        state.back.Push([&state, fence = next.fence, block = next.block] {
-            SignalFence(state, fence, block);
-        });
+        state.back.Push(
+            [&state, fence = next.fence, block = next.block] { SignalFence(state, fence, block); },
+            true);
     }
 }
 

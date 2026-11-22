@@ -150,7 +150,7 @@ private:
 
     /// Hands the queued Maxwell3D methods to the GPU thread
     void DrainMaxwell3D() const;
-    void DrainMaxwell3DMemoryWrites() const;
+    void DrainMaxwell3DMemoryWrites(GPUVAddr address, size_t size) const;
 
     /// True when a decode thread runs this pusher
     bool IsThreaded() const;

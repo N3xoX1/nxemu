@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <optional>
+#include <utility>
 
 namespace Tegra::Engines
 {
@@ -28,6 +29,9 @@ constexpr u32 MacroRegistersStart = 0xE00;
 
 /// Stream size at which the decode thread hands a block to the GPU thread
 constexpr size_t PublishWords = 4096;
+
+/// A long query report: the 64-bit value and its timestamp
+constexpr u64 MaxQueryReportSize = 16;
 
 namespace
 {
@@ -705,12 +709,18 @@ void Maxwell3D::FrontMethodCall(u32 method, u32 argument, u32 nonshadow_argument
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 13:
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 14:
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 15:
+        FrontMemoryWrite(front_regs.const_buffer.Address() + front_regs.const_buffer.offset,
+                         sizeof(u32));
         front_regs.const_buffer.offset += static_cast<u32>(sizeof(u32));
         stream_writes_memory = true;
         return;
     case MAXWELL3D_REG_INDEX(report_semaphore.query):
+        FrontMemoryWrite(front_regs.report_semaphore.Address(), MaxQueryReportSize);
+        stream_writes_memory = true;
+        return;
     case MAXWELL3D_REG_INDEX(launch_dma):
     case MAXWELL3D_REG_INDEX(inline_data):
+        stream_writes_anywhere = true;
         stream_writes_memory = true;
         return;
     default:
@@ -740,6 +750,10 @@ void Maxwell3D::FrontHLEMacro(CachedMacro * program, const std::vector<u32> & pa
     call.recheck = current_macro_payload && IsThreaded();
     StreamHeader(StreamHLE, static_cast<u32>(hle_count));
     ++hle_count;
+    if (!program->FrontMemoryWrites(parameters, !current_macro_dirty && !current_macro_payload))
+    {
+        stream_writes_anywhere = true;
+    }
     stream_writes_memory = true;
 
     const auto effect_registers = program->FrontEffectRegisters();
@@ -873,6 +887,9 @@ void Maxwell3D::Publish(bool verify)
     hle_count = 0;
     stream_run_open = false;
     stream_writes_memory = false;
+    back_queue->AddWrites(stream_write_ranges);
+    stream_write_ranges.clear();
+    const bool writes_known = !std::exchange(stream_writes_anywhere, false);
     if (verify && SplitVerifyFile() != nullptr) [[unlikely]]
     {
         if (!block->front)
@@ -885,7 +902,17 @@ void Maxwell3D::Publish(bool verify)
     {
         block->front.reset();
     }
-    back_queue->Push([this, block]() { RunBlock(block); });
+    back_queue->Push([this, block]() { RunBlock(block); }, writes_known);
+}
+
+void Maxwell3D::FrontMemoryWrite(GPUVAddr address, u64 size)
+{
+    if (!stream_write_ranges.empty() && address == stream_write_ranges.back().second)
+    {
+        stream_write_ranges.back().second += size;
+        return;
+    }
+    stream_write_ranges.emplace_back(address, address + size);
 }
 
 void Maxwell3D::RunBlock(StreamBlock * block)
@@ -931,6 +958,8 @@ void Maxwell3D::DrainStream(bool verify)
     stream.clear();
     hle_count = 0;
     stream_writes_memory = false;
+    stream_write_ranges.clear();
+    stream_writes_anywhere = false;
     stream_draining = false;
     ++stream_drains;
     if (verify && SplitVerifyFile() != nullptr) [[unlikely]]
@@ -1067,6 +1096,8 @@ void Maxwell3D::CallMultiMethod(u32 method, const u32 * base_start, u32 amount,
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 13:
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 14:
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 15:
+        FrontMemoryWrite(front_regs.const_buffer.Address() + front_regs.const_buffer.offset,
+                         amount * sizeof(u32));
         front_regs.const_buffer.offset += amount * static_cast<u32>(sizeof(u32));
         StreamHeader(StreamCBData, amount);
         stream.insert(stream.end(), base_start, base_start + amount);
@@ -1075,6 +1106,7 @@ void Maxwell3D::CallMultiMethod(u32 method, const u32 * base_start, u32 amount,
     case MAXWELL3D_REG_INDEX(inline_data):
         StreamHeader(StreamInline, amount);
         stream.insert(stream.end(), base_start, base_start + amount);
+        stream_writes_anywhere = true;
         stream_writes_memory = true;
         return;
     default:

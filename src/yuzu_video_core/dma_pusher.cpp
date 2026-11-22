@@ -126,7 +126,7 @@ bool DmaPusher::Step()
     dma_state.dma_get = header.Address();
 
     // Guest memory read below may be written by the queued Maxwell3D methods
-    DrainMaxwell3DMemoryWrites();
+    DrainMaxwell3DMemoryWrites(dma_state.dma_get, header.size * sizeof(u32));
 
     // SYNC_WAIT applies to the current GP entry, including zero-length entries.
     if (header.sync)
@@ -445,7 +445,7 @@ void DmaPusher::DrainMaxwell3D() const
     }
 }
 
-void DmaPusher::DrainMaxwell3DMemoryWrites() const
+void DmaPusher::DrainMaxwell3DMemoryWrites(GPUVAddr address, size_t size) const
 {
     if (IsThreaded())
     {
@@ -453,7 +453,10 @@ void DmaPusher::DrainMaxwell3DMemoryWrites() const
         // inline uploads which do not appear in the GPU dirty ranges. Retire those
         // methods before fetching commands or classifying their parameter memory.
         DrainMaxwell3D();
-        gpu.BackQueue().WaitIdle();
+        if (gpu.BackQueue().MayWrite(address, address + size))
+        {
+            gpu.BackQueue().WaitIdle();
+        }
     }
     else if (maxwell3d_engine != nullptr)
     {
