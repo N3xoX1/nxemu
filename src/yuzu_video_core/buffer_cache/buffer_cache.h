@@ -391,12 +391,19 @@ template <class P>
 void BufferCache<P>::BindGraphicsUniformBuffer(size_t stage, u32 index, GPUVAddr gpu_addr,
                                                u32 size) {
     const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(gpu_addr);
-    const Binding binding{
-        .device_addr = *device_addr,
-        .size = size,
-        .buffer_id = BufferId{},
-    };
-    channel_state->uniform_buffers[stage][index] = binding;
+    Binding& binding = channel_state->uniform_buffers[stage][index];
+    if (!device_addr) {
+        binding = NULL_BINDING;
+        return;
+    }
+    if constexpr (!IS_OPENGL) {
+        // An identical bind keeps the resolved ID. Buffer deletion clears the ID and a
+        // remapping changes the translated address, so either still resolves normally.
+        if (binding.device_addr == *device_addr && binding.size == size) {
+            return;
+        }
+    }
+    binding = Binding{.device_addr = *device_addr, .size = size};
 }
 
 template <class P>
