@@ -1189,8 +1189,22 @@ bool HostMemory::ReleaseFreeBackingRange(size_t physical_offset, size_t length) 
 #ifdef _WIN32
     // Windows frees an all-zero page that leaves the working set without writing it to the
     // pagefile, so zeroing and trimming returns the RAM (not the commit).
-    std::memset(backing_base + physical_offset, 0, length);
-    VirtualUnlock(backing_base + physical_offset, length);
+    // Under lazy guest commitment, skip granules that were never committed (already zero/unbacked).
+    const size_t end = physical_offset + length;
+    for (size_t offset = physical_offset; offset < end;) {
+        if (!impl->IsBackingCommitted(offset)) {
+            offset += GranuleSize;
+            continue;
+        }
+        size_t span_end = offset + GranuleSize;
+        while (span_end < end && impl->IsBackingCommitted(span_end)) {
+            span_end += GranuleSize;
+        }
+        const size_t span_len = span_end - offset;
+        std::memset(backing_base + offset, 0, span_len);
+        VirtualUnlock(backing_base + offset, span_len);
+        offset = span_end;
+    }
 #elif defined(__linux__) || defined(__APPLE__)
     if (!impl->ClearBackingRegion(physical_offset, length)) {
         return false;

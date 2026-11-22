@@ -93,6 +93,13 @@ void CheckBacking() {
               "coalesced release did not zero full span");
         Check(data[2 * Granule] == 0x3c, "coalesced release crossed range end");
     }
+
+    // Releasing an uncommitted-but-marked-dirty granule must not fault under lazy guest commit.
+    Common::HostMemory lazy_buf(2 * Granule, 4 * Granule);
+    lazy_buf.MarkBackingDirty(Granule, Granule);
+    if (lazy_buf.ReleaseFreeBackingRange(Granule, Granule)) {
+        Check(!lazy_buf.IsBackingDirty(Granule), "uncommitted dirty granule stayed dirty");
+    }
 }
 
 void CheckMultiLevelPageTableLifetime() {
