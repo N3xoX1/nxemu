@@ -5,6 +5,8 @@
 
 #include <array>
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 #include <boost/container/static_vector.hpp>
 
@@ -135,6 +137,9 @@ public:
     void OnCacheInvalidation(DAddr addr, u64 size) override;
     void OnCoarseCacheInvalidation(DAddr addr, u64 size) override;
     bool OnCPUWrite(DAddr addr, u64 size) override;
+    void WaitInPlaceReads(DAddr addr, u64 size) override;
+    void ServiceInPlaceWaits() override;
+    void StopInPlaceWaits() override;
     void OnGuestSynchronization() override;
     void InvalidateGPUCache() override;
     void UnmapMemory(DAddr addr, u64 size) override;
@@ -289,6 +294,16 @@ private:
     u64 last_draw_buffer_generation{};
     /// Unchanged by the constant buffer uploads that Maxwell3D::BufferChanges records
     std::atomic<u64> memory_epoch{};
+
+    void WaitInPlaceTick(u64 tick);
+    /// Has the GPU thread submit `tick`, false when it stopped
+    bool RequestInPlaceSubmit(u64 tick);
+
+    std::mutex in_place_wait_mutex;
+    std::condition_variable in_place_wait_cv;
+    u64 in_place_submit_tick{};
+    bool in_place_waits_stopped{};
+    std::atomic<bool> in_place_submit_requested{};
 
     VkPipelineStageFlags image_write_stages{};
     u32 draw_counter = 0;

@@ -224,6 +224,14 @@ public:
                 }
             }
         }
+        if constexpr ((FLAGS & GuestMemoryFlags::Write) != 0 &&
+                      requires { memory.PrepareEngineWrite(addr, size); })
+        {
+            if (this->m_span_valid && !this->IsDataCopy())
+            {
+                memory.PrepareEngineWrite(addr, this->size_bytes());
+            }
+        }
     }
 
     ~GuestMemoryScoped()

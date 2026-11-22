@@ -49,13 +49,14 @@ void BackQueue::WaitIdle() {
 }
 
 bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
-                        const std::atomic<bool>& wake) {
+                        const std::atomic<bool>& wake, const std::atomic<bool>& service) {
     std::unique_lock lock{mutex};
-    if (items.empty() && !stopping && !wake.load(std::memory_order_acquire)) {
+    const auto woken = [&wake, &service] {
+        return wake.load(std::memory_order_acquire) || service.load(std::memory_order_acquire);
+    };
+    if (items.empty() && !stopping && !woken()) {
         back_waiting = true;
-        cv.wait(lock, stop_token, [this, &wake] {
-            return !items.empty() || stopping || wake.load(std::memory_order_acquire);
-        });
+        cv.wait(lock, stop_token, [this, &woken] { return !items.empty() || stopping || woken(); });
         back_waiting = false;
     }
     if (items.empty()) {
@@ -105,6 +106,12 @@ static void SignalFence(SynchState& state, u64 fence, bool block) {
     }
 }
 
+static void ServiceWaits(SynchState& state, VideoCore::RasterizerInterface* rasterizer) {
+    // Cleared first: a request made after this wakes the thread again
+    state.service_ready.store(false, std::memory_order_relaxed);
+    rasterizer->ServiceInPlaceWaits();
+}
+
 /// GPU thread with a decode thread: runs the queued work
 static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
                           VideoCore::RendererBase& renderer,
@@ -112,15 +119,18 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
     Common::SetCurrentThreadName("GPU");
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
     gpu.RegisterHostThread();
+    VideoCore::gpu_thread_role = VideoCore::GpuThreadRole::Draw;
 
     Core::Frontend::GraphicsContext::Scoped current_context = context.Acquire();
+    VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
     std::deque<BackQueue::Work> batch;
     while (!stop_token.stop_requested()) {
         {
             std::scoped_lock execution_lock{state.execution_mutex};
+            ServiceWaits(state, rasterizer);
             gpu.ProcessPendingComposite();
         }
-        if (!state.back.PopWait(batch, stop_token, state.composite_ready)) {
+        if (!state.back.PopWait(batch, stop_token, state.composite_ready, state.service_ready)) {
             continue;
         }
         const u64 count = batch.size();
@@ -132,6 +142,7 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
                     break;
                 }
                 work();
+                rasterizer->ServiceInPlaceWaits();
             }
             batch.clear();
             gpu.ProcessPendingComposite();
@@ -147,6 +158,7 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
     Common::SetCurrentThreadName("GPUDecode");
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
     gpu.RegisterHostThread();
+    VideoCore::gpu_thread_role = VideoCore::GpuThreadRole::Decode;
 
     CommandDataContainer next;
     while (!stop_token.stop_requested()) {
@@ -185,6 +197,7 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
     Common::SetCurrentThreadName("GPU");
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
     gpu.RegisterHostThread();
+    VideoCore::gpu_thread_role = VideoCore::GpuThreadRole::Draw;
 
     auto current_context = context.Acquire();
     VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
@@ -195,10 +208,12 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
     {
         {
             std::scoped_lock execution_lock{state.execution_mutex};
+            ServiceWaits(state, rasterizer);
             gpu.ProcessPendingComposite();
         }
         const bool has_command = state.queue.PopWait(next, stop_token, [&] {
-            return state.composite_ready.load(std::memory_order_acquire);
+            return state.composite_ready.load(std::memory_order_acquire) ||
+                   state.service_ready.load(std::memory_order_acquire);
         });
         if (!has_command && !stop_token.stop_requested()) {
             std::scoped_lock execution_lock{state.execution_mutex};
@@ -282,6 +297,10 @@ Tegra::ExecutionLock ThreadManager::LockExecution()
 
 void ThreadManager::StopThread()
 {
+    if (rasterizer != nullptr)
+    {
+        rasterizer->StopInPlaceWaits();
+    }
     // Wake any producer blocked on a full command queue before acquiring write_lock
     // or stopping the consumer thread.
     state->queue.Close();

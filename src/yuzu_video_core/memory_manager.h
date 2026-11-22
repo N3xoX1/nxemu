@@ -107,6 +107,8 @@ public:
     void WriteBlockCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
     void WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
 
+    void PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size);
+
     /**
      * Checks if a gpu region can be simply read with a pointer.
      */

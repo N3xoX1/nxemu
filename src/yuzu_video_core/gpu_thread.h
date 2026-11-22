@@ -120,7 +120,8 @@ public:
     }
 
     /// GPU thread: takes all queued work, false when woken without any
-    bool PopWait(std::deque<Work>& out, std::stop_token stop_token, const std::atomic<bool>& wake);
+    bool PopWait(std::deque<Work>& out, std::stop_token stop_token, const std::atomic<bool>& wake,
+                 const std::atomic<bool>& service);
     void FinishMany(u64 count);
     void Notify();
     void Stop();
@@ -159,14 +160,25 @@ struct SynchState final {
     bool stopping{};
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
+    std::atomic<bool> service_ready{};
 
     void NotifyComposite() {
         if (!composite_ready.exchange(true, std::memory_order_release)) {
-            if (back.IsThreaded()) {
-                back.Notify();
-            } else {
-                queue.NotifyConsumer();
-            }
+            Wake();
+        }
+    }
+
+    void NotifyService() {
+        if (!service_ready.exchange(true, std::memory_order_release)) {
+            Wake();
+        }
+    }
+
+    void Wake() {
+        if (back.IsThreaded()) {
+            back.Notify();
+        } else {
+            queue.NotifyConsumer();
         }
     }
 };
@@ -197,6 +209,10 @@ public:
     void FlushAndInvalidateRegion(DAddr addr, u64 size);
 
     void TickGPU();
+
+    void WakeForService() {
+        state->NotifyService();
+    }
 
     /// Returns true when the GPU thread has executed every command pushed so far
     bool IsIdle() const;

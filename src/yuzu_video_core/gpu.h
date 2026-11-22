@@ -287,6 +287,10 @@ public:
     /// sensible, false otherwise
     bool OnCPUWrite(DAddr addr, u64 size);
 
+    void WaitInPlaceReads(DAddr addr, u64 size);
+
+    void WakeGpuThread();
+
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(DAddr addr, u64 size);
 

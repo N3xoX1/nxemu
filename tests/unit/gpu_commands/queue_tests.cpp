@@ -22,6 +22,9 @@ struct ThreadManager {
         std::condition_variable_any cv;
     };
     std::unique_ptr<State> state = std::make_unique<State>();
+    struct Rasterizer {
+        void StopInPlaceWaits() {}
+    } *rasterizer = nullptr;
     std::jthread thread, decode_thread;
     void StopThread();
 };
@@ -33,11 +36,11 @@ void QueueTests() {
     ThreadManager manager;
     auto& queue = manager.state->back;
     queue.threaded = true;
-    std::atomic<bool> wake{};
+    std::atomic<bool> wake{}, service{};
     manager.thread = std::jthread([&](std::stop_token stop) {
         std::deque<BackQueue::Work> batch;
         while (!stop.stop_requested()) {
-            if (!queue.PopWait(batch, stop, wake)) continue;
+            if (!queue.PopWait(batch, stop, wake, service)) continue;
             const auto count = batch.size();
             for (auto& work : batch) work();
             batch.clear();
