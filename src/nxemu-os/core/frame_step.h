@@ -29,9 +29,7 @@ namespace Core {
 class FrameStep
 {
 public:
-    // A new process: the address belongs to the modules the loader maps next
     void Reset();
-    // Adds a module's patch page and stores the current step there, which the game reads before its first present
     void AddAddress(Memory::Memory & memory, u64 address);
     [[nodiscard]] bool Active() const;
     // video_playing: the game has a video decoder open
@@ -47,7 +45,6 @@ private:
     std::atomic<bool> m_active{false};
     std::mutex m_mutex;
     std::vector<u64> m_addresses;
-    // The GPU thread stores the counts, so they go to the pages' host memory rather than through Memory
     std::vector<u8 *> m_pages;
     std::atomic<u32> m_gpu_submitted{};
     std::atomic<u32> m_gpu_completed{};
@@ -58,7 +55,6 @@ private:
     u32 m_next{};
     f32 m_step{1.0f / 60.0f};
     bool m_video_playing{};
-    // The report every 10 s: frames shown and game seconds stepped against wall seconds
     std::chrono::steady_clock::time_point m_report_start{};
     u32 m_report_frames{};
     f64 m_report_stepped{};

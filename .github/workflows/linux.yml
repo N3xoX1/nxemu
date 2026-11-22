@@ -81,7 +81,7 @@ jobs:
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
           mkdir -p package
-          # The mods that ship with NxEmu: the game folders of external/nxemu-switch-mods, with their licenses.
+          # The bundled mods: each game's folder in the mods repo is named "<game> [<title id>]".
           mkdir -p build/package/mods
           cp -a external/nxemu-switch-mods/*\] build/package/mods/
           # The executable loads SDL by its soname, beside it.

@@ -115,7 +115,7 @@ jobs:
       - name: Package
         run: |
           New-Item -ItemType Directory -Force package | Out-Null
-          # The mods that ship with NxEmu: the game folders of external/nxemu-switch-mods, with their licenses
+          # The bundled mods: each game's folder in the mods repo is named "<game> [<title id>]"
           $mods = New-Item -ItemType Directory -Force build/package/mods
           Get-ChildItem external/nxemu-switch-mods -Directory | Where-Object { $_.Name.EndsWith(']') } | Copy-Item -Destination $mods -Recurse
           Compress-Archive -Path bin/x64/Release/nxemu.exe, bin/x64/Release/SDL3.dll, bin/x64/Release/nxemu.lang, bin/x64/Release/modules, bin/x64/Release/ui, $mods -DestinationPath package/NxEmu-windows-x64.zip -Force

@@ -16,11 +16,10 @@ namespace Core {
 
 namespace {
 
-constexpr f64 StepMaxS = 1.0 / 15.0; // longest step; a longer frame slows the game down
-constexpr f64 StepResetS = 0.25;     // a gap this long (loading, a pause) restarts the average
+constexpr f64 StepMaxS = 1.0 / 15.0;
+constexpr f64 PauseS = 0.25;
 constexpr f64 StepFirstS = 1.0 / 60.0;
-// Shortest step. Tears of the Kingdom's physics runs out of memory with shorter ones
-// (totk-pc-recomp runtime/frame_rate.c explains the measurements).
+// Tears of the Kingdom's physics runs out of memory with shorter steps
 constexpr f64 StepMinS = 1.0 / 240.0;
 constexpr f64 ReportS = 10.0;
 constexpr u32 GpuCompletedOffset = 16;
@@ -49,6 +48,7 @@ void FrameStep::AddAddress(Memory::Memory & memory, u64 address)
     {
         return;
     }
+    // Now rather than at the next present: the game reads the step before its first present
     if (!Write(memory, address, m_step, m_video_playing))
     {
         LOG_ERROR(Core, "Frame step: {:#x} is not mapped; nothing is written there", address);
@@ -82,6 +82,7 @@ void FrameStep::OnGpuListCompleted()
     StoreGpuCount(GpuCompletedOffset, m_gpu_completed.fetch_add(1, std::memory_order_relaxed) + 1);
 }
 
+// The GPU thread calls this, so it writes the pages' host memory rather than going through Memory
 void FrameStep::StoreGpuCount(u32 offset, u32 count)
 {
     std::scoped_lock lock{m_mutex};
@@ -108,7 +109,7 @@ void FrameStep::OnPresent(Memory::Memory & memory, bool video_playing)
     if (m_has_last)
     {
         f64 dt = std::chrono::duration<f64>(now - m_last).count();
-        if (dt > StepResetS || dt < 0.001)
+        if (dt > PauseS || dt < 0.001)
         {
             m_count = m_next = 0;
         }
