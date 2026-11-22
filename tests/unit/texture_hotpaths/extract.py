@@ -14,10 +14,5 @@ def method(s, signature):
 s = (root / 'src/yuzu_video_core/texture_cache/texture_cache.h').read_text()
 names = ['ForEachImageInRegion', 'ForEachImageInRegionGPU']
 (output / 'regions.inc').write_text('\n\n'.join('template<typename Func>\n' + method(s, 'void TextureCache<P>::' + n + '(').replace('TextureCache<P>::', 'Region::') for n in names))
-names = ['void TextureCache<P>::TrackGraphicsDescriptorTables(', 'void TextureCache<P>::UntrackGraphicsDescriptorTables(',
-         'bool TextureCache<P>::OverlapsDescriptorTablesGPU(', 'void TextureCache<P>::NotifyUnsafeWrite(',
-         'bool TextureCache<P>::OverlapsDescriptorTables(']
-(output / 'descriptors.inc').write_text('\n\n'.join(method(s, n).replace('TextureCache<P>::', 'Tables::') for n in names))
 s = (root / 'src/yuzu_video_core/texture_cache/texture_cache_base.h').read_text()
-(output / 'descriptor_members.inc').write_text('\n\n'.join(method(s, n) for n in ['u64 GraphicsDescriptorEpoch(', 'void BumpDescriptorEpoch(']))
 (output / 'pages.inc').write_text('\n\n'.join('template<typename Func>\n' + method(s, 'static void ' + n + '(') for n in ['ForEachCPUPage', 'ForEachGPUPage']))

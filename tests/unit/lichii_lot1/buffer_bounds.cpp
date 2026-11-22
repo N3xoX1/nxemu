@@ -108,10 +108,6 @@ struct BufferCache
     {
         ++changed;
     }
-    void MarkGpuWriteHistory(DAddr address, u64 size)
-    {
-        gpu_write_history.Mark(address, static_cast<u32>(size));
-    }
     void UploadMemory(Buffer &, u64, u64, std::span<BufferCopy>)
     {
         ++uploads;

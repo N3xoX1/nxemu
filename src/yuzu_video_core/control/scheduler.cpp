@@ -7,7 +7,6 @@
 #include "yuzu_video_core/control/channel_state.h"
 #include "yuzu_video_core/control/scheduler.h"
 #include "yuzu_video_core/gpu.h"
-#include "yuzu_video_core/gpu_thread.h"
 
 namespace Tegra::Control {
 Scheduler::Scheduler(GPU& gpu_) : gpu{gpu_} {}
@@ -19,7 +18,7 @@ void Scheduler::Push(s32 channel, CommandList&& entries) {
     auto it = channels.find(channel);
     ASSERT(it != channels.end());
     auto channel_state = it->second;
-    gpu.BackQueue().Push([this, bind_id = channel_state->bind_id] { gpu.BindChannel(bind_id); });
+    gpu.BindChannel(channel_state->bind_id);
     channel_state->dma_pusher->Push(std::move(entries));
     channel_state->dma_pusher->DispatchCalls();
 }

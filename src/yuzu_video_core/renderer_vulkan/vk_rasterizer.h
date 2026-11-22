@@ -4,7 +4,6 @@
 #pragma once
 
 #include <array>
-#include <atomic>
 
 #include <boost/container/static_vector.hpp>
 
@@ -130,12 +129,8 @@ public:
     void InvalidateRegion(DAddr addr, u64 size,
                           VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) override;
-    void InnerConstBufferInvalidation(
-        std::span<const std::pair<DAddr, std::size_t>> sequences) override;
     void OnCacheInvalidation(DAddr addr, u64 size) override;
-    void OnCoarseCacheInvalidation(DAddr addr, u64 size) override;
     bool OnCPUWrite(DAddr addr, u64 size) override;
-    void OnGuestSynchronization() override;
     void InvalidateGPUCache() override;
     void UnmapMemory(DAddr addr, u64 size) override;
     void ModifyGPUMemory(size_t as_id, GPUVAddr addr, u64 size, bool preserve_contents = false) override;
@@ -180,35 +175,8 @@ private:
 
     static constexpr VkDeviceSize DEFAULT_BUFFER_SIZE = 4 * sizeof(float);
 
-    enum class DrawArguments { Registers, Indirect };
-
     template <typename Func>
-    void PrepareDraw(bool is_indexed, DrawArguments arguments, Func&&);
-
-    /// What the bindings of a draw were resolved from
-    struct DrawBindings {
-        const GraphicsPipeline* pipeline{};
-        const Tegra::Engines::Maxwell3D* maxwell3d{};
-        u64 state_generation{};
-        u64 record_epoch{};
-        u64 descriptor_epoch{};
-        u64 deleted_buffers_epoch{};
-        u64 gpu_write_epoch{};
-        u64 memory_epoch{};
-        Maxwell::PrimitiveTopology topology{};
-        bool is_indexed{};
-
-        bool operator==(const DrawBindings&) const = default;
-    };
-
-    [[nodiscard]] DrawBindings CurrentDrawBindings(const GraphicsPipeline* pipeline,
-                                                   bool is_indexed) const;
-    [[nodiscard]] bool CanKeepBindingsOf(const GraphicsPipeline* pipeline) const;
-    [[nodiscard]] bool ConfigureFromLastDraw(GraphicsPipeline* pipeline, bool is_indexed);
-    void InvalidateInner(std::span<const std::pair<DAddr, std::size_t>> sequences,
-                         bool const_buffer_uploads);
-    /// After the caches take a change, so a draw that sees the new epoch sees the change
-    void ChangeMemoryEpoch();
+    void PrepareDraw(bool is_indexed, Func&&);
 
     void DrawVtgAsCompute(const GraphicsPipeline* pipeline);
 
@@ -244,9 +212,6 @@ private:
 
     void UpdateVertexInput(Tegra::Engines::Maxwell3D::Regs& regs);
     void RefreshVertexInput(Tegra::Engines::Maxwell3D::Regs& regs);
-
-    /// Host format of each guest vertex attribute type and size, VK_FORMAT_UNDEFINED until first used
-    std::array<VkFormat, 512> vertex_format_cache{};
 
     Tegra::GPU& gpu;
     Tegra::MaxwellDeviceMemoryManager& device_memory;
@@ -284,11 +249,6 @@ private:
     boost::container::static_vector<u32, MAX_IMAGE_VIEWS> image_view_indices;
     std::array<VideoCommon::ImageViewId, MAX_IMAGE_VIEWS> image_view_ids;
     boost::container::static_vector<VkSampler, MAX_TEXTURES> sampler_handles;
-
-    DrawBindings last_draw_bindings{};
-    u64 last_draw_buffer_generation{};
-    /// Unchanged by the constant buffer uploads that Maxwell3D::BufferChanges records
-    std::atomic<u64> memory_epoch{};
 
     VkPipelineStageFlags image_write_stages{};
     u32 draw_counter = 0;

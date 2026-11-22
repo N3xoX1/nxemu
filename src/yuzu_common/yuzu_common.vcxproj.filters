@@ -195,9 +195,6 @@
     <ClInclude Include="range_mutex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="recursive_mutex.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="scope_exit.h">
       <Filter>Header Files</Filter>
     </ClInclude>

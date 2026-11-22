@@ -5,7 +5,6 @@
 
 #include <cstddef>
 #include <iterator>
-#include <optional>
 #include <type_traits>
 
 #include <mcl/assert.hpp>
@@ -113,16 +112,8 @@ static bool FuseIsZeroWithSideExit(EmitContext& ctx, IR::Inst* inst) {
         return false;
     }
     auto next = std::next(IR::Block::iterator(inst));
-    if (next == ctx.block.end()) {
-        return false;
-    }
-    if (next->GetOpcode() == IR::Opcode::A64SideExit) {
-        return !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
-    }
-    // The SetCheckBit that ends a block with a CheckBit exit (CBZ/CBNZ/TBZ/TBNZ at the end of
-    // a block): the exit jumps on ZF.
-    return ctx.check_bit_exit_on_flags && next->GetOpcode() == IR::Opcode::A64SetCheckBit && std::next(next) == ctx.block.end() &&
-           !next->GetArg(0).IsImmediate() && next->GetArg(0).GetInst() == inst;
+    return next != ctx.block.end() && next->GetOpcode() == IR::Opcode::A64SideExit &&
+           !next->GetArg(1).IsImmediate() && next->GetArg(1).GetInst() == inst;
 }
 
 void EmitX64::EmitIsZero32(EmitContext& ctx, IR::Inst* inst) {
@@ -236,7 +227,6 @@ static void EmitConditionalSelect(BlockOfCode& code, EmitContext& ctx, IR::Inst*
         return;
     }
 
-    ASSERT_MSG(!ctx.nzcv_pending, "ConditionalSelect reloads NZCV that is still only in the host flags");
     const Xbyak::Reg32 nzcv = ctx.reg_alloc.ScratchGpr(HostLoc::RAX).cvt32();
     const Xbyak::Reg then_ = ctx.reg_alloc.UseGpr(args[1]).changeBit(bitsize);
     const Xbyak::Reg else_ = ctx.reg_alloc.UseScratchGpr(args[2]).changeBit(bitsize);
@@ -1017,21 +1007,6 @@ static Xbyak::Reg64 DoNZCV(BlockOfCode& code, RegAlloc& reg_alloc, IR::Inst* nzc
     return nzcv;
 }
 
-// An immediate second operand x64 can encode: any 32-bit one, or a 64-bit one that is a
-// sign-extended 32-bit value (x64 sign-extends imm32 for 64-bit operations).
-static std::optional<u32> ImmediateOperand(Argument& arg) {
-    if (!arg.IsImmediate()) {
-        return std::nullopt;
-    }
-    if (arg.GetType() == IR::Type::U32) {
-        return arg.GetImmediateU32();
-    }
-    if (arg.GetType() == IR::Type::U64 && arg.FitsInImmediateS32() && !BaselineLoadsAndImmediates()) {
-        return static_cast<u32>(arg.GetImmediateS32());
-    }
-    return std::nullopt;
-}
-
 static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bitsize) {
     const auto carry_inst = inst->GetAssociatedPseudoOperation(IR::Opcode::GetCarryFromOp);
     const auto overflow_inst = inst->GetAssociatedPseudoOperation(IR::Opcode::GetOverflowFromOp);
@@ -1061,15 +1036,13 @@ static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         return;
     }
 
-    // NZCV kept in the host flags only (see EmitContext::nzcv_at_exits): no RAX, no lahf
-    const bool nzcv_in_flags = nzcv_inst && ctx.IsNzcvInFlagsOnly(nzcv_inst);
-    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_in_flags ? nullptr : nzcv_inst);
+    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_inst);
     const Xbyak::Reg result = ctx.reg_alloc.UseScratchGpr(args[0]).changeBit(bitsize);
     const Xbyak::Reg8 carry = DoCarry(ctx.reg_alloc, carry_in, carry_inst);
     const Xbyak::Reg8 overflow = overflow_inst ? ctx.reg_alloc.ScratchGpr().cvt8() : Xbyak::Reg8{-1};
 
-    if (const auto imm = ImmediateOperand(args[1])) {
-        const u32 op_arg = *imm;
+    if (args[1].IsImmediate() && args[1].GetType() == IR::Type::U32) {
+        const u32 op_arg = args[1].GetImmediateU32();
         if (carry_in.IsImmediate()) {
             if (carry_in.GetImmediateU1()) {
                 code.stc();
@@ -1097,9 +1070,7 @@ static void EmitAdd(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         }
     }
 
-    if (nzcv_in_flags) {
-        ctx.host_flags_nzcv = nzcv_inst;
-    } else if (nzcv_inst) {
+    if (nzcv_inst) {
         code.lahf();
         code.seto(code.al);
         ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
@@ -1122,11 +1093,6 @@ void EmitX64::EmitAdd32(EmitContext& ctx, IR::Inst* inst) {
 }
 
 void EmitX64::EmitAdd64(EmitContext& ctx, IR::Inst* inst) {
-    if (!ctx.folded_addresses.empty() && ctx.folded_addresses.contains(inst)) {
-        auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-        ctx.reg_alloc.DefineValue(inst, args[0]);
-        return;
-    }
     EmitAdd(code, ctx, inst, 64);
 }
 
@@ -1150,9 +1116,7 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         return;
     }
 
-    // NZCV kept in the host flags only (see EmitContext::nzcv_at_exits): no RAX, no lahf
-    const bool nzcv_in_flags = nzcv_inst && ctx.IsNzcvInFlagsOnly(nzcv_inst);
-    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_in_flags ? nullptr : nzcv_inst);
+    const Xbyak::Reg64 nzcv = DoNZCV(code, ctx.reg_alloc, nzcv_inst);
     const Xbyak::Reg result = (is_cmp ? ctx.reg_alloc.UseGpr(args[0]) : ctx.reg_alloc.UseScratchGpr(args[0])).changeBit(bitsize);
     const Xbyak::Reg8 carry = DoCarry(ctx.reg_alloc, carry_in, carry_inst);
     const Xbyak::Reg8 overflow = overflow_inst ? ctx.reg_alloc.ScratchGpr().cvt8() : Xbyak::Reg8{-1};
@@ -1162,15 +1126,16 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
     bool invert_output_carry = true;
 
     if (is_cmp) {
-        if (const auto imm = ImmediateOperand(args[1])) {
-            code.cmp(result, *imm);
+        if (args[1].IsImmediate() && args[1].GetType() == IR::Type::U32) {
+            const u32 op_arg = args[1].GetImmediateU32();
+            code.cmp(result, op_arg);
         } else {
             OpArg op_arg = ctx.reg_alloc.UseOpArg(args[1]);
             op_arg.setBit(bitsize);
             code.cmp(result, *op_arg);
         }
-    } else if (const auto imm = ImmediateOperand(args[1])) {
-        const u32 op_arg = *imm;
+    } else if (args[1].IsImmediate() && args[1].GetType() == IR::Type::U32) {
+        const u32 op_arg = args[1].GetImmediateU32();
         if (carry_in.IsImmediate()) {
             if (carry_in.GetImmediateU1()) {
                 code.sub(result, op_arg);
@@ -1204,11 +1169,9 @@ static void EmitSub(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, int bit
         if (invert_output_carry) {
             code.cmc();
         }
-        if (!nzcv_in_flags) {
-            code.lahf();
-            code.seto(code.al);
-            ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
-        }
+        code.lahf();
+        code.seto(code.al);
+        ctx.reg_alloc.DefineValue(nzcv_inst, nzcv);
         ctx.host_flags_nzcv = nzcv_inst;
     }
     if (carry_inst) {
@@ -1644,10 +1607,6 @@ void EmitX64::EmitZeroExtendHalfToLong(EmitContext& ctx, IR::Inst* inst) {
 
 void EmitX64::EmitZeroExtendWordToLong(EmitContext& ctx, IR::Inst* inst) {
     auto args = ctx.reg_alloc.GetArgumentInfo(inst);
-    if (args[0].IsInXmm() && UpperLanesClear(inst->GetArg(0), 32) && !BaselineLoadsAndImmediates()) {
-        ctx.reg_alloc.DefineValue(inst, args[0]);  // e.g. a movd load: nothing above 32 bits
-        return;
-    }
     if (args[0].IsInXmm() && code.HasHostFeature(HostFeature::SSE41)) {
         const Xbyak::Xmm result = ctx.reg_alloc.UseScratchXmm(args[0]);
         // Copy lane zero and clear lanes 1..3. Integer-domain bit operation;

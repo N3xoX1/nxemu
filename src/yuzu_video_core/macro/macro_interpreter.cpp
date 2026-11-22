@@ -367,7 +367,7 @@ void MacroInterpreterImpl::Send(u32 value) {
 }
 
 u32 MacroInterpreterImpl::Read(u32 method) const {
-    return maxwell3d.GetFrontRegisterValue(method);
+    return maxwell3d.GetRegisterValue(method);
 }
 
 u32 MacroInterpreterImpl::FetchParameter() {

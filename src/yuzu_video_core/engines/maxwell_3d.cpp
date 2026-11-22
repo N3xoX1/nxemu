@@ -11,12 +11,9 @@
 #include "yuzu_video_core/dirty_flags.h"
 #include "yuzu_video_core/engines/draw_manager.h"
 #include "yuzu_video_core/gpu.h"
-#include "yuzu_video_core/gpu_thread.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 #include "yuzu_video_core/textures/texture.h"
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <optional>
 
@@ -26,25 +23,6 @@ namespace Tegra::Engines
 /// First register id that is actually a Macro call.
 constexpr u32 MacroRegistersStart = 0xE00;
 
-/// Stream size at which the decode thread hands a block to the GPU thread
-constexpr size_t PublishWords = 4096;
-
-namespace
-{
-std::FILE * SplitVerifyFile()
-{
-    static std::FILE * const file = []() -> std::FILE * {
-        const char * const path = std::getenv("NXEMU_GPU_SPLIT_VERIFY");
-        if (path == nullptr || path[0] == '\0')
-        {
-            return nullptr;
-        }
-        return std::fopen(path, "w");
-    }();
-    return file;
-}
-} // namespace
-
 Maxwell3D::Maxwell3D(MemoryManager & memory_manager_) :
     draw_manager(std::make_unique<DrawManager>(this)),
     memory_manager(memory_manager_),
@@ -52,8 +30,6 @@ Maxwell3D::Maxwell3D(MemoryManager & memory_manager_) :
     upload_state(memory_manager, regs.upload)
 {
     dirty.flags.flip();
-    InitializePipelineKeyRegisters();
-    InitializeGenerationKinds();
     InitializeRegisterDefaults();
     execution_mask.reset();
     for (size_t i = 0; i < execution_mask.size(); i++)
@@ -64,7 +40,6 @@ Maxwell3D::Maxwell3D(MemoryManager & memory_manager_) :
     macro_params.reserve(64);
     macro_addresses.reserve(64);
     macro_segments.reserve(8);
-    stream.reserve(1U << 16);
 }
 
 Maxwell3D::~Maxwell3D() = default;
@@ -73,71 +48,6 @@ void Maxwell3D::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
 {
     rasterizer = rasterizer_;
     upload_state.BindRasterizer(rasterizer_);
-}
-
-void Maxwell3D::InitializePipelineKeyRegisters()
-{
-    auto& table = dirty.pipeline_key_registers;
-    table.fill(1);
-    const auto clear = [&table](size_t offset, size_t size) {
-        std::fill_n(table.begin() + offset / sizeof(u32), size / sizeof(u32), u8{0});
-    };
-    // Constant buffer sizes reach the key through ProcessCBBind
-    clear(offsetof(Regs, const_buffer), sizeof(Regs::const_buffer));
-    clear(offsetof(Regs, bind_groups), sizeof(Regs::bind_groups));
-    for (size_t i = 0; i < Regs::NumVertexArrays; ++i) {
-        const size_t stream = offsetof(Regs, vertex_streams) + i * sizeof(Regs::VertexStream);
-        clear(stream + offsetof(Regs::VertexStream, address_high), 2 * sizeof(u32));
-    }
-    clear(offsetof(Regs, vertex_stream_limits), sizeof(Regs::vertex_stream_limits));
-    clear(offsetof(Regs, index_buffer), offsetof(Regs::IndexBuffer, format));
-    clear(offsetof(Regs, index_buffer) + offsetof(Regs::IndexBuffer, first), 2 * sizeof(u32));
-    for (size_t i = 0; i < Regs::NumTransformFeedbackBuffers; ++i) {
-        const size_t buffer = offsetof(Regs, transform_feedback) +
-                              offsetof(Regs::TransformFeedback, buffers) +
-                              i * sizeof(Regs::TransformFeedback::Buffer);
-        clear(buffer + offsetof(Regs::TransformFeedback::Buffer, address_high), 4 * sizeof(u32));
-    }
-}
-
-void Maxwell3D::InitializeGenerationKinds()
-{
-    auto& kinds = dirty.generation_kinds;
-    const auto set = [&kinds](size_t offset, size_t size, GenerationKind kind) {
-        std::fill_n(kinds.begin() + offset / sizeof(u32), size / sizeof(u32), u8{kind});
-    };
-    // Binds and uploads change the generations themselves
-    set(offsetof(Regs, const_buffer), sizeof(Regs::const_buffer), GEN_NONE);
-    for (size_t i = 0; i < Regs::MaxShaderStage; ++i) {
-        const size_t group = offsetof(Regs, bind_groups) + i * sizeof(Regs::BindGroup);
-        set(group + offsetof(Regs::BindGroup, raw_config), sizeof(u32), GEN_NONE);
-    }
-
-    // Vertex formats are dynamic state or in the pipeline key, and strides rebind the buffers
-    set(offsetof(Regs, vertex_attrib_format), sizeof(Regs::vertex_attrib_format), GEN_NONE);
-    for (size_t i = 0; i < Regs::NumVertexArrays; ++i) {
-        const size_t stream = offsetof(Regs, vertex_streams) + i * sizeof(Regs::VertexStream);
-        const size_t stride_and_address = offsetof(Regs::VertexStream, frequency);
-        set(stream, stride_and_address, GEN_BUFFERS);
-    }
-    set(offsetof(Regs, vertex_stream_limits), sizeof(Regs::vertex_stream_limits), GEN_BUFFERS);
-
-    // Each draw binds its index buffer again, and the draw state holds its topology
-    set(offsetof(Regs, index_buffer), sizeof(Regs::index_buffer), GEN_NONE);
-    set(offsetof(Regs, vertex_buffer), sizeof(Regs::vertex_buffer), GEN_NONE);
-    set(offsetof(Regs, draw), sizeof(Regs::draw), GEN_NONE);
-    for (const size_t method : {
-             MAXWELL3D_REG_INDEX(index_buffer32_first), MAXWELL3D_REG_INDEX(index_buffer16_first),
-             MAXWELL3D_REG_INDEX(index_buffer8_first),
-             MAXWELL3D_REG_INDEX(index_buffer32_subsequent),
-             MAXWELL3D_REG_INDEX(index_buffer16_subsequent),
-             MAXWELL3D_REG_INDEX(index_buffer8_subsequent),
-             MAXWELL3D_REG_INDEX(vertex_array_instance_first),
-             MAXWELL3D_REG_INDEX(vertex_array_instance_subsequent),
-             MAXWELL3D_REG_INDEX(global_base_vertex_index),
-             MAXWELL3D_REG_INDEX(global_base_instance_index), MAXWELL3D_REG_INDEX(vertex_id_base)}) {
-        kinds[method] = GEN_NONE;
-    }
 }
 
 void Maxwell3D::InitializeRegisterDefaults()
@@ -229,7 +139,6 @@ void Maxwell3D::InitializeRegisterDefaults()
     regs.render_enable.mode = Maxwell3D::Regs::RenderEnable::Mode::True;
 
     shadow_state = regs;
-    front_regs = regs;
 }
 
 bool Maxwell3D::IsMethodExecutable(u32 method)
@@ -327,9 +236,7 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
     // A macro fallback can read GPU-written parameters at every accuracy level.
     macro_segments.emplace_back(current_dma_segment, amount);
     current_macro_dirty |= current_dirty;
-    current_macro_payload |= current_payload;
     current_dirty = false;
-    current_payload = false;
 
     // Call the macro when there are no more parameters in the command buffer
     if (is_last_call)
@@ -340,22 +247,20 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
         macro_addresses.clear();
         macro_segments.clear();
         current_macro_dirty = false;
-        current_macro_payload = false;
     }
 }
 
-void Maxwell3D::RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>> & segments,
-                                      std::vector<u32> & params)
+void Maxwell3D::RefreshParametersImpl()
 {
     size_t current_index = 0;
-    for (const std::pair<GPUVAddr, size_t> & segment : segments)
+    for (auto & segment : macro_segments)
     {
         if (segment.first == 0)
         {
             current_index += segment.second;
             continue;
         }
-        memory_manager.ReadBlock(segment.first, &params[current_index],
+        memory_manager.ReadBlock(segment.first, &macro_params[current_index],
                                  sizeof(u32) * segment.second);
         current_index += segment.second;
     }
@@ -443,7 +348,7 @@ u32 Maxwell3D::ProcessShadowRam(u32 method, u32 argument)
 
 void Maxwell3D::PushMethod(u32 method, u32 argument)
 {
-    FrontWrite(method, ProcessShadowRam(method, argument));
+    ProcessDirtyRegisters(method, ProcessShadowRam(method, argument));
 }
 
 void Maxwell3D::PushMethodRun(u32 method, std::span<const CommandHeader> arguments)
@@ -454,7 +359,7 @@ void Maxwell3D::PushMethodRun(u32 method, std::span<const CommandHeader> argumen
     {
         for (size_t i = 0; i < arguments.size(); ++i, ++method)
         {
-            FrontWrite(method, shadow_state.reg_array[method]);
+            ProcessDirtyRegisters(method, shadow_state.reg_array[method]);
         }
         return;
     }
@@ -464,13 +369,13 @@ void Maxwell3D::PushMethodRun(u32 method, std::span<const CommandHeader> argumen
         for (const auto& argument : arguments)
         {
             shadow_state.reg_array[method] = argument.argument;
-            FrontWrite(method++, argument.argument);
+            ProcessDirtyRegisters(method++, argument.argument);
         }
         return;
     }
     for (const auto& argument : arguments)
     {
-        FrontWrite(method++, argument.argument);
+        ProcessDirtyRegisters(method++, argument.argument);
     }
 }
 
@@ -488,7 +393,7 @@ void Maxwell3D::ConsumeSinkImpl()
         for (auto [method, value] : method_sink)
         {
             shadow_state.reg_array[method] = value;
-            FrontWrite(method, value);
+            ProcessDirtyRegisters(method, value);
         }
         return;
     }
@@ -496,13 +401,13 @@ void Maxwell3D::ConsumeSinkImpl()
     {
         for (auto [method, value] : method_sink)
         {
-            FrontWrite(method, shadow_state.reg_array[method]);
+            ProcessDirtyRegisters(method, shadow_state.reg_array[method]);
         }
         return;
     }
     for (auto [method, value] : method_sink)
     {
-        FrontWrite(method, value);
+        ProcessDirtyRegisters(method, value);
     }
 }
 
@@ -514,9 +419,7 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
         return;
     }
     regs.reg_array[method] = argument;
-    ++generations[dirty.generation_kinds[method]];
     dirty.MarkShaderProfileRegister(method, old_value, argument);
-    dirty.pipeline_key_changed |= dirty.pipeline_key_registers[method] != 0;
 
     static_assert(std::tuple_size_v<DirtyState::Tables> == 2);
     const auto first = dirty.tables[0][method];
@@ -533,21 +436,19 @@ void Maxwell3D::ProcessDirtyRegisters(u32 method, u32 argument)
 
 void Maxwell3D::ProcessMethodCall(u32 method, u32 argument, u32 nonshadow_argument)
 {
-    // A method with side effects can change what the next draw reads without changing a value
-    ++generations[dirty.generation_kinds[method]];
     switch (method)
     {
     case MAXWELL3D_REG_INDEX(wait_for_idle):
         return rasterizer->WaitForIdle();
-    // The decode side runs these, see FrontMethodCall
     case MAXWELL3D_REG_INDEX(shadow_ram_control):
+        shadow_state.shadow_ram_control = static_cast<Regs::ShadowRamControl>(nonshadow_argument);
+        return;
     case MAXWELL3D_REG_INDEX(load_mme.instruction_ptr):
+        return macro_engine->ClearCode(regs.load_mme.instruction_ptr);
     case MAXWELL3D_REG_INDEX(load_mme.instruction):
-        return;
+        return macro_engine->AddCode(regs.load_mme.instruction_ptr, argument);
     case MAXWELL3D_REG_INDEX(load_mme.start_address):
-        // Keep the pointer equal to the decode side one
-        regs.load_mme.start_address_ptr++;
-        return;
+        return ProcessMacroBind(argument);
     case MAXWELL3D_REG_INDEX(falcon[4]):
         return ProcessFirmwareCall4();
     case MAXWELL3D_REG_INDEX(const_buffer.buffer):
@@ -626,8 +527,7 @@ void Maxwell3D::CallMacroMethod(u32 method, const std::vector<u32> & parameters)
     // Execute the current macro.
     macro_engine->Execute(macro_positions[entry], parameters);
 
-    // The execute side runs the deferred instanced draw
-    StreamHeader(StreamDeferred, 0);
+    draw_manager->DrawDeferred();
 }
 
 void Maxwell3D::CallMethod(u32 method, u32 method_argument, bool is_last_call)
@@ -652,391 +552,8 @@ void Maxwell3D::CallMethod(u32 method, u32 method_argument, bool is_last_call)
                   "Every method below the macro range must be a Maxwell3D register");
 
     const u32 argument = ProcessShadowRam(method, method_argument);
-    if (!execution_mask[method])
-    {
-        // No side effect: a register write
-        FrontWrite(method, argument);
-        return;
-    }
-    front_regs.reg_array[method] = argument;
-    StreamHeader(StreamCall, is_last_call ? 1 : 0);
-    stream.push_back(method);
-    stream.push_back(argument);
-    stream.push_back(method_argument);
-    FrontMethodCall(method, argument, method_argument);
-    // Hand work to the GPU thread regularly so it runs while this side decodes
-    if (stream.size() >= PublishWords && IsThreaded())
-    {
-        Publish();
-    }
-}
-
-void Maxwell3D::FrontMethodCall(u32 method, u32 argument, u32 nonshadow_argument)
-{
-    switch (method)
-    {
-    case MAXWELL3D_REG_INDEX(shadow_ram_control):
-        shadow_state.shadow_ram_control = static_cast<Regs::ShadowRamControl>(nonshadow_argument);
-        return;
-    case MAXWELL3D_REG_INDEX(load_mme.instruction_ptr):
-        // Queued HLE calls point to the cached macros that ClearCode deletes
-        SyncBack();
-        return macro_engine->ClearCode(front_regs.load_mme.instruction_ptr);
-    case MAXWELL3D_REG_INDEX(load_mme.instruction):
-        return macro_engine->AddCode(front_regs.load_mme.instruction_ptr, argument);
-    case MAXWELL3D_REG_INDEX(load_mme.start_address):
-        return ProcessMacroBind(argument);
-    case MAXWELL3D_REG_INDEX(falcon[4]):
-        front_regs.shadow_scratch[0] = 1;
-        return;
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer):
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 1:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 2:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 3:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 4:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 5:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 6:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 7:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 8:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 9:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 10:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 11:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 12:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 13:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 14:
-    case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 15:
-        front_regs.const_buffer.offset += static_cast<u32>(sizeof(u32));
-        stream_writes_memory = true;
-        return;
-    case MAXWELL3D_REG_INDEX(report_semaphore.query):
-    case MAXWELL3D_REG_INDEX(launch_dma):
-    case MAXWELL3D_REG_INDEX(inline_data):
-        stream_writes_memory = true;
-        return;
-    default:
-        return;
-    }
-}
-
-void Maxwell3D::FrontHLEMacro(CachedMacro * program, const std::vector<u32> & parameters,
-                              u32 method)
-{
-    // Parameters the GPU may still write are read again later, so those keep the macro call
-    if (!current_macro_dirty && !current_macro_payload && program->LowerToWrites(parameters))
-    {
-        return;
-    }
-    if (hle_count == hle_calls.size())
-    {
-        hle_calls.emplace_back();
-    }
-    HLECall & call = hle_calls[hle_count];
-    call.program = program;
-    call.method = method;
-    call.params.assign(parameters.begin(), parameters.end());
-    call.segments.assign(macro_segments.begin(), macro_segments.end());
-    call.addresses.assign(macro_addresses.begin(), macro_addresses.end());
-    call.dirty = current_macro_dirty;
-    call.recheck = current_macro_payload && IsThreaded();
-    StreamHeader(StreamHLE, static_cast<u32>(hle_count));
-    ++hle_count;
-    stream_writes_memory = true;
-
-    const auto effect_registers = program->FrontEffectRegisters();
-    if (!effect_registers.empty())
-    {
-        // Only execution knows whether an indirect draw falls back. Preserve its actual
-        // register effects rather than overwriting them with the decoder's prediction.
-        Publish(false);
-        auto copy_effects = [&] {
-            for (const u32 reg : effect_registers)
-            {
-                front_regs.reg_array[reg] = regs.reg_array[reg];
-            }
-        };
-        if (IsThreaded())
-        {
-            back_queue->RunExclusive(copy_effects);
-        }
-        else
-        {
-            copy_effects();
-        }
-        return;
-    }
-
-    const bool threaded = IsThreaded();
-    if ((threaded ? current_macro_payload : current_macro_dirty) &&
-        program->FrontEffectsUseParameters())
-    {
-        // The register effects need the parameters the GPU wrote. The call is published here.
-        ASSERT(program->FrontEffectRegisters().empty());
-        Publish(false);
-        std::vector<u32> refreshed(parameters.begin(), parameters.end());
-        bool dirty = current_macro_dirty;
-        back_queue->RunExclusive([&]() {
-            if (threaded)
-            {
-                dirty = AnySegmentDirty(macro_segments) || dirty;
-            }
-            RefreshParametersImpl(macro_segments, refreshed);
-        });
-        program->FrontEffects(refreshed, dirty);
-        return;
-    }
-    program->FrontEffects(parameters, current_macro_dirty);
-}
-
-bool Maxwell3D::AnySegmentDirty(const std::vector<std::pair<GPUVAddr, size_t>> & segments) const
-{
-    for (const auto & [address, count] : segments)
-    {
-        if (address != 0 && memory_manager.IsMemoryDirty(address, count * sizeof(u32)))
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-void Maxwell3D::FrontRefreshParameters()
-{
-    if (!IsThreaded())
-    {
-        if (!current_macro_dirty)
-        {
-            return;
-        }
-        DrainStream();
-        RefreshParametersImpl(macro_segments, macro_params);
-        return;
-    }
-    if (!current_macro_payload)
-    {
-        return;
-    }
-    // The parameters come from their own GP entry: the queued work can write them or make
-    // them GPU written. The macro runs here, so wait for the GPU thread.
-    Publish();
-    back_queue->RunExclusive([this]() {
-        current_macro_dirty = current_macro_dirty || AnySegmentDirty(macro_segments);
-        RefreshParametersImpl(macro_segments, macro_params);
-    });
-}
-
-bool Maxwell3D::IsThreaded() const
-{
-    return back_queue != nullptr && back_queue->IsThreaded();
-}
-
-void Maxwell3D::SyncBack()
-{
-    if (!IsThreaded())
-    {
-        DrainStream();
-        return;
-    }
-    Publish();
-    back_queue->WaitIdle();
-}
-
-void Maxwell3D::Publish(bool verify)
-{
-    if (!IsThreaded())
-    {
-        DrainStream(verify);
-        return;
-    }
-    if (stream.empty())
-    {
-        return;
-    }
-    StreamBlock * block = nullptr;
-    {
-        std::scoped_lock lock{block_mutex};
-        if (!free_blocks.empty())
-        {
-            block = free_blocks.back();
-            free_blocks.pop_back();
-        }
-    }
-    if (block == nullptr)
-    {
-        block_storage.push_back(std::make_unique<StreamBlock>());
-        block = block_storage.back().get();
-        block->words.reserve(stream.capacity());
-    }
-    std::swap(block->words, stream);
-    std::swap(block->hle, hle_calls);
-    block->hle_count = hle_count;
-    stream.clear();
-    hle_count = 0;
-    stream_run_open = false;
-    stream_writes_memory = false;
-    if (verify && SplitVerifyFile() != nullptr) [[unlikely]]
-    {
-        if (!block->front)
-        {
-            block->front = std::make_unique<Regs>();
-        }
-        *block->front = front_regs;
-    }
-    else if (block->front)
-    {
-        block->front.reset();
-    }
-    back_queue->Push([this, block]() { RunBlock(block); });
-}
-
-void Maxwell3D::RunBlock(StreamBlock * block)
-{
-    RunWords(block->words.data(), block->words.size(), block->hle);
-    ++stream_drains;
-    if (block->front) [[unlikely]]
-    {
-        VerifyAgainst(*block->front);
-    }
-    std::scoped_lock lock{block_mutex};
-    free_blocks.push_back(block);
-}
-
-void Maxwell3D::BackCallMethod(u32 method, u32 argument, bool is_last_call)
-{
     ProcessDirtyRegisters(method, argument);
-    ProcessMethodCall(method, argument, argument);
-}
-
-void Maxwell3D::BackCallMultiMethod(u32 method, const u32 * base_start, u32 amount)
-{
-    if (method == MAXWELL3D_REG_INDEX(inline_data))
-    {
-        upload_state.ProcessData(base_start, amount);
-        return;
-    }
-    for (u32 i = 0; i < amount; i++)
-    {
-        BackCallMethod(method, base_start[i], i + 1 == amount);
-    }
-}
-
-void Maxwell3D::DrainStream(bool verify)
-{
-    if (stream.empty() || stream_draining)
-    {
-        return;
-    }
-    stream_draining = true;
-    stream_run_open = false;
-    RunWords(stream.data(), stream.size(), hle_calls);
-    stream.clear();
-    hle_count = 0;
-    stream_writes_memory = false;
-    stream_draining = false;
-    ++stream_drains;
-    if (verify && SplitVerifyFile() != nullptr) [[unlikely]]
-    {
-        VerifyRegisters();
-    }
-}
-
-void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & calls)
-{
-    size_t pos = 0;
-    while (pos < size)
-    {
-        const u32 header = words[pos++];
-        const u32 count = header >> 8;
-        switch (static_cast<StreamKind>(header & 0xFF))
-        {
-        case StreamRegs:
-        {
-            const u32 method = words[pos++];
-            for (u32 i = 0; i < count; ++i)
-            {
-                ProcessDirtyRegisters(method + i, words[pos + i]);
-            }
-            pos += count;
-            break;
-        }
-        case StreamCall:
-        {
-            const u32 method = words[pos];
-            const u32 argument = words[pos + 1];
-            const u32 nonshadow_argument = words[pos + 2];
-            pos += 3;
-            ProcessDirtyRegisters(method, argument);
-            ProcessMethodCall(method, argument, nonshadow_argument);
-            break;
-        }
-        case StreamCBData:
-            ProcessCBMultiData(words + pos, count);
-            pos += count;
-            break;
-        case StreamInline:
-            ++generations[GEN_STATE];
-            upload_state.ProcessData(words + pos, count);
-            pos += count;
-            break;
-        case StreamHLE:
-        {
-            // The dirty state was taken when the parameters were fetched. DmaPusher drains the
-            // stream before that, so queued draws can't make them GPU written later.
-            HLECall & call = calls[count];
-            if (call.recheck)
-            {
-                // The decode thread fetched the parameters before the queued work ran. GPU written
-                // ones are read by RefreshParameters, only when Execute needs them.
-                call.dirty = call.dirty || AnySegmentDirty(call.segments);
-                if (!call.dirty)
-                {
-                    RefreshParametersImpl(call.segments, call.params);
-                }
-            }
-            // Execute writes registers directly, before and after its draws
-            const GenerationKind kind = call.program->ChangesDrawState() ? GEN_STATE : GEN_NONE;
-            ++generations[kind];
-            back_hle = &call;
-            call.program->Execute(call.params, call.method);
-            back_hle = nullptr;
-            ++generations[kind];
-            break;
-        }
-        case StreamDeferred:
-            draw_manager->DrawDeferred();
-            break;
-        default:
-            ASSERT_MSG(false, "Bad Maxwell3D stream entry");
-            pos = size;
-            break;
-        }
-    }
-}
-
-void Maxwell3D::VerifyRegisters()
-{
-    VerifyAgainst(front_regs);
-}
-
-void Maxwell3D::VerifyAgainst(const Regs & front_file)
-{
-    // Reports each register the first time the two sides differ after a drain
-    static std::bitset<Regs::NUM_REGS> reported;
-    static u32 total = 0;
-    std::FILE * const file = SplitVerifyFile();
-    for (u32 method = 0; method < Regs::NUM_REGS; ++method)
-    {
-        const u32 front = front_file.reg_array[method];
-        const u32 back = regs.reg_array[method];
-        if (front == back || reported[method] || total >= 4096)
-        {
-            continue;
-        }
-        reported[method] = true;
-        ++total;
-        std::fprintf(file, "drain=%llu reg=0x%03X front=0x%08X back=0x%08X\n",
-                     static_cast<unsigned long long>(stream_drains), method, front, back);
-        std::fflush(file);
-    }
+    ProcessMethodCall(method, argument, method_argument);
 }
 
 void Maxwell3D::CallMultiMethod(u32 method, const u32 * base_start, u32 amount,
@@ -1067,15 +584,10 @@ void Maxwell3D::CallMultiMethod(u32 method, const u32 * base_start, u32 amount,
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 13:
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 14:
     case MAXWELL3D_REG_INDEX(const_buffer.buffer) + 15:
-        front_regs.const_buffer.offset += amount * static_cast<u32>(sizeof(u32));
-        StreamHeader(StreamCBData, amount);
-        stream.insert(stream.end(), base_start, base_start + amount);
-        stream_writes_memory = true;
+        ProcessCBMultiData(base_start, amount);
         break;
     case MAXWELL3D_REG_INDEX(inline_data):
-        StreamHeader(StreamInline, amount);
-        stream.insert(stream.end(), base_start, base_start + amount);
-        stream_writes_memory = true;
+        upload_state.ProcessData(base_start, amount);
         return;
     default:
         for (u32 i = 0; i < amount; i++)
@@ -1093,7 +605,7 @@ void Maxwell3D::ProcessMacroUpload(u32 data)
 
 void Maxwell3D::ProcessMacroBind(u32 data)
 {
-    macro_positions[front_regs.load_mme.start_address_ptr++] = data;
+    macro_positions[regs.load_mme.start_address_ptr++] = data;
 }
 
 void Maxwell3D::ProcessFirmwareCall4()
@@ -1244,16 +756,6 @@ void Maxwell3D::ProcessCBBind(size_t stage_index)
     // stage.
     const auto & bind_data = regs.bind_groups[stage_index];
     auto & buffer = state.shader_stages[stage_index].const_buffers[bind_data.shader_slot];
-    if (buffer.enabled != (bind_data.valid.Value() != 0) || buffer.size != regs.const_buffer.size)
-    {
-        dirty.pipeline_key_changed = true;
-        ++generations[GEN_STATE];
-    }
-    else if (buffer.address != regs.const_buffer.Address())
-    {
-        ++generations[GEN_BUFFERS];
-        buffer_changes.rebound_slots[stage_index] |= 1U << bind_data.shader_slot;
-    }
     buffer.enabled = bind_data.valid.Value() != 0;
     buffer.address = regs.const_buffer.Address();
     buffer.size = regs.const_buffer.size;
@@ -1280,17 +782,7 @@ void Maxwell3D::ProcessCBMultiData(const u32 * start_base, u32 amount)
 
     const GPUVAddr address{buffer_address + regs.const_buffer.offset};
     const size_t copy_size = amount * sizeof(u32);
-    memory_manager.WriteConstBufferCached(address, start_base, copy_size);
-    ++generations[GEN_BUFFERS];
-    const auto device_addr = memory_manager.GpuToCpuAddress(address);
-    if (device_addr && memory_manager.IsContinuousRange(address, copy_size))
-    {
-        buffer_changes.AddWrite(*device_addr, copy_size);
-    }
-    else
-    {
-        buffer_changes.untracked_writes = true;
-    }
+    memory_manager.WriteBlockCached(address, start_base, copy_size);
 
     // Increment the current buffer position.
     regs.const_buffer.offset += static_cast<u32>(copy_size);
@@ -1299,61 +791,6 @@ void Maxwell3D::ProcessCBMultiData(const u32 * start_base, u32 amount)
 void Maxwell3D::ProcessCBData(u32 value)
 {
     ProcessCBMultiData(&value, 1);
-}
-
-void Maxwell3D::BufferChanges::AddWrite(DAddr address, u64 size) noexcept
-{
-    if (num_writes != 0 && writes[num_writes - 1].first + writes[num_writes - 1].second == address)
-    {
-        writes[num_writes - 1].second += size;
-    }
-    else if (num_writes < MAX_WRITES)
-    {
-        writes[num_writes++] = {address, size};
-    }
-    else
-    {
-        untracked_writes = true;
-    }
-}
-
-bool Maxwell3D::BufferChanges::IsWritten(DAddr address, u64 size) const noexcept
-{
-    if (untracked_writes)
-    {
-        return true;
-    }
-    for (u32 i = 0; i < num_writes; ++i)
-    {
-        const auto & [write_address, write_size] = writes[i];
-        if (write_address < address + size && address < write_address + write_size)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-u32 Maxwell3D::ChangedConstBuffers(size_t stage, u32 slots) const noexcept
-{
-    u32 changed = buffer_changes.rebound_slots[stage] & slots;
-    if (buffer_changes.num_writes == 0 && !buffer_changes.untracked_writes)
-    {
-        return changed;
-    }
-    const auto & buffers = state.shader_stages[stage].const_buffers;
-    for (u32 unchanged = slots & ~changed; unchanged != 0; unchanged &= unchanged - 1)
-    {
-        const u32 slot = static_cast<u32>(std::countr_zero(unchanged));
-        const ConstBufferInfo & buffer = buffers[slot];
-        const auto device_addr = memory_manager.GpuToCpuAddress(buffer.address);
-        if (!device_addr || !memory_manager.IsContinuousRange(buffer.address, buffer.size) ||
-            buffer_changes.IsWritten(*device_addr, buffer.size))
-        {
-            changed |= 1U << slot;
-        }
-    }
-    return changed;
 }
 
 Texture::TICEntry Maxwell3D::GetTICEntry(u32 tic_index) const

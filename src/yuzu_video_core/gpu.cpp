@@ -120,28 +120,14 @@ struct GPU::Impl :
     {
     }
 
-    // Stops every thread that calls back through GPU. Safe to call both during
-    // EmulationStopping(true) (before OS teardown joins guest threads) and from ~GPU().
+    // Stops every thread that calls back through GPU. GPU calls it before destroying
+    // this: during ~Impl, GPU::impl is already null.
     void Shutdown()
     {
-        std::scoped_lock shutdown_lock{shutdown_mutex};
         NotifyShutdown();
-        std::map<u32, std::shared_ptr<AsyncCdma>> pushers;
-        {
-            std::scoped_lock lock{cdma_mutex};
-            pushers.swap(cdma_pushers);
-        }
-        pushers.clear();
+        cdma_pushers.clear();
         composite_requests.Cancel();
         gpu_thread.StopThread();
-        {
-            // The GPU thread has stopped, so no queued sync request will run anymore.
-            // Drop them (they may reference waiters' stack frames) and release waiters.
-            std::scoped_lock lck{sync_request_mutex};
-            sync_requests.clear();
-            sync_requests_dropped = true;
-        }
-        sync_request_cv.notify_all();
     }
 
     std::shared_ptr<Control::ChannelState> CreateChannel(s32 channel_id)
@@ -214,7 +200,6 @@ struct GPU::Impl :
     void OnCommandListEnd()
     {
         rasterizer->ReleaseFences(false);
-        rasterizer->OnGuestSynchronization();
         Settings::UpdateGPUAccuracy();
     }
 
@@ -223,10 +208,6 @@ struct GPU::Impl :
     [[nodiscard]] uint64_t RequestSyncOperation(Func && action)
     {
         std::unique_lock lck{sync_request_mutex};
-        if (sync_requests_dropped)
-        {
-            return current_sync_fence.load(std::memory_order_relaxed);
-        }
         const uint64_t fence = last_sync_fence.fetch_add(1, std::memory_order_relaxed) + 1;
         sync_requests.emplace_back(std::forward<Func>(action));
         return fence;
@@ -241,9 +222,7 @@ struct GPU::Impl :
     void WaitForSyncOperation(const uint64_t fence)
     {
         std::unique_lock lck{sync_request_mutex};
-        sync_request_cv.wait(lck, [this, fence] {
-            return CurrentSyncRequestFence() >= fence || sync_requests_dropped;
-        });
+        sync_request_cv.wait(lck, [this, fence] { return CurrentSyncRequestFence() >= fence; });
     }
 
     /// Tick pending requests within the GPU.
@@ -664,11 +643,6 @@ struct GPU::Impl :
         rasterizer->OnCacheInvalidation(address, size);
     }
 
-    void OnCoarseCacheInvalidation(uint64_t address, uint32_t size) override
-    {
-        rasterizer->OnCoarseCacheInvalidation(address, size);
-    }
-
     void RegisterHostThread()
     {
         m_modules.OperatingSystem().RegisterHostThread();
@@ -678,9 +652,10 @@ struct GPU::Impl :
     GPU & gpu;
     Host1x::Host1x & host1x;
 
-    std::mutex shutdown_mutex;
     std::mutex cdma_mutex;
     std::map<u32, std::shared_ptr<AsyncCdma>> cdma_pushers;
+    std::unique_ptr<VideoCore::RendererBase> renderer;
+    VideoCore::RasterizerInterface * rasterizer = nullptr;
     const bool use_nvdec;
 
     s32 new_channel_id{1};
@@ -703,7 +678,6 @@ struct GPU::Impl :
     std::atomic<uint64_t> last_sync_fence{};
     std::mutex sync_request_mutex;
     std::condition_variable sync_request_cv;
-    bool sync_requests_dropped{};
 
     const bool is_async;
 
@@ -713,11 +687,6 @@ struct GPU::Impl :
     std::unordered_map<s32, std::shared_ptr<Tegra::Control::ChannelState>> channels;
     Tegra::Control::ChannelState * current_channel;
     s32 bound_channel{-1};
-
-    // Destroy the renderer before channels, scheduler, and cpu_context so
-    // shutdown flushes and cache destructors never dereference destroyed engines.
-    std::unique_ptr<VideoCore::RendererBase> renderer;
-    VideoCore::RasterizerInterface * rasterizer = nullptr;
 
     VideoCommon::CompositeRequestQueue composite_requests;
 
@@ -731,11 +700,6 @@ GPU::GPU(ISystemModules & modules, Tegra::Host1x::Host1x & host1x, bool is_async
 }
 
 GPU::~GPU()
-{
-    impl->Shutdown();
-}
-
-void GPU::Shutdown()
 {
     impl->Shutdown();
 }
@@ -937,12 +901,8 @@ void GPU::ReleaseContext()
     impl->ReleaseContext();
 }
 
-ExecutionLock GPU::LockExecution() {
+std::unique_lock<std::recursive_mutex> GPU::LockExecution() {
     return impl->gpu_thread.LockExecution();
-}
-
-VideoCommon::GPUThread::BackQueue& GPU::BackQueue() {
-    return impl->gpu_thread.Back();
 }
 
 void GPU::PushGPUEntries(s32 channel, Tegra::CommandList && entries)

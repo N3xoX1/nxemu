@@ -751,34 +751,18 @@ void DeviceMemoryManager<Traits>::InvalidateNativeReadRegion(DAddr addr, size_t 
 template <typename Traits>
 void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta)
 {
-    ForEachProcessRange(addr, size, [delta](IMemory& memory, VAddr begin, uint64_t bytes) {
-        memory.RasterizerMarkRegionReadCached(begin, bytes, delta);
-    });
-}
-
-template <typename Traits>
-void DeviceMemoryManager<Traits>::UpdatePagesWriteProtectedCount(DAddr addr, uint64_t size, s32 delta)
-{
-    ForEachProcessRange(addr, size, [delta](IMemory& memory, VAddr begin, uint64_t bytes) {
-        memory.RasterizerMarkRegionWriteProtected(begin, bytes, delta);
-    });
-}
-
-template <typename Traits>
-template <typename Func>
-void DeviceMemoryManager<Traits>::ForEachProcessRange(DAddr addr, uint64_t size, Func&& func)
-{
+#if defined(__APPLE__)
     if (size == 0) return;
     Common::ScopedRangeLock lk(counter_guard, addr, size);
     std::atomic_thread_fence(std::memory_order_acquire);
-    const uint64_t page_end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
-    uint64_t page = addr >> DEVICE_PAGEBITS;
+    const size_t page_end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
+    size_t page = addr >> DEVICE_PAGEBITS;
     IMemory* memory = nullptr;
     Asid current_asid{};
     VAddr begin{};
-    uint64_t bytes{};
+    size_t bytes{};
     const auto flush = [&] {
-        if (bytes && memory) func(*memory, begin, bytes);
+        if (bytes && memory) memory->RasterizerMarkRegionReadCached(begin, bytes, delta);
         bytes = 0;
     };
     for (; page < page_end; ++page)
@@ -800,6 +784,7 @@ void DeviceMemoryManager<Traits>::ForEachProcessRange(DAddr addr, uint64_t size,
         bytes += DEVICE_PAGESIZE;
     }
     flush();
+#endif
 }
 
 template <typename Traits>

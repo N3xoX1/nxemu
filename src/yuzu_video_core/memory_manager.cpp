@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
-#include <utility>
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -580,15 +579,8 @@ void MemoryManager::ReadBlockImpl(GPUVAddr gpu_src_addr, void * dest_buffer, std
         {
             rasterizer->FlushRegion(dev_addr_base, copy_amount, which);
         }
-        if (const u8 * physical = memory.GetPointer<u8>(dev_addr_base)) [[likely]]
-        {
-            std::memcpy(dest_buffer, physical, copy_amount);
-        }
-        else
-        {
-            // The device page was unmapped: zero fill like the unsafe read
-            memory.ReadBlockUnsafe(dev_addr_base, dest_buffer, copy_amount);
-        }
+        u8 * physical = memory.GetPointer<u8>(dev_addr_base);
+        std::memcpy(dest_buffer, physical, copy_amount);
         dest_buffer = static_cast<u8 *>(dest_buffer) + copy_amount;
     };
     auto mapped_big = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
@@ -603,14 +595,8 @@ void MemoryManager::ReadBlockImpl(GPUVAddr gpu_src_addr, void * dest_buffer, std
         }
         else
         {
-            if (const u8 * physical = memory.GetPointer<u8>(dev_addr_base)) [[likely]]
-            {
-                std::memcpy(dest_buffer, physical, copy_amount);
-            }
-            else
-            {
-                memory.ReadBlockUnsafe(dev_addr_base, dest_buffer, copy_amount);
-            }
+            u8 * physical = memory.GetPointer<u8>(dev_addr_base);
+            std::memcpy(dest_buffer, physical, copy_amount);
         }
         dest_buffer = static_cast<u8 *>(dest_buffer) + copy_amount;
     };
@@ -687,13 +673,6 @@ void MemoryManager::WriteBlockUnsafe(GPUVAddr gpu_dest_addr, const void * src_bu
 }
 
 void MemoryManager::WriteBlockCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
-{
-    WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
-    accumulator->Add(gpu_dest_addr, size);
-    accumulated_other_than_const_buffers = true;
-}
-
-void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
 {
     WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
     accumulator->Add(gpu_dest_addr, size);
@@ -1044,14 +1023,7 @@ void MemoryManager::FlushCaching()
     accumulator->Callback([this](GPUVAddr addr, size_t size) {
         GetSubmappedRangeImpl<false>(addr, size, page_stash2);
     });
-    if (std::exchange(accumulated_other_than_const_buffers, false))
-    {
-        rasterizer->InnerInvalidation(page_stash2);
-    }
-    else
-    {
-        rasterizer->InnerConstBufferInvalidation(page_stash2);
-    }
+    rasterizer->InnerInvalidation(page_stash2);
     page_stash2.clear();
     accumulator->Clear();
 }

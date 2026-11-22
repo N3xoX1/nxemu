@@ -54,8 +54,3 @@ src/android/app/*.iml
 # Python bytecode
 __pycache__/
 *.pyc
-
-# Reports tools/jit_fuzz.py writes to the current folder
-jit-fuzz.txt
-jit-stress.txt
-jit-ir.txt

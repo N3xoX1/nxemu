@@ -198,13 +198,6 @@ struct UserConfig {
     /// callbacks.
     bool recompile_on_exclusive_fastmem_failure = true;
 
-    /// Each fastmem write sets map[page] for its 4 KiB page and, when that byte was clear, the
-    /// summaries map[write_track_l2_offset + (page >> 9)] and map[write_track_l1_offset +
-    /// (page >> 18)]. Writes through the memory callbacks are not marked.
-    std::uint8_t* write_track_map = nullptr;
-    std::uint32_t write_track_l2_offset = 0;
-    std::uint32_t write_track_l1_offset = 0;
-
     // Coprocessors
     std::array<std::shared_ptr<Coprocessor>, 16> coprocessors{};
 

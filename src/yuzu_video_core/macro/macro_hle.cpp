@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <array>
-#include <span>
 #include <vector>
 #include "nxemu-video/video_settings.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -50,23 +49,6 @@ public:
     explicit HLEMacroImpl(Maxwell3D& maxwell3d_) : maxwell3d{maxwell3d_} {}
 
 protected:
-    struct RegisterWrite {
-        u32 method;
-        u32 value;
-    };
-
-    static void SetRegisters(Maxwell3D::Regs& regs, std::span<const RegisterWrite> writes) {
-        for (const RegisterWrite& write : writes) {
-            regs.reg_array[write.method] = write.value;
-        }
-    }
-
-    void FrontWriteRegisters(std::span<const RegisterWrite> writes) {
-        for (const RegisterWrite& write : writes) {
-            maxwell3d.FrontWriteRegister(write.method, write.value);
-        }
-    }
-
     Maxwell3D& maxwell3d;
 };
 
@@ -78,33 +60,6 @@ template <bool extended>
 class HLE_DrawArraysIndirect final : public HLEMacroImpl {
 public:
     explicit HLE_DrawArraysIndirect(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
-
-    bool ChangesDrawState() const override {
-        return false;
-    }
-
-    bool FrontEffectsUseParameters() const override {
-        return false;
-    }
-
-    void FrontEffects(const std::vector<u32>& parameters, bool params_dirty) override {
-        // Only the fallback leaves a register changed
-        const Maxwell3D::Regs::PrimitiveTopology topology =
-            static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[0]);
-        if (extended && (!params_dirty || !IsTopologySafe(topology))) {
-            maxwell3d.front_regs.global_base_instance_index = 0;
-        }
-    }
-
-    std::span<const u32> FrontEffectRegisters() const override {
-        // The execute side checks the parameters again, and the indirect draw can fall back
-        static constexpr std::array<u32, 1> registers{
-            MAXWELL3D_REG_INDEX(global_base_instance_index)};
-        if constexpr (extended) {
-            return registers;
-        }
-        return {};
-    }
 
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         auto topology = static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[0]);
@@ -192,21 +147,6 @@ class HLE_DrawIndexedIndirect final : public HLEMacroImpl {
 public:
     explicit HLE_DrawIndexedIndirect(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    bool ChangesDrawState() const override {
-        return false;
-    }
-
-    bool FrontEffectsUseParameters() const override {
-        return false;
-    }
-
-    void FrontEffects(const std::vector<u32>&, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
-        regs.vertex_id_base = 0x0;
-        regs.global_base_vertex_index = 0x0;
-        regs.global_base_instance_index = 0x0;
-    }
-
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         auto topology = static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[0]);
         if (!maxwell3d.AnyParametersDirty() || !IsTopologySafe(topology)) {
@@ -287,10 +227,6 @@ class HLE_MultiLayerClear final : public HLEMacroImpl {
 public:
     explicit HLE_MultiLayerClear(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        maxwell3d.front_regs.clear_surface.raw = parameters[0];
-    }
-
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
         ASSERT(parameters.size() == 1);
@@ -308,41 +244,6 @@ public:
 class HLE_MultiDrawIndexedIndirectCount final : public HLEMacroImpl {
 public:
     explicit HLE_MultiDrawIndexedIndirectCount(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
-
-    bool FrontEffectsUseParameters() const override {
-        return false;
-    }
-
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        // Only the fallback leaves registers changed. A safe topology can still fall back when
-        // the indirect draw fails, see FrontEffectRegisters.
-        const Maxwell3D::Regs::PrimitiveTopology topology =
-            static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[2]);
-        if (IsTopologySafe(topology)) {
-            return;
-        }
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
-        regs.vertex_id_base = 0x0;
-        const u32 start_indirect = parameters[0];
-        const u32 end_indirect = parameters[1];
-        if (start_indirect >= end_indirect) {
-            return;
-        }
-        const std::size_t last_draw =
-            start_indirect + std::min<std::size_t>(end_indirect - start_indirect, parameters[4]);
-        if (last_draw <= start_indirect) {
-            return;
-        }
-        // CallMethod(0x8e3, 0x648) then CallMethod(0x8e4, index) for each draw
-        regs.reg_array[0x8e3] = 0x648 + 4;
-        regs.reg_array[0x8e4] = static_cast<u32>(last_draw - 1);
-    }
-
-    std::span<const u32> FrontEffectRegisters() const override {
-        static constexpr std::array<u32, 3> registers{MAXWELL3D_REG_INDEX(vertex_id_base), 0x8e3,
-                                                      0x8e4};
-        return registers;
-    }
 
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         const auto topology = static_cast<Maxwell3D::Regs::PrimitiveTopology>(parameters[2]);
@@ -458,8 +359,8 @@ private:
                 0, 0x640, Maxwell3D::HLEReplacementAttributeType::BaseVertex);
             maxwell3d.SetHLEReplacementAttributeType(
                 0, 0x644, Maxwell3D::HLEReplacementAttributeType::BaseInstance);
-            maxwell3d.BackCallMethod(0x8e3, 0x648, true);
-            maxwell3d.BackCallMethod(0x8e4, static_cast<u32>(index), true);
+            maxwell3d.CallMethod(0x8e3, 0x648, true);
+            maxwell3d.CallMethod(0x8e4, static_cast<u32>(index), true);
             maxwell3d.dirty.flags[VideoCommon::Dirty::IndexBuffer] = true;
             maxwell3d.draw_manager->DrawIndex(topology, parameters[base + 2], parameters[base],
                                               base_vertex, base_instance, parameters[base + 1]);
@@ -470,13 +371,6 @@ private:
 class HLE_DrawIndirectByteCount final : public HLEMacroImpl {
 public:
     explicit HLE_DrawIndirectByteCount(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
-
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
-        regs.draw.begin = parameters[0];
-        regs.draw_auto_stride = parameters[1];
-        regs.draw_auto_byte_count = parameters[2];
-    }
 
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         const bool force = maxwell3d.Rasterizer().HasDrawTransformFeedback();
@@ -525,34 +419,15 @@ class HLE_C713C83D8F63CCF3 final : public HLEMacroImpl {
 public:
     explicit HLE_C713C83D8F63CCF3(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    bool ChangesDrawState() const override {
-        return false;
-    }
-
-    bool LowerToWrites(const std::vector<u32>& parameters) override {
-        FrontWriteRegisters(Writes(maxwell3d.front_regs, parameters));
-        return true;
-    }
-
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        SetRegisters(maxwell3d.front_regs, Writes(maxwell3d.front_regs, parameters));
-    }
-
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
-        SetRegisters(maxwell3d.regs, Writes(maxwell3d.regs, parameters));
-    }
-
-private:
-    static std::array<RegisterWrite, 4> Writes(const Maxwell3D::Regs& regs,
-                                               const std::vector<u32>& parameters) {
-        const u32 address = regs.shadow_scratch[24];
-        return {{
-            {MAXWELL3D_REG_INDEX(const_buffer.size), 0x7000},
-            {MAXWELL3D_REG_INDEX(const_buffer.address_high), (address >> 24) & 0xFF},
-            {MAXWELL3D_REG_INDEX(const_buffer.address_low), address << 8},
-            {MAXWELL3D_REG_INDEX(const_buffer.offset), (parameters[0] & 0x3FFFFFFF) << 2},
-        }};
+        const u32 offset = (parameters[0] & 0x3FFFFFFF) << 2;
+        const u32 address = maxwell3d.regs.shadow_scratch[24];
+        auto& const_buffer = maxwell3d.regs.const_buffer;
+        const_buffer.size = 0x7000;
+        const_buffer.address_high = (address >> 24) & 0xFF;
+        const_buffer.address_low = address << 8;
+        const_buffer.offset = offset;
     }
 };
 
@@ -560,56 +435,21 @@ class HLE_D7333D26E0A93EDE final : public HLEMacroImpl {
 public:
     explicit HLE_D7333D26E0A93EDE(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    bool ChangesDrawState() const override {
-        return false;
-    }
-
-    bool LowerToWrites(const std::vector<u32>& parameters) override {
-        FrontWriteRegisters(Writes(maxwell3d.front_regs, parameters));
-        return true;
-    }
-
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        SetRegisters(maxwell3d.front_regs, Writes(maxwell3d.front_regs, parameters));
-    }
-
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
-        SetRegisters(maxwell3d.regs, Writes(maxwell3d.regs, parameters));
-    }
-
-private:
-    static std::array<RegisterWrite, 3> Writes(const Maxwell3D::Regs& regs,
-                                               const std::vector<u32>& parameters) {
         const size_t index = parameters[0];
-        const u32 address = regs.shadow_scratch[42 + index];
-        return {{
-            {MAXWELL3D_REG_INDEX(const_buffer.size), regs.shadow_scratch[47 + index]},
-            {MAXWELL3D_REG_INDEX(const_buffer.address_high), (address >> 24) & 0xFF},
-            {MAXWELL3D_REG_INDEX(const_buffer.address_low), address << 8},
-        }};
+        const u32 address = maxwell3d.regs.shadow_scratch[42 + index];
+        const u32 size = maxwell3d.regs.shadow_scratch[47 + index];
+        auto& const_buffer = maxwell3d.regs.const_buffer;
+        const_buffer.size = size;
+        const_buffer.address_high = (address >> 24) & 0xFF;
+        const_buffer.address_low = address << 8;
     }
 };
 
 class HLE_BindShader final : public HLEMacroImpl {
 public:
     explicit HLE_BindShader(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
-
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
-        const u32 index = parameters[0];
-        if ((parameters[1] - regs.shadow_scratch[28 + index]) == 0) {
-            return;
-        }
-        regs.pipelines[index & 0xF].offset = parameters[2];
-        regs.shadow_scratch[28 + index] = parameters[1];
-        regs.shadow_scratch[34 + index] = parameters[2];
-        const u32 address = parameters[4];
-        regs.const_buffer.size = 0x10000;
-        regs.const_buffer.address_high = (address >> 24) & 0xFF;
-        regs.const_buffer.address_low = address << 8;
-        regs.bind_groups[parameters[3] & 0x7F].raw_config = 0x11;
-    }
 
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
@@ -641,14 +481,6 @@ class HLE_SetRasterBoundingBox final : public HLEMacroImpl {
 public:
     explicit HLE_SetRasterBoundingBox(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
-        const u32 raster_enabled = regs.conservative_raster_enable;
-        const u32 scratch_data = regs.shadow_scratch[52];
-        regs.raster_bounding_box.raw = parameters[0] & 0xFFFFF00F;
-        regs.raster_bounding_box.pad.Assign(scratch_data & raster_enabled);
-    }
-
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
         const u32 raster_mode = parameters[0];
@@ -664,15 +496,6 @@ template <size_t base_size>
 class HLE_ClearConstBuffer final : public HLEMacroImpl {
 public:
     explicit HLE_ClearConstBuffer(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
-
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
-        regs.const_buffer.size = static_cast<u32>(base_size);
-        regs.const_buffer.address_high = parameters[0];
-        regs.const_buffer.address_low = parameters[1];
-        // ProcessCBMultiData writes parameters[2] * 4 words
-        regs.const_buffer.offset = parameters[2] * 4 * static_cast<u32>(sizeof(u32));
-    }
 
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
@@ -690,15 +513,6 @@ class HLE_ClearMemory final : public HLEMacroImpl {
 public:
     explicit HLE_ClearMemory(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
-        regs.upload.line_length_in = parameters[2];
-        regs.upload.line_count = 1;
-        regs.upload.dest.address_high = parameters[0];
-        regs.upload.dest.address_low = parameters[1];
-        regs.reg_array[MAXWELL3D_REG_INDEX(launch_dma)] = 0x1011;
-    }
-
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
 
@@ -711,9 +525,9 @@ public:
         regs.upload.line_count = 1;
         regs.upload.dest.address_high = parameters[0];
         regs.upload.dest.address_low = parameters[1];
-        maxwell3d.BackCallMethod(static_cast<size_t>(MAXWELL3D_REG_INDEX(launch_dma)), 0x1011, true);
-        maxwell3d.BackCallMultiMethod(static_cast<u32>(MAXWELL3D_REG_INDEX(inline_data)),
-                                      zero_memory.data(), needed_memory);
+        maxwell3d.CallMethod(static_cast<size_t>(MAXWELL3D_REG_INDEX(launch_dma)), 0x1011, true);
+        maxwell3d.CallMultiMethod(static_cast<size_t>(MAXWELL3D_REG_INDEX(inline_data)),
+                                  zero_memory.data(), needed_memory, needed_memory);
     }
 
 private:
@@ -724,21 +538,6 @@ class HLE_TransformFeedbackSetup final : public HLEMacroImpl {
 public:
     explicit HLE_TransformFeedbackSetup(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
-    void FrontEffects(const std::vector<u32>& parameters, bool) override {
-        Maxwell3D::Regs& regs = maxwell3d.front_regs;
-        regs.transform_feedback_enabled = 1;
-        for (Maxwell3D::Regs::TransformFeedback::Buffer& buffer : regs.transform_feedback.buffers) {
-            buffer.start_offset = 0;
-        }
-        regs.upload.line_length_in = 4;
-        regs.upload.line_count = 1;
-        regs.upload.dest.address_high = parameters[0];
-        regs.upload.dest.address_low = parameters[1];
-        regs.reg_array[MAXWELL3D_REG_INDEX(launch_dma)] = 0x1011;
-        regs.reg_array[MAXWELL3D_REG_INDEX(inline_data)] =
-            regs.transform_feedback.controls[0].stride;
-    }
-
     void Execute(const std::vector<u32>& parameters, [[maybe_unused]] u32 method) override {
         maxwell3d.RefreshParameters();
 
@@ -746,7 +545,6 @@ public:
         regs.transform_feedback_enabled = 1;
         // This HLE write bypasses ProcessDirtyRegisters.
         maxwell3d.dirty.InvalidateShaderProfile();
-        maxwell3d.dirty.pipeline_key_changed = true;
         regs.transform_feedback.buffers[0].start_offset = 0;
         regs.transform_feedback.buffers[1].start_offset = 0;
         regs.transform_feedback.buffers[2].start_offset = 0;
@@ -756,8 +554,8 @@ public:
         regs.upload.line_count = 1;
         regs.upload.dest.address_high = parameters[0];
         regs.upload.dest.address_low = parameters[1];
-        maxwell3d.BackCallMethod(static_cast<size_t>(MAXWELL3D_REG_INDEX(launch_dma)), 0x1011, true);
-        maxwell3d.BackCallMethod(static_cast<size_t>(MAXWELL3D_REG_INDEX(inline_data)),
+        maxwell3d.CallMethod(static_cast<size_t>(MAXWELL3D_REG_INDEX(launch_dma)), 0x1011, true);
+        maxwell3d.CallMethod(static_cast<size_t>(MAXWELL3D_REG_INDEX(inline_data)),
                              regs.transform_feedback.controls[0].stride, true);
 
         maxwell3d.Rasterizer().RegisterTransformFeedback(regs.upload.dest.Address());

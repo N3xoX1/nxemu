@@ -15,170 +15,6 @@
 
 namespace VideoCommon::GPUThread {
 
-void BackQueue::Push(Work&& work) {
-    if (!threaded) {
-        work();
-        return;
-    }
-    bool wake;
-    {
-        std::scoped_lock lock{mutex};
-        items.push_back(std::move(work));
-        ++pushed;
-        pushed_spin.store(pushed, std::memory_order_release);
-        // Wake the GPU thread only when it sleeps
-        wake = back_waiting;
-    }
-    if (wake) {
-        cv.notify_one();
-    }
-}
-
-void BackQueue::WaitIdle() {
-    if (!threaded) {
-        return;
-    }
-    // Only the decode thread pushes, and the other callers hold the decode mutex
-    const u64 target = pushed_spin.load(std::memory_order_relaxed);
-    auto idle = [this, target] { return done_spin.load(std::memory_order_acquire) >= target; };
-    if (idle()) {
-        return;
-    }
-    std::unique_lock lock{mutex};
-    idle_cv.wait(lock, [this] { return done == pushed || stopping; });
-}
-
-bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
-                        const std::atomic<bool>& wake) {
-    std::unique_lock lock{mutex};
-    if (items.empty() && !stopping && !wake.load(std::memory_order_acquire)) {
-        back_waiting = true;
-        cv.wait(lock, stop_token, [this, &wake] {
-            return !items.empty() || stopping || wake.load(std::memory_order_acquire);
-        });
-        back_waiting = false;
-    }
-    if (items.empty()) {
-        return false;
-    }
-    // Take everything queued, so the GPU thread runs it under one execution lock
-    std::swap(out, items);
-    return true;
-}
-
-void BackQueue::FinishMany(u64 count) {
-    bool idle;
-    {
-        std::scoped_lock lock{mutex};
-        done += count;
-        done_spin.store(done, std::memory_order_release);
-        idle = done == pushed;
-    }
-    if (idle) {
-        idle_cv.notify_all();
-    }
-}
-
-void BackQueue::Notify() {
-    {
-        std::scoped_lock lock{mutex};
-    }
-    cv.notify_one();
-}
-
-void BackQueue::Stop() {
-    {
-        std::scoped_lock lock{mutex};
-        stopping = true;
-    }
-    cv.notify_all();
-    idle_cv.notify_all();
-}
-
-static void SignalFence(SynchState& state, u64 fence, bool block) {
-    state.signaled_fence.store(fence);
-    if (block) {
-        // We have to lock the write_lock to ensure that the condition_variable wait not get a
-        // race between the check and the lock itself.
-        std::scoped_lock lk{state.write_lock};
-        state.cv.notify_all();
-    }
-}
-
-/// GPU thread with a decode thread: runs the queued work
-static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
-                          VideoCore::RendererBase& renderer,
-                          Core::Frontend::GraphicsContext& context, SynchState& state) {
-    Common::SetCurrentThreadName("GPU");
-    Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
-    gpu.RegisterHostThread();
-
-    Core::Frontend::GraphicsContext::Scoped current_context = context.Acquire();
-    std::deque<BackQueue::Work> batch;
-    while (!stop_token.stop_requested()) {
-        {
-            std::scoped_lock execution_lock{state.execution_mutex};
-            gpu.ProcessPendingComposite();
-        }
-        if (!state.back.PopWait(batch, stop_token, state.composite_ready)) {
-            continue;
-        }
-        const u64 count = batch.size();
-        {
-            std::scoped_lock execution_lock{state.execution_mutex};
-            for (BackQueue::Work& work : batch) {
-                // On exit the guest memory is unmapped before the GPU stops
-                if (stop_token.stop_requested()) {
-                    break;
-                }
-                work();
-            }
-            batch.clear();
-            gpu.ProcessPendingComposite();
-        }
-        state.back.FinishMany(count);
-    }
-}
-
-/// Decode thread: runs DmaPusher and the decode side of the engines
-static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
-                            VideoCore::RasterizerInterface* rasterizer,
-                            Tegra::Control::Scheduler& scheduler, SynchState& state) {
-    Common::SetCurrentThreadName("GPUDecode");
-    Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
-    gpu.RegisterHostThread();
-
-    CommandDataContainer next;
-    while (!stop_token.stop_requested()) {
-        if (!state.queue.PopWait(next, stop_token, [] { return false; })) {
-            continue;
-        }
-        if (stop_token.stop_requested()) {
-            break;
-        }
-        std::scoped_lock decode_lock{state.decode_mutex};
-        if (SubmitListCommand* submit_list = std::get_if<SubmitListCommand>(&next.data)) {
-            scheduler.Push(submit_list->channel, std::move(submit_list->entries));
-        } else if (std::holds_alternative<GPUTickCommand>(next.data)) {
-            state.back.Push([&gpu] { gpu.TickWork(); });
-        } else if (const FlushRegionCommand* flush = std::get_if<FlushRegionCommand>(&next.data)) {
-            state.back.Push([rasterizer, addr = flush->addr, size = flush->size] {
-                rasterizer->FlushRegion(addr, size);
-            });
-        } else if (const InvalidateRegionCommand* invalidate =
-                       std::get_if<InvalidateRegionCommand>(&next.data)) {
-            state.back.Push([rasterizer, addr = invalidate->addr, size = invalidate->size] {
-                rasterizer->OnCacheInvalidation(addr, size);
-            });
-        } else {
-            ASSERT(false);
-        }
-        state.back.Push([&state, fence = next.fence, block = next.block] {
-            SignalFence(state, fence, block);
-        });
-    }
-}
-
 /// Runs the GPU thread
 static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::RendererBase & renderer, Core::Frontend::GraphicsContext & context, Tegra::Control::Scheduler & scheduler, SynchState & state)
 {
@@ -197,9 +33,12 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             std::scoped_lock execution_lock{state.execution_mutex};
             gpu.ProcessPendingComposite();
         }
-        const bool has_command = state.queue.PopWait(next, stop_token, [&] {
-            return state.composite_ready.load(std::memory_order_acquire);
-        });
+        bool has_command;
+        {
+            has_command = state.queue.PopWait(next, stop_token, [&] {
+                return state.composite_ready.load(std::memory_order_acquire);
+            });
+        }
         if (!has_command && !stop_token.stop_requested()) {
             std::scoped_lock execution_lock{state.execution_mutex};
             gpu.ProcessPendingComposite();
@@ -254,50 +93,12 @@ ThreadManager::~ThreadManager() = default;
 
 void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Frontend::GraphicsContext & context, Tegra::Control::Scheduler & scheduler)
 {
-    {
-        std::scoped_lock lk{state->write_lock};
-        state->stopping = false;
-    }
-    state->queue.ResetClosed();
     rasterizer = renderer.ReadRasterizer();
-    if (is_async)
-    {
-        state->back.threaded = true;
-        thread = std::jthread(RunDrawThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(*state));
-        decode_thread = std::jthread(RunDecodeThread, std::ref(gpu), rasterizer, std::ref(scheduler), std::ref(*state));
-        return;
-    }
     thread = std::jthread(RunThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(scheduler), std::ref(*state));
-}
-
-Tegra::ExecutionLock ThreadManager::LockExecution()
-{
-    Tegra::ExecutionLock lock;
-    lock.decode = std::unique_lock{state->decode_mutex};
-    // Queued work still uses the current mappings
-    state->back.WaitIdle();
-    lock.execution = std::unique_lock{state->execution_mutex};
-    return lock;
 }
 
 void ThreadManager::StopThread()
 {
-    // Wake any producer blocked on a full command queue before acquiring write_lock
-    // or stopping the consumer thread.
-    state->queue.Close();
-    {
-        std::scoped_lock lk{state->write_lock};
-        state->stopping = true;
-    }
-    state->cv.notify_all();
-    if (decode_thread.joinable())
-    {
-        // The GPU thread keeps running the queued work the decode thread may be waiting on
-        decode_thread.request_stop();
-        decode_thread.join();
-        thread.request_stop();
-        state->back.Stop();
-    }
     if (thread.joinable())
     {
         thread.request_stop();
@@ -358,20 +159,13 @@ u64 ThreadManager::PushCommand(CommandData && command_data, bool block)
     }
 
     std::unique_lock lk(state->write_lock);
-    if (state->stopping)
-    {
-        return state->last_fence;
-    }
     const u64 fence{++state->last_fence};
-    if (!state->queue.EmplaceWait(std::move(command_data), fence, block))
-    {
-        return fence;
-    }
+    state->queue.EmplaceWait(std::move(command_data), fence, block);
 
     if (block)
     {
-        state->cv.wait(lk, [this, fence] {
-            return state->stopping || fence <= state->signaled_fence.load(std::memory_order_relaxed);
+        Common::CondvarWait(state->cv, lk, thread.get_stop_token(), [this, fence] {
+            return fence <= state->signaled_fence.load(std::memory_order_relaxed);
         });
     }
 

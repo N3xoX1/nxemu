@@ -282,10 +282,7 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         }
         query_base->value += streamer->GetAmendValue();
         streamer->SetAccumulationValue(query_base->value);
-        const bool with_timestamp = True(query_base->flags & QueryFlagBits::HasTimestamp);
-        if (pointer == nullptr || (with_timestamp && pointer_timestamp == nullptr)) [[unlikely]] {
-            // The guest memory was unmapped before the report, as on exit
-        } else if (with_timestamp) {
+        if (True(query_base->flags & QueryFlagBits::HasTimestamp)) {
             u64 timestamp = impl->gpu.GetTicks();
             std::memcpy(pointer_timestamp, &timestamp, sizeof(timestamp));
             std::memcpy(pointer, &query_base->value, sizeof(query_base->value));
@@ -303,10 +300,6 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
     // without submitting more work.
     if (fast_payload && !behind_readback) {
         const auto publish = [&] {
-            if (pointer == nullptr || (has_timestamp && pointer_timestamp == nullptr))
-                [[unlikely]] {
-                return;
-            }
             if (has_timestamp) {
                 u64 timestamp = impl->gpu.GetTicks();
                 u64 value = static_cast<u64>(payload);
@@ -324,13 +317,11 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             std::scoped_lock lock(cache_mutex);
             if (const auto it1 = cached_queries.find(cont_addr); it1 != cached_queries.end()) {
                 if (const auto it = it1->second.find(base); it != it1->second.end()) {
-                    MarkRewritten(impl->ObtainQuery(it->second), query, cpu_addr);
+                    impl->ObtainQuery(it->second)->flags |= QueryFlagBits::IsRewritten;
                 }
             }
             publish();
         }
-        // A stale cache entry may still name this slot: it must not look pending
-        query->flags |= QueryFlagBits::IsWritten;
         impl->rasterizer.SyncOperation(
             [streamer, new_query_id] { streamer->Free(new_query_id); });
         if (is_fence) {
@@ -385,20 +376,10 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             sub_container.insert_or_assign(base, query_location);
             return;
         }
-        MarkRewritten(impl->ObtainQuery(it_current->second), query, cpu_addr);
+        auto* old_query = impl->ObtainQuery(it_current->second);
+        old_query->flags |= QueryFlagBits::IsRewritten;
         sub_container.insert_or_assign(base, query_location);
     }
-}
-
-template <typename Traits>
-void QueryCacheBase<Traits>::MarkRewritten(QueryBase* old_query, const QueryBase* new_query,
-                                           DAddr address) {
-    // A cache entry can outlive its query: the slot may now hold the new query, or another
-    // query at a different address
-    if (old_query == nullptr || old_query == new_query || old_query->guest_address != address) {
-        return;
-    }
-    old_query->flags |= QueryFlagBits::IsRewritten;
 }
 
 template <typename Traits>
@@ -465,12 +446,7 @@ bool QueryCacheBase<Traits>::HasPendingResult(VAddr addr, size_t size) {
         }
         constexpr auto done = QueryFlagBits::IsRewritten | QueryFlagBits::IsInvalidated |
                               QueryFlagBits::IsWritten;
-        const QueryBase* query = streamer->GetQuery(query_id);
-        // A cache entry can outlive its query: the slot may hold another query since
-        if (query->guest_address >= addr + size || query->guest_address + sizeof(u32) <= addr) {
-            return;
-        }
-        pending |= False(query->flags & done);
+        pending |= False(streamer->GetQuery(query_id)->flags & done);
     });
     return pending;
 }
@@ -486,9 +462,6 @@ void QueryCacheBase<Traits>::HostSyncedResults(VAddr addr, size_t size,
         }
         const auto* query = streamer->GetQuery(query_id);
         constexpr auto skipped = QueryFlagBits::IsRewritten | QueryFlagBits::IsInvalidated;
-        if (query->guest_address >= addr + size || query->guest_address + sizeof(u32) <= addr) {
-            return;
-        }
         if (False(query->flags & QueryFlagBits::IsHostSynced) || True(query->flags & skipped)) {
             return;
         }

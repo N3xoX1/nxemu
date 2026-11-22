@@ -5,8 +5,6 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <deque>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -16,8 +14,6 @@
 #include "yuzu_common/bounded_threadsafe_queue.h"
 #include "yuzu_common/polyfill_thread.h"
 #include "yuzu_video_core/framebuffer_config.h"
-#include "yuzu_video_core/dma_pusher.h"
-#include "yuzu_video_core/gpu.h"
 
 namespace Tegra {
 struct FramebufferConfig;
@@ -92,81 +88,22 @@ struct CommandDataContainer {
     bool block{};
 };
 
-/// Work queue from the decode thread to the GPU thread, run in order. Without the decode thread
-/// the work runs at once.
-class BackQueue final {
-public:
-    using Work = std::function<void()>;
-
-    bool IsThreaded() const {
-        return threaded;
-    }
-
-    /// Decode thread: queues work. Runs it at once without the decode thread.
-    void Push(Work&& work);
-
-    /// Decode thread: waits until the GPU thread has run all queued work
-    void WaitIdle();
-
-    /// Decode thread: runs `func` on the GPU thread and waits for completion.
-    template <typename Func>
-    void RunExclusive(Func&& func) {
-        if (!threaded) {
-            func();
-            return;
-        }
-        Push([&func] { func(); });
-        WaitIdle();
-    }
-
-    /// GPU thread: takes all queued work, false when woken without any
-    bool PopWait(std::deque<Work>& out, std::stop_token stop_token, const std::atomic<bool>& wake);
-    void FinishMany(u64 count);
-    void Notify();
-    void Stop();
-
-private:
-    friend class ThreadManager;
-
-    bool threaded{};
-    std::mutex mutex;
-    std::condition_variable_any cv;
-    std::condition_variable_any idle_cv;
-    std::deque<Work> items;
-    u64 pushed{};
-    u64 done{};
-    bool stopping{};
-    /// The GPU thread sleeps in PopWait, under `mutex`
-    bool back_waiting{};
-    /// Mirrors of the counters, so WaitIdle can return without the lock
-    std::atomic<u64> pushed_spin{};
-    std::atomic<u64> done_spin{};
-};
-
 /// Struct used to synchronize the GPU thread
 struct SynchState final {
     using CommandQueue = Common::MPSCQueue<CommandDataContainer>;
     // Mapping notifications may download images and record renderer commands.
     // They must not race the GPU command/composite producer.
     std::recursive_mutex execution_mutex;
-    /// Held by the decode thread while it runs a command
-    std::recursive_mutex decode_mutex;
-    BackQueue back;
     std::mutex write_lock;
     CommandQueue queue;
     u64 last_fence{};
     std::atomic<u64> signaled_fence{};
-    bool stopping{};
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
 
     void NotifyComposite() {
         if (!composite_ready.exchange(true, std::memory_order_release)) {
-            if (back.IsThreaded()) {
-                back.Notify();
-            } else {
-                queue.NotifyConsumer();
-            }
+            queue.NotifyConsumer();
         }
     }
 };
@@ -201,12 +138,8 @@ public:
     /// Returns true when the GPU thread has executed every command pushed so far
     bool IsIdle() const;
 
-    /// Excludes the decode thread and the GPU thread, after the GPU thread has run all the
-    /// work the decode thread queued.
-    Tegra::ExecutionLock LockExecution();
-
-    BackQueue& Back() {
-        return state->back;
+    std::unique_lock<std::recursive_mutex> LockExecution() {
+        return std::unique_lock{state->execution_mutex};
     }
 
     std::weak_ptr<SynchState> Wakeup() const { return state; }
@@ -225,7 +158,6 @@ private:
 
     std::shared_ptr<SynchState> state{std::make_shared<SynchState>()};
     std::jthread thread;
-    std::jthread decode_thread;
 };
 
 } // namespace VideoCommon::GPUThread

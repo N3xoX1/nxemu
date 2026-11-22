@@ -109,9 +109,8 @@ std::string SaveDataFactory::GetSaveDataSpaceIdPath(SaveDataSpaceId space)
 std::string SaveDataFactory::GetFullPath(ProgramId program_id, VirtualDir dir, SaveDataSpaceId space, SaveDataType type, uint64_t title_id, u128 user_id, uint64_t save_id)
 {
     // According to switchbrew, if a save is of type SaveData and the title id field is 0, it should
-    // be interpreted as the title id of the current process. Games open their cache storage the
-    // same way; without it every game shared one cache folder and read the files of the others.
-    if (type == SaveDataType::Account || type == SaveDataType::Device || type == SaveDataType::Cache)
+    // be interpreted as the title id of the current process.
+    if (type == SaveDataType::Account || type == SaveDataType::Device)
     {
         if (title_id == 0)
         {

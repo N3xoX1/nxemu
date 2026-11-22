@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: 0BSD
  */
 
-#include <optional>
-
 #include <mcl/bit_cast.hpp>
 #include <xbyak/xbyak.h>
 
@@ -198,69 +196,6 @@ template<>
             require_abort_handling = true;
         }
         return r13 + vaddr;
-    }
-}
-
-// Then the map is addressed without a base register
-template<typename Config>
-bool WriteTrackMapIsLow(const Config& conf) {
-    const u64 end = reinterpret_cast<u64>(conf.write_track_map) + conf.write_track_l1_offset + (u64{1} << 20);
-    return end < (u64{1} << 31);
-}
-
-// `map` is only needed when the map is not low. `check_range` skips a page past the map, for an
-// address that is not known to be valid.
-template<typename EmitContext>
-void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 offset, bool check_range) {
-    const u32 l2_offset = ctx.conf.write_track_l2_offset;
-    const u32 l1_offset = ctx.conf.write_track_l1_offset;
-    const u64 map_address = reinterpret_cast<u64>(ctx.conf.write_track_map);
-    const u32 low_base = map ? 0 : static_cast<u32>(map_address);
-    SharedLabel mark = GenSharedLabel(), marked = GenSharedLabel();
-
-    if (offset != 0) {
-        code.lea(page, code.ptr[vaddr + offset]);
-    } else {
-        code.mov(page, vaddr);
-    }
-    code.shr(page, page_bits);
-    if (check_range) {
-        code.cmp(page, l2_offset);
-        code.jae(*marked, code.T_NEAR);
-    }
-    if (map) {
-        code.mov(*map, map_address);
-        code.cmp(code.byte[*map + page], 0);
-    } else {
-        code.cmp(code.byte[page + low_base], 0);
-    }
-    code.je(*mark, code.T_NEAR);
-    code.L(*marked);
-
-    ctx.deferred_emits.emplace_back([=, &code] {
-        code.L(*mark);
-        if (map) {
-            code.mov(code.byte[*map + page], 1);
-            code.shr(page, 9);
-            code.mov(code.byte[*map + page + l2_offset], 1);
-            code.shr(page, 9);
-            code.mov(code.byte[*map + page + l1_offset], 1);
-        } else {
-            code.mov(code.byte[page + low_base], 1);
-            code.shr(page, 9);
-            code.mov(code.byte[page + (low_base + l2_offset)], 1);
-            code.shr(page, 9);
-            code.mov(code.byte[page + (low_base + l1_offset)], 1);
-        }
-        code.jmp(*marked, code.T_NEAR);
-    });
-}
-
-template<std::size_t bitsize, typename EmitContext>
-void EmitWriteTrackAccess(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, s32 disp = 0) {
-    EmitWriteTrack(code, ctx, vaddr, page, map, disp, false);
-    if constexpr (bitsize > 8) {
-        EmitWriteTrack(code, ctx, vaddr, page, map, disp + static_cast<s32>(bitsize / 8 - 1), false);
     }
 }
 

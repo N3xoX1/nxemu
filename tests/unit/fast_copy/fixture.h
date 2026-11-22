@@ -124,10 +124,6 @@ struct TestMemory : IDeviceMemory, IMemory {
         return false;
     }
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override {}
-    void RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) override {}
-    bool ProtectsReadCachedRegions() override {
-        return false;
-    }
     bool NceTrackReads(uint64_t vaddr) override {
         return false;
     }

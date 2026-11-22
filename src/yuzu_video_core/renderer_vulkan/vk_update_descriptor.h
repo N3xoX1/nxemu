@@ -81,10 +81,6 @@ public:
         payload.Append(texel_buffer);
     }
 
-    void AddEntry(const DescriptorUpdateEntry& entry) {
-        payload.Append(entry);
-    }
-
 private:
     const Device& device;
     Scheduler& scheduler;

@@ -194,29 +194,6 @@ void A64EmitX64::GenFastmemFallbacks() {
                 code.ret();
                 PerfMapRegister(exclusive_write_fallbacks[std::make_tuple(ordered, 128, vaddr_idx, value_idx)], code.getCurr(), "a64_exclusive_write_fallback_128");
 
-                // 32 and 64-bit reads into XMM value_idx (vector loads, movd/movq). Ordered loads
-                // stay on the GPR path, so they have none.
-                for (const auto& [bitsize, callback] : read_callbacks) {
-                    if (ordered || (bitsize != 32 && bitsize != 64)) {
-                        continue;
-                    }
-                    code.align();
-                    read_fallbacks_xmm[std::make_tuple(ordered, bitsize, vaddr_idx, value_idx)] = code.getCurr<void (*)()>();
-                    ABI_PushCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(value_idx));
-                    if (vaddr_idx != code.ABI_PARAM2.getIdx()) {
-                        code.mov(code.ABI_PARAM2, Xbyak::Reg64{vaddr_idx});
-                    }
-                    callback.EmitCall(code);
-                    if (bitsize == 32) {
-                        code.movd(Xbyak::Xmm{value_idx}, code.ABI_RETURN.cvt32());
-                    } else {
-                        code.movq(Xbyak::Xmm{value_idx}, code.ABI_RETURN);
-                    }
-                    ABI_PopCallerSaveRegistersAndAdjustStackExcept(code, HostLocXmmIdx(value_idx));
-                    code.ret();
-                    PerfMapRegister(read_fallbacks_xmm[std::make_tuple(ordered, bitsize, vaddr_idx, value_idx)], code.getCurr(), fmt::format("a64_read_fallback_xmm_{}", bitsize));
-                }
-
                 if (value_idx == 4 || value_idx == 15) {
                     continue;
                 }

@@ -709,52 +709,13 @@ Id EmitImageSampleDrefExplicitLod(EmitContext& ctx, IR::Inst* inst, const IR::Va
                 Texture(ctx, info, index), coords, dref, operands.Mask(), operands.Span());
 }
 
-bool IsDynamicPtp(IR::Inst* inst, const IR::Value& offset, const IR::Value& offset2) {
-    if (offset2.IsEmpty() || offset.IsEmpty() ||
-        inst->GetAssociatedPseudoOperation(IR::Opcode::GetSparseFromOp)) {
-        return false;
-    }
-    const auto constant{[](const IR::Value& value) {
-        return value.IsImmediate() || value.InstRecursive()->AreAllArgsImmediates();
-    }};
-    return !constant(offset) || !constant(offset2);
-}
-
-// Per-tap offsets the IR could not fold to constants (ConstOffsets must be constant): one gather
-// per tap with a runtime Offset, keeping the i0,j0 texel (w) of each footprint.
-template <typename GatherFn>
-Id GatherDynamicPtp(EmitContext& ctx, const IR::Value& offset, const IR::Value& offset2,
-                    GatherFn&& gather) {
-    const std::array packed{ctx.Def(offset), ctx.Def(offset2)};
-    std::array<Id, 4> texels;
-    for (u32 tap = 0; tap < 4; ++tap) {
-        const Id vector{packed[tap / 2]};
-        const u32 first{(tap % 2) * 2};
-        const Id x{ctx.OpBitcast(ctx.S32[1], ctx.OpCompositeExtract(ctx.U32[1], vector, first))};
-        const Id y{ctx.OpBitcast(ctx.S32[1], ctx.OpCompositeExtract(ctx.U32[1], vector, first + 1))};
-        const Id tap_offset{ctx.OpCompositeConstruct(ctx.S32[2], x, y)};
-        texels[tap] = ctx.OpCompositeExtract(ctx.F32[1], gather(tap_offset), 3U);
-    }
-    return ctx.OpCompositeConstruct(ctx.F32[4], std::span<const Id>{texels.data(), texels.size()});
-}
-
 Id EmitImageGather(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords,
                    const IR::Value& offset, const IR::Value& offset2) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
+    const ImageOperands operands(ctx, offset, offset2);
     if (ctx.profile.need_gather_subpixel_offset) {
         coords = ImageGatherSubpixelOffset(ctx, info, TextureImage(ctx, info, index), coords);
     }
-    if (IsDynamicPtp(inst, offset, offset2)) {
-        const Id texture{Texture(ctx, info, index)};
-        const Id component{ctx.Const(info.gather_component)};
-        return GatherDynamicPtp(ctx, offset, offset2, [&](Id tap_offset) {
-            return Decorate(ctx, inst,
-                            ctx.OpImageGather(ctx.F32[4], texture, coords, component,
-                                              spv::ImageOperandsMask::Offset,
-                                              std::span<const Id>{&tap_offset, 1}));
-        });
-    }
-    const ImageOperands operands(ctx, offset, offset2);
     return Emit(&EmitContext::OpImageSparseGather, &EmitContext::OpImageGather, ctx, inst,
                 ctx.F32[4], Texture(ctx, info, index), coords, ctx.Const(info.gather_component),
                 operands.MaskOptional(), operands.Span());
@@ -763,19 +724,10 @@ Id EmitImageGather(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id 
 Id EmitImageGatherDref(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id coords,
                        const IR::Value& offset, const IR::Value& offset2, Id dref) {
     const auto info{inst->Flags<IR::TextureInstInfo>()};
+    const ImageOperands operands(ctx, offset, offset2);
     if (ctx.profile.need_gather_subpixel_offset) {
         coords = ImageGatherSubpixelOffset(ctx, info, TextureImage(ctx, info, index), coords);
     }
-    if (IsDynamicPtp(inst, offset, offset2)) {
-        const Id texture{Texture(ctx, info, index)};
-        return GatherDynamicPtp(ctx, offset, offset2, [&](Id tap_offset) {
-            return Decorate(ctx, inst,
-                            ctx.OpImageDrefGather(ctx.F32[4], texture, coords, dref,
-                                                  spv::ImageOperandsMask::Offset,
-                                                  std::span<const Id>{&tap_offset, 1}));
-        });
-    }
-    const ImageOperands operands(ctx, offset, offset2);
     return Emit(&EmitContext::OpImageSparseDrefGather, &EmitContext::OpImageDrefGather, ctx, inst,
                 ctx.F32[4], Texture(ctx, info, index), coords, dref, operands.MaskOptional(),
                 operands.Span());

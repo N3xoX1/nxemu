@@ -26,9 +26,5 @@ public:
     std::uint32_t GetRegisterValue(std::uint32_t) const {
         return 0;
     }
-
-    std::uint32_t GetFrontRegisterValue(std::uint32_t) const {
-        return 0;
-    }
 };
 } // namespace Tegra::Engines

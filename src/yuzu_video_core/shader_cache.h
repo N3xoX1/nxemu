@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <atomic>
 #include <array>
 #include <memory>
 #include <mutex>
@@ -103,8 +102,6 @@ protected:
 
     std::array<const ShaderInfo*, NUM_PROGRAMS> shader_infos{};
     bool last_shaders_valid = false;
-    /// Set when shaders are removed: shader_infos may point to freed shaders
-    std::atomic<bool> shader_infos_stale{false};
 
 private:
     /// @brief Tries to obtain a cached shader starting in a given address

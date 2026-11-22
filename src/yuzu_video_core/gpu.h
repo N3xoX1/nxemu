@@ -18,10 +18,6 @@ namespace Core {
 class System;
 } // namespace Core
 
-namespace VideoCommon::GPUThread {
-class BackQueue;
-}
-
 namespace VideoCore {
 class RendererBase;
 class ShaderNotify;
@@ -138,12 +134,6 @@ class Host1x;
 
 class MemoryManager;
 
-/// Locks of the decode thread and of the GPU thread, see GPU::LockExecution
-struct ExecutionLock {
-    std::unique_lock<std::recursive_mutex> decode;
-    std::unique_lock<std::recursive_mutex> execution;
-};
-
 class GPU final {
 public:
     explicit GPU(ISystemModules & modules, Tegra::Host1x::Host1x & host1x, bool is_async, bool use_nvdec);
@@ -243,9 +233,6 @@ public:
     /// Performs any additional necessary steps to shutdown GPU emulation.
     void NotifyShutdown();
 
-    /// Stops all GPU worker threads and releases any waiters blocked on sync operations.
-    void Shutdown();
-
     /// Returns true while the emulated system is powered on.
     [[nodiscard]] bool IsPoweredOn() const;
 
@@ -292,10 +279,7 @@ public:
 
     /// Excludes command recording/compositing while guest GPU mappings change.
     /// Never hold this lock while enqueueing and waiting for a GPU-thread request.
-    ExecutionLock LockExecution();
-
-    /// Work queue from the decode thread to the GPU thread
-    VideoCommon::GPUThread::BackQueue& BackQueue();
+    std::unique_lock<std::recursive_mutex> LockExecution();
 
     /// Register a host thread as an auxiliary thread.
     void RegisterHostThread();

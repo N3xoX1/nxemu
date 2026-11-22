@@ -52,10 +52,7 @@ ShaderCache::ShaderCache(Tegra::MaxwellDeviceMemoryManager& device_memory_)
 
 bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) {
     auto& dirty{maxwell3d->dirty.flags};
-    // Removed shaders are freed: the stages that used them must be looked up again
-    const bool stale = shader_infos_stale.load(std::memory_order_relaxed) &&
-                       shader_infos_stale.exchange(false, std::memory_order_acquire);
-    if (!dirty[VideoCommon::Dirty::Shaders] && !stale) {
+    if (!dirty[VideoCommon::Dirty::Shaders]) {
         return last_shaders_valid;
     }
     dirty[VideoCommon::Dirty::Shaders] = false;
@@ -140,8 +137,6 @@ void ShaderCache::Register(std::unique_ptr<ShaderInfo> data, VAddr addr, size_t 
     std::scoped_lock lock{invalidation_mutex, lookup_mutex};
 
     const VAddr addr_end = addr + size;
-    // Before the entry is visible, so an invalidation never skips its pages
-    device_memory.RegisterFlushCacheRegion(addr, size, VideoCommon::CacheType::ShaderCache);
     Entry* const entry = NewEntry(addr, addr_end, data.get());
 
     const u64 page_end = (addr_end + YUZU_PAGESIZE - 1) >> YUZU_PAGEBITS;
@@ -188,7 +183,6 @@ void ShaderCache::RemovePendingShaders() {
     marked_for_removal.clear();
 
     if (!removed_shaders.empty()) {
-        shader_infos_stale.store(true, std::memory_order_release);
         RemoveShadersFromStorage(removed_shaders);
     }
 }
