@@ -713,6 +713,24 @@ std::optional<DAddr> MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_add
                                                           const void * src_buffer,
                                                           std::size_t size)
 {
+    constexpr u64 device_page_size = u64{1} << cpu_page_bits;
+    const u64 offset = gpu_dest_addr & big_page_mask;
+    if (size != 0 && size <= device_page_size - (offset & (device_page_size - 1)) &&
+        size <= big_page_size - offset && IsWithinGPUAddressRange(gpu_dest_addr) &&
+        GetEntry<true>(gpu_dest_addr) == EntryType::Mapped)
+    {
+        // Within one device page, the rest of the GPU large page can be fragmented.
+        const DAddr address =
+            (static_cast<DAddr>(big_page_table_dev[PageEntryIndex<true>(gpu_dest_addr)])
+             << cpu_page_bits) + offset;
+        memory.PrepareEngineWrite(address, size);
+        if (u8 * physical = memory.GetPointer<u8>(address))
+        {
+            std::memcpy(physical, src_buffer, size);
+        }
+        accumulator->Add(gpu_dest_addr, size);
+        return address;
+    }
     const auto single_range = WriteBlockImpl<false, true>(gpu_dest_addr, src_buffer, size,
                                                           VideoCommon::CacheType::None);
     accumulator->Add(gpu_dest_addr, size);

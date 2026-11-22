@@ -1360,10 +1360,10 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
+    const bool rewritten_every_draw = size <= channel_state->uniform_buffer_skip_cache_size;
     const bool gpu_modified = gpu_write_history.MayHaveWrites(device_addr, size) &&
                               memory_tracker.IsRegionGpuModified(device_addr, size);
     if constexpr (!IS_OPENGL) {
-        const bool rewritten_every_draw = size <= channel_state->uniform_buffer_skip_cache_size;
         const bool in_place = guest_ram_imported && binding.buffer_id != NULL_BUFFER_ID &&
                               !rewritten_every_draw && !gpu_modified &&
                               !device_memory.IsExcludedFromInPlace(device_addr, size);
@@ -1381,13 +1381,13 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     if constexpr (!IS_OPENGL) {
         // A CPU-written uniform range that an earlier draw of this frame uses cannot be
         // uploaded ahead of the render pass. Stream a copy instead of ending the pass.
-        stream_modified_uniform = binding.buffer_id != NULL_BUFFER_ID &&
+        stream_modified_uniform = !rewritten_every_draw && !gpu_modified &&
+            binding.buffer_id != NULL_BUFFER_ID &&
             runtime.ShouldStreamUniformBuffer(buffer, buffer.Offset(device_addr), size) &&
             memory_tracker.IsRegionCpuModified(device_addr, size);
     }
     const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
-                                 (size <= channel_state->uniform_buffer_skip_cache_size ||
-                                  stream_modified_uniform) &&
+                                 (rewritten_every_draw || stream_modified_uniform) &&
                                  !gpu_modified;
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {

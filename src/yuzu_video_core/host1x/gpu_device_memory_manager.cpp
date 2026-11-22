@@ -412,7 +412,7 @@ void DeviceMemoryManager<Traits>::PrepareEngineWrite(DAddr addr, uint64_t size)
             (TestPageBit(excluded_pages, page) && !TestPageBit(in_place_pages, page))) {
             const u32 physical = compressed_physical_ptr[page];
             if (physical == 0 || (compressed_device_addr[physical - 1U] >> MULTI_FLAG_BITS) == 0) {
-                MarkEngineWritten(addr, size);
+                SetPageBit(engine_pages, page);
                 return;
             }
         }
