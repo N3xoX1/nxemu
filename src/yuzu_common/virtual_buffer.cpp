@@ -46,8 +46,9 @@ struct GuardRange {
     std::atomic<bool> lazy_commit{false};
 };
 constexpr size_t MinGuardSize = size_t{64} << 20;
+constexpr size_t MinLazyCommitSize = size_t{2} << 20;
 constexpr size_t LazyCommitChunk = size_t{64} << 10;
-std::array<GuardRange, 32> guard_ranges;
+std::array<GuardRange, 64> guard_ranges;
 std::atomic<size_t> active_range_limit{0};
 std::mutex guard_mutex; // Writers only. The exception handler must remain lock-free.
 PVOID guard_handler{};
@@ -215,7 +216,7 @@ void* AllocateMemoryPages(std::size_t size) noexcept {
 
 void* AllocateLazyMemoryPages(std::size_t size) noexcept {
 #ifdef _WIN32
-    if (size >= MinGuardSize && PageTableGuardEnabled()) {
+    if (size >= MinLazyCommitSize && PageTableGuardEnabled()) {
         void* base{VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_NOACCESS)};
         if (base != nullptr) {
             std::scoped_lock lock{guard_mutex};
@@ -243,7 +244,7 @@ void FreeMemoryPages(void* base, [[maybe_unused]] std::size_t size) noexcept {
         return;
     }
 #ifdef _WIN32
-    if (size >= MinGuardSize) {
+    if (size >= MinLazyCommitSize) {
         UnguardPages(base);
     }
     ASSERT(VirtualFree(base, 0, MEM_RELEASE));

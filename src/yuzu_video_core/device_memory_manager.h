@@ -155,7 +155,7 @@ public:
             return;
         }
         excluded_pages.resize((device_as_size >> page_bits) / 64);
-        in_place_ticks.resize(device_as_size >> page_bits);
+        in_place_ticks.resize_lazy(device_as_size >> page_bits);
         in_place_pages.resize((device_as_size >> page_bits) / 64);
         in_place_enabled.store(true, std::memory_order_release);
     }

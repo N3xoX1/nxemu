@@ -55,6 +55,7 @@ FP::FPCR A64EmitContext::FPCR(bool fpcr_controlled) const {
 
 A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_interface)
         : EmitX64(code), conf(conf), devirtualize_callbacks(conf.callbacks), jit_interface{jit_interface} {
+    link_sites.max_load_factor(0.85f);
     fastmem_patch_info.SetCodeBase(code.getCode());
     GenMemory128Accessors();
     GenFastmemFallbacks();
@@ -619,8 +620,9 @@ A64EmitX64::BlockDescriptor A64EmitX64::Emit(IR::Block& block) {
 
 void A64EmitX64::ClearCache() {
     EmitX64::ClearCache();
-    link_sites.clear();
-    pending_link_stubs.clear();
+    tsl::robin_map<CodePtr, LinkSite>{}.swap(link_sites);
+    link_sites.max_load_factor(0.85f);
+    std::vector<PendingLinkStub>{}.swap(pending_link_stubs);
     block_ranges.ClearCache();
     ClearFastDispatchTable();
     fastmem_patch_info.clear();
@@ -1418,7 +1420,7 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::LinkBlock terminal, IR::LocationDesc
     if (conf.enable_cycle_counting) {
         code.cmp(qword[rsp + ABI_SHADOW_SPACE + offsetof(StackLayout, cycles_remaining)], 0);
 
-        patch_information[terminal.next].jg.push_back(code.getCurr());
+        AddPatchSite(terminal.next, PatchKind::Jg, code.getCurr());
         if (const auto next_bb = GetBasicBlock(terminal.next)) {
             EmitPatchJg(terminal.next, next_bb->entrypoint);
         } else {
@@ -1427,7 +1429,7 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::LinkBlock terminal, IR::LocationDesc
     } else {
         code.cmp(dword[r15 + offsetof(A64JitState, halt_reason)], 0);
 
-        patch_information[terminal.next].jz.push_back(code.getCurr());
+        AddPatchSite(terminal.next, PatchKind::Jz, code.getCurr());
         if (const auto next_bb = GetBasicBlock(terminal.next)) {
             EmitPatchJz(terminal.next, next_bb->entrypoint);
         } else {
@@ -1448,7 +1450,7 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::LinkBlockFast terminal, IR::Location
         return;
     }
 
-    patch_information[terminal.next].jmp.push_back(code.getCurr());
+    AddPatchSite(terminal.next, PatchKind::Jmp, code.getCurr());
     if (auto next_bb = GetBasicBlock(terminal.next)) {
         EmitPatchJmp(terminal.next, next_bb->entrypoint);
     } else {
@@ -1656,24 +1658,17 @@ void A64EmitX64::Patch(const IR::LocationDescriptor& target_desc, CodePtr target
         return;
     }
     const PatchInformation& patch_info = iter->second;
-    const auto patch_site = [&](CodePtr site) {
+    const u64 rcx_value = reinterpret_cast<u64>(target_code_ptr ? target_code_ptr : code.GetReturnFromRunCodeAddress());
+    for (const PatchEntry& entry : patch_info.entries) {
+        const CodePtr site = PatchEntryPtr(entry);
+        if (entry.kind == PatchKind::MovRcx) {
+            u8* const imm64 = const_cast<u8*>(reinterpret_cast<const u8*>(site)) + LinkPadding(site, 2, 8) + 2;
+            std::atomic_ref<u64>{*reinterpret_cast<u64*>(imm64)}.store(rcx_value, std::memory_order_release);
+            continue;
+        }
         const tsl::robin_map<CodePtr, LinkSite>::const_iterator link = link_sites.find(site);
         ASSERT(link != link_sites.end());
         StoreRel32(link->second.rel32, target_code_ptr ? target_code_ptr : link->second.stub);
-    };
-    for (CodePtr site : patch_info.jg) {
-        patch_site(site);
-    }
-    for (CodePtr site : patch_info.jz) {
-        patch_site(site);
-    }
-    for (CodePtr site : patch_info.jmp) {
-        patch_site(site);
-    }
-    const u64 rcx_value = reinterpret_cast<u64>(target_code_ptr ? target_code_ptr : code.GetReturnFromRunCodeAddress());
-    for (CodePtr site : patch_info.mov_rcx) {
-        u8* const imm64 = const_cast<u8*>(reinterpret_cast<const u8*>(site)) + LinkPadding(site, 2, 8) + 2;
-        std::atomic_ref<u64>{*reinterpret_cast<u64*>(imm64)}.store(rcx_value, std::memory_order_release);
     }
 }
 

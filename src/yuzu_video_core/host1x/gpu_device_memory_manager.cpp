@@ -193,10 +193,12 @@ struct DeviceMemoryManagerAllocator
 template <typename Traits>
 DeviceMemoryManager<Traits>::DeviceMemoryManager(const IDeviceMemory & device_memory_) :
     physical_base{reinterpret_cast<const uintptr_t>(device_memory_.BackingBasePointer())},
-    device_inter{nullptr}, compressed_physical_ptr(device_as_size >> DEVICE_PAGEBITS),
-    compressed_device_addr(Common::AlignUp(device_memory_.BackingSize(), DEVICE_PAGESIZE) >> DEVICE_PAGEBITS),
-    cpu_backing_address(device_as_size >> DEVICE_PAGEBITS)
+    device_inter{nullptr}
 {
+    compressed_physical_ptr.resize_lazy(device_as_size >> DEVICE_PAGEBITS);
+    compressed_device_addr.resize_lazy(
+        Common::AlignUp(device_memory_.BackingSize(), DEVICE_PAGESIZE) >> DEVICE_PAGEBITS);
+    cpu_backing_address.resize_lazy(device_as_size >> DEVICE_PAGEBITS);
     impl = std::make_unique<DeviceMemoryManagerAllocator<Traits>>();
     cached_pages = std::make_unique<CachedPages>();
 
