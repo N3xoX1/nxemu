@@ -1,7 +1,8 @@
 {
    "Core" : {
       "ModuleDirectory-x64" : "..\\..\\..\\modules\\x64",
-      "ModuleDirectory-arm64" : "../../../modules/arm64"
+      "ModuleDirectory-arm64" : "../../../modules/arm64",
+      "GameDefaultsFile" : "../../../config/game_defaults.json"
    },
    "UI" : {
       "Language" : {

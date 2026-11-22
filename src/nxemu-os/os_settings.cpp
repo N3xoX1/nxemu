@@ -667,7 +667,7 @@ void InheritFallback(OsSetting & osSetting, const OsSetting & fallbackSetting)
 
 void OsSettingChanged(const char * setting, void * /*userData*/)
 {
-    ModuleSettingTable::SettingChanged(settings, setting);
+    ModuleSettingTable::SettingChanged(settings, "nxemu-os", setting);
 }
 
 namespace

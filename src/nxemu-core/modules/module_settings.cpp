@@ -112,6 +112,13 @@ const char * ModuleSettings::GetGameSectionSettings(const char * section) const
     return m_gameSectionSetting.c_str();
 }
 
+const char * ModuleSettings::GetGameSectionDefaults(const char * section) const
+{
+    JsonValue json = SettingsStore::GetInstance().GetGameDefaults(section);
+    m_gameSectionDefaults = json.isNull() ? "" : JsonStyledWriter().write(json);
+    return m_gameSectionDefaults.c_str();
+}
+
 void ModuleSettings::SetGameSectionSettings(const char * section, const char * json)
 {
     JsonValue root;

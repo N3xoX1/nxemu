@@ -737,7 +737,10 @@ void JoinStorageInfo(Info& base, Info& source) {
                    desc.cbuf_offset == existing.cbuf_offset && desc.count == existing.count;
         })};
         if (it != descriptors.end()) {
+            const bool written_directly = (it->is_written && !it->untracked_writes_only) ||
+                                          (desc.is_written && !desc.untracked_writes_only);
             it->is_written |= desc.is_written;
+            it->untracked_writes_only = it->is_written && !written_directly;
             continue;
         }
         descriptors.push_back(desc);
