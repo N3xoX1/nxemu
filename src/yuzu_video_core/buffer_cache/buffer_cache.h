@@ -390,8 +390,23 @@ std::pair<typename P::Buffer*, u32> BufferCache<P>::ObtainCPUBuffer(
 template <class P>
 void BufferCache<P>::BindGraphicsUniformBuffer(size_t stage, u32 index, GPUVAddr gpu_addr,
                                                u32 size) {
-    const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(gpu_addr);
     Binding& binding = channel_state->uniform_buffers[stage][index];
+    if constexpr (!IS_OPENGL) {
+        // Channel mappings are changed under the GPU execution lock. Until the
+        // generation changes, the same guest buffer resolves to the same address.
+        auto& source = channel_state->uniform_sources[stage][index];
+        const u64 mapping_generation = gpu_memory->MappingGeneration();
+        if (source.deleted_buffers_epoch != deleted_buffers_epoch) {
+            binding.buffer_id = BufferId{};
+        } else if (source.address == gpu_addr &&
+                   source.mapping_generation == mapping_generation && binding.size == size) {
+            return;
+        }
+        source = {.address = gpu_addr,
+                  .mapping_generation = mapping_generation,
+                  .deleted_buffers_epoch = deleted_buffers_epoch};
+    }
+    const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(gpu_addr);
     if (!device_addr) {
         binding = NULL_BINDING;
         return;
