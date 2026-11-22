@@ -335,15 +335,7 @@ void EmitX64::EmitVectorSetElement32(EmitContext& ctx, IR::Inst* inst) {
     const u8 index = args[1].GetImmediateU8();
     const Xbyak::Xmm source_vector = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (args[2].IsInXmm() && code.HasHostFeature(HostFeature::SSE41) && !BaselineLoadsAndImmediates()) {
-        // The element is in an XMM register (a vector load, LD1-LD4 to one lane): lane 0 of it
-        // goes to lane `index`, without a move to a GPR
-        const Xbyak::Xmm source_elem = ctx.reg_alloc.UseXmm(args[2]);
-
-        code.insertps(source_vector, source_elem, static_cast<u8>(index << 4));
-
-        ctx.reg_alloc.DefineValue(inst, source_vector);
-    } else if (code.HasHostFeature(HostFeature::SSE41)) {
+    if (code.HasHostFeature(HostFeature::SSE41)) {
         const Xbyak::Reg32 source_elem = ctx.reg_alloc.UseGpr(args[2]).cvt32();
 
         code.pinsrd(source_vector, source_elem, index);
@@ -366,18 +358,7 @@ void EmitX64::EmitVectorSetElement64(EmitContext& ctx, IR::Inst* inst) {
     const u8 index = args[1].GetImmediateU8();
     const Xbyak::Xmm source_vector = ctx.reg_alloc.UseScratchXmm(args[0]);
 
-    if (args[2].IsInXmm() && !BaselineLoadsAndImmediates()) {
-        // The element is in an XMM register (a vector load): its low 64 bits, without a move to a GPR
-        const Xbyak::Xmm source_elem = ctx.reg_alloc.UseXmm(args[2]);
-
-        if (index == 0) {
-            code.movsd(source_vector, source_elem);
-        } else {
-            code.punpcklqdq(source_vector, source_elem);
-        }
-
-        ctx.reg_alloc.DefineValue(inst, source_vector);
-    } else if (code.HasHostFeature(HostFeature::SSE41)) {
+    if (code.HasHostFeature(HostFeature::SSE41)) {
         const Xbyak::Reg64 source_elem = ctx.reg_alloc.UseGpr(args[2]);
 
         code.pinsrq(source_vector, source_elem, index);

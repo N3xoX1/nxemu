@@ -97,24 +97,9 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
     }
 
     const Xbyak::Reg64 vaddr = ctx.reg_alloc.UseGpr(args[1]);
-    // A 32/64-bit vector load (LDR S/D, LDP S/D) on the fastmem path goes straight into an XMM
-    // register (movd/movq clear the rest), not through a GPR
-    bool to_xmm = false;
-    if constexpr (AxxEmitX64::has_xmm_read_fallbacks && (bitsize == 32 || bitsize == 64)) {
-        const auto acc = args[2].GetImmediateAccType();
-        to_xmm = fastmem_marker && !ordered && (acc == IR::AccType::VEC || acc == IR::AccType::VECSTREAM) && !BaselineLoadsAndImmediates();
-    }
-    const int value_idx = (bitsize == 128 || to_xmm) ? ctx.reg_alloc.ScratchXmm().getIdx() : ctx.reg_alloc.ScratchGpr().getIdx();
+    const int value_idx = bitsize == 128 ? ctx.reg_alloc.ScratchXmm().getIdx() : ctx.reg_alloc.ScratchGpr().getIdx();
 
-    void (*wrapped_fn)() = nullptr;
-    if constexpr (AxxEmitX64::has_xmm_read_fallbacks) {
-        if (to_xmm) {
-            wrapped_fn = read_fallbacks_xmm[std::make_tuple(ordered, bitsize, vaddr.getIdx(), value_idx)];
-        }
-    }
-    if (!to_xmm) {
-        wrapped_fn = read_fallbacks[std::make_tuple(ordered, bitsize, vaddr.getIdx(), value_idx)];
-    }
+    const auto wrapped_fn = read_fallbacks[std::make_tuple(ordered, bitsize, vaddr.getIdx(), value_idx)];
 
     SharedLabel abort = GenSharedLabel(), end = GenSharedLabel();
 
@@ -123,16 +108,7 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
         bool require_abort_handling;
         const auto src_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
 
-        const void* location = code.getCurr();
-        if (to_xmm) {
-            if constexpr (bitsize == 32) {
-                code.movd(Xbyak::Xmm{value_idx}, dword[src_ptr]);
-            } else if constexpr (bitsize == 64) {
-                code.movq(Xbyak::Xmm{value_idx}, qword[src_ptr]);
-            }
-        } else {
-            location = EmitReadMemoryMov<bitsize>(code, value_idx, src_ptr, ordered);
-        }
+        const auto location = EmitReadMemoryMov<bitsize>(code, value_idx, src_ptr, ordered);
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
             code.L(*abort);
@@ -166,8 +142,6 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
     code.L(*end);
 
     if constexpr (bitsize == 128) {
-        ctx.reg_alloc.DefineValue(inst, Xbyak::Xmm{value_idx});
-    } else if (to_xmm) {
         ctx.reg_alloc.DefineValue(inst, Xbyak::Xmm{value_idx});
     } else {
         ctx.reg_alloc.DefineValue(inst, Xbyak::Reg64{value_idx});

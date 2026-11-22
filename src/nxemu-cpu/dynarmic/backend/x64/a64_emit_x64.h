@@ -111,9 +111,6 @@ protected:
     void GenMemory128Accessors();
 
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks;
-    // 32/64-bit reads into an XMM register (vector loads), by (ordered, bitsize, vaddr, xmm)
-    std::map<std::tuple<bool, size_t, int, int>, void (*)()> read_fallbacks_xmm;
-    static constexpr bool has_xmm_read_fallbacks = true;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> write_fallbacks;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> exclusive_write_fallbacks;
     void GenFastmemFallbacks();
