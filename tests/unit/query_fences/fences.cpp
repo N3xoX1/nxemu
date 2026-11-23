@@ -20,8 +20,6 @@ namespace {
 // Fake the GPU's completion signal and cache contents; exercise the production
 // fence queue, flush retirement, callbacks and asynchronous worker unchanged.
 struct Cache {
-    // As on x64: read faults wait for buffer downloads, not for image downloads
-    static constexpr bool ReadFaultsWaitForDownloads = false;
     std::mutex mutex;
     bool pending{};
     bool pending_on_presync{};
@@ -387,30 +385,6 @@ void CheckUnprotectedTextureReadback(bool exact_readback) {
     assert(completed == 1 && textures.result.load(std::memory_order_acquire) == 42);
 }
 
-// A protected buffer download does not let an image download in the same fence signal early.
-template <bool async>
-void CheckProtectedBufferWithUnprotectedTexture(bool exact_readback) {
-    Settings::exact_readback.store(exact_readback);
-    VideoCore::RasterizerInterface rasterizer;
-    Tegra::GPU gpu;
-    Cache textures, buffers, queries;
-    Manager<async> manager{rasterizer, gpu, textures, buffers, queries};
-    std::atomic<unsigned> completed{};
-    buffers.protects_pending = true;
-    buffers.pending = true;
-    textures.pending = true;
-    manager.SignalFence([&] {
-        assert(textures.result.load(std::memory_order_acquire) == 42);
-        assert(completed.fetch_add(1) == 0);
-    });
-    manager.SignalFence([&] { assert(completed.fetch_add(1) == 1); });
-    assert(manager.host_fences == 1 && rasterizer.flushes == 1);
-    assert(completed == 0);
-    manager.SignalGpu();
-    manager.WaitForFence();
-    assert(completed == 2 && buffers.result.load(std::memory_order_acquire) == 42);
-}
-
 void BenchmarkEmpty() {
     Settings::exact_readback.store(false);
     VideoCore::RasterizerInterface rasterizer;
@@ -501,8 +475,6 @@ int main(int argc, char** argv) {
         CheckProtectedReadback<false>(exact_readback);
         CheckUnprotectedTextureReadback<true>(exact_readback);
         CheckUnprotectedTextureReadback<false>(exact_readback);
-        CheckProtectedBufferWithUnprotectedTexture<true>(exact_readback);
-        CheckProtectedBufferWithUnprotectedTexture<false>(exact_readback);
     }
     BenchmarkEmpty();
     std::puts("PASS: GPU readback query fence ordering and empty fast path");

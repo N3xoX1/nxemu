@@ -1012,10 +1012,8 @@ bool RasterizerVulkan::CommitReadbacksForEarlySignal() {
     if (pending) {
         fence_manager.SignalReference();
     }
-    std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
-    const bool images_protected =
-        TextureCache::ReadFaultsWaitForDownloads || !texture_cache.HasUnpublishedDownloads();
-    return images_protected && !buffer_cache.HasUnprotectedDownloads();
+    std::scoped_lock lock{buffer_cache.mutex};
+    return !buffer_cache.HasUnprotectedDownloads();
 }
 
 VideoCore::SharedPageAccess RasterizerVulkan::ObserveSharedPage(DAddr addr, u64 size) {

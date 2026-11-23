@@ -212,7 +212,6 @@ struct Dma {
   mutable std::array<std::vector<std::pair<u32, u32>>, 8> front_sinks;
   mutable std::vector<Engines::Puller::MethodCall> pending_puller;
   mutable std::array<u32, non_puller_methods> front_puller_regs{};
-  mutable std::vector<std::string> *events{};
   mutable std::vector<std::pair<u32, u32>> acquire_checks;
   bool acquires_met{};
   bool IsAcquireMet(u32 m, u32 a) const {
@@ -222,14 +221,12 @@ struct Dma {
   mutable bool unmet_acquire_seen{};
   struct Gpu {
     struct Queue {
-      std::vector<std::string> **events;
       bool idle = true;
-      void WaitIdle() { (*events)->push_back("wait"); }
       bool IsIdle() const { return idle; }
     } queue;
     Queue &BackQueue() { return queue; }
   };
-  mutable Gpu gpu{{&events}};
+  mutable Gpu gpu;
   void UpdateUniformPrefetchAtAcquire(u32, u32) const;
   void ResumeUniformPrefetch() const;
   bool threaded{};
@@ -374,7 +371,6 @@ void UniformPrefetchStopTests() {
   PrefetchEngine engine(events);
   Dma d;
   d.threaded = true;
-  d.events = &events;
   d.maxwell3d_engine = &engine;
   const u32 high = u32(BufferMethods::SemaphoreAddressHigh);
   const u32 operation = u32(BufferMethods::SemaphoreOperation);
@@ -388,10 +384,14 @@ void UniformPrefetchStopTests() {
         "the decode side lost a puller register");
   Check(events == std::vector<std::string>{"stop", "stop"}, "an unmet acquire kept prefetching");
 
+  d.gpu.queue.idle = false;
   events.clear();
   d.ResumeUniformPrefetch();
-  Check(events == std::vector<std::string>{"wait", "start"},
+  Check(events.empty(),
         "prefetch resumed before the GPU thread ran the acquire");
+  d.gpu.queue.idle = true;
+  d.ResumeUniformPrefetch();
+  Check(events == std::vector<std::string>{"start"}, "prefetch never resumed after the acquire");
   events.clear();
   d.ResumeUniformPrefetch();
   Check(events == std::vector<std::string>{"start"}, "a met command list waited again");
@@ -408,10 +408,13 @@ void UniformPrefetchStopTests() {
   events.clear();
   d.ProcessCommands(std::span(c).last(2));
   d.ResumeUniformPrefetch();
-  Check(events == std::vector<std::string>{"stop", "wait", "start"},
+  Check(events == std::vector<std::string>{"stop"},
         "a semaphore met ahead of queued work kept prefetching");
+  d.gpu.queue.idle = true;
+  d.ResumeUniformPrefetch();
   const u32 syncpoint = u32(BufferMethods::SyncpointOperation);
   Append(c, syncpoint, {0x0});
+  d.gpu.queue.idle = false;
   events.clear();
   d.ProcessCommands(std::span(c).last(2));
   d.ResumeUniformPrefetch();

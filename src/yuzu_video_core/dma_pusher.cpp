@@ -466,6 +466,12 @@ void DmaPusher::DrainMaxwell3DMemoryWrites(GPUVAddr address, size_t size) const
 {
     if (IsThreaded())
     {
+        // Default and Unsafe DMA keep GPU-backed parameters on the execution thread. Safe
+        // DMA also orders writes to the command stream before the decoder reads it.
+        if (!Settings::IsDMALevelSafe() || size == 0)
+        {
+            return;
+        }
         // Inline uploads don't show in the GPU dirty ranges, so queued work that may write this
         // entry must run before its commands are fetched or its parameters classified.
         PublishMaxwell3D();
@@ -608,11 +614,10 @@ void DmaPusher::ResumeUniformPrefetch() const
     {
         return;
     }
-    if (unmet_acquire_seen && IsThreaded())
+    if (unmet_acquire_seen && IsThreaded() && !gpu.BackQueue().IsIdle())
     {
-        // A copy must not read guest memory before the GPU thread ran the acquire
-        PublishMaxwell3D();
-        gpu.BackQueue().WaitIdle();
+        // Draws bind uniforms on the execution thread until prefetch can safely resume.
+        return;
     }
     unmet_acquire_seen = false;
     maxwell3d_engine->StartUniformPrefetch();

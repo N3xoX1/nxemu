@@ -182,7 +182,6 @@ private:
         // GPU fence is needed only after that work has been materialized.
         query_cache.PrepareAsyncFlushes();
         const bool should_flush = ShouldFlush();
-        const bool unprotected_image_flush = HasUnprotectedImageFlushes();
         CommitAsyncFlushes();
 
         if constexpr (can_async_check) {
@@ -193,8 +192,7 @@ private:
         // their completion signal has run inline. Only a readback or an earlier
         // delayed signal requires Normal to defer this completion signal. Where pending
         // readbacks fault on CPU access, a readback alone does not either.
-        const bool unprotected_flush =
-            should_flush && (!buffer_cache.PendingDownloadsProtected() || unprotected_image_flush);
+        const bool unprotected_flush = should_flush && !buffer_cache.PendingDownloadsProtected();
         const bool delay_fence = force_delay || Settings::IsGpuReadbackExact() ||
                                  unprotected_flush || pending_delayed_fences != 0;
 
@@ -356,15 +354,6 @@ private:
         std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
         return texture_cache.HasUncommittedFlushes() || buffer_cache.HasUncommittedFlushes() ||
                query_cache.HasUncommittedFlushes();
-    }
-
-    bool HasUnprotectedImageFlushes() const {
-        if constexpr (TTextureCache::ReadFaultsWaitForDownloads) {
-            return false;
-        } else {
-            std::scoped_lock lock{texture_cache.mutex};
-            return texture_cache.HasUncommittedFlushes();
-        }
     }
 
     void PopAsyncFlushes() {
