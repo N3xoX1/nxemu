@@ -104,7 +104,7 @@ public:
         return threaded;
     }
 
-    using WriteRanges = std::vector<std::pair<GPUVAddr, GPUVAddr>>;
+    using WriteRanges = std::vector<std::pair<DAddr, DAddr>>;
     enum class Writes { Anywhere, AddedRanges, Nothing };
 
     /// Decode thread: queues work. Runs it at once without the decode thread.
@@ -112,7 +112,7 @@ public:
 
     /// Decode thread, without a lock: only it adds and reads the write ranges
     void AddWrites(const WriteRanges& ranges);
-    bool MayWrite(GPUVAddr begin, GPUVAddr end);
+    bool MayWrite(DAddr begin, DAddr end);
 
     /// Decode thread: waits until the GPU thread has run all queued work
     void WaitIdle();
@@ -131,11 +131,20 @@ public:
     /// GPU thread: takes all queued work, false when woken without any
     bool PopWait(std::deque<Work>& out, std::stop_token stop_token, const std::atomic<bool>& wake,
                  const std::atomic<bool>& service);
+    /// GPU thread: after each work item, so MayWrite sees progress within a batch
+    void MarkRun();
     void FinishMany(u64 count);
     void Notify();
     void Stop();
 
 private:
+    struct QueuedWrite {
+        DAddr begin;
+        DAddr end;
+        u64 push;
+    };
+
+    void DropFinishedWrites(u64 finished);
     void ClearWrites();
 
     friend class ThreadManager;
@@ -147,11 +156,12 @@ private:
     std::deque<Work> items;
     u64 pushed{};
     u64 done{};
-    WriteRanges write_ranges;
-    bool writes_anywhere{};
+    std::vector<QueuedWrite> queued_writes;
+    u64 anywhere_until_push{};
     bool stopping{};
     /// The GPU thread sleeps in PopWait, under `mutex`
     bool back_waiting{};
+    std::atomic<u64> run_spin{};
     /// Mirrors of the counters, so WaitIdle can return without the lock
     std::atomic<u64> pushed_spin{};
     std::atomic<u64> done_spin{};

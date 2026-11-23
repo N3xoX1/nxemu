@@ -145,8 +145,7 @@ public:
         return true;
     }
 
-    /// HLE macros only. Passes what Execute writes to Maxwell3D::FrontMemoryWrite, false when it
-    /// may write memory it can't tell.
+    /// Passes every write Execute makes to Maxwell3D::FrontMemoryWrite, false when it can't name them
     virtual bool FrontMemoryWrites([[maybe_unused]] const std::vector<u32>& parameters,
                                    [[maybe_unused]] bool params_final) {
         return false;

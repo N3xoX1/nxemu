@@ -326,9 +326,9 @@ public:
     explicit HLE_MultiDrawIndexedIndirectCount(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
     bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
-        // The fallback writes each draw's index to the bound constant buffer
-        maxwell3d.FrontMemoryWrite(maxwell3d.front_regs.const_buffer.Address() + 0x648,
-                                   sizeof(u32));
+        constexpr u32 FallbackDrawIndexOffset = 0x648;
+        maxwell3d.FrontMemoryWrite(
+            maxwell3d.front_regs.const_buffer.Address() + FallbackDrawIndexOffset, sizeof(u32));
         return true;
     }
 

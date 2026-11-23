@@ -210,6 +210,13 @@ bool DmaPusher::Step()
             // The rasterizer runs on the GPU thread: flush there, then read here
             const GPUVAddr address = dma_state.dma_get;
             const size_t size = header.size * sizeof(u32);
+            // Queued draws mark their shader writes GPU modified only when they run. Waiting for them
+            // at High, the desktop default, would undo the decode overlap, so only Safe does.
+            if (Settings::IsDMALevelSafe())
+            {
+                DrainMaxwell3D();
+                gpu.BackQueue().WaitIdle();
+            }
             if (memory_manager.IsMemoryDirty(address, size))
             {
                 DrainMaxwell3D();
@@ -449,13 +456,16 @@ void DmaPusher::DrainMaxwell3DMemoryWrites(GPUVAddr address, size_t size) const
 {
     if (IsThreaded())
     {
-        // A later GP entry may be written by any preceding engine, including CPU-side
-        // inline uploads which do not appear in the GPU dirty ranges. Retire those
-        // methods before fetching commands or classifying their parameter memory.
+        // Inline uploads don't show in the GPU dirty ranges, so queued work that may write this
+        // entry must run before its commands are fetched or its parameters classified.
         DrainMaxwell3D();
-        if (gpu.BackQueue().MayWrite(address, address + size))
+        for (const auto & [device_address, device_size] : memory_manager.GetSubmappedDeviceRange(address, size))
         {
-            gpu.BackQueue().WaitIdle();
+            if (gpu.BackQueue().MayWrite(device_address, device_address + device_size))
+            {
+                gpu.BackQueue().WaitIdle();
+                break;
+            }
         }
     }
     else if (maxwell3d_engine != nullptr)

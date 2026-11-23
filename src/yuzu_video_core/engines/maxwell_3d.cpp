@@ -718,9 +718,13 @@ void Maxwell3D::FrontMethodCall(u32 method, u32 argument, u32 nonshadow_argument
         stream_writes_memory = true;
         return;
     case MAXWELL3D_REG_INDEX(report_semaphore.query):
-        FrontMemoryWrite(front_regs.report_semaphore.Address(), sizeof(LongQueryReport));
+    {
+        const u64 report_size =
+            front_regs.report_semaphore.query.short_query != 0 ? sizeof(u32) : sizeof(LongQueryReport);
+        FrontMemoryWrite(front_regs.report_semaphore.Address(), report_size);
         stream_writes_memory = true;
         return;
+    }
     case MAXWELL3D_REG_INDEX(launch_dma):
     case MAXWELL3D_REG_INDEX(inline_data):
         stream_writes_anywhere = true;
@@ -890,7 +894,19 @@ void Maxwell3D::Publish(bool verify)
     hle_count = 0;
     stream_run_open = false;
     stream_writes_memory = false;
-    back_queue->AddWrites(stream_write_ranges);
+    if (back_queue->IsThreaded())
+    {
+        // Remaps wait for the queue to drain, so these device ranges hold until the writes run
+        for (const auto & [begin, end] : stream_write_ranges)
+        {
+            for (const auto & [address, size] : memory_manager.GetSubmappedDeviceRange(begin, end - begin))
+            {
+                device_write_ranges.emplace_back(address, address + size);
+            }
+        }
+        back_queue->AddWrites(device_write_ranges);
+        device_write_ranges.clear();
+    }
     stream_write_ranges.clear();
     const auto writes = std::exchange(stream_writes_anywhere, false)
                             ? VideoCommon::GPUThread::BackQueue::Writes::Anywhere

@@ -44,7 +44,10 @@ void QueueTests() {
         while (!stop.stop_requested()) {
             if (!queue.PopWait(batch, stop, wake, service)) continue;
             const auto count = batch.size();
-            for (auto& work : batch) work();
+            for (auto& work : batch) {
+                work();
+                queue.MarkRun();
+            }
             batch.clear();
             queue.FinishMany(count);
         }
@@ -71,6 +74,18 @@ void QueueTests() {
     release.notify_one();
     queue.WaitIdle();
     Check(!queue.MayWrite(0x1000, 0x1100), "finished work still made decode wait");
+
+    queue.AddWrites({{0x1000, 0x1100}});
+    queue.Push([] {}, BackQueue::Writes::AddedRanges);
+    queue.Push([] {});
+    queue.Push([&] { release.wait(true); }, BackQueue::Writes::Nothing);
+    while (queue.run_spin.load() + 1 < queue.pushed_spin.load()) {
+        std::this_thread::yield();
+    }
+    Check(!queue.MayWrite(0x1000, 0x1100), "finished work made decode wait for the work after it");
+    release.store(false);
+    release.notify_one();
+    queue.WaitIdle();
 
     std::atomic<bool> decoder_ready{}, stopping{}, fence_ready{};
     manager.decode_thread = std::jthread([&](std::stop_token stop) {

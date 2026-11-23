@@ -26,12 +26,14 @@ void BackQueue::Push(Work&& work, Writes writes) {
         work();
         return;
     }
-    writes_anywhere |= writes == Writes::Anywhere;
     bool wake;
     {
         std::scoped_lock lock{mutex};
         items.push_back(std::move(work));
         ++pushed;
+        if (writes == Writes::Anywhere) {
+            anywhere_until_push = pushed;
+        }
         pushed_spin.store(pushed, std::memory_order_release);
         // Wake the GPU thread only when it sleeps
         wake = back_waiting;
@@ -59,47 +61,61 @@ void BackQueue::AddWrites(const WriteRanges& ranges) {
     if (!threaded) {
         return;
     }
-    for (const auto& range : ranges) {
-        if (!write_ranges.empty() && range.first <= write_ranges.back().second &&
-            range.second >= write_ranges.back().first) {
-            write_ranges.back().first = std::min(write_ranges.back().first, range.first);
-            write_ranges.back().second = std::max(write_ranges.back().second, range.second);
+    // The ranges belong to the next push, which callers make right after adding them
+    const u64 push = pushed_spin.load(std::memory_order_relaxed) + 1;
+    for (const auto& [begin, end] : ranges) {
+        if (!queued_writes.empty() && begin <= queued_writes.back().end &&
+            end >= queued_writes.back().begin) {
+            QueuedWrite& last = queued_writes.back();
+            last.begin = std::min(last.begin, begin);
+            last.end = std::max(last.end, end);
+            last.push = push;
         } else {
-            write_ranges.push_back(range);
+            queued_writes.push_back({begin, end, push});
         }
     }
-    if (write_ranges.size() <= MaxWriteRanges) {
+    if (queued_writes.size() <= MaxWriteRanges) {
         return;
     }
-    std::ranges::sort(write_ranges);
+    DropFinishedWrites(run_spin.load(std::memory_order_acquire));
+    if (queued_writes.size() <= MaxWriteRanges * 3 / 4) {
+        return;
+    }
+    std::ranges::sort(queued_writes, {}, &QueuedWrite::begin);
     size_t last = 0;
-    for (size_t i = 1; i < write_ranges.size(); ++i) {
-        if (write_ranges[i].first <= write_ranges[last].second) {
-            write_ranges[last].second = std::max(write_ranges[last].second, write_ranges[i].second);
+    for (size_t i = 1; i < queued_writes.size(); ++i) {
+        if (queued_writes[i].begin <= queued_writes[last].end) {
+            queued_writes[last].end = std::max(queued_writes[last].end, queued_writes[i].end);
+            queued_writes[last].push = std::max(queued_writes[last].push, queued_writes[i].push);
         } else {
-            write_ranges[++last] = write_ranges[i];
+            queued_writes[++last] = queued_writes[i];
         }
     }
-    write_ranges.resize(last + 1);
-    if (write_ranges.size() > MaxWriteRanges * 3 / 4) {
-        write_ranges.clear();
-        writes_anywhere = true;
+    queued_writes.resize(last + 1);
+    if (queued_writes.size() > MaxWriteRanges * 3 / 4) {
+        queued_writes.clear();
+        anywhere_until_push = push;
     }
 }
 
-bool BackQueue::MayWrite(GPUVAddr begin, GPUVAddr end) {
-    if (done_spin.load(std::memory_order_acquire) >= pushed_spin.load(std::memory_order_relaxed)) {
-        ClearWrites();
-        return false;
+bool BackQueue::MayWrite(DAddr begin, DAddr end) {
+    const u64 finished = run_spin.load(std::memory_order_acquire);
+    if (finished < anywhere_until_push) {
+        return true;
     }
-    return writes_anywhere || std::ranges::any_of(write_ranges, [begin, end](const auto& range) {
-               return begin < range.second && end > range.first;
-           });
+    DropFinishedWrites(finished);
+    return std::ranges::any_of(queued_writes, [begin, end](const QueuedWrite& write) {
+        return begin < write.end && end > write.begin;
+    });
+}
+
+void BackQueue::DropFinishedWrites(u64 finished) {
+    std::erase_if(queued_writes, [finished](const QueuedWrite& write) { return write.push <= finished; });
 }
 
 void BackQueue::ClearWrites() {
-    write_ranges.clear();
-    writes_anywhere = false;
+    queued_writes.clear();
+    anywhere_until_push = 0;
 }
 
 bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
@@ -121,12 +137,17 @@ bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
     return true;
 }
 
+void BackQueue::MarkRun() {
+    run_spin.store(run_spin.load(std::memory_order_relaxed) + 1, std::memory_order_release);
+}
+
 void BackQueue::FinishMany(u64 count) {
     bool idle;
     {
         std::scoped_lock lock{mutex};
         done += count;
         done_spin.store(done, std::memory_order_release);
+        run_spin.store(done, std::memory_order_release);
         idle = done == pushed;
     }
     if (idle) {
@@ -196,6 +217,7 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
                     break;
                 }
                 work();
+                state.back.MarkRun();
                 rasterizer->ServiceInPlaceWaits();
             }
             batch.clear();

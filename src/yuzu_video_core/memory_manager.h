@@ -132,6 +132,9 @@ public:
     boost::container::small_vector<std::pair<GPUVAddr, std::size_t>, 32> GetSubmappedRange(
         GPUVAddr gpu_addr, std::size_t size) const;
 
+    boost::container::small_vector<std::pair<DAddr, std::size_t>, 32> GetSubmappedDeviceRange(
+        GPUVAddr gpu_addr, std::size_t size) const;
+
     GPUVAddr Map(GPUVAddr gpu_addr, DAddr dev_addr, std::size_t size,
                  PTEKind kind = PTEKind::INVALID, bool is_big_pages = true);
     GPUVAddr MapSparse(GPUVAddr gpu_addr, std::size_t size, bool is_big_pages = true);

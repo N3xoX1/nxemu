@@ -3437,6 +3437,7 @@ private:
     bool stream_run_open{};
     bool stream_writes_memory{};
     std::vector<std::pair<GPUVAddr, GPUVAddr>> stream_write_ranges;
+    std::vector<std::pair<DAddr, DAddr>> device_write_ranges;
     bool stream_writes_anywhere{};
     bool stream_draining{};
     std::vector<HLECall> hle_calls;
