@@ -1,4 +1,23 @@
 {
+   "0100B7C00933A000" : {
+      "name" : "Pikmin 4",
+      "reason" : "Reads its exposure from a GPU readback as soon as it sees the fence; with background readbacks the lights stay overexposed",
+      "nxemu-video" : {
+         "video" : {
+            "accuracy_level" : "High",
+            "background_gpu_readbacks" : false
+         }
+      }
+   },
+   "0100C9C00E25C000" : {
+      "name" : "Mario Golf: Super Rush",
+      "reason" : "Flickers when it reads a GPU result before the copy is done",
+      "nxemu-video" : {
+         "video" : {
+            "background_gpu_readbacks" : false
+         }
+      }
+   },
    "0100F43008C44000" : {
       "name" : "Pokemon Legends: Z-A",
       "reason" : "Refills its culling job list on the CPU while the GPU uses it; the station roof vanishes",

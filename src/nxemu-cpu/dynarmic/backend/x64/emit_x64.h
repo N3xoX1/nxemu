@@ -145,6 +145,12 @@ inline bool OutOfLineRecipEstimate() {
     return (jit_test_variant & 8192) != 0;
 }
 
+/// Test variant bit 16384: each fastmem access and tracked write keeps its own cold code (the code
+/// generation before), for differential tests
+inline bool FallbackCallPerAccess() {
+    return (jit_test_variant & 16384) != 0;
+}
+
 /// Test variant bit 32768: FRINTA calls the FP code (the code generation before) instead of the
 /// inline rounding, for differential tests
 inline bool OutOfLineRoundTiesAway() {

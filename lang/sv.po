@@ -467,12 +467,45 @@ msgstr "Låter spel läsa vad grafikprocessorn ritade utan att vänta på den."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid ""
-"Needs High or Extreme accuracy. Much faster in some games, keeping High "
-"drawing. What games read can be a frame late."
+"Only with High accuracy. Much faster in some games, keeping High drawing. "
+"What games read can be a frame late."
 msgstr ""
-"Kräver hög eller extrem noggrannhet. I vissa spel är det mycket snabbare och "
+"Bara med hög noggrannhet. I vissa spel är det mycket snabbare och "
 "behåller ritning med hög noggrannhet. Det som spel läser kan ligga en "
 "bildruta efter."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "Hastighetshack"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid ""
+"On, these settings can gain FPS, but can cause halos or corruption in some "
+"games. Turn one off in the settings of a game that shows it; some games have"
+" it off already."
+msgstr ""
+"När de är på kan de här inställningarna ge högre FPS, men orsaka halor eller"
+" bildfel i vissa spel. Stäng av en i inställningarna för ett spel som visar "
+"det; vissa spel har den redan avstängd."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "Återläsning i bakgrunden"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "Kan ge högre FPS, men orsaka halor eller bildfel i vissa spel."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid ""
+"Needs Vulkan and reactive flushing. On, games go on while the GPU copies "
+"what they will read, and can read an old value. Off, they wait for the copy;"
+" fast readback can still skip some waits."
+msgstr ""
+"Kräver Vulkan och reaktiv tömning. På fortsätter spelen medan "
+"grafikprocessorn kopierar det de ska läsa, och kan läsa ett gammalt värde. "
+"Av väntar de på kopian; snabb återläsning kan ändå hoppa över vissa "
+"väntetider."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Untracked shader writes"

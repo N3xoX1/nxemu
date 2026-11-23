@@ -77,12 +77,10 @@ bool IsUntrackedStoreReadbackSkipped()
     return runtime_skip_untracked_store_readback.load(std::memory_order_relaxed);
 }
 
-// High accuracy waits for host GPU completion before publishing guest fences.
-// Fast readback permits immediate ordinary fences only without pending readbacks.
-// GPU-backed query results always retire safely.
 bool IsGpuReadbackExact()
 {
-    return IsGPULevelHigh() && !runtime_fast_gpu_readback.load(std::memory_order_relaxed);
+    return IsGPULevelExtreme() ||
+           (IsGPULevelHigh() && !runtime_fast_gpu_readback.load(std::memory_order_relaxed));
 }
 
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info)
@@ -288,7 +286,8 @@ static VideoSetting settings[] = {
     {NXVideoSetting::SystemDMAAccuracy, "video", "dma_accuracy", &videoSettings.global_dma_accuracy, 0, 0, 2, true},
     {NXVideoSetting::SystemGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.global_gpu_command_synchronization, false, true},
     {NXVideoSetting::SystemSkipUntrackedStoreReadback, "video", "skip_untracked_store_readback", &videoSettings.global_skip_untracked_store_readback, false, true},
-    {NXVideoSetting::FastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, true, true},
+    {NXVideoSetting::SystemBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.global_background_gpu_readbacks, true},
+    {NXVideoSetting::SystemFastGpuReadback, "video", "fast_gpu_readback", &videoSettings.global_fast_gpu_readback, true},
     {NXVideoSetting::SystemVSyncMode, "video", "vsync_mode", &videoSettings.global_vsync_mode, VSyncMode::Fifo},
     {NXVideoSetting::SystemNvdecEmulation, "video", "nvdec_emulation", &videoSettings.global_nvdec_emulation, NvdecEmulation::Gpu, true},
 #ifdef _WIN32
@@ -326,6 +325,8 @@ static VideoSetting settings[] = {
     {NXVideoSetting::GameDMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, NXVideoSetting::SystemDMAAccuracy},
     {NXVideoSetting::GameGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, NXVideoSetting::SystemGpuCommandSynchronization},
     {NXVideoSetting::GameSkipUntrackedStoreReadback, "video", "skip_untracked_store_readback", &videoSettings.skip_untracked_store_readback, NXVideoSetting::SystemSkipUntrackedStoreReadback},
+    {NXVideoSetting::GameBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.background_gpu_readbacks, NXVideoSetting::SystemBackgroundGpuReadbacks},
+    {NXVideoSetting::GameFastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, NXVideoSetting::SystemFastGpuReadback},
     {NXVideoSetting::GameVSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, NXVideoSetting::SystemVSyncMode},
     {NXVideoSetting::GameNvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NXVideoSetting::SystemNvdecEmulation},
     {NXVideoSetting::GameAspectRatio, "video", "aspect_ratio", &videoSettings.aspect_ratio, NXVideoSetting::SystemAspectRatio},
@@ -470,7 +471,7 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
         runtime_skip_untracked_store_readback.store(videoSettings.skip_untracked_store_readback, std::memory_order_relaxed);
         return;
     }
-    if (strcmp(setting, NXVideoSetting::FastGpuReadback) == 0)
+    if (strcmp(setting, NXVideoSetting::GameFastGpuReadback) == 0)
     {
         runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
         return;

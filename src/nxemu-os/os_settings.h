@@ -3,6 +3,7 @@
 #include "player_input.h"
 #include "os_types.h"
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -71,6 +72,7 @@ struct OSSettings
 
     // Video
     bool use_reactive_flushing;
+    std::atomic<bool> background_gpu_readbacks;
     bool use_video_framerate;
 
     // Linux
