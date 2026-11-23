@@ -128,6 +128,9 @@ struct TestMemory : IDeviceMemory, IMemory {
     bool ProtectsReadCachedRegions() override {
         return false;
     }
+    bool ProtectsQueryResults() override {
+        return false;
+    }
     bool NceTrackReads(uint64_t vaddr) override {
         return false;
     }

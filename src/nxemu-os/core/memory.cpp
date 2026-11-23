@@ -2093,6 +2093,20 @@ bool Memory::ProtectsReadCachedRegions() {
 #endif
 }
 
+bool Memory::ProtectsQueryResults() {
+#if defined(__APPLE__)
+    return ProtectsReadCachedRegions();
+#elif defined(_M_X64) || defined(__x86_64__)
+    // Matches where RasterizerMarkRegionReadCached denies access. The fault waits for query
+    // results only, so ProtectsReadCachedRegions, which also covers buffer downloads, stays off.
+    return ProtectOnlyReadCachedPages() && impl->current_page_table &&
+           impl->current_page_table->fastmem_arena;
+#else
+    // An NCE fault invalidates the page without waiting for the result
+    return false;
+#endif
+}
+
 void Memory::RasterizerMarkRegionCached(uint64_t vaddr, uint64_t size, bool cached) {
     impl->RasterizerMarkRegionCached(vaddr, size, cached);
 }
