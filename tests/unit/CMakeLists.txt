@@ -161,6 +161,11 @@ target_compile_options(test_query_fences PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
 nxemu_unit_test(test_query_fences)
 
+add_executable(test_query_pending_results query_fences/pending_results.cpp)
+target_include_directories(test_query_pending_results PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(test_query_pending_results PRIVATE cxx_std_20)
+nxemu_unit_test(test_query_pending_results LINUX)
+
 add_executable(test_startup_wait session_lifecycle/startup_wait.cpp)
 target_include_directories(test_startup_wait PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(test_startup_wait PRIVATE cxx_std_20)

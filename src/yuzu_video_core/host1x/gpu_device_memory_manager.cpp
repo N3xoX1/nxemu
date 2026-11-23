@@ -731,6 +731,20 @@ bool DeviceMemoryManager<Traits>::ProtectsReadCachedPages()
 }
 
 template <typename Traits>
+bool DeviceMemoryManager<Traits>::ProtectsQueryResults()
+{
+    std::scoped_lock lk(process_guard);
+    bool any = false;
+    for (IMemory* memory : registered_processes)
+    {
+        if (memory == nullptr) continue;
+        if (!memory->ProtectsQueryResults()) return false;
+        any = true;
+    }
+    return any;
+}
+
+template <typename Traits>
 void DeviceMemoryManager<Traits>::UnregisterProcess(Asid asid)
 {
     std::scoped_lock lk(process_guard);

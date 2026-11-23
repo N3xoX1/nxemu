@@ -626,6 +626,8 @@ RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * po
                     area.deferred || deferred};
             return;
         }
+        // Fast readback publishes a query payload before the earlier results are written
+        impl->m_gpuCore->WaitPendingResults(address, size);
         if (area.startAddress <= address && end_address <= area.endAddress) [[likely]] {
             return;
         }
