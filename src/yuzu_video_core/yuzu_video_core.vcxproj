@@ -131,6 +131,7 @@
     <ClInclude Include="macro\macro_jit_x64.h" />
     <ClInclude Include="memory_manager.h" />
     <ClInclude Include="precompiled_headers.h" />
+    <ClInclude Include="default_presentation_profile.h" />
     <ClInclude Include="present.h" />
     <ClInclude Include="pte_kind.h" />
     <ClInclude Include="query_cache.h" />
@@ -443,6 +444,7 @@
     <ClCompile Include="vulkan_common\vma.cpp" />
     <ClCompile Include="vulkan_common\vulkan_debug_callback.cpp" />
     <ClCompile Include="vulkan_common\vulkan_device.cpp" />
+    <ClCompile Include="default_presentation_profile.cpp" />
     <ClCompile Include="vulkan_common\vulkan_instance.cpp" />
     <ClCompile Include="vulkan_common\vulkan_library.cpp" />
     <ClCompile Include="vulkan_common\vulkan_memory_allocator.cpp" />

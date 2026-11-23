@@ -9,6 +9,8 @@
 #include <nxemu-core/settings/core_settings.h>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/version.h>
+#include <nxemu-module-spec/presentation_profile.h>
+#include <nxemu-module-spec/video.h>
 #include <nxemu-os/os_settings_identifiers.h>
 #include <nxemu-video/video_settings_identifiers.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -301,6 +303,31 @@ void UiActivity::AppendIntSetting(const std::string & label, const char * key, i
                  });
 }
 
+namespace
+{
+// A presentation profile owns anti-aliasing, so show the value the renderer uses.
+int DisplayedSelectValue(const char * key)
+{
+    const int value = UiGameSettings::ReadInt(key);
+    if (strcmp(key, NXVideoSetting::SystemAntiAliasing) != 0)
+    {
+        return value;
+    }
+    const auto profile = static_cast<ScalingFilter>(UiGameSettings::ReadInt(NXVideoSetting::SystemScalingFilter));
+    return static_cast<int>(EffectiveProfileAntiAliasing(profile, RendererBackend::Vulkan, static_cast<AntiAliasing>(value)));
+}
+
+// Choosing anti-aliasing leaves the profile for the closest manual filter, as on desktop.
+void LeaveProfileForAntiAliasing()
+{
+    const auto profile = static_cast<ScalingFilter>(UiGameSettings::ReadInt(NXVideoSetting::SystemScalingFilter));
+    if (IsAutomaticScalingFilter(profile))
+    {
+        UiGameSettings::SetInt(NXVideoSetting::SystemScalingFilter, static_cast<int>(ManualFilterForProfile(profile)));
+    }
+}
+} // namespace
+
 void UiActivity::AppendSelectSetting(const Select & select)
 {
     std::string detail;
@@ -310,7 +337,7 @@ void UiActivity::AppendSelectSetting(const Select & select)
     }
     else
     {
-        const int value = UiGameSettings::ReadInt(select.key);
+        const int value = DisplayedSelectValue(select.key);
         detail = std::to_string(value);
         for (const Option & option : select.options)
         {
@@ -362,7 +389,9 @@ void UiActivity::BuildSelects()
           {TrMark("FIFO Relaxed"), 3, TrMark("Like FIFO, but tears briefly instead of stuttering when a frame is late")}},
          nullptr, nullptr},
         {TrMark("Window adapting filter"), NXVideoSetting::SystemScalingFilter,
-         {{TrMark("Nearest neighbor"), 0, TrMark("Crisp pixels. Can look blocky")},
+         {{TrMark("Performance"), static_cast<int>(ScalingFilter::AutoPerformance), TrMark("Favors smoother gameplay. Edges may look more jagged.")},
+          {TrMark("Balanced"), static_cast<int>(ScalingFilter::AutoQuality), TrMark("Keeps the picture sharp and smooths jagged edges, with some extra graphics work.")},
+          {TrMark("Nearest neighbor"), 0, TrMark("Crisp pixels. Can look blocky")},
           {TrMark("Bilinear"), 1, TrMark("Smooth and slightly soft")},
           {TrMark("Bicubic"), 2, TrMark("Smooth and a little sharper than bilinear")},
           {TrMark("Gaussian"), 3, TrMark("Very smooth and soft")},
@@ -913,7 +942,9 @@ void UiActivity::RenderGraphicsSettings()
     }
     AppendSelectSetting(SelectFor(NXVideoSetting::SystemVSyncMode));
     AppendSelectSetting(SelectFor(NXVideoSetting::SystemScalingFilter));
-    if (UiGameSettings::ReadInt(NXVideoSetting::SystemScalingFilter) == 5)
+    const int scalingFilter = UiGameSettings::ReadInt(NXVideoSetting::SystemScalingFilter);
+    if (scalingFilter == static_cast<int>(ScalingFilter::Fsr) ||
+        scalingFilter == static_cast<int>(ScalingFilter::AutoQuality))
     {
         AppendIntSetting(Tr("FSR sharpness"), NXVideoSetting::SystemFSPSharpness, 0, 200, "%");
     }
@@ -955,11 +986,20 @@ void UiActivity::RenderSettingChoices()
     if (m_settingChoice != nullptr)
     {
         const Select & select = *m_settingChoice;
-        const int current = UiGameSettings::ReadInt(select.key);
+        const int current = DisplayedSelectValue(select.key);
         for (const Option & option : select.options)
         {
             const std::string detail = select.optionDetail ? select.optionDetail(option) : Tr(option.detail);
-            AppendCheck(Tr(option.label), detail, current == option.value, [this, key = select.key, value = option.value] {
+            AppendCheck(Tr(option.label), detail, current == option.value, [this, key = select.key, value = option.value, current] {
+                if (strcmp(key, NXVideoSetting::SystemAntiAliasing) == 0)
+                {
+                    if (value == current)
+                    {
+                        GoBack();
+                        return;
+                    }
+                    LeaveProfileForAntiAliasing();
+                }
                 UiGameSettings::SetInt(key, value);
                 UiUtil::SaveSettings();
                 UiLanguage::Apply();

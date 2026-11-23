@@ -190,6 +190,8 @@ add_library(video_core STATIC
     memory_manager.cpp
     memory_manager.h
     precompiled_headers.h
+    default_presentation_profile.cpp
+    default_presentation_profile.h
     present.h
     present_sharpening.h
     area_sampling.h

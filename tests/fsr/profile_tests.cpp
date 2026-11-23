@@ -57,7 +57,7 @@ int main() {
     for (const auto profile : {ScalingFilter::AutoPerformance, ScalingFilter::AutoQuality}) {
         Require(ScalingFilterFromString(ScalingFilterToString(profile)) == profile);
         Require(ManualFilterForProfile(profile) == (profile == ScalingFilter::AutoQuality
-            ? ScalingFilter::Fsr : ScalingFilter::Bicubic));
+            ? ScalingFilter::Fsr : ScalingFilter::Bilinear));
         for (const auto backend : {RendererBackend::OpenGL, RendererBackend::Vulkan}) {
             for (const bool compiled : {false, true}) {
                 for (const auto saved_aa : {AntiAliasing::None, AntiAliasing::Smaa, AntiAliasing::Fxaa}) {
@@ -76,9 +76,10 @@ int main() {
     }
     videoSettings.scaling_filter = ScalingFilter::AutoPerformance;
     videoSettings.cas_sharpening_slider = 0;
+    Require(GetScalingFilter() == ScalingFilter::Bilinear);
     Require(GetScalingFilter() == ManualFilterForProfile(ScalingFilter::AutoPerformance));
     videoSettings.cas_sharpening_slider = 35;
-    Require(GetScalingFilter() == ScalingFilter::CasCatmullRomFast);
+    Require(GetScalingFilter() == ScalingFilter::CasBilinear);
     Require(GetPresentSharpening(ScalingFilter::AutoPerformance, 0, 25) == PresentSharpening::None);
     Require(GetPresentSharpening(ScalingFilter::AutoPerformance, 100, 25) == PresentSharpening::Cas);
     videoSettings.scaling_filter = ScalingFilter::AutoQuality;
