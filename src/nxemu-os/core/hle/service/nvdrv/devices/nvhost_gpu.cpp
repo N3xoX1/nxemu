@@ -6,6 +6,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "core/core.h"
+#include "core/frame_step.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/service/nvdrv/core/container.h"
 #include "core/hle/service/nvdrv/core/nvmap.h"
@@ -350,6 +351,12 @@ NvResult nvhost_gpu::SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandL
                   (flags.increment_value.Value() != 0 ? params.fence.value : 0)};
     params.fence.value = syncpoint_manager.IncrementSyncpointMaxExt(channel_syncpoint, increment);
     video.PushGPUEntries(bind_id, (const uint64_t*)entries.command_lists.data(), (uint32_t)entries.command_lists.size(), (const uint32_t*)entries.prefetch_command_list.data(), (uint32_t)entries.prefetch_command_list.size());
+    if (increment != 0 && system.FrameStep().Active()) {
+        system.FrameStep().OnGpuListSubmitted();
+        video.HostSyncpointRegisterAction(channel_syncpoint, params.fence.value, [](uint32_t, void * frame_step) {
+            static_cast<Core::FrameStep *>(frame_step)->OnGpuListCompleted();
+        }, 0, &system.FrameStep());
+    }
 
     if (flags.fence_increment.Value()) {
         if (flags.suppress_wfi.Value()) {
