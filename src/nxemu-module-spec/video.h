@@ -228,6 +228,8 @@ struct ShaderProfileTask
     bool full_game{};
     // Import inspection only (optional): a recorded game version to compare with the profile.
     const char *context{};
+    // Export only: keep the predicted recipes no draw confirmed (a base pack's guesses).
+    bool keep_unconfirmed{};
 };
 enum class ShaderProfilePrevious : uint32_t
 {
@@ -253,6 +255,11 @@ struct ShaderProfileResult
     // Import inspection with a context: 2 when the profile was exported from that
     // version, 1 when it also covers it, 0 otherwise. Startup prefers them in this order.
     uint32_t context_match{};
+    // Import inspection: predicted recipes, and those of them seen drawn. A file holds only recipes
+    // drawn in play when every predicted one was seen drawn.
+    uint64_t synthetic{}, played{};
+    // Export: predicted recipes no draw confirmed, left out.
+    uint64_t dropped_unconfirmed{};
 };
 nxinterface IShaderProfileProgress
 {

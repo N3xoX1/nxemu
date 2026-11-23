@@ -14,25 +14,24 @@ struct ProfileLimits
     size_t recipes = MaxRecipes, unresolved = 65536, programs = 65536, environments = 262144, map_entries = 8000000;
     u64 code_bytes = 512 * 1024 * 1024;
 };
-// NXSHBIN2, which adds each recipe's origin to NXSHBIN1; NXSHBIN1 is still read, its recipes recorded ones.
-// Bounded little-endian tables in the NXSHADR2 Zstd envelope.
-// Resources name NCAs and count from their start, so a profile works with an
-// NSP or an XCI of the same game version.
-// Programs carry their emulator hash; resolved recipes derive theirs from them.
-// NXSHBIN1 is the only older payload read; no format migration otherwise.
+// The NXShader payload (docs/nxshader-format.md): tagged sections of bounded
+// little-endian tables, in the NXSHADR1 container. Resources name NCAs and count
+// from their start, so a profile works with an NSP or an XCI of the same game
+// version. Programs are named by the SHA-256 of their bytes, guest state by
+// Maxwell registers and texture descriptor fields: nothing of one emulator.
 ProfileInspection InspectCompact(std::string_view payload, u64 title_id);
-// format_revision 1 writes NXSHBIN1 for older builds: recorded recipes only, since it has no origins.
-std::string PackCompact(const JsonValue & profile, int compression_level = 19, unsigned format_revision = 2);
+std::string PackCompact(const JsonValue & profile, int compression_level = 19);
 // The inverse of PackCompact on a checked payload, for merging profiles. Program
-// keys are ProgramKey(hash, size) since no instruction bytes are available.
+// keys are ProgramKey(code) since no instruction bytes are available.
 JsonValue DecodeCompact(std::string_view payload, u64 title_id);
-inline std::string ProgramKey(u64 hash, u64 size)
-{
-    char key[65];
-    std::snprintf(key, sizeof(key), "%016llx%016llx%032x", static_cast<unsigned long long>(hash),
-                  static_cast<unsigned long long>(size), 0U);
-    return key;
-}
+// The identity NXShader stores for program bytes: the first 8 bytes of their
+// SHA-256. Enough to tell apart the programs of a game and to check the bytes read.
+inline constexpr size_t ProgramIdentityBytes = 8;
+std::string ProgramIdentity(std::string_view code);
+// The model key DecodeCompact gives these bytes: that identity in hex, then zeros.
+std::string ProgramKey(std::string_view code);
+// The shader hash a decoded model gives a program key.
+u64 ProgramKeyHash(std::string_view key);
 std::vector<Recipe> ReadCompact(std::string_view payload, const std::filesystem::path & root,
                                 u64 title_id, size_t * unresolved_count, Timing::Metrics * timings,
                                 const ResourceProgress & progress = {}, ImportReport* report = nullptr, std::string_view target_context = {}, const std::set<std::string>* existing_recipes = nullptr,

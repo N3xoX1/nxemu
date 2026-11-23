@@ -167,6 +167,9 @@ void ShaderProfileDialog::RunExport()
         std::filesystem::create_directories(staging);
         const auto base = Utf8(std::filesystem::u8path(m_game).filename());
         size_t part{};
+        // Predicted shaders no draw confirmed (a base pack's guesses): left out, so the file holds
+        // only what was drawn. Counted for the version of each kept file.
+        uint64_t unconfirmed{}, last_unconfirmed{};
         const auto run = [&](size_t index, const std::filesystem::path & previous, const std::vector<size_t> & group, std::filesystem::path & staged) {
             if (m_cancel) throw std::runtime_error("Shader export cancelled");
             const auto & version = m_versions[index];
@@ -196,6 +199,7 @@ void ShaderProfileDialog::RunExport()
             char error[1024]{};
             if (!m_video->ProcessShaderProfile(task, *this, result, error, sizeof(error)))
                 throw std::runtime_error(error);
+            last_unconfirmed = result.dropped_unconfirmed;
             return result;
         };
         ExportOutput group;
@@ -238,6 +242,7 @@ void ShaderProfileDialog::RunExport()
                 continue;
             }
             group.versions.push_back(index);
+            unconfirmed += last_unconfirmed;
             group.staged = staged;
             previous = staged;
         }
@@ -245,6 +250,9 @@ void ShaderProfileDialog::RunExport()
         if (outputs.empty()) throw std::runtime_error(first_failure);
         if (m_unidentified)
             notes.push_back(Tr("Some shaders were not included: the game version they belong to is unknown."));
+        if (unconfirmed)
+            notes.push_back(Tr("Predicted shaders left out, imported but never used in play: %1",
+                {std::to_string(unconfirmed)}));
         std::map<std::string, size_t> names;
         for (auto & output : outputs) {
             std::vector<const Profile::RecordingVersion *> versions;
