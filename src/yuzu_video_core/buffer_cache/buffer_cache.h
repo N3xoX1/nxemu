@@ -764,8 +764,8 @@ bool BufferCache<P>::ShouldWaitAsyncFlushes() const noexcept {
 template <class P>
 void BufferCache<P>::CommitAsyncFlushesHigh() {
     AccumulateFlushes();
-    // Without a buffer download, the texture and query readbacks of this fence are protected
-    // only where read-cached pages fault on CPU access.
+    // Covers buffer and query readbacks only. Where read faults don't wait for image downloads,
+    // the fence manager delays the fence for them.
     pending_downloads_protected = device_memory.ProtectsReadCachedPages();
 
     if (committed_gpu_modified_ranges.empty()) {
@@ -976,9 +976,8 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
     pending_readback_cpu_copies.emplace_back(std::move(cpu_copies));
     pending_download_ranges.emplace_back(std::move(download_ranges));
     {
-        // A CPU access before publication faults and downloads synchronously, so the
-        // guest-visible fence signal need not wait for this copy. A large download makes the
-        // CPU fault more often than the fence wait it saves costs.
+        // A CPU access before publication faults and waits for this copy, so the fence need not.
+        // Above the limit, those faults cost more than the fence wait they save.
         auto& protected_ranges = pending_protected_ranges.emplace_back();
         pending_downloads_protected =
             total_size_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES &&

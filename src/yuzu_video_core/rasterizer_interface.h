@@ -147,6 +147,7 @@ public:
     /// Lock-free: true when guest memory sharing a host page with a CPU access may wait for an
     /// asynchronous copy that keeps it inaccessible until it is published.
     virtual bool AwaitsProtectedDownload(DAddr addr, u64 size) { return false; }
+    virtual bool AwaitsProtectedBufferDownload(DAddr addr, u64 size) { return false; }
 
     /// Commit the pending readbacks. Return true when the CPU cannot see any readback in
     /// flight before its publication, so a GPU signal may be published ahead of the GPU.

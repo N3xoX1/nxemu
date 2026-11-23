@@ -2092,6 +2092,8 @@ bool Memory::ProtectsReadCachedRegions() {
     }
 #if defined(__APPLE__)
     return impl->buffer->UsesNce() && osSettings.use_reactive_flushing;
+#elif defined(_M_X64) || defined(__x86_64__)
+    return ProtectsQueryResults();
 #else
     // RasterizerMarkRegionReadCached denies every access to read-cached pages in the fastmem
     // arena, so a CPU read faults into the slow path, which downloads first. Without the arena
@@ -2109,8 +2111,7 @@ bool Memory::ProtectsQueryResults() {
 #if defined(__APPLE__)
     return ProtectsReadCachedRegions();
 #elif defined(_M_X64) || defined(__x86_64__)
-    // Matches where RasterizerMarkRegionReadCached denies access. The fault waits for query
-    // results only, so ProtectsReadCachedRegions, which also covers buffer downloads, stays off.
+    // Matches where RasterizerMarkRegionReadCached denies access
     return ProtectOnlyReadCachedPages() && impl->current_page_table &&
            impl->current_page_table->fastmem_arena;
 #else

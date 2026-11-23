@@ -632,6 +632,8 @@ RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * po
         // old count hides characters and lights for a frame. The check is lock-free when the
         // region holds no pending result.
         impl->m_gpuCore->WaitPendingResults(address, size);
+        // Buffer flush areas are preemptive: OnCPURead below won't wait for their downloads
+        impl->m_gpuCore->WaitProtectedBufferDownloads(address, size);
         if (area.startAddress <= address && end_address <= area.endAddress) [[likely]] {
             return;
         }
