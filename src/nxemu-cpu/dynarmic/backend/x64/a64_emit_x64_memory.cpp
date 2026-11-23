@@ -110,6 +110,34 @@ void A64EmitX64::GenMemory128Accessors() {
     PerfMapRegister(memory_exclusive_write_128, code.getCurr(), "a64_memory_exclusive_write_128");
 }
 
+void A64EmitX64::GenWriteMarkThunks() {
+    if (!conf.write_track_map || (conf.test_variant & 16384) != 0) {
+        return;
+    }
+    const bool low = WriteTrackMapIsLow(conf);
+    const u32 low_base = low ? static_cast<u32>(reinterpret_cast<u64>(conf.write_track_map)) : 0;
+    for (int page_idx = 0; page_idx < 16; ++page_idx) {
+        if (page_idx == rsp.getIdx()) {
+            continue;
+        }
+        const Xbyak::Reg64 page{page_idx};
+        if (low) {
+            code.write_mark_thunks[page_idx][BlockOfCode::NoMapRegister] = code.getCurr();
+            EmitWriteMark(code, page, std::nullopt, low_base, conf.write_track_l2_offset, conf.write_track_l1_offset);
+            code.ret();
+            continue;
+        }
+        for (int map_idx = 0; map_idx < 16; ++map_idx) {
+            if (map_idx == page_idx || map_idx == rsp.getIdx()) {
+                continue;
+            }
+            code.write_mark_thunks[page_idx][map_idx] = code.getCurr();
+            EmitWriteMark(code, page, Xbyak::Reg64{map_idx}, 0, conf.write_track_l2_offset, conf.write_track_l1_offset);
+            code.ret();
+        }
+    }
+}
+
 void A64EmitX64::GenFastmemFallbacks() {
     const std::initializer_list<int> idxes{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     const std::array<std::pair<size_t, ArgCallback>, 4> read_callbacks{{

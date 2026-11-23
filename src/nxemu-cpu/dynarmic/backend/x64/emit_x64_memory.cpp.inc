@@ -144,7 +144,7 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
 
     if (fastmem_marker) {
         // Use fastmem
-        bool require_abort_handling;
+        bool require_abort_handling = false;
         const auto base_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
         const auto src_ptr = disp ? base_ptr + static_cast<size_t>(static_cast<s64>(*disp)) : base_ptr;
 
@@ -160,6 +160,20 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
         }
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
+            const bool nothing_jumps_to_abort = !require_abort_handling && !conf.check_halt_on_memory_access;
+            if (nothing_jumps_to_abort && !FallbackCallPerAccess()) {
+                Xbyak::Label stub;
+                const u64 fault_call = disp ? EmitFoldedAddressStub(code, stub, wrapped_fn, vaddr, *disp) : mcl::bit_cast<u64>(wrapped_fn);
+                fastmem_patch_info.emplace(
+                    mcl::bit_cast<u64>(location),
+                    FastmemPatchInfo{
+                        mcl::bit_cast<u64>(end->getAddress()),
+                        fault_call,
+                        *fastmem_marker,
+                        conf.recompile_on_fastmem_failure,
+                    });
+                return;
+            }
             code.L(*abort);
             Xbyak::Label stub;
             if (disp) {
@@ -267,7 +281,7 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
 
     if (fastmem_marker) {
         // Use fastmem
-        bool require_abort_handling;
+        bool require_abort_handling = false;
         const auto base_ptr = EmitFastmemVAddr(code, ctx, *abort, vaddr, require_abort_handling);
         const auto dest_ptr = disp ? base_ptr + static_cast<size_t>(static_cast<s64>(*disp)) : base_ptr;
 
@@ -287,6 +301,20 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
         }
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
+            const bool nothing_jumps_to_abort = !require_abort_handling && !conf.check_halt_on_memory_access;
+            if (nothing_jumps_to_abort && !FallbackCallPerAccess()) {
+                Xbyak::Label stub;
+                const u64 fault_call = disp ? EmitFoldedAddressStub(code, stub, wrapped_fn, vaddr, *disp) : mcl::bit_cast<u64>(wrapped_fn);
+                fastmem_patch_info.emplace(
+                    mcl::bit_cast<u64>(location),
+                    FastmemPatchInfo{
+                        mcl::bit_cast<u64>((marks_group ? *track : *end).getAddress()),
+                        fault_call,
+                        *fastmem_marker,
+                        conf.recompile_on_fastmem_failure,
+                    });
+                return;
+            }
             code.L(*abort);
             Xbyak::Label stub;
             if (disp) {

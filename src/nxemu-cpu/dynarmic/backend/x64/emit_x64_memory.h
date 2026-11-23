@@ -208,6 +208,23 @@ bool WriteTrackMapIsLow(const Config& conf) {
     return end < (u64{1} << 31);
 }
 
+// Clobbers `page`
+inline void EmitWriteMark(BlockOfCode& code, Xbyak::Reg64 page, std::optional<Xbyak::Reg64> map, u32 low_base, u32 l2_offset, u32 l1_offset) {
+    if (map) {
+        code.mov(code.byte[*map + page], 1);
+        code.shr(page, 9);
+        code.mov(code.byte[*map + page + l2_offset], 1);
+        code.shr(page, 9);
+        code.mov(code.byte[*map + page + l1_offset], 1);
+    } else {
+        code.mov(code.byte[page + low_base], 1);
+        code.shr(page, 9);
+        code.mov(code.byte[page + (low_base + l2_offset)], 1);
+        code.shr(page, 9);
+        code.mov(code.byte[page + (low_base + l1_offset)], 1);
+    }
+}
+
 // `map` is only needed when the map is not low. `check_range` skips a page past the map, for an
 // address that is not known to be valid.
 template<typename EmitContext>
@@ -239,18 +256,10 @@ void EmitWriteTrack(BlockOfCode& code, EmitContext& ctx, Xbyak::Reg64 vaddr, Xby
 
     ctx.deferred_emits.emplace_back([=, &code] {
         code.L(*mark);
-        if (map) {
-            code.mov(code.byte[*map + page], 1);
-            code.shr(page, 9);
-            code.mov(code.byte[*map + page + l2_offset], 1);
-            code.shr(page, 9);
-            code.mov(code.byte[*map + page + l1_offset], 1);
+        if (const void* thunk = code.write_mark_thunks[page.getIdx()][map ? map->getIdx() : BlockOfCode::NoMapRegister]) {
+            code.call(thunk);
         } else {
-            code.mov(code.byte[page + low_base], 1);
-            code.shr(page, 9);
-            code.mov(code.byte[page + (low_base + l2_offset)], 1);
-            code.shr(page, 9);
-            code.mov(code.byte[page + (low_base + l1_offset)], 1);
+            EmitWriteMark(code, page, map, low_base, l2_offset, l1_offset);
         }
         code.jmp(*marked, code.T_NEAR);
     });

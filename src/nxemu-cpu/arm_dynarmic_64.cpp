@@ -381,7 +381,8 @@ std::shared_ptr<Dynarmic::A64::Jit> ArmDynarmic64::MakeJit(IKernelProcess & proc
 #if defined(_M_ARM64) || defined(ARCHITECTURE_arm64)
     config.code_cache_size = 128_MiB;
 #else
-    config.code_cache_size = 512_MiB;
+    // Committed as code is emitted. Jumps inside the cache are rel32, so it stays below 2 GiB.
+    config.code_cache_size = 1024_MiB;
 #endif
     config.share_code_cache_key = &process;
 
