@@ -200,14 +200,6 @@ msgid "Shaders"
 msgstr "着色器"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Shader warmup mode"
-msgstr "着色器预热模式"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
-msgstr "在启动前准备首批着色器，其余在后台准备。下次启动游戏时生效。"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "将着色器保存到磁盘"
 
@@ -373,26 +365,6 @@ msgstr "调试设置"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
 msgstr "关闭时使用默认值；你的设置会保留，以便再次启用时使用。"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "NXShader"
-msgstr "NXShader"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Minimum initial pipelines"
-msgstr "初始最少管线数"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
-msgstr "默认值：512。除非所有管线均已就绪，否则必须同时达到两个最小值。"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Minimum initial time (seconds)"
-msgstr "初始最短时间（秒）"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
-msgstr "默认值：60。在此时长内持续准备着色器，然后在后台编译其余部分。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -1802,14 +1774,6 @@ msgid "The console's applet, from the installed firmware."
 msgstr "已安装固件中的主机小程序。"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Full warmup (default)"
-msgstr "完整预热（默认）"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Progressive (experimental)"
-msgstr "渐进（实验性）"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
 msgstr "无（没有声音）"
 
@@ -2453,10 +2417,6 @@ msgid "Opening the game..."
 msgstr "正在打开游戏..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "这可能需要几分钟。编译后的着色器会被缓存，以加快之后的启动速度。"
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "启用 Mod 或作弊码时不会记录着色器。"
 
@@ -2473,6 +2433,30 @@ msgstr "大约还剩 %1 分钟"
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Estimating time remaining..."
 msgstr "正在估算剩余时间..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Play now, finish in the background"
+msgstr "立即开始，其余在后台完成"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Starting the game..."
+msgstr "正在启动游戏..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Wait %1 s to play now"
+msgstr "等待 %1 秒即可开始"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Wait %1 min to play now"
+msgstr "等待 %1 分钟即可开始"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Preparing the first shaders..."
+msgstr "正在准备首批着色器..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Shaders ready"
+msgstr "着色器已就绪"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Finishing shader preparation..."

@@ -199,6 +199,7 @@ private:
     bool DialogOpen() const;
     void AnnounceGame(const std::string & path);
     void UpdateLoadingScreen();
+    void UpdateShaderProgress();
     void LayoutGameArea();
     void StopGame();
     bool ShowSettingsPage(SettingsPage page);
@@ -272,6 +273,8 @@ private:
     int m_iconSize = 0;
     int m_pendingIconSize = 0;
     uint64_t m_iconSizeChanged = 0;
+    uint64_t m_shaderProgressFinished = 0;
+    std::string m_shaderProgressText;
     float m_listScrollBar = 0.0f;
     bool m_fitWindow = true;
     Rml::Element * m_selectedGame = nullptr;

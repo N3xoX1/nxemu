@@ -1873,17 +1873,27 @@ img[data-icon]
     bottom: 16dp;
 }
 
-#loading-icon
+/* The icon keeps its place, an empty frame until it is known, so the box beside it never moves. */
+#loading-panel #loading-icon
 {
+    display: block;
+    flex-shrink: 0;
     width: 256dp;
     height: 256dp;
     margin-right: 28dp;
+    border-radius: 8dp;
+    background-color: #0e1524;
 }
 
+#loading-panel #loading-icon.shown
+{
+    background-color: transparent;
+}
+
+/* A fixed width: longer texts must not move the icon. */
 .loading-box
 {
-    min-width: 330dp;
-    max-width: 520dp;
+    width: 520dp;
 }
 
 /* The game's name: it stays while what is under the bar says what is being done. */
@@ -1900,6 +1910,7 @@ img[data-icon]
 .loading-status
 {
     display: flex;
+    align-items: center;
     height: 18dp;
     margin-top: 9dp;
     font-size: 13dp;
@@ -1910,7 +1921,9 @@ img[data-icon]
 
 #loading-text
 {
-    flex: 1;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 #loading-count
@@ -1918,23 +1931,27 @@ img[data-icon]
     color: #b4bfce;
 }
 
+/* The time left, on the line of what is being done: it takes the space up to the count. */
 #loading-eta
 {
-    min-height: 18dp;
-    margin-top: 6dp;
-    font-size: 13dp;
-    line-height: 18dp;
-    color: #b4bfce;
+    flex: 1;
+    min-width: 0;
+    margin: 0 12dp 0 8dp;
+    color: #4cc9e6;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
+/* Fixed height, with or without a text: the box keeps its size and stays centered in place. */
 #loading-hint
 {
-    min-height: 36dp;
+    height: 36dp;
     margin-top: 8dp;
     font-size: 13dp;
     line-height: 18dp;
     color: #8f9bb0;
     white-space: normal;
+    overflow: hidden;
 }
 
 .loading-track
@@ -1965,6 +1982,41 @@ img[data-icon]
     /* A transform, not a margin: moving the bar must not resize its box. */
     from { opacity: 0.45; transform: translateX(0%); }
     to { opacity: 1; transform: translateX(138%); }
+}
+
+/* Always in place, so nothing moves; it can be pressed once the shaders the game uses first are ready. */
+.loading-actions
+{
+    margin-top: 16dp;
+    text-align: center;
+}
+
+.loading-continue
+{
+    display: inline-block;
+    min-width: 240dp;
+    height: 32dp;
+    padding: 0 20dp;
+    border-radius: 16dp;
+    background-color: #18233a;
+    color: #5d6a82;
+    font-size: 13dp;
+    font-weight: bold;
+    line-height: 32dp;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.loading-continue.enabled
+{
+    background-color: #0093b8;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.loading-continue.enabled:hover
+{
+    background-color: #00a6cf;
 }
 
 /* ---- Status bar ---- */
@@ -2119,6 +2171,61 @@ body.speed-unlocked #status-unlocked
 body.speed-uncapped #status-unlocked
 {
     color: var(--warning);
+}
+
+/* Shaders the game left to the background, just before the speed: a small bar and the count.
+   It takes the free space, so the speed text keeps its place at the right. */
+#status-shaders
+{
+    display: none;
+    flex: 1;
+    min-width: 0;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+body.shaders-background #status-shaders
+{
+    display: flex;
+}
+
+body.shaders-background #status-text
+{
+    flex: 0 1 auto;
+}
+
+.status-shaders-track
+{
+    flex-shrink: 0;
+    width: 56dp;
+    height: 5dp;
+    margin-right: 8dp;
+    border-radius: 3dp;
+    background-color: rgba(120, 135, 160, 80);
+    overflow: hidden;
+}
+
+#status-shaders-fill
+{
+    width: 0%;
+    height: 100%;
+    border-radius: 3dp;
+    background-color: #00b4d8;
+}
+
+#status-shaders.finished #status-shaders-fill
+{
+    background-color: var(--success);
+}
+
+#status-shaders-text
+{
+    font-size: 12dp;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 #status-text

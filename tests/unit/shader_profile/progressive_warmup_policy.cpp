@@ -17,39 +17,6 @@ static void Check(bool result) {
 }
 
 int main() try {
-    static_assert(Vulkan::InitialWarmupBudget::InitialCount==512);
-    static_assert(Vulkan::InitialWarmupBudget::InitialMilliseconds==60000);
-    for (const char* option : {static_cast<const char*>(nullptr), "", "0", "true", "2", "01"})
-        Check(!Vulkan::ProgressiveWarmupEnabled(option));
-    Check(Vulkan::ProgressiveWarmupEnabled("1"));
-    for (const bool enabled : {false, true}) {
-        Vulkan::InitialWarmupBudget budget(enabled,256,0);
-        for (size_t i = 0; i < 1000; ++i) Check(budget.DeferNext() == (enabled && i >= 256));
-        Check(budget.Scheduled() == (enabled ? 256 : 1000));
-    }
-    // Production budget: at least N, then continue up to the soft duration.
-    {
-        using Budget=Vulkan::InitialWarmupBudget;
-        const auto start=Budget::Clock::time_point{}+1s;
-        Budget defaults(true);
-        for(size_t i=0;i<512;++i)Check(!defaults.DeferNext(start));
-        Check(!defaults.DeferNext(start+59s));
-        Check(defaults.DeferNext(start+60s) && defaults.Scheduled()==513);
-        Budget fast(true,256,60000);
-        for(size_t i=0;i<512;++i)Check(!fast.DeferNext(start+std::chrono::milliseconds(i)));
-        Check(fast.DeferNext(start+60s));
-        Check(fast.Scheduled()==512 && fast.DeferNext(start+61s));
-        Budget slow(true,256,60000);
-        for(size_t i=0;i<256;++i)Check(!slow.DeferNext(start+std::chrono::seconds(i)));
-        Check(slow.NeedsCheckpoint(4) && slow.DeferNext(start+256s));
-        Budget larger(true,512,30000);
-        for(size_t i=0;i<512;++i)Check(!larger.DeferNext(start+std::chrono::seconds(i)));
-        Check(larger.DeferNext(start+512s));
-        for(const char* bad : {"-1","60001","1x"," 100","18446744073709551616"})
-            Check(Budget::ParseOption(bad,60000,60000)==60000);
-        Check(Budget::ParseOption("30000",60000,60000)==30000);
-        Check(Budget::ParseOption("0",60000,60000)==0);
-    }
     // Stable admission order, single speculative build and one publication each.
     for (const size_t workers : {1, 4}) {
         Vulkan::NativePipelineBuildQueue queue(workers);
@@ -78,12 +45,13 @@ int main() try {
         Vulkan::NativePipelineBuildQueue queue(2);
         std::binary_semaphore entered{0},release{0},last{0};
         std::vector<size_t> built;
+        std::atomic<size_t> finished{};
         ProgressivePipelineWarmup warmup(queue,3,[&](size_t i) {
             built.push_back(i);
             if(i==0){entered.release();release.acquire();}
             if(i==2)last.release();
             return true;
-        });
+        },[&]{++finished;});
         entered.acquire();
         Check(warmup.Demand(1,false)==Result::Runtime);
         Check(warmup.Demand(0,true)==Result::Pending);
@@ -95,6 +63,8 @@ int main() try {
         warmup.Stop();queue.WaitForRequests();
         Check(built==std::vector<size_t>({0,2}));
         Check(warmup.Demand(1,true)==Result::Runtime);
+        // Each job counts once for the progress shown in game: built, or taken by the runtime.
+        Check(finished==3);
     }
     // Stopping before any work is admitted must be safe too.
     {
@@ -120,13 +90,15 @@ int main() try {
     {
         Vulkan::NativePipelineBuildQueue queue(1);
         std::binary_semaphore done{0};
+        std::atomic<size_t> finished{};
         ProgressivePipelineWarmup warmup(queue,3,[&](size_t i) {
             if(i==0)throw std::runtime_error("compiler failure");
             if(i==2)done.release();
             return i==2;
-        });
+        },[&]{++finished;});
         done.acquire();Check(warmup.Demand(2,false)==Result::Complete);
         Check(warmup.Demand(0,false)==Result::Runtime && warmup.Demand(1,false)==Result::Runtime);
+        Check(finished==3); // failed builds count once, not again when the runtime takes them
         warmup.Stop();queue.WaitForRequests();
         size_t published{};
         warmup.PublishReady([&](size_t i){Check(i==2);++published;});Check(published==1);
@@ -162,5 +134,5 @@ int main() try {
         Check(caught);
         size_t count{};warmup.PublishReady([&](size_t){++count;});Check(count==1);
     }
-    std::cout << "PASS: production progressive admission, urgent demand, failures, pause and shutdown\n";
+    std::cout << "PASS: background admission, urgent demand, failures, progress count, pause and shutdown\n";
 } catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

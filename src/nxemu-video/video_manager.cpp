@@ -721,6 +721,26 @@ uint32_t VideoManager::ShadersBuilding()
     return 0;
 }
 
+void VideoManager::ContinueShadersInBackground()
+{
+    if (impl != nullptr && impl->m_gpuCore != nullptr)
+    {
+        impl->m_gpuCore->ShaderNotify().RequestBackgroundWarmup();
+    }
+}
+
+void VideoManager::BackgroundShaderProgress(uint32_t & done, uint32_t & total)
+{
+    done = 0;
+    total = 0;
+    if (impl != nullptr && impl->m_gpuCore != nullptr)
+    {
+        const auto & shader_notify = impl->m_gpuCore->ShaderNotify();
+        total = shader_notify.BackgroundWarmupTotal();
+        done = std::min(shader_notify.BackgroundWarmupDone(), total);
+    }
+}
+
 bool VideoManager::UseNvdec()
 {
     return impl->m_gpuCore->UseNvdec();

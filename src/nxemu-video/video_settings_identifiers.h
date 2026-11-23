@@ -29,9 +29,6 @@ namespace NXVideoSetting
     constexpr const char * SystemSkipUntrackedStoreReadback = "nxvideo:SystemSkipUntrackedStoreReadback";
     constexpr const char * SystemFastGpuReadback = "nxvideo:SystemFastGpuReadback";
     constexpr const char * SystemUseAsynchronousShaderBuilding = "nxvideo:SystemUseAsynchronousShaderBuilding";
-    constexpr const char * NXShaderWarmupMode = "nxvideo:NXShaderWarmupMode";
-    constexpr const char * NXShaderInitialMinimum = "nxvideo:NXShaderInitialMinimum";
-    constexpr const char * NXShaderInitialSeconds = "nxvideo:NXShaderInitialSeconds";
     constexpr const char * SystemFastGPUTime = "nxvideo:SystemFastGPUTime";
     constexpr const char * SystemUseVulkanPipelineCache = "nxvideo:SystemUseVulkanPipelineCache";
     constexpr const char * SystemSyncToFramerateOfVideoPlayback = "nxvideo:SystemSyncToFramerateOfVideoPlayback";

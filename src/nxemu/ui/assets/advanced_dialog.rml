@@ -156,13 +156,6 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
-                      <div class="row-label">Shader warmup mode</div>
-                      <div class="row-text">Prepare the first shaders before starting, then the rest in the background. Applies on the next game start.</div>
-                    </div>
-                    <select id="nxshader-mode" />
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
                       <div class="row-label">Keep shaders on the disk</div>
                       <div class="row-text">Games stutter less from their second start.</div>
                     </div>
@@ -367,25 +360,6 @@
           <div id="tab-debug-graphics" class="tab-page">
             <div class="cards-page">
               <div class="cards-column">
-                <div class="card">
-                  <div class="card-title" data-upper=""><img src="images/layers.png" />
-                    <div>NXShader</div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Minimum initial pipelines</div>
-                      <div class="row-text">Default: 512. Both minimums must be reached unless every pipeline is ready.</div>
-                    </div>
-                    <select id="nxshader-minimum" />
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Minimum initial time (seconds)</div>
-                      <div class="row-text">Default: 60. Continue preparing shaders for this long, then compile the remainder in the background.</div>
-                    </div>
-                    <select id="nxshader-seconds" />
-                  </div>
-                </div>
                 <div class="card">
                   <div class="card-title" data-upper=""><img src="images/view-grid.png" />
                     <div>Textures and video</div>
