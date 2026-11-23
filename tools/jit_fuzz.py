@@ -31,6 +31,8 @@ Bit 16384 keeps a fallback call in the cold code of every fastmem access and the
 the cold code of every tracked write (the code generation before), instead of the fault handler
 resuming in the hot code and a call to shared marking code. Run it as both variant A and B: A gets
 the low write tracking map.
+Bit 32768 makes scalar FRINTA call the FP code (the code generation before) instead of the inline
+rounding.
 With FASTMEM 1 or 2 each JIT also gets a write tracking map, and an arena page written without its
 mark is a failure.
 
