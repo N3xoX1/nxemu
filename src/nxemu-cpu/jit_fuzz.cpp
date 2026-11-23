@@ -431,11 +431,14 @@ extern "C"
             }
         }
         s.sp = 0x80000 + (rng() % 0x10000 & ~u64{15});
-        // Half random, half special FP values (zeros, ones, NaNs, infinities) so that compares
-        // also see equal and unordered operands
-        static const u32 f32s[] = {0, 0x80000000, 0x3F800000, 0xBF800000, 0x40000000, 0x7FC00000, 0x7F800001, 0x7F800000, 0xFF800000};
+        // Half random, half special FP values so that compares also see equal and unordered
+        // operands, and roundings see ties and the edges of the values with a fraction
+        static const u32 f32s[] = {0, 0x80000000, 0x3F800000, 0xBF800000, 0x40000000, 0x7FC00000, 0x7F800001, 0x7F800000, 0xFF800000,
+                                   0x3F000000, 0x3FC00000, 0xC0200000, 0xBEFFFFFF, 0x4AFFFFFF, 0x4B000000};
         static const u64 f64s[] = {0, 0x8000000000000000, 0x3FF0000000000000, 0xBFF0000000000000, 0x4000000000000000,
-                                   0x7FF8000000000000, 0x7FF0000000000001, 0x7FF0000000000000, 0xFFF0000000000000};
+                                   0x7FF8000000000000, 0x7FF0000000000001, 0x7FF0000000000000, 0xFFF0000000000000,
+                                   0x3FE0000000000000, 0x3FF8000000000000, 0xC004000000000000, 0xBFDFFFFFFFFFFFFF,
+                                   0x432FFFFFFFFFFFFF, 0x4330000000000000};
         const auto f32 = [&] { return u64{f32s[rng() % (sizeof(f32s) / sizeof(f32s[0]))]}; };
         const auto f64 = [&] { return f64s[rng() % (sizeof(f64s) / sizeof(f64s[0]))]; };
         for (auto& v : s.v) {

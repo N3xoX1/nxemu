@@ -1139,6 +1139,69 @@ static void EmitFPRound(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst, siz
         return;
     }
 
+    if (fsize != 16 && code.HasHostFeature(HostFeature::SSE42) && rounding_mode == FP::RoundingMode::ToNearest_TieAwayFromZero && !exact && !ctx.FPCR().FZ() && !OutOfLineRoundTiesAway()) {
+        // Integral magnitudes, infinities and NaNs stay out of the arithmetic, where they would raise
+        // inexact or invalid; for the rest x - trunc(x) and trunc(x) +- 1 are exact
+        constexpr u8 truncate_without_inexact = 0b1011;
+        const Xbyak::Xmm truncated = ctx.reg_alloc.ScratchXmm();
+        const Xbyak::Xmm integral = ctx.reg_alloc.ScratchXmm();
+        const Xbyak::Xmm mask = ctx.reg_alloc.ScratchXmm();
+        if (fsize == 64) {
+            constexpr u64 abs_mask = 0x7FFF'FFFF'FFFF'FFFF;
+            constexpr u64 sign_mask = 0x8000'0000'0000'0000;
+            constexpr u64 largest_with_fraction = 0x432F'FFFF'FFFF'FFFF;
+            constexpr u64 half = 0x3FE0'0000'0000'0000;
+            constexpr u64 one = 0x3FF0'0000'0000'0000;
+            FPTwoOp<64>(code, ctx, inst, [&](Xbyak::Xmm result) {
+                // roundsd keeps the upper lanes, which reach the result and its NaN check
+                code.xorps(truncated, truncated);
+                code.roundsd(truncated, result, truncate_without_inexact);
+                code.movaps(integral, result);
+                code.andpd(integral, code.Const(xword, abs_mask, 0));
+                code.pcmpgtq(integral, code.Const(xword, largest_with_fraction, 0));
+                code.movaps(mask, integral);
+                code.andnpd(mask, result);
+                code.andnpd(integral, truncated);
+                code.subsd(mask, integral);
+                code.andpd(mask, code.Const(xword, abs_mask, 0));
+                code.cmpnltsd(mask, code.Const(xword, half, 0));
+                code.andpd(result, code.Const(xword, sign_mask, 0));
+                code.orpd(result, code.Const(xword, one, 0));
+                code.addsd(result, integral);
+                code.andpd(result, mask);
+                code.andnpd(mask, truncated);
+                code.orpd(result, mask);
+            });
+        } else {
+            constexpr u64 abs_mask = 0x7FFF'FFFF;
+            constexpr u64 sign_mask = 0x8000'0000;
+            constexpr u64 largest_with_fraction = 0x4AFF'FFFF;
+            constexpr u64 half = 0x3F00'0000;
+            constexpr u64 one = 0x3F80'0000;
+            FPTwoOp<32>(code, ctx, inst, [&](Xbyak::Xmm result) {
+                // roundss keeps the upper lanes, which reach the result and its NaN check
+                code.xorps(truncated, truncated);
+                code.roundss(truncated, result, truncate_without_inexact);
+                code.movaps(integral, result);
+                code.andps(integral, code.Const(xword, abs_mask, 0));
+                code.pcmpgtd(integral, code.Const(xword, largest_with_fraction, 0));
+                code.movaps(mask, integral);
+                code.andnps(mask, result);
+                code.andnps(integral, truncated);
+                code.subss(mask, integral);
+                code.andps(mask, code.Const(xword, abs_mask, 0));
+                code.cmpnltss(mask, code.Const(xword, half, 0));
+                code.andps(result, code.Const(xword, sign_mask, 0));
+                code.orps(result, code.Const(xword, one, 0));
+                code.addss(result, integral);
+                code.andps(result, mask);
+                code.andnps(mask, truncated);
+                code.orps(result, mask);
+            });
+        }
+        return;
+    }
+
     using fsize_list = mp::list<mp::lift_value<size_t(16)>,
                                 mp::lift_value<size_t(32)>,
                                 mp::lift_value<size_t(64)>>;

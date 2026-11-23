@@ -27,6 +27,8 @@ Bit 4096 turns off fastmem address folding (an address register + immediate put 
 itself); it only applies with FASTMEM 2.
 Bit 8192 makes FRECPE call the FP code for every input (the code generation before) instead of
 the inline estimate for normal inputs.
+Bit 32768 makes scalar FRINTA call the FP code (the code generation before) instead of the inline
+rounding.
 With FASTMEM 1 or 2 each JIT also gets a write tracking map, and an arena page written without its
 mark is a failure.
 
