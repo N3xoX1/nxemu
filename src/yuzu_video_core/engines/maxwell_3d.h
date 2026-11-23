@@ -3297,6 +3297,8 @@ public:
         FrontWrite(method, value);
     }
 
+    void FrontMemoryWrite(GPUVAddr address, u64 size);
+
     /// Decode side: queues an HLE macro call for the execute side.
     void FrontHLEMacro(CachedMacro* program, const std::vector<u32>& parameters, u32 method);
 
@@ -3452,6 +3454,9 @@ private:
     u32 stream_run_next{};
     bool stream_run_open{};
     bool stream_writes_memory{};
+    std::vector<std::pair<GPUVAddr, GPUVAddr>> stream_write_ranges;
+    std::vector<std::pair<DAddr, DAddr>> device_write_ranges;
+    bool stream_writes_anywhere{};
     bool stream_draining{};
     std::vector<HLECall> hle_calls;
     size_t hle_count{};

@@ -144,6 +144,12 @@ public:
     virtual bool ChangesDrawState() const {
         return true;
     }
+
+    /// Passes every write Execute makes to Maxwell3D::FrontMemoryWrite, false when it can't name them
+    virtual bool FrontMemoryWrites([[maybe_unused]] const std::vector<u32>& parameters,
+                                   [[maybe_unused]] bool params_final) {
+        return false;
+    }
 };
 
 class MacroEngine {

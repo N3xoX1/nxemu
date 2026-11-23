@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
@@ -15,7 +17,11 @@
 
 namespace VideoCommon::GPUThread {
 
-void BackQueue::Push(Work&& work) {
+namespace {
+constexpr size_t MaxWriteRanges = 1024;
+} // namespace
+
+void BackQueue::Push(Work&& work, Writes writes) {
     if (!threaded) {
         work();
         return;
@@ -25,6 +31,9 @@ void BackQueue::Push(Work&& work) {
         std::scoped_lock lock{mutex};
         items.push_back(std::move(work));
         ++pushed;
+        if (writes == Writes::Anywhere) {
+            anywhere_until_push = pushed;
+        }
         pushed_spin.store(pushed, std::memory_order_release);
         // Wake the GPU thread only when it sleeps
         wake = back_waiting;
@@ -41,11 +50,72 @@ void BackQueue::WaitIdle() {
     // Only the decode thread pushes, and the other callers hold the decode mutex
     const u64 target = pushed_spin.load(std::memory_order_relaxed);
     auto idle = [this, target] { return done_spin.load(std::memory_order_acquire) >= target; };
-    if (idle()) {
+    if (!idle()) {
+        std::unique_lock lock{mutex};
+        idle_cv.wait(lock, [this] { return done == pushed || stopping; });
+    }
+    ClearWrites();
+}
+
+void BackQueue::AddWrites(const WriteRanges& ranges) {
+    if (!threaded) {
         return;
     }
-    std::unique_lock lock{mutex};
-    idle_cv.wait(lock, [this] { return done == pushed || stopping; });
+    // The ranges belong to the next push, which callers make right after adding them
+    const u64 push = pushed_spin.load(std::memory_order_relaxed) + 1;
+    for (const auto& [begin, end] : ranges) {
+        if (!queued_writes.empty() && begin <= queued_writes.back().end &&
+            end >= queued_writes.back().begin) {
+            QueuedWrite& last = queued_writes.back();
+            last.begin = std::min(last.begin, begin);
+            last.end = std::max(last.end, end);
+            last.push = push;
+        } else {
+            queued_writes.push_back({begin, end, push});
+        }
+    }
+    if (queued_writes.size() <= MaxWriteRanges) {
+        return;
+    }
+    DropFinishedWrites(run_spin.load(std::memory_order_acquire));
+    if (queued_writes.size() <= MaxWriteRanges * 3 / 4) {
+        return;
+    }
+    std::ranges::sort(queued_writes, {}, &QueuedWrite::begin);
+    size_t last = 0;
+    for (size_t i = 1; i < queued_writes.size(); ++i) {
+        if (queued_writes[i].begin <= queued_writes[last].end) {
+            queued_writes[last].end = std::max(queued_writes[last].end, queued_writes[i].end);
+            queued_writes[last].push = std::max(queued_writes[last].push, queued_writes[i].push);
+        } else {
+            queued_writes[++last] = queued_writes[i];
+        }
+    }
+    queued_writes.resize(last + 1);
+    if (queued_writes.size() > MaxWriteRanges * 3 / 4) {
+        queued_writes.clear();
+        anywhere_until_push = push;
+    }
+}
+
+bool BackQueue::MayWrite(DAddr begin, DAddr end) {
+    const u64 finished = run_spin.load(std::memory_order_acquire);
+    if (finished < anywhere_until_push) {
+        return true;
+    }
+    DropFinishedWrites(finished);
+    return std::ranges::any_of(queued_writes, [begin, end](const QueuedWrite& write) {
+        return begin < write.end && end > write.begin;
+    });
+}
+
+void BackQueue::DropFinishedWrites(u64 finished) {
+    std::erase_if(queued_writes, [finished](const QueuedWrite& write) { return write.push <= finished; });
+}
+
+void BackQueue::ClearWrites() {
+    queued_writes.clear();
+    anywhere_until_push = 0;
 }
 
 bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
@@ -67,12 +137,17 @@ bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
     return true;
 }
 
+void BackQueue::MarkRun() {
+    run_spin.store(run_spin.load(std::memory_order_relaxed) + 1, std::memory_order_release);
+}
+
 void BackQueue::FinishMany(u64 count) {
     bool idle;
     {
         std::scoped_lock lock{mutex};
         done += count;
         done_spin.store(done, std::memory_order_release);
+        run_spin.store(done, std::memory_order_release);
         idle = done == pushed;
     }
     if (idle) {
@@ -142,6 +217,7 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
                     break;
                 }
                 work();
+                state.back.MarkRun();
                 rasterizer->ServiceInPlaceWaits();
             }
             batch.clear();
@@ -185,9 +261,9 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
         } else {
             ASSERT(false);
         }
-        state.back.Push([&state, fence = next.fence, block = next.block] {
-            SignalFence(state, fence, block);
-        });
+        state.back.Push(
+            [&state, fence = next.fence, block = next.block] { SignalFence(state, fence, block); },
+            BackQueue::Writes::Nothing);
     }
 }
 

@@ -36,7 +36,10 @@ h = (root / 'src/yuzu_video_core/gpu_thread.h').read_text()
 start = h.index('class BackQueue final')
 queue = h[start:h.index('\n};', start) + 3].replace('private:', 'public:')
 s = (root / 'src/yuzu_video_core/gpu_thread.cpp').read_text()
+limit = s.index('constexpr size_t MaxWriteRanges')
+queue = s[limit:s.index('\n', limit) + 1] + queue
 queue += '\n' + '\n'.join(method(s, 'BackQueue::' + n) for n in
-    ['Push', 'WaitIdle', 'PopWait', 'FinishMany', 'Notify', 'Stop'])
+    ['Push', 'WaitIdle', 'AddWrites', 'MayWrite', 'DropFinishedWrites', 'ClearWrites', 'PopWait',
+     'MarkRun', 'FinishMany', 'Notify', 'Stop'])
 (output / 'queue.inc').write_text(queue)
 (output / 'stop.inc').write_text(method(s, 'ThreadManager::StopThread'))

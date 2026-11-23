@@ -150,7 +150,7 @@ private:
 
     /// Hands the queued Maxwell3D methods to the GPU thread
     void DrainMaxwell3D() const;
-    void DrainMaxwell3DMemoryWrites() const;
+    void DrainMaxwell3DMemoryWrites(GPUVAddr address, size_t size) const;
     bool IsAcquireMet(u32 method, u32 argument) const;
     void UpdateUniformPrefetchAtAcquire(u32 method, u32 argument) const;
     void ResumeUniformPrefetch() const;

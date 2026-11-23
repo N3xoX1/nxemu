@@ -45,6 +45,10 @@ bool IsTopologySafe(Maxwell3D::Regs::PrimitiveTopology topology) {
     }
 }
 
+GPUVAddr ParameterAddress(const std::vector<u32>& parameters) {
+    return (GPUVAddr{parameters[0]} << 32) | parameters[1];
+}
+
 class HLEMacroImpl : public CachedMacro {
 public:
     explicit HLEMacroImpl(Maxwell3D& maxwell3d_) : maxwell3d{maxwell3d_} {}
@@ -78,6 +82,10 @@ template <bool extended>
 class HLE_DrawArraysIndirect final : public HLEMacroImpl {
 public:
     explicit HLE_DrawArraysIndirect(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        return true;
+    }
 
     bool ChangesDrawState() const override {
         return false;
@@ -192,6 +200,10 @@ class HLE_DrawIndexedIndirect final : public HLEMacroImpl {
 public:
     explicit HLE_DrawIndexedIndirect(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        return true;
+    }
+
     bool ChangesDrawState() const override {
         return false;
     }
@@ -287,6 +299,10 @@ class HLE_MultiLayerClear final : public HLEMacroImpl {
 public:
     explicit HLE_MultiLayerClear(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         maxwell3d.front_regs.clear_surface.raw = parameters[0];
     }
@@ -308,6 +324,13 @@ public:
 class HLE_MultiDrawIndexedIndirectCount final : public HLEMacroImpl {
 public:
     explicit HLE_MultiDrawIndexedIndirectCount(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        constexpr u32 FallbackDrawIndexOffset = 0x648;
+        maxwell3d.FrontMemoryWrite(
+            maxwell3d.front_regs.const_buffer.Address() + FallbackDrawIndexOffset, sizeof(u32));
+        return true;
+    }
 
     bool FrontEffectsUseParameters() const override {
         return false;
@@ -471,6 +494,10 @@ class HLE_DrawIndirectByteCount final : public HLEMacroImpl {
 public:
     explicit HLE_DrawIndirectByteCount(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         Maxwell3D::Regs& regs = maxwell3d.front_regs;
         regs.draw.begin = parameters[0];
@@ -525,6 +552,10 @@ class HLE_C713C83D8F63CCF3 final : public HLEMacroImpl {
 public:
     explicit HLE_C713C83D8F63CCF3(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        return true;
+    }
+
     bool ChangesDrawState() const override {
         return false;
     }
@@ -560,6 +591,10 @@ class HLE_D7333D26E0A93EDE final : public HLEMacroImpl {
 public:
     explicit HLE_D7333D26E0A93EDE(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        return true;
+    }
+
     bool ChangesDrawState() const override {
         return false;
     }
@@ -594,6 +629,10 @@ private:
 class HLE_BindShader final : public HLEMacroImpl {
 public:
     explicit HLE_BindShader(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        return true;
+    }
 
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         Maxwell3D::Regs& regs = maxwell3d.front_regs;
@@ -641,6 +680,10 @@ class HLE_SetRasterBoundingBox final : public HLEMacroImpl {
 public:
     explicit HLE_SetRasterBoundingBox(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
 
+    bool FrontMemoryWrites(const std::vector<u32>&, bool) override {
+        return true;
+    }
+
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         Maxwell3D::Regs& regs = maxwell3d.front_regs;
         const u32 raster_enabled = regs.conservative_raster_enable;
@@ -664,6 +707,14 @@ template <size_t base_size>
 class HLE_ClearConstBuffer final : public HLEMacroImpl {
 public:
     explicit HLE_ClearConstBuffer(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool FrontMemoryWrites(const std::vector<u32>& parameters, bool params_final) override {
+        if (!params_final) {
+            return false;
+        }
+        maxwell3d.FrontMemoryWrite(ParameterAddress(parameters), u64{parameters[2]} * 4 * sizeof(u32));
+        return true;
+    }
 
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         Maxwell3D::Regs& regs = maxwell3d.front_regs;
@@ -689,6 +740,14 @@ public:
 class HLE_ClearMemory final : public HLEMacroImpl {
 public:
     explicit HLE_ClearMemory(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool FrontMemoryWrites(const std::vector<u32>& parameters, bool params_final) override {
+        if (!params_final) {
+            return false;
+        }
+        maxwell3d.FrontMemoryWrite(ParameterAddress(parameters), parameters[2]);
+        return true;
+    }
 
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         Maxwell3D::Regs& regs = maxwell3d.front_regs;
@@ -723,6 +782,14 @@ private:
 class HLE_TransformFeedbackSetup final : public HLEMacroImpl {
 public:
     explicit HLE_TransformFeedbackSetup(Maxwell3D& maxwell3d_) : HLEMacroImpl(maxwell3d_) {}
+
+    bool FrontMemoryWrites(const std::vector<u32>& parameters, bool params_final) override {
+        if (!params_final) {
+            return false;
+        }
+        maxwell3d.FrontMemoryWrite(ParameterAddress(parameters), sizeof(u32));
+        return true;
+    }
 
     void FrontEffects(const std::vector<u32>& parameters, bool) override {
         Maxwell3D::Regs& regs = maxwell3d.front_regs;
