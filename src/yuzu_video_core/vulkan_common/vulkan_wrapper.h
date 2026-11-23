@@ -737,6 +737,10 @@ public:
         return !mapped.empty();
     }
 
+    bool IsHostCoherent() const noexcept {
+        return is_coherent;
+    }
+
     void Flush() const;
 
     void Invalidate() const;

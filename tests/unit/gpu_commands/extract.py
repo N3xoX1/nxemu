@@ -22,9 +22,12 @@ names = ['IsMethodExecutable', 'ProcessShadowRam', 'ProcessDirtyRegisters',
 engine = [method(s, 'Maxwell3D::'+n).replace('Maxwell3D::','Fixture::') for n in names]
 engine += [method(h, 'void ' + n).replace('void '+n+'(', 'void Fixture::'+n+'(', 1) for n in ['FrontWrite', 'StreamHeader']]
 (output / 'engine.inc').write_text('\n\n'.join(engine))
-names = ['SinkFor', 'ProcessCommands', 'SetState', 'CallMethod', 'CallMultiMethod']
+names = ['SinkFor', 'ProcessCommands', 'SetState', 'CallMethod', 'CallMultiMethod',
+         'UpdateUniformPrefetchAtAcquire', 'ResumeUniformPrefetch']
 s = (root / 'src/yuzu_video_core/dma_pusher.cpp').read_text()
-dma = [method(s, 'IsPullerRegisterOnly')]
+operation = s.index('enum class SemaphoreOperation')
+dma = [method(s, 'IsPullerRegisterOnly'), s[operation:s.index('};', operation) + 2],
+       method(s, 'IsPullerAcquire')]
 dma += [method(s, 'DmaPusher::'+n).replace('DmaPusher::','Dma::') for n in names]
 (output / 'dma.inc').write_text('\n\n'.join(dma))
 (output / 'baseline.inc').write_text((root / 'tests/unit/gpu_commands/baseline.inc').read_text())

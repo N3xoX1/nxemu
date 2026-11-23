@@ -403,6 +403,73 @@ void BufferCache<P>::DisableGraphicsUniformBuffer(size_t stage, u32 index) {
 }
 
 template <class P>
+bool BufferCache<P>::PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                     UniformPrefetch& prefetch) {
+    if constexpr (IS_OPENGL || !UniformPrefetchable<Runtime>) {
+        return false;
+    } else {
+        if (stage >= NUM_STAGES || index >= NUM_GRAPHICS_UNIFORM_BUFFERS) {
+            return false;
+        }
+        const u32 size = std::min(prefetch_sizes[stage][index].load(std::memory_order_relaxed),
+                                  max_size);
+        const bool read_in_place = guest_ram_imported && size > DEFAULT_SKIP_CACHE_SIZE &&
+                                   !device_memory.IsExcludedFromInPlace(device_addr, size);
+        if (size == 0 || read_in_place || device_memory.IsEngineWritten(device_addr, size)) {
+            return false;
+        }
+        u8* copy{};
+        u32 offset{};
+        if (!runtime.AllocatePrefetch(size, offset, copy)) {
+            return false;
+        }
+        if (const u8* const guest = device_memory.GetSpan(device_addr, size)) {
+            std::memcpy(copy, guest, size);
+        } else {
+            device_memory.ReadBlockUnsafe(device_addr, copy, size);
+        }
+        prefetch = {device_addr, size, offset};
+        return true;
+    }
+}
+
+template <class P>
+u64 BufferCache<P>::UniformPrefetchPosition() {
+    if constexpr (IS_OPENGL || !UniformPrefetchable<Runtime>) {
+        return 0;
+    } else {
+        return runtime.PrefetchPosition();
+    }
+}
+
+template <class P>
+void BufferCache<P>::ApplyUniformPrefetch(size_t stage, u32 index,
+                                          const UniformPrefetch& prefetch) {
+    if (stage >= NUM_STAGES || index >= NUM_GRAPHICS_UNIFORM_BUFFERS) {
+        return;
+    }
+    if (prefetch_channel != channel_state) {
+        ResetUniformPrefetch(0);
+        prefetch_channel = channel_state;
+    }
+    prefetch_slots[stage][index] = prefetch;
+    prefetch_slots_used = true;
+}
+
+template <class P>
+void BufferCache<P>::ResetUniformPrefetch(u64 position) {
+    if (prefetch_slots_used) {
+        prefetch_slots = {};
+        prefetch_slots_used = false;
+    }
+    if constexpr (!IS_OPENGL && UniformPrefetchable<Runtime>) {
+        if (position != 0) {
+            runtime.ReleasePrefetch(position);
+        }
+    }
+}
+
+template <class P>
 void BufferCache<P>::UpdateGraphicsBuffers(bool is_indexed) {
     do {
         channel_state->has_deleted_buffers = false;
@@ -1319,6 +1386,20 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
         if constexpr (IS_OPENGL) {
             channel_state->fast_bound_uniform_buffers[stage] |= 1U << binding_index;
             channel_state->uniform_buffer_binding_sizes[stage][binding_index] = size;
+        }
+        if constexpr (!IS_OPENGL && UniformPrefetchable<Runtime>) {
+            if (prefetch_sizes[stage][index].load(std::memory_order_relaxed) < size) {
+                prefetch_sizes[stage][index].store(size, std::memory_order_relaxed);
+            }
+            // An engine write recorded before this draw lands after the decode thread copied
+            const UniformPrefetch& prefetched = prefetch_slots[stage][index];
+            if (prefetched.size != 0 && prefetched.size >= size &&
+                prefetched.device_addr == device_addr &&
+                prefetch_channel == channel_state &&
+                !device_memory.IsEngineWritten(device_addr, size)) {
+                runtime.BindPrefetchedUniform(prefetched.offset, size);
+                return;
+            }
         }
         // A same-tick allocation can serve repeated, byte-identical small uniforms. On
         // changing data the adaptive helper falls back to the normal streaming cost.

@@ -108,6 +108,12 @@ public:
     /// Decode thread: waits until the GPU thread has run all queued work
     void WaitIdle();
 
+    /// Decode thread
+    bool IsIdle() const {
+        return !threaded || done_spin.load(std::memory_order_acquire) >=
+                                pushed_spin.load(std::memory_order_relaxed);
+    }
+
     /// Decode thread: runs `func` on the GPU thread and waits for completion.
     template <typename Func>
     void RunExclusive(Func&& func) {

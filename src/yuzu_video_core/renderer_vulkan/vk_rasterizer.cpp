@@ -901,6 +901,24 @@ void Vulkan::RasterizerVulkan::DisableGraphicsUniformBuffer(size_t stage, u32 in
     buffer_cache.DisableGraphicsUniformBuffer(stage, index);
 }
 
+bool RasterizerVulkan::PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                       VideoCommon::UniformPrefetch& prefetch) {
+    return buffer_cache.PrefetchUniform(stage, index, device_addr, max_size, prefetch);
+}
+
+u64 RasterizerVulkan::UniformPrefetchPosition() {
+    return buffer_cache.UniformPrefetchPosition();
+}
+
+void RasterizerVulkan::ApplyUniformPrefetch(size_t stage, u32 index,
+                                            const VideoCommon::UniformPrefetch& prefetch) {
+    buffer_cache.ApplyUniformPrefetch(stage, index, prefetch);
+}
+
+void RasterizerVulkan::ResetUniformPrefetch(u64 position) {
+    buffer_cache.ResetUniformPrefetch(position);
+}
+
 void RasterizerVulkan::FlushAll() {}
 
 void RasterizerVulkan::FlushRegion(DAddr addr, u64 size, VideoCommon::CacheType which) {

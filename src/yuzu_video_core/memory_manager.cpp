@@ -702,10 +702,6 @@ void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * 
 
 void MemoryManager::PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size)
 {
-    if (!memory.InPlaceReadsEnabled())
-    {
-        return;
-    }
     auto do_nothing = [&]([[maybe_unused]] std::size_t page_index,
                           [[maybe_unused]] std::size_t offset,
                           [[maybe_unused]] std::size_t copy_amount) {};

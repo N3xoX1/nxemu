@@ -23,6 +23,20 @@ concept StreamUniformReusable = requires(Runtime& runtime, u32 size) {
     { runtime.CurrentTick() } -> std::convertible_to<u64>;
 };
 
+template <class Runtime>
+concept UniformPrefetchable = requires(Runtime& runtime, u32 size, u32& offset, u8*& pointer) {
+    { runtime.AllocatePrefetch(size, offset, pointer) } -> std::same_as<bool>;
+    { runtime.PrefetchPosition() } -> std::convertible_to<u64>;
+    runtime.ReleasePrefetch(u64{});
+    runtime.BindPrefetchedUniform(size, size);
+};
+
+struct UniformPrefetch {
+    u64 device_addr;
+    u32 size;
+    u32 offset;
+};
+
 // Unsupported backends (including OpenGL) have no additional state or overhead.
 template <class Runtime, bool Supported = StreamUniformReusable<Runtime>>
 class UniformStreamReuse {
@@ -60,16 +74,21 @@ public:
         }
         if (slot.size == size && slot.tick == tick && slot.misses < MaxConsecutiveMisses) {
             // Contents, not just guest address, determine whether an allocation may be reused.
-            memory.ReadBlockUnsafe(device_addr, scratch.data(), size);
-            if (std::memcmp(slot.bytes.data(), scratch.data(), size) == 0) {
+            const u8* current = memory.GetSpan(device_addr, size);
+            if (current == nullptr) {
+                memory.ReadBlockUnsafe(device_addr, scratch.data(), size);
+                current = scratch.data();
+            }
+            if (std::memcmp(slot.bytes.data(), current, size) == 0) {
                 slot.misses = 0;
                 runtime.RebindStreamUniform(slot.ref, size);
                 return true;
             }
             ++slot.misses;
+            // Upload the snapshot: the next compare must see what the GPU reads
+            std::memcpy(slot.bytes.data(), current, size);
             const std::span<u8> mapped = runtime.BindMappedUniformBuffer(stage, binding_index, size);
-            std::memcpy(mapped.data(), scratch.data(), size);
-            std::memcpy(slot.bytes.data(), scratch.data(), size);
+            std::memcpy(mapped.data(), slot.bytes.data(), size);
         } else {
             // A new tick can never reuse the old allocation. Prime the next comparison.
             if (slot.tick != tick || slot.size != size) {
