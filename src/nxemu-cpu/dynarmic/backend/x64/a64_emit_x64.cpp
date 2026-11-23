@@ -637,44 +637,6 @@ void A64EmitX64::ClearFastDispatchTable() {
     }
 }
 
-void A64EmitX64::GenWriteMarkThunks() {
-    if (!conf.write_track_map || !conf.fastmem_pointer || conf.check_halt_on_memory_access) {
-        return;
-    }
-    // As WriteTrackMapIsLow: the whole map below 2 GiB, addressed without a base register
-    const bool low = reinterpret_cast<u64>(conf.write_track_map) + conf.write_track_l1_offset + (u64{1} << 20) < (u64{1} << 31);
-    const u32 l2_offset = conf.write_track_l2_offset;
-    const u32 l1_offset = conf.write_track_l1_offset;
-    const u32 low_base = static_cast<u32>(reinterpret_cast<u64>(conf.write_track_map));
-    for (int p = 0; p < 16; ++p) {
-        if (p == 4) {
-            continue;  // rsp
-        }
-        const Xbyak::Reg64 page{p};
-        for (int m = 0; m <= 16; ++m) {
-            if (m == 16 ? !low : (low || m == p || m == 4)) {
-                continue;
-            }
-            code.write_mark_thunks[p * 17 + m] = code.getCurr();
-            if (m == 16) {
-                code.mov(code.byte[page + low_base], 1);
-                code.shr(page, 9);
-                code.mov(code.byte[page + (low_base + l2_offset)], 1);
-                code.shr(page, 9);
-                code.mov(code.byte[page + (low_base + l1_offset)], 1);
-            } else {
-                const Xbyak::Reg64 map{m};
-                code.mov(code.byte[map + page], 1);
-                code.shr(page, 9);
-                code.mov(code.byte[map + page + l2_offset], 1);
-                code.shr(page, 9);
-                code.mov(code.byte[map + page + l1_offset], 1);
-            }
-            code.ret();
-        }
-    }
-}
-
 void A64EmitX64::AddFastDispatchTable(FastDispatchTable* table) {
     table->fill({});
     fast_dispatch_tables.push_back(table);

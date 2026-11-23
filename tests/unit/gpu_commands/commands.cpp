@@ -170,7 +170,6 @@ struct Fixture : Engines::EngineInterface {
   void FrontWrite(u32, u32);
   void StreamHeader(StreamKind, u32);
   void FrontMethodCall(u32, u32, u32);
-  void FrontBindUniform(size_t) {}
   void RunWords(const u32 *, size_t, std::vector<HLECall> &);
   bool IsThreaded() const { return false; }
   void DrainStream() {
@@ -221,7 +220,6 @@ struct Dma {
     return acquires_met;
   }
   mutable bool unmet_acquire_seen{};
-  Engines::EngineInterface *maxwell3d_engine{};
   struct Gpu {
     struct Queue {
       std::vector<std::string> **events;

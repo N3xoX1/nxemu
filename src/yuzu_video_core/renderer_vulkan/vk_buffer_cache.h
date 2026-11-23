@@ -265,15 +265,6 @@ public:
         BindBuffer(buffer, offset, size);
     }
 
-    bool AllocatePrefetch(u32 size, u32& offset, u8*& pointer);
-    uint64_t PrefetchPosition() const noexcept {
-        return prefetch_head;
-    }
-    void ReleasePrefetch(uint64_t position);
-    void BindPrefetchedUniform(u32 offset, u32 size) {
-        BindBuffer(*prefetch_buffer, offset, size);
-    }
-
     void BindStorageBuffer(VkBuffer buffer, u32 offset, u32 size,
                            [[maybe_unused]] bool is_written) {
         BindBuffer(buffer, offset, size);
