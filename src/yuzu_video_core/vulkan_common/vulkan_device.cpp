@@ -404,6 +404,26 @@ std::vector<const char *> ExtensionListForVulkan(
 
 } // Anonymous namespace
 
+NvidiaArchitecture DetectNvidiaArchitecture(vk::PhysicalDevice physical)
+{
+    std::set<std::string, std::less<>> extensions;
+    for (const VkExtensionProperties & property : physical.EnumerateDeviceExtensionProperties())
+    {
+        extensions.insert(property.extensionName);
+    }
+    return GetNvidiaArchitecture(physical, extensions);
+}
+
+bool HasBrokenFloat16Math(VkDriverId driver_id, NvidiaArchitecture nvidia_arch)
+{
+    if (driver_id == VK_DRIVER_ID_NVIDIA_PROPRIETARY)
+    {
+        return nvidia_arch >= NvidiaArchitecture::Arch_AmpereOrNewer;
+    }
+    // Intel's compiler crashes when using fp16 on Astral Chain.
+    return driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS;
+}
+
 void Device::RemoveExtension(bool & extension, const std::string & extension_name)
 {
     extension = false;
@@ -588,7 +608,7 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
     {
         const u32 nv_major_version = (properties.properties.driverVersion >> 22) & 0x3ff;
         const auto arch = GetNvidiaArch();
-        if (arch >= NvidiaArchitecture::Arch_AmpereOrNewer)
+        if (HasBrokenFloat16Math(driver_id, arch))
         {
             LOG_WARNING(Render_Vulkan, "Ampere and newer have broken float16 math");
             features.shader_float16_int8.shaderFloat16 = false;
@@ -716,9 +736,8 @@ Device::Device(VkInstance instance_, vk::PhysicalDevice physical_, VkSurfaceKHR 
             RemoveExtensionFeature(extensions.vertex_input_dynamic_state, features.vertex_input_dynamic_state, VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME);
         }
     }
-    if (features.shader_float16_int8.shaderFloat16 && is_intel_windows)
+    if (features.shader_float16_int8.shaderFloat16 && HasBrokenFloat16Math(driver_id, nvidia_arch))
     {
-        // Intel's compiler crashes when using fp16 on Astral Chain, disable it for the time being.
         LOG_WARNING(Render_Vulkan, "Intel has broken float16 math");
         features.shader_float16_int8.shaderFloat16 = false;
     }

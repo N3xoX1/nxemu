@@ -374,6 +374,9 @@
     <ClInclude Include="precompiled_headers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="default_presentation_profile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="present.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -1158,6 +1161,9 @@
     </ClCompile>
     <ClCompile Include="vulkan_common\vulkan_device.cpp">
       <Filter>Source Files\vulkan_common</Filter>
+    </ClCompile>
+    <ClCompile Include="default_presentation_profile.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="vulkan_common\vulkan_instance.cpp">
       <Filter>Source Files\vulkan_common</Filter>

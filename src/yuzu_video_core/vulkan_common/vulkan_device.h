@@ -194,6 +194,13 @@ enum class NvidiaArchitecture {
     Arch_AmpereOrNewer,
 };
 
+/// Reads the Nvidia architecture of a physical device from its extensions and properties.
+NvidiaArchitecture DetectNvidiaArchitecture(vk::PhysicalDevice physical);
+
+/// True when the driver reports float16 support but its float16 math is broken, so the
+/// renderer disables it.
+bool HasBrokenFloat16Math(VkDriverId driver_id, NvidiaArchitecture nvidia_arch);
+
 /// Handles data specific to a physical device.
 class Device {
 public:

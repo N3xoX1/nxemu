@@ -1,0 +1,3 @@
+add_executable(test_presentation_profile presentation_profile.cpp)
+target_include_directories(test_presentation_profile PRIVATE "${NXEMU_FAST_TEST_SOURCE_DIR}")
+nxemu_fast_test(test_presentation_profile)

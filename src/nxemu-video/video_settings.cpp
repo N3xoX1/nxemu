@@ -12,6 +12,7 @@
 #include <nxemu-module-spec/base.h>
 #include <nxemu-module-spec/fsr_sharpness.h>
 #include <yuzu_common/yuzu_assert.h>
+#include <yuzu_video_core/default_presentation_profile.h>
 
 extern IModuleSettings * g_settings;
 
@@ -297,7 +298,7 @@ static VideoSetting settings[] = {
 #endif
     {NXVideoSetting::SystemAspectRatio, "video", "aspect_ratio", &videoSettings.global_aspect_ratio, AspectRatio::R16_9},
     {NXVideoSetting::SystemResolutionSetup, "video", "resolution_setup", &videoSettings.global_resolution_setup, ResolutionSetup::Res1X},
-    {NXVideoSetting::SystemScalingFilter, "video", "scaling_filter", &videoSettings.global_scaling_filter, ScalingFilter::Bilinear},
+    {NXVideoSetting::SystemScalingFilter, "video", "scaling_filter", &videoSettings.global_scaling_filter, ScalingFilter::AutoPerformance},
     {NXVideoSetting::CustomScalingFilter, "video", "custom_scaling_filter", &videoSettings.custom_scaling_filter, static_cast<int32_t>(ScalingFilter::Bilinear), 0, static_cast<int32_t>(ScalingFilter::ScaleForceFast)},
     {NXVideoSetting::SystemAntiAliasing, "video", "anti_aliasing", &videoSettings.global_anti_aliasing, AntiAliasing::None},
     {NXVideoSetting::SystemFSPSharpness, "video", "fsr_sharpening_slider", &videoSettings.global_fsr_sharpening_slider, FsrSharpness::ToStored(80), 0, FsrSharpness::StoredMaximum},
@@ -796,7 +797,10 @@ void WriteJsonSetting(const VideoSetting & videoSetting, JsonValue & root, bool 
         }
         break;
     case SettingType::ScalingFilter:
-        if (always || *videoSetting.value.scalingFilter != videoSetting.defaults.scalingFilter)
+        // The global profile is always saved: its first value comes from hardware detection, so
+        // a choice equal to the default must not be dropped and detected again later.
+        if (always || *videoSetting.value.scalingFilter != videoSetting.defaults.scalingFilter ||
+            (videoSetting.identifier != nullptr && strcmp(videoSetting.identifier, NXVideoSetting::SystemScalingFilter) == 0))
         {
             SetJsonSettingValue(videoSetting, root, ScalingFilterToString(*videoSetting.value.scalingFilter));
         }
@@ -845,6 +849,27 @@ void GameSettingsChanged(const char * /*setting*/, void * /*userData*/)
 
 void SetupVideoSetting(void)
 {
+    // The default profile depends on the hardware. Detect it only on the first run and save it,
+    // so later runs keep the saved value (or the user's own choice) without probing again.
+    if (const VideoSetting * scalingSetting = ModuleSettingTable::FindSetting(settings, NXVideoSetting::SystemScalingFilter))
+    {
+        JsonValue saved = ModuleSettingTable::ParseSettings(g_settings->GetSectionSettings("nxemu-video"));
+        if (JsonSettingValue(*scalingSetting, saved).isNull())
+        {
+            int32_t vulkanDevice = 0;
+            if (const VideoSetting * deviceSetting = ModuleSettingTable::FindSetting(settings, NXVideoSetting::VulkanDevice))
+            {
+                const JsonValue deviceValue = JsonSettingValue(*deviceSetting, saved);
+                if (deviceValue.isInt())
+                {
+                    vulkanDevice = static_cast<int32_t>(deviceValue.asInt64());
+                }
+            }
+            const ScalingFilter detected = VideoCore::DetectDefaultPresentationProfile(vulkanDevice);
+            SetJsonSettingValue(*scalingSetting, saved, ScalingFilterToString(detected));
+            g_settings->SetSectionSettings("nxemu-video", ModuleSettingTable::SettingsJson(saved).c_str());
+        }
+    }
     ModuleSettingTable::SetupSettings(settings, "nxemu-video", VideoSettingChanged, GameSettingsChanged);
     runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
     runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
