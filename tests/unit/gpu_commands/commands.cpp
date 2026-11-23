@@ -54,6 +54,7 @@ struct Raster {
   void TiledCacheBarrier() {}
   void ApplyUniformPrefetch(size_t, u32, const VideoCommon::UniformPrefetch &) {}
   void ResetUniformPrefetch(u64) {}
+  void ReleaseDrawLocks() {}
 };
 struct Macro {
   void ClearCode(u32) {}

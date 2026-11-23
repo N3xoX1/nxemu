@@ -997,6 +997,7 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
     if (CanReuseLastLookup(topology)) {
         return BuiltPipeline(current_pipeline);
     }
+    before_blocking_lookup();
     fast_lookup_pipeline = nullptr;
     maxwell3d->dirty.pipeline_key_changed = false;
     GraphicsPipeline* const pipeline = LookupGraphicsPipeline();
@@ -2370,6 +2371,7 @@ GraphicsPipeline* PipelineCache::WaitForCurrentGraphicsPipeline() {
         return nullptr;
     }
     skipped_unfinished = false;
+    before_blocking_lookup();
     wait_for_current_draw = true;
     SCOPE_EXIT { wait_for_current_draw = false; };
     return CurrentGraphicsPipelineSlowPath();

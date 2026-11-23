@@ -7,6 +7,8 @@
 
 namespace Common {
 
+void ThreadPause();
+
 /**
  * SpinLock class
  * a lock similar to mutex that forces a thread to spin wait instead calling the

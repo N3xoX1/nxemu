@@ -157,6 +157,7 @@ public:
     void SignalSyncPoint(u32 value) override;
     void SignalReference() override;
     void ReleaseFences(bool force = true) override;
+    void ReleaseDrawLocks() override;
     void FlushAndInvalidateRegion(
         DAddr addr, u64 size, VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void WaitForIdle() override;
@@ -218,6 +219,7 @@ private:
     [[nodiscard]] bool ConfigureFromLastDraw(GraphicsPipeline* pipeline, bool is_indexed);
     void InvalidateInner(std::span<const std::pair<DAddr, std::size_t>> sequences,
                          bool const_buffer_uploads);
+    [[nodiscard]] bool OthersWaitForDrawLocks() const noexcept;
     /// After the caches take a change, so a draw that sees the new epoch sees the change
     void ChangeMemoryEpoch();
 
@@ -298,6 +300,10 @@ private:
 
     DrawBindings last_draw_bindings{};
     u64 last_draw_buffer_generation{};
+    /// Only between draws: a draw owns the locks it runs under
+    bool draw_locks_kept{};
+    u32 draws_under_locks{};
+    static constexpr u32 MAX_DRAWS_UNDER_LOCKS = 64;
     /// Unchanged by the constant buffer uploads that Maxwell3D::BufferChanges records
     std::atomic<u64> memory_epoch{};
 
