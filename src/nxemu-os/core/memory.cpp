@@ -2088,6 +2088,8 @@ void Memory::RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, i
 bool Memory::ProtectsReadCachedRegions() {
 #if defined(__APPLE__)
     return impl->buffer->UsesNce() && osSettings.use_reactive_flushing;
+#elif defined(_M_X64) || defined(__x86_64__)
+    return ProtectsQueryResults();
 #else
     return false;
 #endif
@@ -2097,8 +2099,7 @@ bool Memory::ProtectsQueryResults() {
 #if defined(__APPLE__)
     return ProtectsReadCachedRegions();
 #elif defined(_M_X64) || defined(__x86_64__)
-    // Matches where RasterizerMarkRegionReadCached denies access. The fault waits for query
-    // results only, so ProtectsReadCachedRegions, which also covers buffer downloads, stays off.
+    // Matches where RasterizerMarkRegionReadCached denies access
     return ProtectOnlyReadCachedPages() && impl->current_page_table &&
            impl->current_page_table->fastmem_arena;
 #else

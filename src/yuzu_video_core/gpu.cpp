@@ -995,6 +995,16 @@ void GPU::WaitPendingResults(DAddr addr, u64 size)
     }
 }
 
+void GPU::WaitProtectedBufferDownloads(DAddr addr, u64 size)
+{
+    // Unbounded: the fencing thread publishes a committed download once the host GPU reaches its
+    // fence, which was submitted with it, so the wait never depends on this core
+    while (impl->rasterizer->AwaitsProtectedBufferDownload(addr, size))
+    {
+        std::this_thread::yield();
+    }
+}
+
 bool GPU::OnNativeCPURead(DAddr addr, u64 size, bool shared_page)
 {
     if (shared_page)
