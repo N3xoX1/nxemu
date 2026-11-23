@@ -455,6 +455,18 @@ msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High d
 msgstr "Vereist de nauwkeurigheid Hoog of Extreem. In sommige games veel sneller, met het tekenen van Hoog. Wat games lezen kan een beeld te laat zijn."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Untracked shader writes"
+msgstr "Niet-gevolgde shaderschrijfacties"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Skips reading back buffers a shader only might write."
+msgstr "Slaat het teruglezen over van buffers die een shader alleen mogelijk beschrijft."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value."
+msgstr "Verhelpt games die zulke buffers vullen terwijl de chip ze gebruikt. Een game die er een terugleest, kan een oude waarde zien."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Reactive flushing"
 msgstr "Reactief flushen"

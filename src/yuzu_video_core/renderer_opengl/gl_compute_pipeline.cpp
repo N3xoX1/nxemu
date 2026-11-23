@@ -82,7 +82,7 @@ void ComputePipeline::Configure() {
     for (const auto& desc : info.storage_buffers_descriptors) {
         ASSERT(desc.count == 1);
         buffer_cache.BindComputeStorageBuffer(ssbo_index, desc.cbuf_index, desc.cbuf_offset,
-                                              desc.is_written);
+                                              desc.is_written, desc.untracked_writes_only);
         ++ssbo_index;
     }
     texture_cache.SynchronizeComputeDescriptors();

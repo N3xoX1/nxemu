@@ -42,6 +42,7 @@ bool IsDMALevelDefault();
 bool IsDMALevelSafe();
 bool UseSafeDMAReads();
 bool IsGpuCommandSynchronizationEnabled();
+bool IsUntrackedStoreReadbackSkipped();
 bool IsGpuReadbackExact();
 bool IsLegacyFsrEnabled();
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info);
@@ -108,6 +109,8 @@ struct VideoSettings
     bool global_use_reactive_flushing;
     bool gpu_command_synchronization;
     bool global_gpu_command_synchronization;
+    bool skip_untracked_store_readback;
+    bool global_skip_untracked_store_readback;
     bool fast_gpu_readback;
 
     bool use_asynchronous_shaders;

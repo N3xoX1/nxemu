@@ -82,7 +82,7 @@ jobs:
         run: |
           mkdir -p package
           # The executable loads SDL by its soname, beside it.
-          tar -C bin/x64/Release --dereference -czf package/NxEmu-linux-x64.tar.gz nxemu libSDL3.so.0 nxemu.lang modules ui
+          tar -C bin/x64/Release --dereference -czf package/NxEmu-linux-x64.tar.gz nxemu libSDL3.so.0 nxemu.lang modules ui -C ../../../config game_defaults.json
       - name: Package AppImage from the existing Release build
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
@@ -99,6 +99,7 @@ jobs:
           app="$check_dir/squashfs-root/usr/bin"
           test -x "$app/nxemu"
           test -s "$app/nxemu.lang"
+          test -s "$app/game_defaults.json"
           test -s "$app/ui/main_window.rml"
           test -s "$check_dir/squashfs-root/usr/lib/libSDL3.so.0"
           export LD_LIBRARY_PATH="$check_dir/squashfs-root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
