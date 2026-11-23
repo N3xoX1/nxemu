@@ -451,8 +451,28 @@ msgid "Lets games read what the chip drew without waiting for it."
 msgstr "Permite que los juegos lean lo que dibujó el chip sin esperarlo."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
-msgstr "Requiere precisión Alta o Extrema. Mucho más rápido en algunos juegos, con el dibujo de la precisión Alta. Lo que leen los juegos puede llegar un fotograma tarde."
+msgid "Only with High accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgstr "Solo con precisión Alta. Mucho más rápido en algunos juegos, con el dibujo de la precisión Alta. Lo que leen los juegos puede llegar un fotograma tarde."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "Trucos de velocidad"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, these settings can gain FPS, but can cause halos or corruption in some games. Turn one off in the settings of a game that shows it; some games have it off already."
+msgstr "Activados, estos ajustes pueden ganar FPS, pero pueden causar halos o corrupción en algunos juegos. Desactiva uno en los ajustes de un juego que lo muestre; algunos juegos ya lo tienen desactivado."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "Relecturas en segundo plano"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "Puede ganar FPS, pero puede causar halos o corrupción en algunos juegos."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
+msgstr "Requiere Vulkan y vaciado reactivo. Activado, los juegos siguen mientras la GPU copia lo que van a leer, y pueden leer un valor antiguo. Desactivado, esperan a la copia; la relectura rápida aún puede saltarse algunas esperas."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Untracked shader writes"

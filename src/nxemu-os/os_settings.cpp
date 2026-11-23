@@ -562,6 +562,11 @@ void ApplyRangedS64(OsSetting & osSetting, s64 value)
 
 } // namespace
 
+void BackgroundGpuReadbacksChanged(const char * /*setting*/, void * /*userData*/)
+{
+    osSettings.background_gpu_readbacks.store(g_settings->GetBool(NXVideoSetting::GameBackgroundGpuReadbacks), std::memory_order_relaxed);
+}
+
 void VideoSettingsChanged(const char * /*setting*/, void * /*userData*/)
 {
     osSettings.use_reactive_flushing = g_settings->GetBool(NXVideoSetting::GameEnableReactiveFlushing);
@@ -1059,12 +1064,15 @@ void SetupOsSetting(void)
     ModuleSettingTable::SetupSettings(settings, "nxemu-os", OsSettingChanged, GameSettingsChanged);
     VideoSettingsChanged(nullptr, nullptr);
     g_settings->RegisterCallback(NXVideoSetting::GameEnableReactiveFlushing, VideoSettingsChanged, nullptr);
+    BackgroundGpuReadbacksChanged(nullptr, nullptr);
+    g_settings->RegisterCallback(NXVideoSetting::GameBackgroundGpuReadbacks, BackgroundGpuReadbacksChanged, nullptr);
     g_settings->RegisterCallback(NXVideoSetting::GameSyncToFramerateOfVideoPlayback, VideoSettingsChanged, nullptr);
 }
 
 void CleanupOsSetting(void)
 {
     g_settings->UnregisterCallback(NXVideoSetting::GameEnableReactiveFlushing, VideoSettingsChanged, nullptr);
+    g_settings->UnregisterCallback(NXVideoSetting::GameBackgroundGpuReadbacks, BackgroundGpuReadbacksChanged, nullptr);
     g_settings->UnregisterCallback(NXVideoSetting::GameSyncToFramerateOfVideoPlayback, VideoSettingsChanged, nullptr);
     ModuleSettingTable::CleanupSettings(settings, OsSettingChanged, GameSettingsChanged);
 }

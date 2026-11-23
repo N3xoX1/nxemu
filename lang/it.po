@@ -451,8 +451,28 @@ msgid "Lets games read what the chip drew without waiting for it."
 msgstr "Permette ai giochi di leggere ciò che il chip ha disegnato senza aspettarlo."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
-msgstr "Richiede la precisione Alta o Estrema. Molto più veloce in alcuni giochi, mantenendo il disegno della precisione Alta. Ciò che i giochi leggono può arrivare con un fotogramma di ritardo."
+msgid "Only with High accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgstr "Solo con la precisione Alta. Molto più veloce in alcuni giochi, mantenendo il disegno della precisione Alta. Ciò che i giochi leggono può arrivare con un fotogramma di ritardo."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "Trucchi di velocità"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, these settings can gain FPS, but can cause halos or corruption in some games. Turn one off in the settings of a game that shows it; some games have it off already."
+msgstr "Attive, queste impostazioni possono far guadagnare FPS, ma possono causare aloni o corruzioni in alcuni giochi. Disattivane una nelle impostazioni di un gioco che la mostra; alcuni giochi l'hanno già disattivata."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "Riletture in background"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "Può far guadagnare FPS, ma può causare aloni o corruzioni in alcuni giochi."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
+msgstr "Richiede Vulkan e lo svuotamento reattivo. Attiva, i giochi proseguono mentre la GPU copia ciò che leggeranno, e possono leggere un valore vecchio. Disattiva, attendono la copia; la rilettura rapida può comunque saltare alcune attese."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Untracked shader writes"

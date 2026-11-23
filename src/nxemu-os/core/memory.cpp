@@ -2086,6 +2086,10 @@ void Memory::RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, i
 }
 
 bool Memory::ProtectsReadCachedRegions() {
+    if (!osSettings.background_gpu_readbacks.load(std::memory_order_relaxed))
+    {
+        return false;
+    }
 #if defined(__APPLE__)
     return impl->buffer->UsesNce() && osSettings.use_reactive_flushing;
 #else
@@ -2094,6 +2098,10 @@ bool Memory::ProtectsReadCachedRegions() {
 }
 
 bool Memory::ProtectsQueryResults() {
+    if (!osSettings.background_gpu_readbacks.load(std::memory_order_relaxed))
+    {
+        return false;
+    }
 #if defined(__APPLE__)
     return ProtectsReadCachedRegions();
 #elif defined(_M_X64) || defined(__x86_64__)
