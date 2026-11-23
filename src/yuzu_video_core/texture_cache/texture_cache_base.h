@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <deque>
 #include <limits>
@@ -285,6 +286,18 @@ public:
 
     /// Return true when the caller should wait for async downloads
     [[nodiscard]] bool ShouldWaitAsyncFlushes() const noexcept;
+
+    [[nodiscard]] bool HasUnpublishedDownloads() const noexcept {
+        return std::ranges::any_of(committed_downloads,
+                                   [](const auto& downloads) { return !downloads.empty(); });
+    }
+
+#if defined(__APPLE__)
+    static constexpr bool ReadFaultsWaitForDownloads = true;
+#else
+    // x64 read faults wait for buffer downloads and query results, not for image downloads
+    static constexpr bool ReadFaultsWaitForDownloads = false;
+#endif
 
     /// Commit asynchronous downloads
     void CommitAsyncFlushes();

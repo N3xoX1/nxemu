@@ -628,6 +628,8 @@ RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * po
         }
         // Fast readback publishes a query payload before the earlier results are written
         impl->m_gpuCore->WaitPendingResults(address, size);
+        // Buffer flush areas are preemptive: OnCPURead below won't wait for their downloads
+        impl->m_gpuCore->WaitProtectedBufferDownloads(address, size);
         if (area.startAddress <= address && end_address <= area.endAddress) [[likely]] {
             return;
         }
