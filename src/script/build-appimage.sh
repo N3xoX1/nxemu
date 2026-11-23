@@ -145,6 +145,7 @@ install_module video libnxemu-video.so
 install_module operating_system libnxemu-os.so
 rm -rf "$appdir/usr/bin/ui" "$appdir/usr/bin/user"
 cp "$runtime_dir/nxemu.lang" "$appdir/usr/bin/nxemu.lang"
+cp "$root/config/game_defaults.json" "$appdir/usr/bin/game_defaults.json"
 cp -a "$runtime_dir/ui" "$appdir/usr/bin/ui"
 # The mods that ship with NxEmu: the game folders of external/nxemu-switch-mods, with their licenses.
 rm -rf "$appdir/usr/bin/mods"

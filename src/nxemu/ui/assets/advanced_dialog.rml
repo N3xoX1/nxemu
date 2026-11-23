@@ -428,6 +428,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Untracked shader writes</div>
+                      <div class="row-text">Skips reading back buffers a shader only might write.</div>
+                    </div>
+                    <div id="untracked-writes" class="switch" data-command="toggle:untracked-writes" title="Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Reactive flushing</div>
                       <div class="row-text">Brings memory up to date when it is read.</div>
                     </div>

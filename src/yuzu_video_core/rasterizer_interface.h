@@ -12,6 +12,7 @@
 #include <vector>
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/polyfill_thread.h"
+#include "yuzu_video_core/buffer_cache/uniform_stream_reuse.h"
 #include "yuzu_video_core/cache_types.h"
 #include "yuzu_video_core/engines/fermi_2d.h"
 #include "yuzu_video_core/gpu.h"
@@ -91,6 +92,17 @@ public:
 
     /// Signal disabling of a uniform buffer
     virtual void DisableGraphicsUniformBuffer(size_t stage, u32 index) = 0;
+
+    virtual bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                 VideoCommon::UniformPrefetch& prefetch) {
+        return false;
+    }
+    virtual u64 UniformPrefetchPosition() {
+        return 0;
+    }
+    virtual void ApplyUniformPrefetch(size_t stage, u32 index,
+                                      const VideoCommon::UniformPrefetch& prefetch) {}
+    virtual void ResetUniformPrefetch(u64 position) {}
 
     /// Signal a GPU based semaphore as a fence
     virtual void SignalFence(std::function<void()>&& func) = 0;

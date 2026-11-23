@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "yuzu_video_core/renderer_vulkan/vk_buffer_cache.h"
+#include "yuzu_common/alignment.h"
 #include "yuzu_common/readback_reference.h"
 #include "yuzu_shader_recompiler/backend/spirv/emit_spirv.h"
 
@@ -410,6 +411,23 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
         uint8_pass = std::make_unique<Uint8Pass>(device, scheduler, descriptor_pool, staging_pool,
                                                  compute_pass_descriptor_queue);
     }
+    prefetch_buffer = memory_allocator.CreateBuffer(
+        VkBufferCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .size = PrefetchRingSize,
+            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 0,
+            .pQueueFamilyIndices = nullptr,
+        },
+        MemoryUsage::Stream);
+    // The decode thread writes copies without flushing them for the GPU
+    if (prefetch_buffer.IsHostCoherent()) {
+        prefetch_span = prefetch_buffer.Mapped();
+    }
+    prefetch_alignment = std::max<uint64_t>(64, device.GetUniformBufferAlignment());
     quad_array_index_buffer = std::make_shared<QuadArrayIndexBuffer>(device_, memory_allocator_,
                                                                      scheduler_, staging_pool_);
     quad_strip_index_buffer = std::make_shared<QuadStripIndexBuffer>(device_, memory_allocator_,
@@ -501,6 +519,46 @@ bool BufferCacheRuntime::DifferentialReadback(Buffer& buffer, const StagingBuffe
 
 void BufferCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) {
     staging_pool.FreeDeferred(ref);
+}
+
+bool BufferCacheRuntime::AllocatePrefetch(u32 size, u32& offset, u8*& pointer) {
+    if (prefetch_span.empty() || size == 0 || size > PrefetchRingSize / 8) {
+        return false;
+    }
+    uint64_t start = Common::AlignUp(prefetch_head, prefetch_alignment);
+    if (start % PrefetchRingSize + size > PrefetchRingSize) {
+        start = Common::AlignUp(start, PrefetchRingSize);
+    }
+    if (start + size - prefetch_tail > PrefetchRingSize) {
+        MasterSemaphore& master = scheduler.GetMasterSemaphore();
+        master.Refresh();
+        std::scoped_lock lock{prefetch_mutex};
+        while (!prefetch_releases.empty() && master.IsFree(prefetch_releases.front().tick)) {
+            prefetch_tail = std::max(prefetch_tail, prefetch_releases.front().position);
+            prefetch_releases.pop_front();
+        }
+        if (start + size - prefetch_tail > PrefetchRingSize) {
+            return false;
+        }
+    }
+    prefetch_head = start + size;
+    offset = static_cast<u32>(start % PrefetchRingSize);
+    pointer = prefetch_span.data() + offset;
+    return true;
+}
+
+void BufferCacheRuntime::ReleasePrefetch(uint64_t position) {
+    if (position <= prefetch_released) {
+        return;
+    }
+    prefetch_released = position;
+    const u64 tick = scheduler.CurrentTick();
+    std::scoped_lock lock{prefetch_mutex};
+    if (!prefetch_releases.empty() && prefetch_releases.back().tick == tick) {
+        prefetch_releases.back().position = position;
+        return;
+    }
+    prefetch_releases.push_back({position, tick});
 }
 
 bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, uint64_t size) {

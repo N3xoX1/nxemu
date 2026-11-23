@@ -465,7 +465,7 @@ private:
                 return block->entrypoint;
             }
         }
-        if (block_of_code.SpaceRemaining() < conf.code_cache_size / 8 && !shared->clear_pending.load()) {
+        if (block_of_code.AnyAreaNearlyFull() && !shared->clear_pending.load()) {
             shared->RequestClear();
         }
         block_of_code.EnsureMemoryCommitted(MINIMUM_REMAINING_CODESIZE);

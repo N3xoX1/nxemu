@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <tuple>
 #include <functional>
 #include <memory>
@@ -134,8 +135,10 @@ public:
 
     std::array<u32, NUM_STAGES> enabled_storage_buffers{};
     std::array<u32, NUM_STAGES> written_storage_buffers{};
+    std::array<u32, NUM_STAGES> untracked_storage_buffers{};
     u32 enabled_compute_storage_buffers = 0;
     u32 written_compute_storage_buffers = 0;
+    u32 untracked_compute_storage_buffers = 0;
 
     std::array<u32, NUM_STAGES> enabled_texture_buffers{};
     std::array<u32, NUM_STAGES> written_texture_buffers{};
@@ -244,6 +247,14 @@ public:
 
     void DisableGraphicsUniformBuffer(size_t stage, u32 index);
 
+    /// Decode thread, without the cache lock
+    bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                         UniformPrefetch& prefetch);
+    u64 UniformPrefetchPosition();
+
+    void ApplyUniformPrefetch(size_t stage, u32 index, const UniformPrefetch& prefetch);
+    void ResetUniformPrefetch(u64 position);
+
     void UpdateGraphicsBuffers(bool is_indexed);
 
     void UpdateComputeBuffers();
@@ -313,7 +324,7 @@ public:
     void UnbindGraphicsStorageBuffers(size_t stage);
 
     void BindGraphicsStorageBuffer(size_t stage, size_t ssbo_index, u32 cbuf_index, u32 cbuf_offset,
-                                   bool is_written);
+                                   bool is_written, bool untracked_writes_only);
 
     void UnbindGraphicsTextureBuffers(size_t stage);
 
@@ -323,7 +334,7 @@ public:
     void UnbindComputeStorageBuffers();
 
     void BindComputeStorageBuffer(size_t ssbo_index, u32 cbuf_index, u32 cbuf_offset,
-                                  bool is_written);
+                                  bool is_written, bool untracked_writes_only);
 
     void UnbindComputeTextureBuffers();
 
@@ -521,6 +532,8 @@ private:
     /// A tracked write is one the bitmap of written pages records
     void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size, bool tracked = false);
 
+    void MarkWrittenWithoutReadback(BufferId buffer_id, DAddr device_addr, u32 size);
+
     void MarkGpuWriteHistory(DAddr device_addr, u64 size) noexcept {
         gpu_write_history.Mark(device_addr, size);
         ++gpu_write_epoch;
@@ -590,6 +603,13 @@ private:
 
     // Owned by this cache: a new renderer/scheduler must never reuse retired staging offsets.
     UniformStreamReuse<Runtime> uniform_stream_reuse;
+
+    std::array<std::array<std::atomic<u32>, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
+        prefetch_sizes{};
+    std::array<std::array<UniformPrefetch, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
+        prefetch_slots{};
+    bool prefetch_slots_used{};
+    const void* prefetch_channel{};
 
     Common::SlotVector<Buffer> slot_buffers;
     DelayedDestructionRing<Buffer, 8> delayed_destruction_ring;

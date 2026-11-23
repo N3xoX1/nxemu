@@ -23,7 +23,7 @@ def method(path, name):
     'void DemoteCombinationPass'))
 source = 'src/yuzu_video_core/buffer_cache/buffer_cache.h'
 names = ['BufferCache<P>::FindBuffer', 'BufferCache<P>::MarkWrittenBuffer',
-         'BufferCache<P>::ObtainCPUBuffer',
+         'BufferCache<P>::MarkWrittenWithoutReadback', 'BufferCache<P>::ObtainCPUBuffer',
          'BufferCache<P>::SynchronizeBuffer(Buffer& buffer, DAddr device_addr, u32 size,']
 methods = [method(source, name) for name in names[:-1]]
 # Select the overload with the upload list, rather than its small forwarding wrapper.

@@ -475,6 +475,18 @@ msgstr ""
 "bildruta efter."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Untracked shader writes"
+msgstr "Ospårade shaderskrivningar"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Skips reading back buffers a shader only might write."
+msgstr "Hoppar över återläsning av buffertar som en shader bara kanske skriver."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value."
+msgstr "Rättar spel som fyller sådana buffertar medan kretsen använder dem. Ett spel som läser tillbaka en kan se ett gammalt värde."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Reactive flushing"
 msgstr "Reaktiv tömning"

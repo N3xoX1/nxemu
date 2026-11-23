@@ -322,9 +322,10 @@ void OSManager::ShutdownMainProcess()
 
 bool OSManager::SetupCurrentProcess(uint64_t codeSize, const IProgramMetadata & metaData, uint64_t aslr_space_start, uint64_t & baseAddress, uint64_t & processID, bool is_hbl)
 {
-    m_coreSystem.FrameStep().Reset();
     if (m_applicationProcess == nullptr)
     {
+        // Not for an applet: the application keeps running under it and reading its patch pages
+        m_coreSystem.FrameStep().Reset();
         return CreateApplicationProcess(codeSize, metaData, aslr_space_start, baseAddress, processID, is_hbl);
     }
     Kernel::KProcess * const current = m_coreSystem.CurrentProcess();

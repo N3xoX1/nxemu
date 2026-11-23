@@ -11,6 +11,7 @@
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/gpu_thread.h"
 #include "yuzu_video_core/guest_memory.h"
+#include "yuzu_video_core/host1x/host1x.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 
@@ -31,6 +32,8 @@ DmaPusher::~DmaPusher() = default;
 void DmaPusher::DispatchCalls()
 {
     dma_pushbuffer_subindex = 0;
+
+    ResumeUniformPrefetch();
 
     dma_state.is_last_call = true;
 
@@ -496,7 +499,117 @@ bool IsPullerRegisterOnly(u32 method)
         return false;
     }
 }
+
+enum class SemaphoreOperation : u32
+{
+    AcquireEqual = 0x1,
+    WriteLong = 0x2,
+    AcquireGequal = 0x4,
+    AcquireMask = 0x8,
+};
+
+bool IsPullerAcquire(u32 method, u32 argument)
+{
+    switch (static_cast<BufferMethods>(method))
+    {
+    case BufferMethods::SemaphoreOperation:
+        return static_cast<SemaphoreOperation>(argument & 0xF) != SemaphoreOperation::WriteLong;
+    case BufferMethods::SemaphoreAcquire:
+        return true;
+    case BufferMethods::SyncpointOperation:
+        return (argument & 1) == 0;
+    default:
+        return false;
+    }
+}
 } // namespace
+
+bool DmaPusher::IsAcquireMet(u32 method, u32 argument) const
+{
+    const auto reg = [this](BufferMethods register_method) {
+        return front_puller_regs[static_cast<u32>(register_method)];
+    };
+    const auto semaphore_word = [&](u32 & word) {
+        const GPUVAddr address = (static_cast<GPUVAddr>(reg(BufferMethods::SemaphoreAddressHigh) & 0xFF) << 32) |
+                                 reg(BufferMethods::SemaphoreAddressLow);
+        if (memory_manager.GetPointer(address) == nullptr)
+        {
+            return false;
+        }
+        memory_manager.ReadBlockUnsafe(address, &word, sizeof(word));
+        return true;
+    };
+    using Operation = SemaphoreOperation;
+    const u32 sequence = reg(BufferMethods::SemaphoreSequencePayload);
+    u32 word{};
+    switch (static_cast<BufferMethods>(method))
+    {
+    case BufferMethods::SemaphoreOperation:
+        if (!semaphore_word(word))
+        {
+            return false;
+        }
+        switch (static_cast<Operation>(argument & 0xF))
+        {
+        case Operation::AcquireEqual:
+            return word == sequence;
+        case Operation::AcquireGequal:
+            return word >= sequence;
+        case Operation::AcquireMask:
+            return word == 0 || sequence != 0;
+        default:
+            return false;
+        }
+    case BufferMethods::SemaphoreAcquire:
+        return semaphore_word(word) && word == argument;
+    case BufferMethods::SyncpointOperation:
+        return gpu.Host1x().GetSyncpointManager().IsReadyHost((argument >> 8) & 0xFFFFFF,
+                                                              reg(BufferMethods::SyncpointPayload));
+    default:
+        return false;
+    }
+}
+
+void DmaPusher::UpdateUniformPrefetchAtAcquire(u32 method, u32 argument) const
+{
+    if (maxwell3d_engine == nullptr || !IsPullerAcquire(method, argument))
+    {
+        return;
+    }
+    const bool queued_work_can_rewrite =
+        method != static_cast<u32>(BufferMethods::SyncpointOperation);
+    if (queued_work_can_rewrite)
+    {
+        DrainMaxwell3D();
+    }
+    const bool met = (!queued_work_can_rewrite || gpu.BackQueue().IsIdle()) &&
+                     IsAcquireMet(method, argument);
+    if (met)
+    {
+        // Guest writes the acquire waited for can postdate the copies made so far
+        maxwell3d_engine->RefreshUniformPrefetch();
+    }
+    else if (maxwell3d_engine->StopUniformPrefetch())
+    {
+        unmet_acquire_seen = true;
+    }
+}
+
+void DmaPusher::ResumeUniformPrefetch() const
+{
+    if (maxwell3d_engine == nullptr)
+    {
+        return;
+    }
+    if (unmet_acquire_seen && IsThreaded())
+    {
+        // A copy must not read guest memory before the GPU thread ran the acquire
+        DrainMaxwell3D();
+        gpu.BackQueue().WaitIdle();
+    }
+    unmet_acquire_seen = false;
+    maxwell3d_engine->StartUniformPrefetch();
+}
 
 void DmaPusher::CallMethod(u32 argument) const
 {
@@ -511,6 +624,8 @@ void DmaPusher::CallMethod(u32 argument) const
             puller.CallPullerMethod(method_call);
             return;
         }
+        front_puller_regs[dma_state.method] = argument;
+        UpdateUniformPrefetchAtAcquire(dma_state.method, argument);
         if (IsPullerRegisterOnly(dma_state.method))
         {
             // Order against Maxwell3D does not matter, only the puller triggers read these
@@ -580,6 +695,11 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
             DrainMaxwell3D();
             puller.CallMultiMethod(dma_state.method, dma_state.subchannel, base_start, num_methods, dma_state.method_count);
             return;
+        }
+        for (u32 i = 0; i < num_methods; ++i)
+        {
+            front_puller_regs[dma_state.method] = base_start[i];
+            UpdateUniformPrefetchAtAcquire(dma_state.method, base_start[i]);
         }
         PostBack([this, payload = std::vector<u32>(base_start, base_start + num_methods),
                   method = dma_state.method, subchannel_id = dma_state.subchannel,

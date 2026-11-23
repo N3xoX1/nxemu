@@ -338,6 +338,18 @@ size_t BlockOfCode::SpaceRemaining() const {
     return std::min(near_remaining, far_remaining);
 }
 
+bool BlockOfCode::AnyAreaNearlyFull() const {
+    ASSERT(prelude_complete);
+    const auto nearly_full = [](const u8* current, const u8* begin, const u8* end) {
+        return current >= end || static_cast<size_t>(end - current) < static_cast<size_t>(end - begin) / 8;
+    };
+    const u8* const near_end = far_begin ? far_begin : &top_[maxSize_];
+    if (nearly_full(near_saved ? near_saved : getCurr<const u8*>(), static_cast<const u8*>(code_begin), near_end)) {
+        return true;
+    }
+    return far_begin && nearly_full(near_saved ? getCurr<const u8*>() : far_current, far_begin, &top_[maxSize_]);
+}
+
 void BlockOfCode::EnsureMemoryCommitted([[maybe_unused]] size_t codesize) {
 #ifdef _WIN32
     // Subtract before adding: both the requested end and its rounded-up value

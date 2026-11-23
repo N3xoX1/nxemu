@@ -182,6 +182,8 @@ struct StorageBufferDescriptor {
     u32 cbuf_offset;
     u32 count;
     bool is_written;
+    // Only global stores whose address is unknown at compile time may write it
+    bool untracked_writes_only;
 
     auto operator<=>(const StorageBufferDescriptor&) const = default;
 };

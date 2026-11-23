@@ -44,6 +44,7 @@ int main()
         std::filesystem::create_directories(directory);
         auto & store = SettingsStore::GetInstance();
         Check(store.Initialize((directory / "config.json").string().c_str(), directory.string().c_str()), "Initialize isolated settings");
+        store.SetTitleDefaults(Parse("{\"0100000000010000\": {\"nxemu-video\": {\"video\": {\"vsync_mode\": \"Mailbox\"}}}}"));
 
         const auto file = directory / "GameSettings" / "0100000000010000.json";
         JsonValue section = Parse("{\"system\": {\"docked_mode\": \"Docked\"}}");
@@ -55,6 +56,8 @@ int main()
         store.SetString(NXCoreSetting::GameTitleId, "0100000000010000");
         Check(store.GetGameSettings("nxemu-os")["system"]["memory_layout_mode"].asString() == "Memory_6Gb", "Load the game's sections");
         Check(store.GetGameSettings("nxemu-video").isNull(), "Return nothing for a section the game does not set");
+        Check(store.GetGameDefaults("nxemu-video")["video"]["vsync_mode"].asString() == "Mailbox", "Load the title's shipped defaults");
+        Check(store.GetGameDefaults("nxemu-os").isNull(), "Return no defaults for a section the title does not set");
 
         store.SetGameSettings("nxemu-os", section);
         Check(ReadText(file).find("docked_mode") != std::string::npos && ReadText(file).find("memory_layout_mode") == std::string::npos, "Save the game's section");
@@ -65,6 +68,7 @@ int main()
 
         store.SetString(NXCoreSetting::GameTitleId, "");
         Check(store.GetGameSettings("nxemu-os").isNull(), "Clear the game's sections");
+        Check(store.GetGameDefaults("nxemu-video").isNull(), "Clear the title's defaults");
         store.SetString(NXCoreSetting::GameTitleId, "0100000000010000");
         Check(store.GetGameSettings("nxemu-video")["video"]["resolution_setup"].asString() == "Res2X", "Reload the saved sections");
 

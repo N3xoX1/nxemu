@@ -12,7 +12,7 @@ struct TestSettings final : IModuleSettings {
     struct Callback { std::string id; SettingChangeCallback call; void* user; };
     std::map<std::string, bool> bools;
     std::map<std::string, int32_t> ints;
-    std::map<std::string, std::string> strings, sections, gameSections;
+    std::map<std::string, std::string> strings, sections, gameSections, gameDefaults;
     std::vector<Callback> callbacks;
     bool debug = true;
     const char* GetString(const char* id) const override { auto it = strings.find(id); return it != strings.end() ? it->second.c_str() : ""; }
@@ -38,6 +38,7 @@ struct TestSettings final : IModuleSettings {
     bool DebugSettingsEnabled() const override { return debug; }
     const char* GetGameSectionSettings(const char* s) const override { auto it = gameSections.find(s); return it != gameSections.end() ? it->second.c_str() : ""; }
     void SetGameSectionSettings(const char* s, const char* j) override { gameSections[s] = j; }
+    const char* GetGameSectionDefaults(const char* s) const override { auto it = gameDefaults.find(s); return it != gameDefaults.end() ? it->second.c_str() : ""; }
 } settings;
 IModuleSettings* g_settings = &settings;
 int failures = 0;
@@ -85,6 +86,32 @@ int main() {
     settings.gameSections["nxemu-cpu"] = "";
     settings.SetBool(NXCoreSetting::DebugSettingsEnabled, true);
     Check(Acc(NXCpuSetting::GameCpuAccuracy) == Acc(NXCpuSetting::SystemCpuAccuracy), "title cleared: game equals system");
+
+    settings.gameDefaults["nxemu-cpu"] = "{\"cpu\":{\"cpu_accuracy\":\"Unsafe\"}}";
+    settings.SetString(NXCoreSetting::GameTitleId, "0100000000000002");
+    Check(Acc(NXCpuSetting::GameCpuAccuracy) == Unsafe, "title default applies without a game value");
+    settings.SetInt(NXCpuSetting::SystemCpuAccuracy, Accurate);
+    Check(Acc(NXCpuSetting::GameCpuAccuracy) == Unsafe, "title default survives system change");
+    SaveCpuSettings();
+    Check(settings.gameSections["nxemu-cpu"].empty(), "title default not saved as the player's");
+    settings.SetInt(NXCpuSetting::GameCpuAccuracy, Paranoid);
+    SaveCpuSettings();
+    Check(settings.gameSections["nxemu-cpu"].find("Paranoid") != std::string::npos, "other choice saved over the title default");
+    settings.SetInt(NXCpuSetting::GameCpuAccuracy, Accurate);
+    settings.SetInt(NXCpuSetting::SystemCpuAccuracy, Auto);
+    Check(Acc(NXCpuSetting::GameCpuAccuracy) == Accurate, "system value chosen over the title default survives system change");
+    SaveCpuSettings();
+    Check(settings.gameSections["nxemu-cpu"].find("Accurate") != std::string::npos, "system value chosen over the title default is saved");
+    settings.debug = false;
+    settings.SetBool(NXCoreSetting::DebugSettingsEnabled, false);
+    Check(Acc(NXCpuSetting::GameCpuAccuracy) == Unsafe, "debug-locked: title default applies, game value ignored");
+
+    settings.SetString(NXCoreSetting::GameTitleId, "");
+    settings.debug = true;
+    settings.gameSections["nxemu-cpu"] = "";
+    settings.gameDefaults["nxemu-cpu"] = "";
+    settings.SetBool(NXCoreSetting::DebugSettingsEnabled, true);
+    Check(Acc(NXCpuSetting::GameCpuAccuracy) == Acc(NXCpuSetting::SystemCpuAccuracy), "no title: no title default");
 
     CleanupCpuSetting();
     Check(settings.callbacks.empty(), "all callbacks unregistered");

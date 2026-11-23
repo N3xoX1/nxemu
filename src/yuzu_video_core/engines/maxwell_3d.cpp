@@ -15,6 +15,7 @@
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 #include "yuzu_video_core/textures/texture.h"
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -74,7 +75,16 @@ Maxwell3D::Maxwell3D(MemoryManager & memory_manager_) :
     stream.reserve(1U << 16);
 }
 
-Maxwell3D::~Maxwell3D() = default;
+namespace
+{
+std::atomic<Maxwell3D *> prefetch_owner{};
+} // namespace
+
+Maxwell3D::~Maxwell3D()
+{
+    Maxwell3D * self = this;
+    prefetch_owner.compare_exchange_strong(self, nullptr);
+}
 
 void Maxwell3D::BindRasterizer(VideoCore::RasterizerInterface * rasterizer_)
 {
@@ -730,9 +740,109 @@ void Maxwell3D::FrontMethodCall(u32 method, u32 argument, u32 nonshadow_argument
         stream_writes_anywhere = true;
         stream_writes_memory = true;
         return;
+    case MAXWELL3D_REG_INDEX(bind_groups[0].raw_config):
+        return FrontBindUniform(0);
+    case MAXWELL3D_REG_INDEX(bind_groups[1].raw_config):
+        return FrontBindUniform(1);
+    case MAXWELL3D_REG_INDEX(bind_groups[2].raw_config):
+        return FrontBindUniform(2);
+    case MAXWELL3D_REG_INDEX(bind_groups[3].raw_config):
+        return FrontBindUniform(3);
+    case MAXWELL3D_REG_INDEX(bind_groups[4].raw_config):
+        return FrontBindUniform(4);
     default:
         return;
     }
+}
+
+void Maxwell3D::FrontBindUniform(size_t stage)
+{
+    const auto & group = front_regs.bind_groups[stage];
+    const u32 index = group.shader_slot;
+    if (index >= Regs::MaxConstBuffers)
+    {
+        return;
+    }
+    FrontUniform & uniform = front_uniforms[stage][index];
+    if (group.valid == 0)
+    {
+        uniform = {};
+        return;
+    }
+    uniform = {front_regs.const_buffer.Address(), front_regs.const_buffer.size};
+    FrontPrefetchUniform(stage, index);
+}
+
+void Maxwell3D::FrontPrefetchUniform(size_t stage, u32 index)
+{
+    const FrontUniform & uniform = front_uniforms[stage][index];
+    if (!prefetch_owned || prefetch_stopped || uniform.size == 0)
+    {
+        return;
+    }
+    const std::optional<DAddr> device_addr = memory_manager.GpuToCpuAddress(uniform.address);
+    VideoCommon::UniformPrefetch prefetch{};
+    if (!device_addr ||
+        !rasterizer->PrefetchUniform(stage, index, *device_addr, uniform.size, prefetch))
+    {
+        return;
+    }
+    StreamHeader(StreamPrefetch, static_cast<u32>(stage) | (index << 3));
+    stream.push_back(static_cast<u32>(prefetch.device_addr));
+    stream.push_back(static_cast<u32>(prefetch.device_addr >> 32));
+    stream.push_back(prefetch.size);
+    stream.push_back(prefetch.offset);
+}
+
+void Maxwell3D::FrontPrefetchReset()
+{
+    const u64 position = rasterizer->UniformPrefetchPosition();
+    StreamHeader(StreamPrefetchReset, 0);
+    stream.push_back(static_cast<u32>(position));
+    stream.push_back(static_cast<u32>(position >> 32));
+}
+
+void Maxwell3D::StartUniformPrefetch()
+{
+    if (!prefetch_owned)
+    {
+        Maxwell3D * owner = nullptr;
+        if (rasterizer == nullptr || !IsThreaded() ||
+            (!prefetch_owner.compare_exchange_strong(owner, this) && owner != this))
+        {
+            return;
+        }
+        prefetch_owned = true;
+    }
+    // The guest wrote what a command list reads before submitting it
+    FrontPrefetchReset();
+    prefetch_stopped = false;
+    for (size_t stage = 0; stage < Regs::MaxShaderStage; ++stage)
+    {
+        for (u32 index = 0; index < Regs::MaxConstBuffers; ++index)
+        {
+            FrontPrefetchUniform(stage, index);
+        }
+    }
+}
+
+void Maxwell3D::RefreshUniformPrefetch()
+{
+    if (prefetch_owned && !prefetch_stopped)
+    {
+        StartUniformPrefetch();
+    }
+}
+
+bool Maxwell3D::StopUniformPrefetch()
+{
+    if (!prefetch_owned || prefetch_stopped)
+    {
+        return false;
+    }
+    FrontPrefetchReset();
+    prefetch_stopped = true;
+    return true;
 }
 
 void Maxwell3D::FrontHLEMacro(CachedMacro * program, const std::vector<u32> & parameters,
@@ -1053,6 +1163,23 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
         }
         case StreamDeferred:
             draw_manager->DrawDeferred();
+            break;
+        case StreamPrefetch:
+        {
+            const VideoCommon::UniformPrefetch prefetch{
+                .device_addr =
+                    static_cast<DAddr>(words[pos]) | (static_cast<DAddr>(words[pos + 1]) << 32),
+                .size = words[pos + 2],
+                .offset = words[pos + 3],
+            };
+            pos += 4;
+            rasterizer->ApplyUniformPrefetch(count & 7, count >> 3, prefetch);
+            break;
+        }
+        case StreamPrefetchReset:
+            rasterizer->ResetUniformPrefetch(static_cast<u64>(words[pos]) |
+                                             (static_cast<u64>(words[pos + 1]) << 32));
+            pos += 2;
             break;
         default:
             ASSERT_MSG(false, "Bad Maxwell3D stream entry");

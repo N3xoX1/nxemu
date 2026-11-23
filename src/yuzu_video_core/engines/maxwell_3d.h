@@ -63,6 +63,10 @@ public:
     /// Binds a rasterizer to this engine.
     void BindRasterizer(VideoCore::RasterizerInterface* rasterizer);
 
+    void StartUniformPrefetch() override;
+    void RefreshUniformPrefetch() override;
+    bool StopUniformPrefetch() override;
+
     /// Register structure of the Maxwell3D engine.
     struct Regs {
         static constexpr std::size_t NUM_REGS = 0xE00;
@@ -3397,7 +3401,21 @@ private:
         StreamInline = 3,   ///< `count` words of inline_data
         StreamHLE = 4,      ///< count is the index in hle_calls
         StreamDeferred = 5, ///< end of a macro, runs the deferred instanced draw
+        StreamPrefetch = 6, ///< count is stage | index << 3; device address (2 words), size, offset
+        StreamPrefetchReset = 7, ///< prefetch ring position (2 words)
     };
+
+    struct FrontUniform {
+        GPUVAddr address;
+        u32 size;
+    };
+    void FrontBindUniform(size_t stage);
+    void FrontPrefetchUniform(size_t stage, u32 index);
+    void FrontPrefetchReset();
+    std::array<std::array<FrontUniform, Regs::MaxConstBuffers>, Regs::MaxShaderStage>
+        front_uniforms{};
+    bool prefetch_owned{};
+    bool prefetch_stopped{};
 
     /// Decode side: writes a plain register.
     void FrontWrite(u32 method, u32 value) {

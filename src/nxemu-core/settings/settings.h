@@ -34,6 +34,8 @@ public:
     void SetSettings(const char * section, JsonValue & json);
     JsonValue GetGameSettings(const char * section) const;
     void SetGameSettings(const char * section, JsonValue & json);
+    JsonValue GetGameDefaults(const char * section) const;
+    void SetTitleDefaults(JsonValue titleDefaults);
 
     const char * GetDefaultString(const char * setting) const;
     bool GetDefaultBool(const char * setting) const;
@@ -100,5 +102,7 @@ private:
     JsonValue m_details;
     std::string m_gameFile;
     JsonValue m_gameDetails;
+    JsonValue m_titleDefaults;
+    JsonValue m_gameDefaults;
     bool m_gameReadable = true;
 };

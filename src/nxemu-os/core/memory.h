@@ -160,6 +160,7 @@ public:
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override;
     void RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) override;
     bool ProtectsReadCachedRegions() override;
+    bool ProtectsQueryResults() override;
 
     template <typename T>
     T* GetPointer(Common::ProcessAddress vaddr) {

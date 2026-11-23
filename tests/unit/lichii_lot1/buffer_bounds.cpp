@@ -121,6 +121,7 @@ struct BufferCache
         ++cleared;
     }
     void MarkWrittenBuffer(BufferId, DAddr, u32, bool tracked = false);
+    void MarkWrittenWithoutReadback(BufferId, DAddr, u32);
     bool SynchronizeBuffer(Buffer &, DAddr, u32, boost::container::small_vector<BufferCopy, 4> &);
     bool SynchronizeBuffer(Buffer & buffer, DAddr address, u32 size)
     {
@@ -173,6 +174,7 @@ int main()
     const DAddr invalid = std::numeric_limits<u64>::max();
     Require(cache.SynchronizeBuffer(cache.slot_buffers[0], invalid, 16));
     cache.MarkWrittenBuffer(NULL_BUFFER_ID, invalid, 16);
+    cache.MarkWrittenWithoutReadback(NULL_BUFFER_ID, invalid, 16);
     for (const auto operation : {ObtainBufferOperation::MarkAsWritten,
                                  ObtainBufferOperation::DiscardWrite})
     {
@@ -190,4 +192,10 @@ int main()
     cache.MarkWrittenBuffer(1, 65536, 16);
     Require(cache.memory_tracker.calls == 2 && cache.device_memory.calls == 1);
     Require(cache.changed == 1 && cache.runtime.calls == 1);
+    // Without readback the GPU side still sees the write, but nothing is queued for the guest.
+    cache.MarkWrittenWithoutReadback(1, 65536, 16);
+    Require(cache.changed == 2 && cache.runtime.calls == 2);
+    Require(cache.memory_tracker.calls == 2 && cache.device_memory.calls == 1);
+    Require(cache.gpu_write_history.calls == 1 && cache.gpu_modified_ranges.calls == 1);
+    Require(cache.uncommitted_gpu_modified_ranges.calls == 1);
 }

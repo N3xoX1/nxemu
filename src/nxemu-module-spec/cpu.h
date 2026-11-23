@@ -110,6 +110,8 @@ nxinterface IMemory
     virtual void RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) {}
     // Whether a CPU access to a read-cached region faults until the cache releases it.
     virtual bool ProtectsReadCachedRegions() { return false; }
+    // A CPU access to a pending query result must fault and wait until the result is written.
+    virtual bool ProtectsQueryResults() { return false; }
     virtual bool NceTrackReads(uint64_t vaddr) { return false; }
     virtual void RasterizerSetNativeReadAccess(uint64_t vaddr, uint64_t size, bool readable) {}
 

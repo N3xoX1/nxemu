@@ -13,6 +13,7 @@ struct CoreSettings
     Path configDir;
     Path moduleDir;
     std::string moduleDirValue;
+    std::string gameDefaultsFile;
     std::string moduleLoader;
     std::string moduleCpu;
     std::string moduleVideo;

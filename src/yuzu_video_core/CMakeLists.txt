@@ -195,6 +195,7 @@ add_library(video_core STATIC
     area_sampling.h
     pte_kind.h
     query_cache/bank_base.h
+    query_cache/pending_results.h
     query_cache/query_bank_operations.h
     query_cache/query_base.h
     query_cache/query_cache_base.h
