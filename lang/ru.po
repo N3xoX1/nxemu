@@ -455,6 +455,38 @@ msgid "Only with High accuracy. Much faster in some games, keeping High drawing.
 msgstr "Только при точности «Высокая». В некоторых играх намного быстрее, с отрисовкой уровня «Высокая». Прочитанное играми может запаздывать на кадр."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "Ускоряющие хаки"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, these settings can gain FPS, but can cause halos or corruption in some games. Turn one off in the settings of a game that shows it; some games have it off already."
+msgstr "Во включённом состоянии эти настройки могут поднять FPS, но в некоторых играх вызывают ореолы или искажения изображения. Отключите настройку в параметрах игры, где это заметно; в некоторых играх она уже отключена."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "Обратное чтение в фоне"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "Может поднять FPS, но в некоторых играх вызывает ореолы или искажения изображения."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
+msgstr "Требуются Vulkan и реактивный сброс. Если включено, игры продолжают работу, пока GPU копирует то, что они прочитают, и могут прочитать старое значение. Если выключено, они ждут копирования; быстрое обратное чтение всё ещё может пропускать часть ожиданий."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Untracked shader writes"
+msgstr "Неотслеживаемые записи шейдеров"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Skips reading back buffers a shader only might write."
+msgstr "Не считывает обратно буферы, в которые шейдер лишь может писать."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value."
+msgstr "Исправляет игры, которые заполняют такие буферы, пока чип их использует. Игра, считывающая такой буфер, может увидеть старое значение."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Reactive flushing"
 msgstr "Реактивный сброс"

@@ -121,6 +121,10 @@ msgid "System"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Application"
 msgstr ""
 
@@ -178,6 +182,18 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "How closely the graphics chip is imitated."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fast readback"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Lets games read what the chip drew without waiting for it."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Only with High accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -477,15 +493,15 @@ msgid "Slower, and steadier. Off, some games show faults, hang or crash."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Fast readback"
+msgid "Untracked shader writes"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Lets games read what the chip drew without waiting for it."
+msgid "Skips reading back buffers a shader only might write."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgid "Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -572,6 +588,22 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Needs multicore."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, these settings can gain FPS, but can cause halos or corruption in some games. Turn one off in the settings of a game that shows it; some games have it off already."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml

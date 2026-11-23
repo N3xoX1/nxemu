@@ -455,6 +455,38 @@ msgid "Only with High accuracy. Much faster in some games, keeping High drawing.
 msgstr "정확도가 높음일 때만 사용할 수 있습니다. 높음의 그리기를 유지하면서 일부 게임에서 훨씬 빨라집니다. 게임이 읽는 내용이 한 프레임 늦을 수 있습니다."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "속도 핵"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, these settings can gain FPS, but can cause halos or corruption in some games. Turn one off in the settings of a game that shows it; some games have it off already."
+msgstr "켜면 FPS가 오를 수 있지만 일부 게임에서 후광이나 화면 깨짐이 생길 수 있습니다. 증상이 나타나는 게임은 해당 게임 설정에서 끄세요. 일부 게임은 이미 꺼져 있습니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "백그라운드 리드백"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "FPS가 오를 수 있지만 일부 게임에서 후광이나 화면 깨짐이 생길 수 있습니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
+msgstr "Vulkan과 반응형 플러시가 필요합니다. 켜면 GPU가 게임이 읽을 내용을 복사하는 동안 게임이 계속 진행되어 이전 값을 읽을 수 있습니다. 끄면 복사가 끝날 때까지 기다립니다. 다만 빠른 리드백이 일부 대기를 건너뛸 수 있습니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Untracked shader writes"
+msgstr "추적되지 않는 셰이더 쓰기"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Skips reading back buffers a shader only might write."
+msgstr "셰이더가 쓸 수도 있을 뿐인 버퍼의 다시 읽기를 건너뜁니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value."
+msgstr "칩이 사용하는 동안 이런 버퍼를 채우는 게임을 고칩니다. 버퍼를 다시 읽는 게임은 이전 값을 볼 수 있습니다."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Reactive flushing"
 msgstr "반응형 플러시"

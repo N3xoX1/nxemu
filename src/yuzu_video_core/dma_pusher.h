@@ -152,7 +152,10 @@ private:
 
     /// Hands the queued Maxwell3D methods to the GPU thread
     void PublishMaxwell3D() const;
-    void DrainMaxwell3DMemoryWrites() const;
+    void DrainMaxwell3DMemoryWrites(GPUVAddr address, size_t size) const;
+    bool IsAcquireMet(u32 method, u32 argument) const;
+    void UpdateUniformPrefetchAtAcquire(u32 method, u32 argument) const;
+    void ResumeUniformPrefetch() const;
 
     /// True when a decode thread runs this pusher
     bool IsThreaded() const;
@@ -195,9 +198,8 @@ private:
     mutable std::array<std::vector<std::pair<u32, u32>>, max_subchannels> front_sinks;
     /// Puller methods that only write a register, sent with the next puller method that acts
     mutable std::vector<Engines::Puller::MethodCall> pending_puller;
-    /// Puller registers as the decode side sees them, ahead of the GPU thread
-    mutable std::array<u32, 0x40> front_puller_regs{};
-    bool PullerWaitMet(u32 method, u32 argument) const;
+    mutable std::array<u32, static_cast<u32>(BufferMethods::NonPullerMethods)> front_puller_regs{};
+    mutable bool unmet_acquire_seen{};
     /// The current GP entry continues a compute parameter payload, see Step
     bool compute_payload_entry{};
 

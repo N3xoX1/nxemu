@@ -59,7 +59,7 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
     GenFastmemFallbacks();
     GenTerminalHandlers();
     GenWriteMarkThunks();
-    // Reserve half the cache for deferred fallbacks and link stubs.
+    // Cold code (the deferred fallback paths) outgrows the hot code in Tears of the Kingdom.
     // Test variant bit 32 keeps the old layout, with the cold code after each block.
     if ((conf.test_variant & 32) == 0) {
         code.ReserveFarCode(conf.code_cache_size / 2);

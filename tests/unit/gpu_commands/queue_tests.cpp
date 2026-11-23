@@ -1,5 +1,6 @@
 #include "yuzu_common/bounded_threadsafe_queue.h"
 #include "yuzu_common/common_types.h"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -9,6 +10,7 @@
 #include <mutex>
 #include <thread>
 #include <utility>
+#include <vector>
 
 void Check(bool, const char*);
 namespace QueueRegression {
@@ -43,7 +45,10 @@ void QueueTests() {
         while (!stop.stop_requested()) {
             if (!queue.PopWait(batch, stop, wake, service)) continue;
             const auto count = batch.size();
-            for (auto& work : batch) work();
+            for (auto& work : batch) {
+                work();
+                queue.MarkRun();
+            }
             batch.clear();
             queue.FinishMany(count);
         }
@@ -57,6 +62,31 @@ void QueueTests() {
     });
     Check(observed == 123, "dependent read overtook queued memory write");
     Check(execution_thread == manager.thread.get_id(), "renderer work ran on decode thread");
+
+    std::atomic<bool> release{};
+    queue.Push([&] { release.wait(false); }, BackQueue::Writes::Nothing);
+    queue.AddWrites({{0x1000, 0x1100}});
+    queue.Push([] {}, BackQueue::Writes::AddedRanges);
+    Check(queue.MayWrite(0x10F0, 0x1200), "queued write to the range was missed");
+    Check(!queue.MayWrite(0x1100, 0x1200), "work that writes elsewhere made decode wait");
+    queue.Push([] {});
+    Check(queue.MayWrite(0x8000, 0x8004), "work that may write anywhere did not make decode wait");
+    release.store(true);
+    release.notify_one();
+    queue.WaitIdle();
+    Check(!queue.MayWrite(0x1000, 0x1100), "finished work still made decode wait");
+
+    queue.AddWrites({{0x1000, 0x1100}});
+    queue.Push([] {}, BackQueue::Writes::AddedRanges);
+    queue.Push([] {});
+    queue.Push([&] { release.wait(true); }, BackQueue::Writes::Nothing);
+    while (queue.run_spin.load() + 1 < queue.pushed_spin.load()) {
+        std::this_thread::yield();
+    }
+    Check(!queue.MayWrite(0x1000, 0x1100), "finished work made decode wait for the work after it");
+    release.store(false);
+    release.notify_one();
+    queue.WaitIdle();
 
     std::atomic<bool> decoder_ready{}, stopping{}, fence_ready{};
     manager.decode_thread = std::jthread([&](std::stop_token stop) {

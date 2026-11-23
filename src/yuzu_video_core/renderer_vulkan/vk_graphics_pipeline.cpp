@@ -1158,7 +1158,8 @@ void GraphicsPipeline::BindStorageBuffers(size_t stage) {
     for (const auto& desc : stage_infos[stage].storage_buffers_descriptors) {
         ASSERT(desc.count == 1);
         buffer_cache.BindGraphicsStorageBuffer(stage, ssbo_index, desc.cbuf_index,
-                                               desc.cbuf_offset, desc.is_written);
+                                               desc.cbuf_offset, desc.is_written,
+                                               desc.untracked_writes_only);
         ++ssbo_index;
     }
 }
@@ -1510,7 +1511,8 @@ void GraphicsPipeline::ConfigureVtg(bool is_indexed) {
         for (const auto& desc : info.storage_buffers_descriptors) {
             ASSERT(desc.count == 1);
             buffer_cache.BindGraphicsStorageBuffer(stage, ssbo_index, desc.cbuf_index,
-                                                   desc.cbuf_offset, desc.is_written);
+                                                   desc.cbuf_offset, desc.is_written,
+                                                   desc.untracked_writes_only);
             ++ssbo_index;
         }
         const auto& cbufs{maxwell3d->state.shader_stages[stage].const_buffers};

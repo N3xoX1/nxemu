@@ -37,6 +37,14 @@ public:
         method_sink.emplace_back(method, argument);
     }
 
+    virtual void StartUniformPrefetch() {}
+    /// Copies again unless prefetch is stopped
+    virtual void RefreshUniformPrefetch() {}
+    /// False when it wasn't prefetching
+    virtual bool StopUniformPrefetch() {
+        return false;
+    }
+
     /// The caller must stop the run before any executable method.
     virtual void PushMethodRun(u32 method, std::span<const CommandHeader> arguments) {
         for (const auto& argument : arguments) {

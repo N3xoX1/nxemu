@@ -431,6 +431,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Untracked shader writes</div>
+                      <div class="row-text">Skips reading back buffers a shader only might write.</div>
+                    </div>
+                    <div id="untracked-writes" class="switch" data-command="toggle:untracked-writes" title="Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Reactive flushing</div>
                       <div class="row-text">Brings memory up to date when it is read.</div>
                     </div>
@@ -536,7 +545,7 @@
                       <div class="row-label">Readbacks in the background</div>
                       <div class="row-text">Can gain FPS, but can cause halos or corruption in some games.</div>
                     </div>
-                    <div id="background-readbacks" class="switch" data-command="toggle:background-readbacks" title="Needs reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy.">
+                    <div id="background-readbacks" class="switch" data-command="toggle:background-readbacks" title="Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits.">
                       <div class="switch-knob" />
                     </div>
                   </div>

@@ -160,16 +160,18 @@ void AxxEmitX64::EmitMemoryRead(AxxEmitContext& ctx, IR::Inst* inst) {
         }
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
-            if (!require_abort_handling && !conf.check_halt_on_memory_access) {
+            const bool nothing_jumps_to_abort = !require_abort_handling && !conf.check_halt_on_memory_access;
+            if (nothing_jumps_to_abort && !FallbackCallPerAccess()) {
                 Xbyak::Label stub;
-                const u64 fault_call = disp ? EmitFoldedAddressStub(code, stub, wrapped_fn, vaddr, *disp)
-                                            : mcl::bit_cast<u64>(wrapped_fn);
-                const Xbyak::Label& resume = *end;
-                ASSERT(resume.getAddress() != nullptr);
+                const u64 fault_call = disp ? EmitFoldedAddressStub(code, stub, wrapped_fn, vaddr, *disp) : mcl::bit_cast<u64>(wrapped_fn);
                 fastmem_patch_info.emplace(
                     mcl::bit_cast<u64>(location),
-                    FastmemPatchInfo{mcl::bit_cast<u64>(resume.getAddress()), fault_call,
-                                     *fastmem_marker, conf.recompile_on_fastmem_failure});
+                    FastmemPatchInfo{
+                        mcl::bit_cast<u64>(end->getAddress()),
+                        fault_call,
+                        *fastmem_marker,
+                        conf.recompile_on_fastmem_failure,
+                    });
                 return;
             }
             code.L(*abort);
@@ -299,16 +301,18 @@ void AxxEmitX64::EmitMemoryWrite(AxxEmitContext& ctx, IR::Inst* inst) {
         }
 
         ctx.deferred_emits.emplace_back([=, this, &ctx] {
-            if (!require_abort_handling && !conf.check_halt_on_memory_access) {
+            const bool nothing_jumps_to_abort = !require_abort_handling && !conf.check_halt_on_memory_access;
+            if (nothing_jumps_to_abort && !FallbackCallPerAccess()) {
                 Xbyak::Label stub;
-                const u64 fault_call = disp ? EmitFoldedAddressStub(code, stub, wrapped_fn, vaddr, *disp)
-                                            : mcl::bit_cast<u64>(wrapped_fn);
-                const Xbyak::Label& resume = marks_group ? *track : *end;
-                ASSERT(resume.getAddress() != nullptr);
+                const u64 fault_call = disp ? EmitFoldedAddressStub(code, stub, wrapped_fn, vaddr, *disp) : mcl::bit_cast<u64>(wrapped_fn);
                 fastmem_patch_info.emplace(
                     mcl::bit_cast<u64>(location),
-                    FastmemPatchInfo{mcl::bit_cast<u64>(resume.getAddress()), fault_call,
-                                     *fastmem_marker, conf.recompile_on_fastmem_failure});
+                    FastmemPatchInfo{
+                        mcl::bit_cast<u64>((marks_group ? *track : *end).getAddress()),
+                        fault_call,
+                        *fastmem_marker,
+                        conf.recompile_on_fastmem_failure,
+                    });
                 return;
             }
             code.L(*abort);

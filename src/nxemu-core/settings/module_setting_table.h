@@ -99,7 +99,7 @@ void KeepSavedSetting(const Setting & setting, const JsonValue & saved, JsonValu
 }
 
 template <typename Setting, size_t N>
-void SettingChanged(Setting (&settings)[N], const char * id)
+void SettingChanged(Setting (&settings)[N], const char * section, const char * id)
 {
     for (Setting & setting : settings)
     {
@@ -110,7 +110,9 @@ void SettingChanged(Setting (&settings)[N], const char * id)
         LoadStoreSetting(setting, id);
         if (setting.fallback != nullptr)
         {
-            setting.gameValue = !SameStoreValue(setting, setting.identifier, setting.fallback);
+            const JsonValue titleDefaults = ParseSettings(g_settings->GetGameSectionDefaults(section));
+            const bool titleDefault = !JsonSettingValue(setting, titleDefaults).isNull();
+            setting.gameValue = titleDefault || !SameStoreValue(setting, setting.identifier, setting.fallback);
         }
     }
     for (const Setting & setting : settings)
@@ -122,12 +124,11 @@ void SettingChanged(Setting (&settings)[N], const char * id)
     }
 }
 
-// titleDefaults holds what the module sets for the running game when its settings file leaves
-// it out, in the layout of that file.
 template <typename Setting, size_t N>
-void LoadGameSettings(Setting (&settings)[N], const char * section, const JsonValue & titleDefaults = JsonValue())
+void LoadGameSettings(Setting (&settings)[N], const char * section)
 {
     const JsonValue root = ParseSettings(g_settings->GetGameSectionSettings(section));
+    const JsonValue titleDefaults = ParseSettings(g_settings->GetGameSectionDefaults(section));
     const bool debugEnabled = g_settings->DebugSettingsEnabled();
     for (Setting & setting : settings)
     {
@@ -148,14 +149,13 @@ void LoadGameSettings(Setting (&settings)[N], const char * section, const JsonVa
             ReadJsonSetting(setting, titleDefaults);
         }
         StoreSetting(setting);
-        // A game value set for the title does not follow the system one either
-        setting.gameValue = titleDefault || (present && !SameStoreValue(setting, setting.identifier, setting.fallback));
+        const bool overridesSystem = present && !SameStoreValue(setting, setting.identifier, setting.fallback);
+        setting.gameValue = titleDefault || overridesSystem;
     }
 }
 
 template <typename Setting, size_t N>
-void SetupSettings(Setting (&settings)[N], const char * section, SettingChangeCallback settingChanged, SettingChangeCallback gameSettingsChanged,
-                   const JsonValue & titleDefaults = JsonValue())
+void SetupSettings(Setting (&settings)[N], const char * section, SettingChangeCallback settingChanged, SettingChangeCallback gameSettingsChanged)
 {
     for (Setting & setting : settings)
     {
@@ -200,7 +200,7 @@ void SetupSettings(Setting (&settings)[N], const char * section, SettingChangeCa
         }
     }
 
-    LoadGameSettings(settings, section, titleDefaults);
+    LoadGameSettings(settings, section);
     for (Setting & setting : settings)
     {
         if (setting.fallback == nullptr)
@@ -237,7 +237,7 @@ void CleanupSettings(Setting (&settings)[N], SettingChangeCallback settingChange
 }
 
 template <typename Setting, size_t N>
-void SaveSettings(Setting (&settings)[N], const char * section, const JsonValue & titleDefaults = JsonValue())
+void SaveSettings(Setting (&settings)[N], const char * section)
 {
     const bool debugEnabled = g_settings->DebugSettingsEnabled();
     const JsonValue saved = ParseSettings(g_settings->GetSectionSettings(section));
@@ -258,6 +258,7 @@ void SaveSettings(Setting (&settings)[N], const char * section, const JsonValue 
     g_settings->SetSectionSettings(section, SettingsJson(root).c_str());
 
     const JsonValue savedGame = ParseSettings(g_settings->GetGameSectionSettings(section));
+    const JsonValue titleDefaults = ParseSettings(g_settings->GetGameSectionDefaults(section));
     JsonValue gameRoot;
     for (const Setting & setting : settings)
     {
@@ -273,10 +274,10 @@ void SaveSettings(Setting (&settings)[N], const char * section, const JsonValue 
         const JsonValue titleDefault = JsonSettingValue(setting, titleDefaults);
         if (!titleDefault.isNull())
         {
-            // Only a choice other than the title's default is the player's
-            JsonValue current;
-            WriteJsonSetting(setting, current, true);
-            if (!SameJson(JsonSettingValue(setting, current), titleDefault))
+            JsonValue chosen;
+            WriteJsonSetting(setting, chosen, true);
+            // Saving the title's default would keep it after a later build changes that default
+            if (!SameJson(JsonSettingValue(setting, chosen), titleDefault))
             {
                 WriteJsonSetting(setting, gameRoot, true);
             }

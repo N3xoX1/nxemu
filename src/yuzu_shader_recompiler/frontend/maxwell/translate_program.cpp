@@ -109,6 +109,9 @@ void AddNVNStorageBuffers(IR::Program& program) {
                    desc.cbuf_offset == offset;
         })};
         if (it != descs.end()) {
+            if (!it->is_written) {
+                it->untracked_writes_only = info.stores_global_memory;
+            }
             it->is_written |= info.stores_global_memory;
             continue;
         }
@@ -117,6 +120,7 @@ void AddNVNStorageBuffers(IR::Program& program) {
             .cbuf_offset = offset,
             .count = 1,
             .is_written = info.stores_global_memory,
+            .untracked_writes_only = info.stores_global_memory,
         });
     }
 }

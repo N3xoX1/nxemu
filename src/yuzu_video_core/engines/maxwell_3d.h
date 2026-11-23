@@ -63,13 +63,9 @@ public:
     /// Binds a rasterizer to this engine.
     void BindRasterizer(VideoCore::RasterizerInterface* rasterizer);
 
-    /// Decode side: a command list starts. The guest wrote the memory it reads before
-    /// submitting it, so uniform buffers can be copied ahead of the GPU thread.
-    void UniformPrefetchSubmission();
-
-    /// Decode side: a puller method that waits for the guest (semaphore or syncpoint
-    /// acquire). Stops the copies until the next command list.
-    void UniformPrefetchBarrier();
+    void StartUniformPrefetch() override;
+    void RefreshUniformPrefetch() override;
+    bool StopUniformPrefetch() override;
 
     /// Register structure of the Maxwell3D engine.
     struct Regs {
@@ -3302,6 +3298,8 @@ public:
         FrontWrite(method, value);
     }
 
+    void FrontMemoryWrite(GPUVAddr address, u64 size);
+
     /// Decode side: queues an HLE macro call for the execute side.
     void FrontHLEMacro(CachedMacro* program, const std::vector<u32>& parameters, u32 method);
 
@@ -3409,7 +3407,6 @@ private:
         StreamPrefetchReset = 7, ///< prefetch ring position (2 words)
     };
 
-    /// Decode side: uniform buffer bound per stage and index, see FrontBindUniform
     struct FrontUniform {
         GPUVAddr address;
         u32 size;
@@ -3417,11 +3414,10 @@ private:
     void FrontBindUniform(size_t stage);
     void FrontPrefetchUniform(size_t stage, u32 index);
     void FrontPrefetchReset();
-    std::array<std::array<FrontUniform, 18>, 5> front_uniforms{};
-    /// This engine copies uniform buffers on the decode thread (one engine does)
-    bool prefetch_enabled{};
-    /// A puller acquire was seen: the guest may write memory that later draws read
-    bool prefetch_blocked{};
+    std::array<std::array<FrontUniform, Regs::MaxConstBuffers>, Regs::MaxShaderStage>
+        front_uniforms{};
+    bool prefetch_owned{};
+    bool prefetch_stopped{};
 
     /// Decode side: writes a plain register.
     void FrontWrite(u32 method, u32 value) {
@@ -3461,6 +3457,9 @@ private:
     u32 stream_run_next{};
     bool stream_run_open{};
     bool stream_writes_memory{};
+    std::vector<std::pair<GPUVAddr, GPUVAddr>> stream_write_ranges;
+    std::vector<std::pair<DAddr, DAddr>> device_write_ranges;
+    bool stream_writes_anywhere{};
     bool stream_draining{};
     bool skip_same_writes{true};
     std::vector<HLECall> hle_calls;

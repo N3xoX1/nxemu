@@ -436,10 +436,7 @@ T MemoryManager::Read(GPUVAddr addr) const
 template <typename T>
 void MemoryManager::Write(GPUVAddr addr, T data)
 {
-    if (const std::optional<DAddr> device_addr = GpuToCpuAddress(addr))
-    {
-        memory.MarkEngineWrite(*device_addr, sizeof(T));
-    }
+    PrepareEngineWrite(addr, sizeof(T));
     if (auto page_pointer{GetPointer(addr)}; page_pointer)
     {
         // NOTE: Avoid adding any extra logic to this fast-path block
@@ -707,10 +704,6 @@ void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * 
 
 void MemoryManager::PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size)
 {
-    if (!memory.InPlaceReadsEnabled())
-    {
-        return;
-    }
     auto do_nothing = [&]([[maybe_unused]] std::size_t page_index,
                           [[maybe_unused]] std::size_t offset,
                           [[maybe_unused]] std::size_t copy_amount) {};
@@ -977,6 +970,18 @@ MemoryManager::GetSubmappedRange(GPUVAddr gpu_addr, std::size_t size) const
 {
     boost::container::small_vector<std::pair<GPUVAddr, std::size_t>, 32> result{};
     GetSubmappedRangeImpl<true>(gpu_addr, size, result);
+    return result;
+}
+
+boost::container::small_vector<std::pair<DAddr, std::size_t>, 32>
+MemoryManager::GetSubmappedDeviceRange(GPUVAddr gpu_addr, std::size_t size) const
+{
+    boost::container::small_vector<std::pair<DAddr, std::size_t>, 32> result{};
+    if (!IsWithinGPUAddressRange(gpu_addr))
+    {
+        return result;
+    }
+    GetSubmappedRangeImpl<false>(gpu_addr, std::min<std::size_t>(size, address_space_size - gpu_addr), result);
     return result;
 }
 

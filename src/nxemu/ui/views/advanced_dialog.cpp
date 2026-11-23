@@ -34,6 +34,11 @@ constexpr const char * kTabs[] = {"graphics", "system", "hacks", "application", 
 constexpr const char * kDebugTabs[] = {"debug-graphics", "debug-system", "debug-applets", "debug-overlay", "debug-log"};
 constexpr const char * kHotkeyPrefix = "hotkey:";
 constexpr const char * kTogglePrefix = "toggle:";
+#if defined(__APPLE__) || defined(_M_X64) || defined(__x86_64__)
+constexpr bool kPlatformProtectsReadbacks = true;
+#else
+constexpr bool kPlatformProtectsReadbacks = false;
+#endif
 constexpr const char * kTabPrefix = "tab:";
 constexpr const char * kDefaultAudioDevice = "auto";
 constexpr int kSpeedMin = 25; // of the limit, in percent of the console's speed
@@ -59,6 +64,7 @@ struct Toggle
 constexpr Toggle kToggles[] = {
     {"gpu-sync", NXVideoSetting::SystemGpuCommandSynchronization, Store::Module, true},
     {"fast-readback", NXVideoSetting::SystemFastGpuReadback, Store::Module, true},
+    {"untracked-writes", NXVideoSetting::SystemSkipUntrackedStoreReadback, Store::Module, false},
     {"reactive-flushing", NXVideoSetting::SystemEnableReactiveFlushing, Store::Module, false},
     {"background-readbacks", NXVideoSetting::SystemBackgroundGpuReadbacks, Store::Module, true},
     {"feedback-loops", NXVideoSetting::SystemBarrierFeedbackLoops, Store::Module, false},
@@ -335,13 +341,11 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     }
     if (id == "background-readbacks")
     {
-        // The pages are only protected with reactive flushing
-        return !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing);
+        return !kPlatformProtectsReadbacks || !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing) ||
+               settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
     }
     if (id == "fast-readback")
     {
-        // Normal accuracy already lets games read the results without waiting for the GPU,
-        // Extreme always waits for it.
         return settings.GetInt(NXVideoSetting::SystemAccuracyLevel) != static_cast<int>(GpuAccuracy::High);
     }
     return false;

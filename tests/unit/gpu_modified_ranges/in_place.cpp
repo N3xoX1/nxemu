@@ -253,6 +253,27 @@ void TestDisabled() {
     Check(!f.device.InPlaceReadsEnabled() && f.rasterizer.waits.empty(), "writes skip the tracking");
 }
 
+void TestEngineWrittenPages() {
+    Fixture f{false};
+    Check(!f.device.IsEngineWritten(Base, 2 * Page), "pages start unwritten by engines");
+    f.device.PrepareEngineWrite(Base + 8, 4);
+    Check(f.device.IsEngineWritten(Base, 4) && !f.device.IsEngineWritten(Base + Page, 4),
+          "an engine write marks its pages without a guest RAM import");
+    const u32 value = 1;
+    f.device.WriteBlockUnsafe(Base + Page, &value, sizeof(value));
+    Check(f.device.IsEngineWritten(Base + Page, 4), "a device memory write marks its pages");
+
+    Fixture g{false};
+    g.device.Map(AliasBase, CpuBase, Page, g.asid, true);
+    g.device.PrepareEngineWrite(Base, 4);
+    Check(g.device.IsEngineWritten(AliasBase, 4), "an engine write marks the aliases too");
+
+    Fixture h{false};
+    h.device.Map(AliasBase, CpuBase, Page, h.asid, true);
+    h.device.WriteBlockUnsafe(AliasBase + 0x100, &value, sizeof(value));
+    Check(h.device.IsEngineWritten(Base, 4), "a device memory write marks the aliases too");
+}
+
 void TestExclusion() {
     Fixture f;
     Check(!f.device.IsExcludedFromInPlace(Base, 2 * Page), "pages start unwritten");
@@ -277,6 +298,7 @@ int main() {
         TestRemap();
         TestExclusion();
         TestDisabled();
+        TestEngineWrittenPages();
     } catch (const std::exception& e) {
         std::printf("FAILED: %s\n", e.what());
         return 1;

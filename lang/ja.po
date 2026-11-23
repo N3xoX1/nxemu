@@ -455,6 +455,38 @@ msgid "Only with High accuracy. Much faster in some games, keeping High drawing.
 msgstr "精度が「高」のときだけ使えます。「高」の描画のまま、一部のゲームで大幅に速くなります。ゲームが読み取る内容は 1 フレーム遅れることがあります。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "高速化ハック"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, these settings can gain FPS, but can cause halos or corruption in some games. Turn one off in the settings of a game that shows it; some games have it off already."
+msgstr "オンにすると FPS が上がることがありますが、一部のゲームでハローや表示の乱れが起きることがあります。症状が出るゲームでは、そのゲームの設定でオフにしてください。最初からオフになっているゲームもあります。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "バックグラウンドでのリードバック"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "FPS が上がることがありますが、一部のゲームでハローや表示の乱れが起きることがあります。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
+msgstr "Vulkan とリアクティブフラッシュが必要です。オンにすると、ゲームが読み取る内容を GPU がコピーしている間もゲームは進み、古い値を読み取ることがあります。オフにすると、コピーを待ちます。ただし、高速リードバックにより一部の待機が省かれることがあります。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Untracked shader writes"
+msgstr "追跡されないシェーダー書き込み"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Skips reading back buffers a shader only might write."
+msgstr "シェーダーが書き込む可能性があるだけのバッファの読み戻しを省きます。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value."
+msgstr "チップが使用中のバッファにゲームが書き込む問題を修正します。読み戻すゲームでは古い値が見えることがあります。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Reactive flushing"
 msgstr "リアクティブフラッシュ"

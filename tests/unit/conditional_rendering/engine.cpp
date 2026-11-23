@@ -87,12 +87,11 @@ struct Dma {
  void* maxwell3d_engine=nullptr;
  mutable std::vector<Engines::Puller::MethodCall> pending_puller;
  mutable std::array<std::vector<std::pair<u32,u32>>,8> front_sinks;
+ mutable std::array<u32,non_puller_methods> front_puller_regs{};
  bool IsThreaded() const { return false; }
  void PublishMaxwell3D() const {}
+ void UpdateUniformPrefetchAtAcquire(u32,u32) const {}
  bool IsPullerRegisterOnly(u32) const { return false; }
- bool IsPullerWait(u32,u32) const { return false; }
- bool PullerWaitMet(u32,u32) const { return false; }
- mutable std::array<u32, non_puller_methods> front_puller_regs{};
  template<typename F> void PostBack(F&& f) const { f(); }
  std::vector<std::pair<u32,u32>>& SinkFor(u32 sc) const {
   if (IsThreaded() && subchannel_type[sc] != Engines::EngineTypes::Maxwell3D) { return front_sinks[sc]; }

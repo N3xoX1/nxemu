@@ -265,6 +265,15 @@ public:
         BindBuffer(buffer, offset, size);
     }
 
+    bool AllocatePrefetch(u32 size, u32& offset, u8*& pointer);
+    uint64_t PrefetchPosition() const noexcept {
+        return prefetch_head;
+    }
+    void ReleasePrefetch(uint64_t position);
+    void BindPrefetchedUniform(u32 offset, u32 size) {
+        BindBuffer(*prefetch_buffer, offset, size);
+    }
+
     void BindStorageBuffer(VkBuffer buffer, u32 offset, u32 size,
                            [[maybe_unused]] bool is_written) {
         BindBuffer(buffer, offset, size);
@@ -293,16 +302,19 @@ private:
     GuestDescriptorQueue& guest_descriptor_queue;
     StreamUniformRef last_stream_uniform{};
 
-    /// Uniform buffers copied by the decode thread (see BufferCache::PrefetchUniform).
-    /// Positions count bytes from the start and wrap at the ring size.
-    static constexpr u64 PrefetchRingSize = 32ULL << 20;
+    static constexpr uint64_t PrefetchRingSize = uint64_t{32} << 20;
     vk::Buffer prefetch_buffer;
     std::span<u8> prefetch_span;
-    u64 prefetch_alignment{256};
-    u64 prefetch_head{}; ///< decode thread
-    u64 prefetch_tail{}; ///< decode thread: below it the ring is free
+    uint64_t prefetch_alignment{};
+    uint64_t prefetch_head{};
+    uint64_t prefetch_tail{};
+    uint64_t prefetch_released{};
     std::mutex prefetch_mutex;
-    std::deque<std::pair<u64, u64>> prefetch_releases; ///< position, tick
+    struct PrefetchRelease {
+        uint64_t position;
+        u64 tick;
+    };
+    std::deque<PrefetchRelease> prefetch_releases;
 
     std::shared_ptr<QuadArrayIndexBuffer> quad_array_index_buffer;
     std::shared_ptr<QuadStripIndexBuffer> quad_strip_index_buffer;

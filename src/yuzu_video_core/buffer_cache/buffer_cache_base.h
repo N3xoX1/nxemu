@@ -136,8 +136,10 @@ public:
 
     std::array<u32, NUM_STAGES> enabled_storage_buffers{};
     std::array<u32, NUM_STAGES> written_storage_buffers{};
+    std::array<u32, NUM_STAGES> untracked_storage_buffers{};
     u32 enabled_compute_storage_buffers = 0;
     u32 written_compute_storage_buffers = 0;
+    u32 untracked_compute_storage_buffers = 0;
 
     std::array<u32, NUM_STAGES> enabled_texture_buffers{};
     std::array<u32, NUM_STAGES> written_texture_buffers{};
@@ -246,17 +248,12 @@ public:
 
     void DisableGraphicsUniformBuffer(size_t stage, u32 index);
 
-    /// Decode thread: copies the uniform buffer at `device_addr`, bound to (stage, index),
-    /// to the runtime's prefetch ring when the GPU thread would copy it (CPU written while
-    /// read in place, never written by the GPU side). Takes no lock: reads only the size
-    /// hints, the device memory marks and the guest memory.
+    /// Decode thread, without the cache lock
     bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
-                         DAddr& out_addr, u32& out_size, u32& out_offset);
+                         UniformPrefetch& prefetch);
+    u64 UniformPrefetchPosition();
 
-    /// GPU thread: the copy serves the draws of this command list, see PrefetchUniform
-    void ApplyUniformPrefetch(size_t stage, u32 index, DAddr device_addr, u32 size, u32 offset);
-
-    /// GPU thread: drops the copies at the end of a command list or at a puller wait
+    void ApplyUniformPrefetch(size_t stage, u32 index, const UniformPrefetch& prefetch);
     void ResetUniformPrefetch(u64 position);
 
     void UpdateGraphicsBuffers(bool is_indexed);
@@ -328,7 +325,7 @@ public:
     void UnbindGraphicsStorageBuffers(size_t stage);
 
     void BindGraphicsStorageBuffer(size_t stage, size_t ssbo_index, u32 cbuf_index, u32 cbuf_offset,
-                                   bool is_written);
+                                   bool is_written, bool untracked_writes_only);
 
     void UnbindGraphicsTextureBuffers(size_t stage);
 
@@ -338,7 +335,7 @@ public:
     void UnbindComputeStorageBuffers();
 
     void BindComputeStorageBuffer(size_t ssbo_index, u32 cbuf_index, u32 cbuf_offset,
-                                  bool is_written);
+                                  bool is_written, bool untracked_writes_only);
 
     void UnbindComputeTextureBuffers();
 
@@ -536,6 +533,8 @@ private:
     /// A tracked write is one the bitmap of written pages records
     void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size, bool tracked = false);
 
+    void MarkWrittenWithoutReadback(BufferId buffer_id, DAddr device_addr, u32 size);
+
     void MarkGpuWriteHistory(DAddr device_addr, u64 size) noexcept {
         gpu_write_history.Mark(device_addr, size);
         gpu_write_epoch.fetch_add(1, std::memory_order_relaxed);
@@ -606,18 +605,11 @@ private:
     // Owned by this cache: a new renderer/scheduler must never reuse retired staging offsets.
     UniformStreamReuse<Runtime> uniform_stream_reuse;
 
-    /// Largest size the GPU thread copied per stage and index; the decode thread copies that
-    /// much ahead, see PrefetchUniform
     std::array<std::array<std::atomic<u32>, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
-        prefetch_hints{};
-    struct PrefetchSlot {
-        DAddr device_addr;
-        u32 size; ///< 0 when empty
-        u32 offset;
-    };
-    std::array<std::array<PrefetchSlot, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
+        prefetch_sizes{};
+    std::array<std::array<UniformPrefetch, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
         prefetch_slots{};
-    bool prefetch_live{};
+    bool prefetch_slots_used{};
     const void* prefetch_channel{};
 
     Common::SlotVector<Buffer> slot_buffers;

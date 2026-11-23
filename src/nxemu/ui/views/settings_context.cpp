@@ -43,6 +43,7 @@ constexpr GameSetting kGameSettings[] = {
     {NXVideoSetting::SystemAnisotropicFiltering, NXVideoSetting::GameAnisotropicFiltering, "anisotropy", false},
     {NXVideoSetting::SystemDMAAccuracy, NXVideoSetting::GameDMAAccuracy, "dma", false},
     {NXVideoSetting::SystemGpuCommandSynchronization, NXVideoSetting::GameGpuCommandSynchronization, "gpu-sync", true},
+    {NXVideoSetting::SystemSkipUntrackedStoreReadback, NXVideoSetting::GameSkipUntrackedStoreReadback, "untracked-writes", true},
     {NXVideoSetting::SystemFastGpuReadback, NXVideoSetting::GameFastGpuReadback, "fast-readback", true},
     {NXVideoSetting::SystemVSyncMode, NXVideoSetting::GameVSyncMode, "vsync", false},
     {NXVideoSetting::SystemNvdecEmulation, NXVideoSetting::GameNvdecEmulation, "nvdec", false},

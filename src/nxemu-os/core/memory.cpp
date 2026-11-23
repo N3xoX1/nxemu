@@ -2086,9 +2086,7 @@ void Memory::RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, i
 }
 
 bool Memory::ProtectsReadCachedRegions() {
-    // Off, games wait for the GPU to finish every readback: slower, but they never read
-    // a value from before the fence they waited for.
-    if (!osSettings.background_gpu_readbacks)
+    if (!osSettings.background_gpu_readbacks.load(std::memory_order_relaxed))
     {
         return false;
     }
@@ -2100,6 +2098,24 @@ bool Memory::ProtectsReadCachedRegions() {
     // the JIT reads cached pages through the slow path anyway.
     return impl->current_page_table && impl->current_page_table->fastmem_arena &&
            ProtectOnlyReadCachedPages();
+#endif
+}
+
+bool Memory::ProtectsQueryResults() {
+    if (!osSettings.background_gpu_readbacks.load(std::memory_order_relaxed))
+    {
+        return false;
+    }
+#if defined(__APPLE__)
+    return ProtectsReadCachedRegions();
+#elif defined(_M_X64) || defined(__x86_64__)
+    // Matches where RasterizerMarkRegionReadCached denies access. The fault waits for query
+    // results only, so ProtectsReadCachedRegions, which also covers buffer downloads, stays off.
+    return ProtectOnlyReadCachedPages() && impl->current_page_table &&
+           impl->current_page_table->fastmem_arena;
+#else
+    // An NCE fault invalidates the page without waiting for the result
+    return false;
 #endif
 }
 

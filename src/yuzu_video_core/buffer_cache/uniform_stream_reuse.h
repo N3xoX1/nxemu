@@ -23,12 +23,18 @@ concept StreamUniformReusable = requires(Runtime& runtime, u32 size) {
     { runtime.CurrentTick() } -> std::convertible_to<u64>;
 };
 
-/// Runtimes with a ring the decode thread copies uniform buffers to
 template <class Runtime>
 concept UniformPrefetchable = requires(Runtime& runtime, u32 size, u32& offset, u8*& pointer) {
     { runtime.AllocatePrefetch(size, offset, pointer) } -> std::same_as<bool>;
+    { runtime.PrefetchPosition() } -> std::convertible_to<u64>;
     runtime.ReleasePrefetch(u64{});
     runtime.BindPrefetchedUniform(size, size);
+};
+
+struct UniformPrefetch {
+    u64 device_addr;
+    u32 size;
+    u32 offset;
 };
 
 // Unsupported backends (including OpenGL) have no additional state or overhead.
@@ -68,27 +74,19 @@ public:
         }
         if (slot.size == size && slot.tick == tick && slot.misses < MaxConsecutiveMisses) {
             // Contents, not just guest address, determine whether an allocation may be reused.
-            // Compare in place when the range is contiguous in host memory. The snapshot is
-            // then taken again, and the upload is written from the snapshot, so the snapshot
-            // always holds what the GPU reads.
-            const u8* const guest = memory.GetSpan(device_addr, size);
-            if (guest != nullptr) {
-                if (std::memcmp(slot.bytes.data(), guest, size) == 0) {
-                    slot.misses = 0;
-                    runtime.RebindStreamUniform(slot.ref, size);
-                    return true;
-                }
-                std::memcpy(slot.bytes.data(), guest, size);
-            } else {
+            const u8* current = memory.GetSpan(device_addr, size);
+            if (current == nullptr) {
                 memory.ReadBlockUnsafe(device_addr, scratch.data(), size);
-                if (std::memcmp(slot.bytes.data(), scratch.data(), size) == 0) {
-                    slot.misses = 0;
-                    runtime.RebindStreamUniform(slot.ref, size);
-                    return true;
-                }
-                std::memcpy(slot.bytes.data(), scratch.data(), size);
+                current = scratch.data();
+            }
+            if (std::memcmp(slot.bytes.data(), current, size) == 0) {
+                slot.misses = 0;
+                runtime.RebindStreamUniform(slot.ref, size);
+                return true;
             }
             ++slot.misses;
+            // Upload the snapshot: the next compare must see what the GPU reads
+            std::memcpy(slot.bytes.data(), current, size);
             const std::span<u8> mapped = runtime.BindMappedUniformBuffer(stage, binding_index, size);
             std::memcpy(mapped.data(), slot.bytes.data(), size);
         } else {

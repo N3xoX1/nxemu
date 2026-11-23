@@ -126,6 +126,7 @@ public:
     void GpuWrittenResults(DAddr address, size_t size, std::vector<std::pair<DAddr, u64>>& ranges);
     // Whether read-cached pages fault on CPU access in every registered process.
     bool ProtectsReadCachedPages();
+    bool ProtectsQueryResults();
     // Called on the serialized GPU producer, under its execution lock.
     void RegisterNativeRead(DAddr addr, size_t size);
     void InvalidateNativeReadRegion(DAddr addr, size_t size);
@@ -141,15 +142,6 @@ public:
     }
 
     static constexpr size_t AS_BITS = Traits::device_virtual_bits;
-
-    /// Marks pages that the GPU side writes in any way (engines, semaphores, downloads).
-    /// The decode thread can't copy them ahead of the GPU thread. Sticky.
-    void MarkEngineWrite(DAddr addr, size_t size) noexcept {
-        MarkPages(engine_pages, addr, size);
-    }
-    bool HasEngineWrite(DAddr addr, size_t size) const noexcept {
-        return TestPages(engine_pages, addr, size);
-    }
 
     const u8* PhysicalBase() const noexcept {
         return reinterpret_cast<const u8*>(physical_base);
@@ -181,6 +173,19 @@ public:
         bool written = false;
         ForEachPage(addr, size,
                     [&](uint64_t page) { written = written || TestPageBit(excluded_pages, page); });
+        return written;
+    }
+
+    void MarkEngineWritten(DAddr addr, uint64_t size) noexcept {
+        ForEachPage(addr, size, [this](uint64_t page) { SetPageBit(engine_pages, page); });
+    }
+    bool IsEngineWritten(DAddr addr, uint64_t size) const noexcept {
+        if (size != 0 && addr >= device_as_size) {
+            return true;
+        }
+        bool written = false;
+        ForEachPage(addr, size,
+                    [&](uint64_t page) { written = written || TestPageBit(engine_pages, page); });
         return written;
     }
     void PrepareEngineWrite(DAddr addr, uint64_t size);
@@ -240,36 +245,12 @@ public:
 private:
     static constexpr size_t device_virtual_bits = Traits::device_virtual_bits;
 
-    static void MarkPages(Common::VirtualBuffer<u64>& bits, DAddr addr, size_t size) noexcept {
-        constexpr size_t as_size = 1ULL << Traits::device_virtual_bits;
-        if (size == 0 || addr >= as_size) return;
-        const size_t first = addr >> 12;
-        const size_t last = std::min<size_t>((addr + size - 1) >> 12, (as_size >> 12) - 1);
-        for (size_t page = first; page <= last; ++page) {
-            std::atomic_ref<u64> word{bits[page >> 6]};
-            const u64 bit = u64{1} << (page & 63);
-            if ((word.load(std::memory_order_relaxed) & bit) == 0) {
-                word.fetch_or(bit, std::memory_order_release);
-            }
-        }
-    }
-    static bool TestPages(const Common::VirtualBuffer<u64>& bits, DAddr addr, size_t size) noexcept {
-        constexpr size_t as_size = 1ULL << Traits::device_virtual_bits;
-        if (size == 0) return false;
-        if (addr >= as_size) return true;
-        const size_t first = addr >> 12;
-        const size_t last = std::min<size_t>((addr + size - 1) >> 12, (as_size >> 12) - 1);
-        for (size_t page = first; page <= last; ++page) {
-            if (std::atomic_ref<u64>{const_cast<u64&>(bits[page >> 6])}.load(std::memory_order_acquire) &
-                (u64{1} << (page & 63))) {
-                return true;
-            }
-        }
-        return false;
-    }
     /// Calls func(memory, vaddr, size) for each run of the range backed by one process
     template <typename Func>
     void ForEachProcessRange(DAddr addr, uint64_t size, Func&& func);
+    template <typename Func>
+    void ForRangeAndAliases(DAddr addr, uint64_t size, Func&& func);
+    void MarkEngineWrittenAliases(DAddr addr, uint64_t size);
     static constexpr size_t device_as_size = 1ULL << device_virtual_bits;
     static constexpr size_t page_bits = 12;
     static constexpr size_t page_size = 1ULL << page_bits;
@@ -348,9 +329,8 @@ private:
     Common::VirtualBuffer<u32> compressed_device_addr;
     static constexpr size_t continuity_levels = (device_virtual_bits - page_bits + 5) / 6;
     std::array<Common::VirtualBuffer<u64>, continuity_levels> continuity_boundaries;
-    // Pages ever written by an engine cannot be copied ahead by the decoder.
-    Common::VirtualBuffer<u64> engine_pages{(device_as_size >> page_bits) / 64};
     Common::VirtualBuffer<u64> excluded_pages;
+    Common::VirtualBuffer<u64> engine_pages{(device_as_size >> page_bits) / 64};
     Common::VirtualBuffer<u64> in_place_ticks;
     Common::VirtualBuffer<u64> in_place_pages;
     std::atomic<bool> in_place_enabled{};

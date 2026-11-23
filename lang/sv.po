@@ -475,6 +475,51 @@ msgstr ""
 "bildruta efter."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "Hastighetshack"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid ""
+"On, these settings can gain FPS, but can cause halos or corruption in some "
+"games. Turn one off in the settings of a game that shows it; some games have"
+" it off already."
+msgstr ""
+"När de är på kan de här inställningarna ge högre FPS, men orsaka halor eller"
+" bildfel i vissa spel. Stäng av en i inställningarna för ett spel som visar "
+"det; vissa spel har den redan avstängd."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "Återläsning i bakgrunden"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "Kan ge högre FPS, men orsaka halor eller bildfel i vissa spel."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid ""
+"Needs Vulkan and reactive flushing. On, games go on while the GPU copies "
+"what they will read, and can read an old value. Off, they wait for the copy;"
+" fast readback can still skip some waits."
+msgstr ""
+"Kräver Vulkan och reaktiv tömning. På fortsätter spelen medan "
+"grafikprocessorn kopierar det de ska läsa, och kan läsa ett gammalt värde. "
+"Av väntar de på kopian; snabb återläsning kan ändå hoppa över vissa "
+"väntetider."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Untracked shader writes"
+msgstr "Ospårade shaderskrivningar"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Skips reading back buffers a shader only might write."
+msgstr "Hoppar över återläsning av buffertar som en shader bara kanske skriver."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value."
+msgstr "Rättar spel som fyller sådana buffertar medan kretsen använder dem. Ett spel som läser tillbaka en kan se ett gammalt värde."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/android/app/src/main/jni/ui/ui_settings_pages.cpp
 msgid "Reactive flushing"
 msgstr "Reaktiv tömning"

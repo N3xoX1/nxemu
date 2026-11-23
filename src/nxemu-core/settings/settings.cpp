@@ -116,6 +116,19 @@ JsonValue SettingsStore::GetGameSettings(const char * section) const
     return JsonValue();
 }
 
+JsonValue SettingsStore::GetGameDefaults(const char * section) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const JsonValue * value = m_gameDefaults.Find(section);
+    return value != nullptr ? *value : JsonValue();
+}
+
+void SettingsStore::SetTitleDefaults(JsonValue titleDefaults)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_titleDefaults = std::move(titleDefaults);
+}
+
 void SettingsStore::SetGameSettings(const char * section, JsonValue & json)
 {
     std::string gameFile;
@@ -196,6 +209,8 @@ void SettingsStore::LoadGameSettings(void)
     }
 
     std::lock_guard<std::mutex> lock(m_mutex);
+    const JsonValue * titleDefaults = titleId.empty() ? nullptr : m_titleDefaults.Find(titleId.c_str());
+    m_gameDefaults = titleDefaults != nullptr ? *titleDefaults : JsonValue();
     m_gameFile = gameFile;
     m_gameDetails = std::move(details);
     m_gameReadable = readable;

@@ -1,10 +1,15 @@
 #include "core_settings.h"
 #include "identifiers.h"
 #include "settings.h"
+#include <common/file.h>
+#include <filesystem>
 #include <common/json.h>
 #include <common/path.h>
 #include <cstring>
 #include <iterator>
+#include <memory>
+#include <yuzu_common/fs/fs_util.h>
+#include <yuzu_common/fs/path_util.h>
 #include <yuzu_common/yuzu_assert.h>
 
 namespace
@@ -70,6 +75,7 @@ namespace
         { NXCoreSetting::AppBaseDirectory, &coreSettings.baseDir },
         { NXCoreSetting::AppDirectory, &coreSettings.appDir },
         { NXCoreSetting::ModuleDirectory, "", ModuleDirectorySettingKey, &coreSettings.moduleDir, &coreSettings.moduleDirValue, "./modules" },
+        { NXCoreSetting::GameDefaultsFile, "", "GameDefaultsFile", &coreSettings.gameDefaultsFile, "game_defaults.json" },
 #ifdef _WIN32
 #ifdef _DEBUG
         { NXCoreSetting::ModuleLoader, "modules", "loader", &coreSettings.moduleLoader, "loader\\nxemu-loader_d.dll" },
@@ -125,6 +131,32 @@ namespace
         { NXCoreSetting::GpuFileRedirectDir, "", nullptr, &coreSettings.gpuFileRedirectDir, "" },
         { NXCoreSetting::SystemLanguageIndex, "", "ConsoleLanguage", &coreSettings.languageIndex, LanguageEnglishAmerican, LanguageNames, static_cast<int32_t>(std::size(LanguageNames)) },
     };
+
+    JsonValue LoadGameDefaults()
+    {
+        const std::filesystem::path setting(Common::FS::ToU8String(coreSettings.gameDefaultsFile));
+        const std::filesystem::path exeDir = Common::FS::GetExeDirectory();
+        const std::filesystem::path macBundleResources = exeDir.parent_path() / "Resources";
+        for (const std::filesystem::path & base : {exeDir, macBundleResources})
+        {
+            const std::filesystem::path path = (base / setting).lexically_normal();
+            std::error_code error;
+            File file;
+            if (!std::filesystem::is_regular_file(path, error) || !file.Open(Common::FS::PathToUTF8String(path).c_str(), IFile::modeRead))
+            {
+                continue;
+            }
+            uint32_t fileLen = (uint32_t)file.GetLength();
+            std::unique_ptr<char[]> data = std::make_unique<char[]>(fileLen + 1);
+            JsonReader reader;
+            JsonValue root;
+            if (file.Read(data.get(), fileLen) == fileLen && reader.Parse(data.get(), data.get() + fileLen, root) && root.isObject())
+            {
+                return root;
+            }
+        }
+        return JsonValue();
+    }
 
     void ApplyDefault(const CoreSetting & setting)
     {
@@ -267,6 +299,7 @@ void SetupCoreSetting()
             ApplyDefault(setting);
         }
     }
+    settingsStore.SetTitleDefaults(LoadGameDefaults());
 }
 
 void SaveCoreSetting(void)
@@ -496,6 +529,10 @@ void CoreSettingChanged(const char * setting, void* /*userData*/)
     {
         settingsStore.SetDebugSettingsEnabled(coreSettings.debugSettingsEnabled);
         settingsStore.NotifyDebugSettings();
+    }
+    if (strcmp(setting, NXCoreSetting::GameDefaultsFile) == 0)
+    {
+        settingsStore.SetTitleDefaults(LoadGameDefaults());
     }
 }
 

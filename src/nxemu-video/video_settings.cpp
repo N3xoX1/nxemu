@@ -6,9 +6,7 @@
 #include <atomic>
 #include <common/json.h>
 #include <cstring>
-#include <cctype>
 #include <cstdlib>
-#include <string_view>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/module_setting_table.h>
 #include <nxemu-module-spec/base.h>
@@ -24,6 +22,7 @@ namespace
 // Configuration storage stays on the settings thread; the GPU reads these snapshots.
 std::atomic<int32_t> runtime_dma_accuracy{0};
 std::atomic<bool> runtime_gpu_command_synchronization{false};
+std::atomic<bool> runtime_skip_untracked_store_readback{false};
 std::atomic<bool> runtime_fast_gpu_readback{true};
 std::atomic<bool> runtime_fsr_legacy{false};
 }
@@ -73,9 +72,11 @@ bool IsGpuCommandSynchronizationEnabled()
     return runtime_gpu_command_synchronization.load(std::memory_order_relaxed);
 }
 
-// High accuracy waits for host GPU completion before publishing guest fences, unless fast
-// readback lets it publish them first: what games read can then be a frame late. Extreme
-// always waits. GPU-backed query results always retire safely.
+bool IsUntrackedStoreReadbackSkipped()
+{
+    return runtime_skip_untracked_store_readback.load(std::memory_order_relaxed);
+}
+
 bool IsGpuReadbackExact()
 {
     return IsGPULevelExtreme() ||
@@ -284,7 +285,8 @@ static VideoSetting settings[] = {
 #endif
     {NXVideoSetting::SystemDMAAccuracy, "video", "dma_accuracy", &videoSettings.global_dma_accuracy, 0, 0, 2, true},
     {NXVideoSetting::SystemGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.global_gpu_command_synchronization, false, true},
-    {NXVideoSetting::SystemBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.global_background_gpu_readbacks, true, true},
+    {NXVideoSetting::SystemSkipUntrackedStoreReadback, "video", "skip_untracked_store_readback", &videoSettings.global_skip_untracked_store_readback, false, true},
+    {NXVideoSetting::SystemBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.global_background_gpu_readbacks, true},
     {NXVideoSetting::SystemFastGpuReadback, "video", "fast_gpu_readback", &videoSettings.global_fast_gpu_readback, true},
     {NXVideoSetting::SystemVSyncMode, "video", "vsync_mode", &videoSettings.global_vsync_mode, VSyncMode::Fifo},
     {NXVideoSetting::SystemNvdecEmulation, "video", "nvdec_emulation", &videoSettings.global_nvdec_emulation, NvdecEmulation::Gpu, true},
@@ -322,6 +324,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::GameAnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.max_anisotropy, NXVideoSetting::SystemAnisotropicFiltering},
     {NXVideoSetting::GameDMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, NXVideoSetting::SystemDMAAccuracy},
     {NXVideoSetting::GameGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, NXVideoSetting::SystemGpuCommandSynchronization},
+    {NXVideoSetting::GameSkipUntrackedStoreReadback, "video", "skip_untracked_store_readback", &videoSettings.skip_untracked_store_readback, NXVideoSetting::SystemSkipUntrackedStoreReadback},
     {NXVideoSetting::GameBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.background_gpu_readbacks, NXVideoSetting::SystemBackgroundGpuReadbacks},
     {NXVideoSetting::GameFastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, NXVideoSetting::SystemFastGpuReadback},
     {NXVideoSetting::GameVSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, NXVideoSetting::SystemVSyncMode},
@@ -447,7 +450,7 @@ void LoadStoreSetting(const VideoSetting & videoSetting, const char * setting)
 
 void VideoSettingChanged(const char * setting, void * /*userData*/)
 {
-    ModuleSettingTable::SettingChanged(settings, setting);
+    ModuleSettingTable::SettingChanged(settings, "nxemu-video", setting);
     if (strcmp(setting, NXVideoSetting::GameDMAAccuracy) == 0)
     {
         runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
@@ -461,6 +464,11 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
     if (strcmp(setting, NXVideoSetting::GameGpuCommandSynchronization) == 0)
     {
         runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::GameSkipUntrackedStoreReadback) == 0)
+    {
+        runtime_skip_untracked_store_readback.store(videoSettings.skip_untracked_store_readback, std::memory_order_relaxed);
         return;
     }
     if (strcmp(setting, NXVideoSetting::GameFastGpuReadback) == 0)
@@ -828,49 +836,19 @@ void WriteJsonSetting(const VideoSetting & videoSetting, JsonValue & root, bool 
     }
 }
 
-// Settings a game needs to look right, used when its own settings leave them out
-struct TitleSettings
-{
-    const char * titleId;
-    const char * json;
-};
-
-constexpr TitleSettings kTitleSettings[] = {
-    // Pikmin 4 reads its exposure from a GPU readback as soon as it sees the fence. With
-    // readbacks in the background it gets an older value, and the lights stay overexposed.
-    {"0100B7C00933A000", R"({"video": {"accuracy_level": "High", "background_gpu_readbacks": false}})"},
-    // Mario Golf: Super Rush flickers when it reads a GPU result before the copy is done.
-    {"0100C9C00E25C000", R"({"video": {"background_gpu_readbacks": false}})"},
-};
-
-JsonValue TitleDefaults()
-{
-    const std::string_view titleId = g_settings->GetString(NXCoreSetting::GameTitleId);
-    for (const TitleSettings & title : kTitleSettings)
-    {
-        if (titleId.size() == strlen(title.titleId) &&
-            std::equal(titleId.begin(), titleId.end(), title.titleId, [](char a, char b) {
-                return std::toupper(static_cast<unsigned char>(a)) == b;
-            }))
-        {
-            return ModuleSettingTable::ParseSettings(title.json);
-        }
-    }
-    return JsonValue();
-}
-
 void GameSettingsChanged(const char * /*setting*/, void * /*userData*/)
 {
-    ModuleSettingTable::LoadGameSettings(settings, "nxemu-video", TitleDefaults());
+    ModuleSettingTable::LoadGameSettings(settings, "nxemu-video");
 }
 
 } // namespace
 
 void SetupVideoSetting(void)
 {
-    ModuleSettingTable::SetupSettings(settings, "nxemu-video", VideoSettingChanged, GameSettingsChanged, TitleDefaults());
+    ModuleSettingTable::SetupSettings(settings, "nxemu-video", VideoSettingChanged, GameSettingsChanged);
     runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
     runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
+    runtime_skip_untracked_store_readback.store(videoSettings.skip_untracked_store_readback, std::memory_order_relaxed);
     runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
     Settings::UpdateRescalingInfo();
     Settings::UpdateGPUAccuracy();
@@ -883,7 +861,7 @@ void CleanupVideoSetting(void)
 
 void SaveVideoSettings(void)
 {
-    ModuleSettingTable::SaveSettings(settings, "nxemu-video", TitleDefaults());
+    ModuleSettingTable::SaveSettings(settings, "nxemu-video");
 }
 
 namespace

@@ -13,7 +13,9 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include "yuzu_common/bounded_threadsafe_queue.h"
 #include "yuzu_common/polyfill_thread.h"
@@ -107,11 +109,24 @@ public:
         return threaded;
     }
 
+    using WriteRanges = std::vector<std::pair<DAddr, DAddr>>;
+    enum class Writes { Anywhere, AddedRanges, Nothing };
+
     /// Decode thread: queues work. Runs it at once without the decode thread.
-    void Push(Work&& work);
+    void Push(Work&& work, Writes writes = Writes::Anywhere);
+
+    /// Decode thread, without a lock: only it adds and reads the write ranges
+    void AddWrites(const WriteRanges& ranges);
+    bool MayWrite(DAddr begin, DAddr end);
 
     /// Decode thread: waits until the GPU thread has run all queued work
     void WaitIdle();
+
+    /// Decode thread
+    bool IsIdle() const {
+        return !threaded || done_spin.load(std::memory_order_acquire) >=
+                                pushed_spin.load(std::memory_order_relaxed);
+    }
 
     /// Decode thread: runs `func` on the GPU thread and waits for completion.
     template <typename Func>
@@ -127,11 +142,22 @@ public:
     /// GPU thread: takes all queued work, false when woken without any
     bool PopWait(std::deque<Work>& out, std::stop_token stop_token, const std::atomic<bool>& wake,
                  const std::atomic<bool>& service);
+    /// GPU thread: after each work item, so MayWrite sees progress within a batch
+    void MarkRun();
     void FinishMany(u64 count);
     void Notify();
     void Stop();
 
 private:
+    struct QueuedWrite {
+        DAddr begin;
+        DAddr end;
+        u64 push;
+    };
+
+    void DropFinishedWrites(u64 finished);
+    void ClearWrites();
+
     friend class ThreadManager;
 
     bool threaded{};
@@ -141,9 +167,12 @@ private:
     std::deque<Work> items;
     u64 pushed{};
     u64 done{};
+    std::vector<QueuedWrite> queued_writes;
+    u64 anywhere_until_push{};
     bool stopping{};
     /// The GPU thread sleeps in PopWait, under `mutex`
     bool back_waiting{};
+    std::atomic<u64> run_spin{};
     /// Mirrors of the counters, so WaitIdle can return without the lock
     std::atomic<u64> pushed_spin{};
     std::atomic<u64> done_spin{};

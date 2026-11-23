@@ -12,6 +12,7 @@
 #include <vector>
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/polyfill_thread.h"
+#include "yuzu_video_core/buffer_cache/uniform_stream_reuse.h"
 #include "yuzu_video_core/cache_types.h"
 #include "yuzu_video_core/engines/fermi_2d.h"
 #include "yuzu_video_core/gpu.h"
@@ -92,32 +93,15 @@ public:
     /// Signal disabling of a uniform buffer
     virtual void DisableGraphicsUniformBuffer(size_t stage, u32 index) = 0;
 
-    /// Uniform buffer copied by the decode thread ahead of the GPU thread
-    struct UniformPrefetch {
-        DAddr device_addr;
-        u32 size;
-        u32 offset; ///< in the prefetch ring
-    };
-
-    /// Decode thread: copies up to `max_size` bytes of the uniform buffer bound at
-    /// `device_addr` to (stage, index), when the GPU thread would copy it. Returns false
-    /// when it doesn't.
     virtual bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
-                                 UniformPrefetch& prefetch) {
+                                 VideoCommon::UniformPrefetch& prefetch) {
         return false;
     }
-
-    /// Decode thread: prefetch ring position, see ResetUniformPrefetch
     virtual u64 UniformPrefetchPosition() {
         return 0;
     }
-
-    /// GPU thread: a draw of this submission that binds `prefetch.device_addr` to
-    /// (stage, index) can use the copy
-    virtual void ApplyUniformPrefetch(size_t stage, u32 index, const UniformPrefetch& prefetch) {}
-
-    /// GPU thread: drops the copies; the ring below `position` is free once the work
-    /// recorded so far ran
+    virtual void ApplyUniformPrefetch(size_t stage, u32 index,
+                                      const VideoCommon::UniformPrefetch& prefetch) {}
     virtual void ResetUniformPrefetch(u64 position) {}
 
     /// Signal a GPU based semaphore as a fence

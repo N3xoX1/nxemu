@@ -404,19 +404,34 @@ void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
 template <typename Traits>
 void DeviceMemoryManager<Traits>::PrepareEngineWrite(DAddr addr, uint64_t size)
 {
-    MarkEngineWrite(addr, size);
-    if (!InPlaceReadsEnabled())
-    {
-        return;
-    }
     const auto prepare = [this](DAddr range_addr, uint64_t range_size) {
+        MarkEngineWritten(range_addr, range_size);
+        if (!InPlaceReadsEnabled())
+        {
+            return;
+        }
         if (device_inter != nullptr)
         {
             device_inter->WaitInPlaceReads(range_addr, range_size);
         }
         ExcludeFromInPlace(range_addr, range_size);
     };
-    prepare(addr, size);
+    ForRangeAndAliases(addr, size, prepare);
+}
+
+template <typename Traits>
+void DeviceMemoryManager<Traits>::MarkEngineWrittenAliases(DAddr addr, uint64_t size)
+{
+    ForRangeAndAliases(addr, size, [this](DAddr range_addr, uint64_t range_size) {
+        MarkEngineWritten(range_addr, range_size);
+    });
+}
+
+template <typename Traits>
+template <typename Func>
+void DeviceMemoryManager<Traits>::ForRangeAndAliases(DAddr addr, uint64_t size, Func&& func)
+{
+    func(addr, size);
     thread_local Common::ScratchBuffer<u32> aliases;
     ForEachPage(addr, size, [&](uint64_t page) {
         const u32 physical = compressed_physical_ptr[page];
@@ -430,7 +445,7 @@ void DeviceMemoryManager<Traits>::PrepareEngineWrite(DAddr addr, uint64_t size)
         ApplyOpOnPAddr(physical_addr, aliases, [&](DAddr alias) {
             if ((alias >> page_bits) != page)
             {
-                prepare(alias, length);
+                func(alias, length);
             }
         });
     });
@@ -525,7 +540,7 @@ template <typename Traits>
 template <typename T>
 void DeviceMemoryManager<Traits>::Write(DAddr address, T value)
 {
-    MarkEngineWrite(address, sizeof(T));
+    MarkEngineWrittenAliases(address, sizeof(T));
     T* ptr = GetPointer<T>(address);
     if (!ptr) [[unlikely]] 
     {
@@ -601,7 +616,7 @@ void DeviceMemoryManager<Traits>::ReadBlock(DAddr address, void * dest_pointer, 
 template <typename Traits>
 void DeviceMemoryManager<Traits>::WriteBlock(DAddr address, const void* src_pointer, size_t size)
 {
-    MarkEngineWrite(address, size);
+    MarkEngineWrittenAliases(address, size);
     WalkBlock(address, size, [&](size_t copy_amount, DAddr current_vaddr) 
         {
             LOG_ERROR(HW_Memory, "Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
@@ -647,7 +662,7 @@ void DeviceMemoryManager<Traits>::ReadBlockUnsafe(DAddr address, void* dest_poin
 template <typename Traits>
 void DeviceMemoryManager<Traits>::WriteBlockUnsafe(DAddr address, const void* src_pointer, size_t size)
 {
-    MarkEngineWrite(address, size);
+    MarkEngineWrittenAliases(address, size);
     WalkBlock(address, size, [&](size_t copy_amount, DAddr current_vaddr)
         {
             LOG_ERROR(HW_Memory,"Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
@@ -666,7 +681,7 @@ template <typename Traits>
 void DeviceMemoryManager<Traits>::WriteBlockForGpuReadback(DAddr address,
                                                          const void* src_pointer, size_t size)
 {
-    MarkEngineWrite(address, size);
+    MarkEngineWrittenAliases(address, size);
     if (size < 96 * 1024 * 1024) {
         // Retirement holds the cache mutex and excludes cancelled CPU writes.
         WalkBlock(address, size, [&](size_t, DAddr current_vaddr)
@@ -730,6 +745,20 @@ bool DeviceMemoryManager<Traits>::ProtectsReadCachedPages()
     {
         if (memory == nullptr) continue;
         if (!memory->ProtectsReadCachedRegions()) return false;
+        any = true;
+    }
+    return any;
+}
+
+template <typename Traits>
+bool DeviceMemoryManager<Traits>::ProtectsQueryResults()
+{
+    std::scoped_lock lk(process_guard);
+    bool any = false;
+    for (IMemory* memory : registered_processes)
+    {
+        if (memory == nullptr) continue;
+        if (!memory->ProtectsQueryResults()) return false;
         any = true;
     }
     return any;
