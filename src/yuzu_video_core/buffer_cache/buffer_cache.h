@@ -305,7 +305,7 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
     runtime.CopyBuffer(dest_buffer, src_buffer, copies, true);
     MarkBufferContentChanged(dest_buffer, *cpu_dest_address, amount);
     if (has_new_downloads) {
-        memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
+        MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
 
     Tegra::Memory::DeviceGuestMemory<u8, GuestMemoryFlags::UnsafeRead> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
@@ -388,13 +388,33 @@ std::pair<typename P::Buffer*, u32> BufferCache<P>::ObtainCPUBuffer(
 template <class P>
 void BufferCache<P>::BindGraphicsUniformBuffer(size_t stage, u32 index, GPUVAddr gpu_addr,
                                                u32 size) {
+    Binding& binding = channel_state->uniform_buffers[stage][index];
+    if constexpr (!IS_OPENGL) {
+        // Mappings only change under the GPU execution lock: same generation, same translation
+        BufferCacheChannelInfo::UniformSource& source =
+            channel_state->uniform_sources[stage][index];
+        const u64 mapping_generation = gpu_memory->MappingGeneration();
+        if (source.deleted_buffers_epoch != deleted_buffers_epoch) {
+            binding.buffer_id = BufferId{};
+        } else if (source.address == gpu_addr &&
+                   source.mapping_generation == mapping_generation && binding.size == size) {
+            return;
+        }
+        source = {.address = gpu_addr,
+                  .mapping_generation = mapping_generation,
+                  .deleted_buffers_epoch = deleted_buffers_epoch};
+    }
     const std::optional<DAddr> device_addr = gpu_memory->GpuToCpuAddress(gpu_addr);
-    const Binding binding{
-        .device_addr = *device_addr,
-        .size = size,
-        .buffer_id = BufferId{},
-    };
-    channel_state->uniform_buffers[stage][index] = binding;
+    if (!device_addr) {
+        binding = NULL_BINDING;
+        return;
+    }
+    if constexpr (!IS_OPENGL) {
+        if (binding.device_addr == *device_addr && binding.size == size) {
+            return;
+        }
+    }
+    binding = Binding{.device_addr = *device_addr, .size = size};
 }
 
 template <class P>
@@ -1336,9 +1356,10 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
-    const bool gpu_modified = memory_tracker.IsRegionGpuModified(device_addr, size);
+    const bool rewritten_every_draw = size <= channel_state->uniform_buffer_skip_cache_size;
+    const bool gpu_modified = gpu_write_history.MayHaveWrites(device_addr, size) &&
+                              memory_tracker.IsRegionGpuModified(device_addr, size);
     if constexpr (!IS_OPENGL) {
-        const bool rewritten_every_draw = size <= channel_state->uniform_buffer_skip_cache_size;
         const bool in_place = guest_ram_imported && binding.buffer_id != NULL_BUFFER_ID &&
                               !rewritten_every_draw && !gpu_modified &&
                               !device_memory.IsExcludedFromInPlace(device_addr, size);
@@ -1356,13 +1377,13 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     if constexpr (!IS_OPENGL) {
         // A CPU-written uniform range that an earlier draw of this frame uses cannot be
         // uploaded ahead of the render pass. Stream a copy instead of ending the pass.
-        stream_modified_uniform = binding.buffer_id != NULL_BUFFER_ID &&
+        stream_modified_uniform = !rewritten_every_draw && !gpu_modified &&
+            binding.buffer_id != NULL_BUFFER_ID &&
             runtime.ShouldStreamUniformBuffer(buffer, buffer.Offset(device_addr), size) &&
             memory_tracker.IsRegionCpuModified(device_addr, size);
     }
     const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
-                                 (size <= channel_state->uniform_buffer_skip_cache_size ||
-                                  stream_modified_uniform) &&
+                                 (rewritten_every_draw || stream_modified_uniform) &&
                                  !gpu_modified;
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {
@@ -1979,8 +2000,7 @@ void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u3
         untracked_gpu_writes.Add(device_addr, size);
     }
     device_memory.InvalidateNativeReadRegion(device_addr, size);
-    MarkGpuWriteHistory(device_addr, size);
-    memory_tracker.MarkRegionAsGpuModified(device_addr, size);
+    MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
     MarkWrittenWithoutReadback(buffer_id, device_addr, size);
@@ -2931,8 +2951,7 @@ void BufferCache<P>::MarkSparseWrite(GPUVAddr gpu_addr, u32 size) {
         const DAddr device_addr = part.device_addr + (write_begin - part.offset);
         const u64 write_size = write_end - write_begin;
         device_memory.InvalidateNativeReadRegion(device_addr, write_size);
-        MarkGpuWriteHistory(device_addr, write_size);
-        memory_tracker.MarkRegionAsGpuModified(device_addr, write_size);
+        MarkRegionAsGpuModified(device_addr, write_size);
         gpu_modified_ranges.Add(device_addr, write_size);
         uncommitted_gpu_modified_ranges.Add(device_addr, write_size);
         untracked_gpu_writes.Add(device_addr, write_size);
