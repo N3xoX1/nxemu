@@ -161,6 +161,7 @@ struct EmitConfig {
 
     // Debugging
     bool very_verbose_debugging_output;
+    u32 test_variant;
 };
 
 EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const EmitConfig& emit_conf, FastmemManager& fastmem_manager);

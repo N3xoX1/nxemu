@@ -33,6 +33,9 @@ resuming in the hot code and a call to shared marking code. Run it as both varia
 the low write tracking map.
 Bit 32768 makes scalar FRINTA call the FP code (the code generation before) instead of the inline
 rounding.
+On an ARM64 host the JIT is the ARM64 backend, where only bits 64 and 65536 apply. Bit 65536
+makes every condition load NZCV from the guest state (the code generation before) instead of using
+the host flags that the flag-setting instruction right before left. Off Windows, use FASTMEM 0.
 With FASTMEM 1 or 2 each JIT also gets a write tracking map, and an arena page written without its
 mark is a failure.
 
