@@ -626,6 +626,8 @@ RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * po
                     area.deferred || deferred};
             return;
         }
+        // Fast readback publishes a query payload before the earlier results are written
+        impl->m_gpuCore->WaitPendingResults(address, size);
         if (area.startAddress <= address && end_address <= area.endAddress) [[likely]] {
             return;
         }
@@ -640,6 +642,7 @@ void VideoManager::HandleRasterizerWrite(const uint8_t * pointer, uint64_t size,
     thread_local Common::ScratchBuffer<u32> scratch;
     impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
         const uint64_t subaddress = address >> page_bits;
+        impl->m_gpuCore->WaitInPlaceReads(address, size);
         bool do_collection = *last_page == subaddress;
         if (!do_collection) [[unlikely]]
         {

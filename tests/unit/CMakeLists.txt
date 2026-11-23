@@ -161,6 +161,11 @@ target_compile_options(test_query_fences PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
 nxemu_unit_test(test_query_fences)
 
+add_executable(test_query_pending_results query_fences/pending_results.cpp)
+target_include_directories(test_query_pending_results PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(test_query_pending_results PRIVATE cxx_std_20)
+nxemu_unit_test(test_query_pending_results LINUX)
+
 add_executable(test_startup_wait session_lifecycle/startup_wait.cpp)
 target_include_directories(test_startup_wait PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(test_startup_wait PRIVATE cxx_std_20)
@@ -522,6 +527,16 @@ target_link_libraries(test_gpu_modified_protection PRIVATE nxemu_test_support
     $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
     fmt bc_decoder stb_dxt)
 nxemu_unit_test(test_gpu_modified_protection)
+
+add_executable(test_in_place_reads gpu_modified_ranges/in_place.cpp)
+target_include_directories(test_in_place_reads PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_in_place_reads video_core yuzu_common common)
+target_link_libraries(test_in_place_reads PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_in_place_reads)
 
 # Each test suite owns its build and CTest registration.
 file(GLOB unit_suites RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS

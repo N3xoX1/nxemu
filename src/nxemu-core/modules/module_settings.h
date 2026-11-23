@@ -32,8 +32,10 @@ public:
 
     const char * GetGameSectionSettings(const char * section) const override;
     void SetGameSectionSettings(const char * section, const char * json) override;
+    const char * GetGameSectionDefaults(const char * section) const override;
 
 private:
     mutable std::string m_sectionSetting;
     mutable std::string m_gameSectionSetting;
+    mutable std::string m_gameSectionDefaults;
 };

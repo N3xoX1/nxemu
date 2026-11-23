@@ -12,9 +12,14 @@
 #include "yuzu_video_core/buffer_cache/buffer_cache_base.h"
 #include "yuzu_video_core/guest_memory.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
+#include "video_settings.h"
 
 namespace VideoCommon {
 using Core::DEVICE_PAGESIZE;
+
+inline bool SkipsWriteTracking(bool untracked_writes_only) {
+    return untracked_writes_only && Settings::IsUntrackedStoreReadbackSkipped();
+}
 
 template <class P>
 BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, Runtime& runtime_)
@@ -25,6 +30,14 @@ BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, R
         device_memory.UpdatePagesGpuModifiedCount(addr, size, delta);
     });
     inline_buffer_id = NULL_BUFFER_ID;
+    if constexpr (!IS_OPENGL) {
+        // Before any GPU command: engine writes made before the import go untracked
+        guest_ram_imported = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
+                                                               device_memory.PhysicalSize());
+        if (guest_ram_imported) {
+            device_memory.EnableInPlaceReads();
+        }
+    }
 
     if (!runtime.CanReportMemoryUsage()) {
         minimum_memory = DEFAULT_EXPECTED_MEMORY;
@@ -295,8 +308,9 @@ bool BufferCache<P>::DMACopy(GPUVAddr src_address, GPUVAddr dest_address, u64 am
         memory_tracker.MarkRegionAsGpuModified(*cpu_dest_address, amount);
     }
 
-    Tegra::Memory::DeviceGuestMemoryScoped<u8, GuestMemoryFlags::UnsafeReadWrite> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
-    tmp.SetAddressAndSize(*cpu_dest_address, amount);
+    Tegra::Memory::DeviceGuestMemory<u8, GuestMemoryFlags::UnsafeRead> tmp(device_memory, *cpu_src_address, amount, &tmp_buffer);
+    device_memory.PrepareEngineWrite(*cpu_dest_address, amount);
+    device_memory.WriteBlockUnsafe(*cpu_dest_address, tmp.data(), amount);
     return true;
 }
 
@@ -563,13 +577,17 @@ template <class P>
 void BufferCache<P>::UnbindGraphicsStorageBuffers(size_t stage) {
     channel_state->enabled_storage_buffers[stage] = 0;
     channel_state->written_storage_buffers[stage] = 0;
+    channel_state->untracked_storage_buffers[stage] = 0;
 }
 
 template <class P>
 void BufferCache<P>::BindGraphicsStorageBuffer(size_t stage, size_t ssbo_index, u32 cbuf_index,
-                                               u32 cbuf_offset, bool is_written) {
+                                               u32 cbuf_offset, bool is_written,
+                                               bool untracked_writes_only) {
     channel_state->enabled_storage_buffers[stage] |= 1U << ssbo_index;
     channel_state->written_storage_buffers[stage] |= (is_written ? 1U : 0U) << ssbo_index;
+    channel_state->untracked_storage_buffers[stage] |=
+        (SkipsWriteTracking(untracked_writes_only) ? 1U : 0U) << ssbo_index;
 
     const auto& cbufs = maxwell3d->state.shader_stages[stage];
     const GPUVAddr ssbo_addr = cbufs.const_buffers[cbuf_index].address + cbuf_offset;
@@ -601,12 +619,13 @@ template <class P>
 void BufferCache<P>::UnbindComputeStorageBuffers() {
     channel_state->enabled_compute_storage_buffers = 0;
     channel_state->written_compute_storage_buffers = 0;
+    channel_state->untracked_compute_storage_buffers = 0;
     channel_state->image_compute_texture_buffers = 0;
 }
 
 template <class P>
 void BufferCache<P>::BindComputeStorageBuffer(size_t ssbo_index, u32 cbuf_index, u32 cbuf_offset,
-                                              bool is_written) {
+                                              bool is_written, bool untracked_writes_only) {
     if (ssbo_index >= channel_state->compute_storage_buffers.size()) [[unlikely]] {
         LOG_ERROR(HW_GPU, "Storage buffer index {} exceeds maximum storage buffer count",
                   ssbo_index);
@@ -614,6 +633,8 @@ void BufferCache<P>::BindComputeStorageBuffer(size_t ssbo_index, u32 cbuf_index,
     }
     channel_state->enabled_compute_storage_buffers |= 1U << ssbo_index;
     channel_state->written_compute_storage_buffers |= (is_written ? 1U : 0U) << ssbo_index;
+    channel_state->untracked_compute_storage_buffers |=
+        (SkipsWriteTracking(untracked_writes_only) ? 1U : 0U) << ssbo_index;
 
     const auto& launch_desc = kepler_compute->launch_description;
     ASSERT(((launch_desc.const_buffer_enable_mask >> cbuf_index) & 1) != 0);
@@ -1249,6 +1270,20 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const Binding& binding = channel_state->uniform_buffers[stage][index];
     const DAddr device_addr = binding.device_addr;
     const u32 size = std::min(binding.size, (*channel_state->uniform_buffer_sizes)[stage][index]);
+    const bool gpu_modified = memory_tracker.IsRegionGpuModified(device_addr, size);
+    if constexpr (!IS_OPENGL) {
+        const bool rewritten_every_draw = size <= channel_state->uniform_buffer_skip_cache_size;
+        const bool in_place = guest_ram_imported && binding.buffer_id != NULL_BUFFER_ID &&
+                              !rewritten_every_draw && !gpu_modified &&
+                              !device_memory.IsExcludedFromInPlace(device_addr, size);
+        if (in_place) {
+            if (const u8* const pointer = device_memory.GetSpan(device_addr, size);
+                pointer && runtime.BindHostMappedUniformBuffer(pointer, size)) {
+                device_memory.HoldInPlaceRead(device_addr, size, runtime.CurrentTick());
+                return;
+            }
+        }
+    }
     Buffer& buffer = slot_buffers[binding.buffer_id];
     TouchBuffer(buffer, binding.buffer_id);
     bool stream_modified_uniform{};
@@ -1262,7 +1297,7 @@ void BufferCache<P>::BindHostGraphicsUniformBuffer(size_t stage, u32 index, u32 
     const bool use_fast_buffer = binding.buffer_id != NULL_BUFFER_ID &&
                                  (size <= channel_state->uniform_buffer_skip_cache_size ||
                                   stream_modified_uniform) &&
-                                 !memory_tracker.IsRegionGpuModified(device_addr, size);
+                                 !gpu_modified;
     if (use_fast_buffer) {
         if constexpr (IS_OPENGL) {
             if (runtime.HasFastBufferSubData()) {
@@ -1340,6 +1375,8 @@ void BufferCache<P>::BindHostGraphicsStorageBuffers(size_t stage) {
     ForEachEnabledBit(channel_state->enabled_storage_buffers[stage], [&](u32 index) {
         const Binding& binding = channel_state->storage_buffers[stage][index];
         const bool is_written = ((channel_state->written_storage_buffers[stage] >> index) & 1) != 0;
+        const bool track_writes =
+            ((channel_state->untracked_storage_buffers[stage] >> index) & 1) == 0;
         if (const GPUVAddr sparse_addr = binding.is_sparse ? binding.sparse_gpu_addr
                                                            : FindSparseAlias(binding, is_written)) {
             const SparseBinding sparse = SynchronizeSparseBuffer(sparse_addr, binding.size);
@@ -1365,7 +1402,11 @@ void BufferCache<P>::BindHostGraphicsStorageBuffers(size_t stage) {
         buffer.MarkUsage(offset, size);
 
         if (is_written) {
-            MarkWrittenBuffer(binding.buffer_id, binding.device_addr, size);
+            if (track_writes) {
+                MarkWrittenBuffer(binding.buffer_id, binding.device_addr, size);
+            } else {
+                MarkWrittenWithoutReadback(binding.buffer_id, binding.device_addr, size);
+            }
         }
 
         if constexpr (NEEDS_BIND_STORAGE_INDEX) {
@@ -1478,6 +1519,8 @@ void BufferCache<P>::BindHostComputeStorageBuffers() {
         const Binding& binding = channel_state->compute_storage_buffers[index];
         const bool is_written =
             ((channel_state->written_compute_storage_buffers >> index) & 1) != 0;
+        const bool track_writes =
+            ((channel_state->untracked_compute_storage_buffers >> index) & 1) == 0;
         if (const GPUVAddr sparse_addr = binding.is_sparse ? binding.sparse_gpu_addr
                                                            : FindSparseAlias(binding, is_written)) {
             const SparseBinding sparse = SynchronizeSparseBuffer(sparse_addr, binding.size);
@@ -1505,7 +1548,11 @@ void BufferCache<P>::BindHostComputeStorageBuffers() {
 
         if (is_written) {
             const bool tracked = SetWriteTrackingSlot(write_slot++, binding.device_addr, 1);
-            MarkWrittenBuffer(binding.buffer_id, binding.device_addr, size, tracked);
+            if (track_writes) {
+                MarkWrittenBuffer(binding.buffer_id, binding.device_addr, size, tracked);
+            } else {
+                MarkWrittenWithoutReadback(binding.buffer_id, binding.device_addr, size);
+            }
         }
 
         if constexpr (NEEDS_BIND_STORAGE_INDEX) {
@@ -1856,6 +1903,14 @@ void BufferCache<P>::MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u3
     memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     gpu_modified_ranges.Add(device_addr, size);
     uncommitted_gpu_modified_ranges.Add(device_addr, size);
+    MarkWrittenWithoutReadback(buffer_id, device_addr, size);
+}
+
+template <class P>
+void BufferCache<P>::MarkWrittenWithoutReadback(BufferId buffer_id, DAddr device_addr, u32 size) {
+    if (buffer_id == NULL_BUFFER_ID) {
+        return;
+    }
     runtime.MarkHostWrite(slot_buffers[buffer_id]);
     MarkBufferContentChanged(slot_buffers[buffer_id], device_addr, size);
 }

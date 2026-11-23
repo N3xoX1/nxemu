@@ -579,6 +579,11 @@ struct GPU::Impl :
         return rasterizer->OnCPUWrite(addr, size);
     }
 
+    void WaitInPlaceReads(DAddr addr, uint64_t size)
+    {
+        rasterizer->WaitInPlaceReads(addr, size);
+    }
+
     /// Notify rasterizer that any caches of the specified region should be flushed and invalidated
     void FlushAndInvalidateRegion(DAddr addr, uint64_t size)
     {
@@ -970,6 +975,26 @@ bool GPU::AwaitPendingResult(DAddr addr, u64 size, bool kick)
     return impl->AwaitPendingResult(addr, size, kick);
 }
 
+void GPU::WaitPendingResults(DAddr addr, u64 size)
+{
+    if (!impl->AwaitPendingResult(addr, size, true))
+    {
+        return;
+    }
+    // Bounded: the GPU thread can be blocked on a semaphore this CPU core releases
+    constexpr std::chrono::milliseconds max_wait{100};
+    const std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+    while (impl->AwaitPendingResult(addr, size, false))
+    {
+        if (std::chrono::steady_clock::now() - started >= max_wait)
+        {
+            LOG_WARNING(HW_GPU, "Query result at 0x{:x} still pending after {} ms, reading it stale", addr, max_wait.count());
+            return;
+        }
+        std::this_thread::yield();
+    }
+}
+
 bool GPU::OnNativeCPURead(DAddr addr, u64 size, bool shared_page)
 {
     if (shared_page)
@@ -993,6 +1018,16 @@ void GPU::InvalidateRegion(DAddr addr, uint64_t size)
 bool GPU::OnCPUWrite(DAddr addr, uint64_t size)
 {
     return impl->OnCPUWrite(addr, size);
+}
+
+void GPU::WaitInPlaceReads(DAddr addr, uint64_t size)
+{
+    impl->WaitInPlaceReads(addr, size);
+}
+
+void GPU::WakeGpuThread()
+{
+    impl->gpu_thread.WakeForService();
 }
 
 void GPU::FlushAndInvalidateRegion(DAddr addr, uint64_t size)

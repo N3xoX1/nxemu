@@ -64,6 +64,7 @@ public:
     bool DebugSettingsEnabled() const override { return false; }
     const char* GetGameSectionSettings(const char*) const override { return "{}"; }
     void SetGameSectionSettings(const char*,const char*) override {}
+    const char* GetGameSectionDefaults(const char*) const override { return ""; }
 };
 class Provider final : public IManualContentProvider {
 public:

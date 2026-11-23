@@ -134,8 +134,10 @@ public:
 
     std::array<u32, NUM_STAGES> enabled_storage_buffers{};
     std::array<u32, NUM_STAGES> written_storage_buffers{};
+    std::array<u32, NUM_STAGES> untracked_storage_buffers{};
     u32 enabled_compute_storage_buffers = 0;
     u32 written_compute_storage_buffers = 0;
+    u32 untracked_compute_storage_buffers = 0;
 
     std::array<u32, NUM_STAGES> enabled_texture_buffers{};
     std::array<u32, NUM_STAGES> written_texture_buffers{};
@@ -227,6 +229,13 @@ public:
 
     bool OnCPUWrite(DAddr device_addr, u64 size);
 
+    template <typename Wait>
+    void WaitInPlaceReads(DAddr device_addr, u64 size, Wait&& wait) {
+        if constexpr (!IS_OPENGL) {
+            device_memory.ReleaseInPlaceReads(device_addr, size, std::forward<Wait>(wait));
+        }
+    }
+
     void DownloadMemory(DAddr device_addr, u64 size);
 
     std::optional<RasterizerDownloadArea> GetFlushArea(DAddr device_addr, u64 size);
@@ -306,7 +315,7 @@ public:
     void UnbindGraphicsStorageBuffers(size_t stage);
 
     void BindGraphicsStorageBuffer(size_t stage, size_t ssbo_index, u32 cbuf_index, u32 cbuf_offset,
-                                   bool is_written);
+                                   bool is_written, bool untracked_writes_only);
 
     void UnbindGraphicsTextureBuffers(size_t stage);
 
@@ -316,7 +325,7 @@ public:
     void UnbindComputeStorageBuffers();
 
     void BindComputeStorageBuffer(size_t ssbo_index, u32 cbuf_index, u32 cbuf_offset,
-                                  bool is_written);
+                                  bool is_written, bool untracked_writes_only);
 
     void UnbindComputeTextureBuffers();
 
@@ -513,6 +522,8 @@ private:
 
     /// A tracked write is one the bitmap of written pages records
     void MarkWrittenBuffer(BufferId buffer_id, DAddr device_addr, u32 size, bool tracked = false);
+
+    void MarkWrittenWithoutReadback(BufferId buffer_id, DAddr device_addr, u32 size);
 
     void MarkGpuWriteHistory(DAddr device_addr, u64 size) noexcept {
         gpu_write_history.Mark(device_addr, size);
@@ -729,6 +740,7 @@ private:
     };
     Common::LeastRecentlyUsedCache<LRUItemParams> lru_cache;
     u64 frame_tick = 0;
+    bool guest_ram_imported = false;
     /// Buffers created since the last TickFrame; ResolveOverlaps does not cut these
     std::vector<BufferId> frame_created_buffers;
     u64 total_used_memory = 0;

@@ -30,6 +30,7 @@ constexpr const char * GameFile = "nxcore:GameFile";
 constexpr const char * GameName = "nxcore:GameName";
 constexpr const char * GameTitleId = "nxcore:GameTitleId";
 constexpr const char * ModuleDirectory = "nxcore:ModuleDirectory";
+constexpr const char * GameDefaultsFile = "nxcore:GameDefaultsFile";
 constexpr const char * ModuleLoader = "nxcore:ModuleLoader";
 constexpr const char * ModuleCpu = "nxcore:ModuleCpu";
 constexpr const char * ModuleVideo = "nxcore:ModuleVideo";

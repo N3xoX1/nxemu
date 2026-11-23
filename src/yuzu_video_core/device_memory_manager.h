@@ -4,6 +4,7 @@
 #pragma once
 
 #include <set>
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <bit>
@@ -125,6 +126,7 @@ public:
     void GpuWrittenResults(DAddr address, size_t size, std::vector<std::pair<DAddr, u64>>& ranges);
     // Whether read-cached pages fault on CPU access in every registered process.
     bool ProtectsReadCachedPages();
+    bool ProtectsQueryResults();
     // Called on the serialized GPU producer, under its execution lock.
     void RegisterNativeRead(DAddr addr, size_t size);
     void InvalidateNativeReadRegion(DAddr addr, size_t size);
@@ -140,6 +142,92 @@ public:
     }
 
     static constexpr size_t AS_BITS = Traits::device_virtual_bits;
+
+    const u8* PhysicalBase() const noexcept {
+        return reinterpret_cast<const u8*>(physical_base);
+    }
+    uint64_t PhysicalSize() const noexcept {
+        return static_cast<uint64_t>(compressed_device_addr.size()) << page_bits;
+    }
+
+    void EnableInPlaceReads() {
+        if (InPlaceReadsEnabled()) {
+            return;
+        }
+        excluded_pages.resize((device_as_size >> page_bits) / 64);
+        in_place_ticks.resize(device_as_size >> page_bits);
+        in_place_pages.resize((device_as_size >> page_bits) / 64);
+        in_place_enabled.store(true, std::memory_order_release);
+    }
+    bool InPlaceReadsEnabled() const noexcept {
+        return in_place_enabled.load(std::memory_order_acquire);
+    }
+
+    void ExcludeFromInPlace(DAddr addr, uint64_t size) noexcept {
+        ForEachPage(addr, size, [this](uint64_t page) { SetPageBit(excluded_pages, page); });
+    }
+    bool IsExcludedFromInPlace(DAddr addr, uint64_t size) const noexcept {
+        if (size != 0 && addr >= device_as_size) {
+            return true;
+        }
+        bool written = false;
+        ForEachPage(addr, size,
+                    [&](uint64_t page) { written = written || TestPageBit(excluded_pages, page); });
+        return written;
+    }
+    void PrepareEngineWrite(DAddr addr, uint64_t size);
+
+    void HoldInPlaceRead(DAddr addr, uint64_t size, u64 tick) {
+        ForEachPage(addr, size, [&](uint64_t page) {
+            std::atomic_ref<u64>{in_place_ticks[page]}.store(tick, std::memory_order_relaxed);
+        });
+        // Pairs with the fence in ReleaseInPlaceReads: a release either sees this tick, or this
+        // sees the release and protects the page again after it
+        std::atomic_thread_fence(std::memory_order_seq_cst);
+        bool unprotected = in_place_releasing.load(std::memory_order_relaxed);
+        ForEachPage(addr, size, [&](uint64_t page) {
+            unprotected = unprotected || !TestPageBit(in_place_pages, page);
+        });
+        if (!unprotected) [[likely]] {
+            return;
+        }
+        std::scoped_lock lock{in_place_mutex};
+        ForEachPage(addr, size, [this](uint64_t page) {
+            if (TestPageBit(in_place_pages, page)) {
+                return;
+            }
+            SetPageBit(in_place_pages, page);
+            TrapCpuWrites(page);
+        });
+    }
+
+    template <typename Wait>
+    void ReleaseInPlaceReads(DAddr addr, uint64_t size, Wait&& wait) {
+        if (!InPlaceReadsEnabled()) {
+            return;
+        }
+        ForEachPage(addr, size, [&](uint64_t page) {
+            while (TestPageBit(in_place_pages, page)) {
+                const u64 tick =
+                    std::atomic_ref<u64>{in_place_ticks[page]}.load(std::memory_order_acquire);
+                wait(tick);
+                std::scoped_lock lock{in_place_mutex};
+                if (!TestPageBit(in_place_pages, page)) {
+                    continue;
+                }
+                in_place_releasing.store(true, std::memory_order_relaxed);
+                std::atomic_thread_fence(std::memory_order_seq_cst);
+                const u64 latest_tick =
+                    std::atomic_ref<u64>{in_place_ticks[page]}.load(std::memory_order_relaxed);
+                if (latest_tick == tick) {
+                    ClearPageBit(in_place_pages, page);
+                    UntrapCpuWrites(page);
+                    SetPageBit(excluded_pages, page);
+                }
+                in_place_releasing.store(false, std::memory_order_release);
+            }
+        });
+    }
 
 private:
     static constexpr size_t device_virtual_bits = Traits::device_virtual_bits;
@@ -183,6 +271,40 @@ private:
 
     void InnerGatherDeviceAddresses(Common::ScratchBuffer<u32>& buffer, PAddr address);
 
+    template <typename Func>
+    static void ForEachPage(DAddr addr, uint64_t size, Func&& func) {
+        if (size == 0 || addr >= device_as_size) {
+            return;
+        }
+        const uint64_t last_page = std::min<uint64_t>(addr + size - 1, device_as_size - 1) >> page_bits;
+        for (uint64_t page = addr >> page_bits; page <= last_page; ++page) {
+            func(page);
+        }
+    }
+    void TrapCpuWrites(uint64_t page) {
+        UpdatePagesCachedCount(page << page_bits, page_size, 1);
+        UpdatePagesWriteProtectedCount(page << page_bits, page_size, 1);
+    }
+    void UntrapCpuWrites(uint64_t page) {
+        UpdatePagesWriteProtectedCount(page << page_bits, page_size, -1);
+        UpdatePagesCachedCount(page << page_bits, page_size, -1);
+    }
+    static void SetPageBit(Common::VirtualBuffer<u64>& bits, uint64_t page) noexcept {
+        std::atomic_ref<u64> word{bits[page >> 6]};
+        const u64 bit = u64{1} << (page & 63);
+        if ((word.load(std::memory_order_relaxed) & bit) == 0) {
+            word.fetch_or(bit, std::memory_order_release);
+        }
+    }
+    static void ClearPageBit(Common::VirtualBuffer<u64>& bits, uint64_t page) noexcept {
+        std::atomic_ref<u64>{bits[page >> 6]}.fetch_and(~(u64{1} << (page & 63)),
+                                                        std::memory_order_release);
+    }
+    static bool TestPageBit(const Common::VirtualBuffer<u64>& bits, uint64_t page) noexcept {
+        const std::atomic_ref<u64> word{const_cast<u64&>(bits[page >> 6])};
+        return (word.load(std::memory_order_acquire) & (u64{1} << (page & 63))) != 0;
+    }
+
     std::unique_ptr<DeviceMemoryManagerAllocator<Traits>> impl;
 
     const uintptr_t physical_base;
@@ -191,6 +313,12 @@ private:
     Common::VirtualBuffer<u32> compressed_device_addr;
     static constexpr size_t continuity_levels = (device_virtual_bits - page_bits + 5) / 6;
     std::array<Common::VirtualBuffer<u64>, continuity_levels> continuity_boundaries;
+    Common::VirtualBuffer<u64> excluded_pages;
+    Common::VirtualBuffer<u64> in_place_ticks;
+    Common::VirtualBuffer<u64> in_place_pages;
+    std::atomic<bool> in_place_enabled{};
+    std::mutex in_place_mutex;
+    std::atomic<bool> in_place_releasing{};
 
     // Process memory interfaces
 

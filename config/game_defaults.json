@@ -1,0 +1,11 @@
+{
+   "0100F43008C44000" : {
+      "name" : "Pokemon Legends: Z-A",
+      "reason" : "Refills its culling job list on the CPU while the GPU uses it; the station roof vanishes",
+      "nxemu-video" : {
+         "video" : {
+            "skip_untracked_store_readback" : true
+         }
+      }
+   }
+}

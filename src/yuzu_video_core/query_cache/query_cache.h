@@ -248,14 +248,15 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         return;
     }
     DAddr cpu_addr = *cpu_addr_opt;
+    const u64 report_size = has_timestamp ? 16 : 4;
+    impl->device_memory.PrepareEngineWrite(cpu_addr, report_size);
     // Fast readback publishes payloads at submission, like ordinary fences, unless a readback
     // the CPU could read before its publication keeps them behind it. Commit before this
     // report exists: the fence also prepares the pending queries.
     const bool fast_payload = !Settings::IsGpuReadbackExact() && counter_type == QueryType::Payload;
     const bool behind_readback = fast_payload && !impl->rasterizer.CommitReadbacksForEarlySignal();
-    impl->device_memory.InvalidateNativeReadRegion(cpu_addr, has_timestamp ? 16 : 4);
-    impl->device_memory.RegisterFlushCacheRegion(cpu_addr, has_timestamp ? 16 : 4,
-                                                CacheType::QueryCache);
+    impl->device_memory.InvalidateNativeReadRegion(cpu_addr, report_size);
+    impl->device_memory.RegisterFlushCacheRegion(cpu_addr, report_size, CacheType::QueryCache);
     const size_t new_query_id = streamer->WriteCounter(cpu_addr, has_timestamp, payload, subreport);
     auto* query = streamer->GetQuery(new_query_id);
     if (is_fence) {
@@ -293,7 +294,6 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             u32 value = static_cast<u32>(query_base->value);
             std::memcpy(pointer, &value, sizeof(value));
         }
-        query_base->flags |= QueryFlagBits::IsWritten;
         impl->pending_unregister.push_back(query_location);
     });
     // Fast payloads are published even when the report is a fence: waiting for the host GPU
@@ -324,32 +324,17 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             std::scoped_lock lock(cache_mutex);
             if (const auto it1 = cached_queries.find(cont_addr); it1 != cached_queries.end()) {
                 if (const auto it = it1->second.find(base); it != it1->second.end()) {
-                    MarkRewritten(impl->ObtainQuery(it->second), query, cpu_addr);
+                    MarkRewritten(it->second, query, cpu_addr);
                 }
             }
             publish();
         }
-        // A stale cache entry may still name this slot: it must not look pending
-        query->flags |= QueryFlagBits::IsWritten;
         impl->rasterizer.SyncOperation(
             [streamer, new_query_id] { streamer->Free(new_query_id); });
         if (is_fence) {
             impl->rasterizer.SignalReference();
         }
         return;
-    }
-    // Keep the result unreadable by the CPU until it is written: an earlier access faults
-    // and waits for the fence, so the guest-visible signal need not wait for it.
-    const bool protect = impl->device_memory.ProtectsReadCachedPages();
-    if (protect) {
-        const u64 result_size = has_timestamp ? 16 : 4;
-        impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, 1);
-        UpdateProtectedResult(cpu_addr, result_size, 1);
-        operation = [this, op = std::move(operation), cpu_addr, result_size] {
-            op();
-            UpdateProtectedResult(cpu_addr, result_size, -1);
-            impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, -1);
-        };
     }
     if (behind_readback) {
         // A later payload to this address may have been published already: semaphores only
@@ -365,6 +350,31 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
                 }
             }
             impl->payloads_behind_readback.fetch_sub(1, std::memory_order_release);
+        };
+    }
+    // An earlier CPU access faults and waits for the write, so the guest signal need not.
+    // Wrapped last: a rewritten held payload skips its write but must still release the page.
+    const bool protect = impl->device_memory.ProtectsQueryResults();
+    if (protect) {
+        const u64 result_size = has_timestamp ? 16 : 4;
+        {
+            std::scoped_lock lock(cache_mutex);
+            pending_results.Add(cpu_addr, result_size, query_location.raw, behind_readback);
+        }
+        // Only cached pages fault: the result's page may hold nothing else the caches track
+        impl->device_memory.UpdatePagesCachedCount(cpu_addr, result_size, 1);
+        impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, 1);
+        UpdateProtectedResult(cpu_addr, result_size, 1);
+        operation = [this, op = std::move(operation), cpu_addr, result_size, query_location] {
+            op();
+            {
+                // After the write: a CPU read that finds no entry must see the written value
+                std::scoped_lock lock(cache_mutex);
+                pending_results.Completed(cpu_addr, query_location.raw);
+            }
+            UpdateProtectedResult(cpu_addr, result_size, -1);
+            impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, -1);
+            impl->device_memory.UpdatePagesCachedCount(cpu_addr, result_size, -1);
         };
     }
     if (is_fence && !protect) {
@@ -385,20 +395,22 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
             sub_container.insert_or_assign(base, query_location);
             return;
         }
-        MarkRewritten(impl->ObtainQuery(it_current->second), query, cpu_addr);
+        MarkRewritten(it_current->second, query, cpu_addr);
         sub_container.insert_or_assign(base, query_location);
     }
 }
 
 template <typename Traits>
-void QueryCacheBase<Traits>::MarkRewritten(QueryBase* old_query, const QueryBase* new_query,
+void QueryCacheBase<Traits>::MarkRewritten(QueryLocation old_location, const QueryBase* new_query,
                                            DAddr address) {
+    QueryBase* const old_query = impl->ObtainQuery(old_location);
     // A cache entry can outlive its query: the slot may now hold the new query, or another
     // query at a different address
     if (old_query == nullptr || old_query == new_query || old_query->guest_address != address) {
         return;
     }
     old_query->flags |= QueryFlagBits::IsRewritten;
+    pending_results.Replaced(address, old_location.raw);
 }
 
 template <typename Traits>
@@ -456,23 +468,9 @@ void QueryCacheBase<Traits>::UnregisterPending() {
 
 template <typename Traits>
 bool QueryCacheBase<Traits>::HasPendingResult(VAddr addr, size_t size) {
-    bool pending = false;
-    IterateCache<false>(addr, size, [&](QueryLocation location) {
-        const auto [streamer_id, query_id] = location.unpack();
-        auto* streamer = impl->streamers[streamer_id];
-        if (!streamer) [[unlikely]] {
-            return;
-        }
-        constexpr auto done = QueryFlagBits::IsRewritten | QueryFlagBits::IsInvalidated |
-                              QueryFlagBits::IsWritten;
-        const QueryBase* query = streamer->GetQuery(query_id);
-        // A cache entry can outlive its query: the slot may hold another query since
-        if (query->guest_address >= addr + size || query->guest_address + sizeof(u32) <= addr) {
-            return;
-        }
-        pending |= False(query->flags & done);
-    });
-    return pending;
+    // Not the query flags: the GPU side updates them without cache_mutex
+    std::scoped_lock lock(cache_mutex);
+    return pending_results.Any(addr, size);
 }
 
 template <typename Traits>
@@ -695,6 +693,7 @@ void QueryCacheBase<Traits>::InvalidateQuery(QueryCacheBase<Traits>::QueryLocati
         return;
     }
     query_base->flags |= QueryFlagBits::IsInvalidated;
+    pending_results.Replaced(query_base->guest_address, location.raw);
 }
 
 template <typename Traits>

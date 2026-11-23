@@ -296,6 +296,9 @@
     <ClInclude Include="query_cache\query_bank_operations.h">
       <Filter>Header Files\query_cache</Filter>
     </ClInclude>
+    <ClInclude Include="query_cache\pending_results.h">
+      <Filter>Header Files\query_cache</Filter>
+    </ClInclude>
     <ClInclude Include="query_cache\query_base.h">
       <Filter>Header Files\query_cache</Filter>
     </ClInclude>

@@ -352,7 +352,7 @@ void WriteJsonSetting(const CpuSetting & cpuSetting, JsonValue & root, bool alwa
 
 void CpuSettingChanged(const char * setting, void * /*userData*/)
 {
-    ModuleSettingTable::SettingChanged(settings, setting);
+    ModuleSettingTable::SettingChanged(settings, "nxemu-cpu", setting);
     if (AffectsNceEnabled(setting))
     {
         UpdateNceEnabled();

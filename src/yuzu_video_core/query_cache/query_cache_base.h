@@ -16,6 +16,7 @@
 #include "yuzu_video_core/control/channel_state_cache.h"
 #include "yuzu_video_core/gpu_write_history.h"
 #include "yuzu_video_core/host1x/gpu_device_memory_manager.h"
+#include "yuzu_video_core/query_cache/pending_results.h"
 #include "yuzu_video_core/query_cache/query_base.h"
 #include "yuzu_video_core/query_cache/types.h"
 
@@ -181,7 +182,7 @@ protected:
 
     void InvalidateQuery(QueryLocation location);
     /// Marks the older query cached at `address` as replaced by `new_query`
-    void MarkRewritten(QueryBase* old_query, const QueryBase* new_query, DAddr address);
+    void MarkRewritten(QueryLocation old_location, const QueryBase* new_query, DAddr address);
     bool IsQueryDirty(QueryLocation location);
     bool SemiFlushQueryDirty(QueryLocation location);
     void RequestGuestHostSync();
@@ -190,6 +191,8 @@ protected:
 
     std::unordered_map<u64, std::unordered_map<u32, QueryLocation>> cached_queries;
     std::mutex cache_mutex;
+
+    PendingResults pending_results;
 
     /// Pages of results kept unreadable by the CPU, with the count of each page
     AtomicPageBits<34, 12> protected_result_pages;
