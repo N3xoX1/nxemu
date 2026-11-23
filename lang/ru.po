@@ -451,8 +451,28 @@ msgid "Lets games read what the chip drew without waiting for it."
 msgstr "Позволяет играм читать то, что нарисовал чип, не дожидаясь его."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
-msgstr "Требует точности «Высокая» или «Экстремальная». В некоторых играх намного быстрее, с отрисовкой уровня «Высокая». Прочитанное играми может запаздывать на кадр."
+msgid "Only with High accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgstr "Только при точности «Высокая». В некоторых играх намного быстрее, с отрисовкой уровня «Высокая». Прочитанное играми может запаздывать на кадр."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "Ускоряющие хаки"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, these settings can gain FPS, but can cause halos or corruption in some games. Turn one off in the settings of a game that shows it; some games have it off already."
+msgstr "Во включённом состоянии эти настройки могут поднять FPS, но в некоторых играх вызывают ореолы или искажения изображения. Отключите настройку в параметрах игры, где это заметно; в некоторых играх она уже отключена."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "Обратное чтение в фоне"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "Может поднять FPS, но в некоторых играх вызывает ореолы или искажения изображения."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
+msgstr "Требуются Vulkan и реактивный сброс. Если включено, игры продолжают работу, пока GPU копирует то, что они прочитают, и могут прочитать старое значение. Если выключено, они ждут копирования; быстрое обратное чтение всё ещё может пропускать часть ожиданий."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Untracked shader writes"

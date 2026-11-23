@@ -427,8 +427,28 @@ msgid "Lets games read what the chip drew without waiting for it."
 msgstr "Permet aux jeux de lire ce que la puce a dessiné sans l'attendre."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs High or Extreme accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
-msgstr "Nécessite la précision Élevée ou Extrême. Bien plus rapide dans certains jeux, avec le dessin de la précision Élevée. Ce que les jeux lisent peut avoir une image de retard."
+msgid "Only with High accuracy. Much faster in some games, keeping High drawing. What games read can be a frame late."
+msgstr "Uniquement avec la précision Élevée. Bien plus rapide dans certains jeux, avec le dessin de la précision Élevée. Ce que les jeux lisent peut avoir une image de retard."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Speed hacks"
+msgstr "Astuces de vitesse"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "On, these settings can gain FPS, but can cause halos or corruption in some games. Turn one off in the settings of a game that shows it; some games have it off already."
+msgstr "Activés, ces réglages peuvent faire gagner des FPS, mais peuvent causer des halos ou des corruptions dans certains jeux. Désactivez-en un dans les paramètres d'un jeu qui le montre ; certains jeux l'ont déjà désactivé."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Readbacks in the background"
+msgstr "Relectures en arrière-plan"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Can gain FPS, but can cause halos or corruption in some games."
+msgstr "Peut faire gagner des FPS, mais peut causer des halos ou des corruptions dans certains jeux."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
+msgstr "Nécessite Vulkan et le vidage réactif. Activé, les jeux continuent pendant que le GPU copie ce qu'ils liront, et peuvent lire une ancienne valeur. Désactivé, ils attendent la copie ; la relecture rapide peut encore sauter certaines attentes."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Untracked shader writes"
