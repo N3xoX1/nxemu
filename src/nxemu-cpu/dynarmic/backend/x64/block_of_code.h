@@ -188,6 +188,9 @@ public:
         return (host_features & feature) == feature;
     }
 
+    static constexpr int NoMapRegister = 16;
+    std::array<std::array<const void*, NoMapRegister + 1>, 16> write_mark_thunks{};
+
 private:
     RunCodeCallbacks cb;
     JitStateInfo jsi;

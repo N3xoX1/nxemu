@@ -58,6 +58,7 @@ A64EmitX64::A64EmitX64(BlockOfCode& code, A64::UserConfig conf, A64::Jit* jit_in
     GenMemory128Accessors();
     GenFastmemFallbacks();
     GenTerminalHandlers();
+    GenWriteMarkThunks();
     // Cold code (the deferred fallback paths) outgrows the hot code in Tears of the Kingdom.
     // Test variant bit 32 keeps the old layout, with the cold code after each block.
     if ((conf.test_variant & 32) == 0) {

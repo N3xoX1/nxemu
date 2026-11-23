@@ -128,6 +128,7 @@ protected:
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> write_fallbacks;
     std::map<std::tuple<bool, size_t, int, int>, void (*)()> exclusive_write_fallbacks;
     void GenFastmemFallbacks();
+    void GenWriteMarkThunks();
 
     const void* terminal_handler_pop_rsb_hint;
     const void* terminal_handler_fast_dispatch_hint = nullptr;
