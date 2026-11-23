@@ -200,6 +200,9 @@ public:
     virtual void ServiceInPlaceWaits() {}
     virtual void StopInPlaceWaits() {}
 
+    /// GPU thread only: before work that may wait for another thread, and when it runs out of work
+    virtual void ReleaseDrawLocks() {}
+
     /// Sync memory between guest and host.
     virtual void InvalidateGPUCache() = 0;
 

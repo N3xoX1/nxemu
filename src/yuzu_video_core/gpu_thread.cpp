@@ -217,6 +217,7 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
                     break;
                 }
                 work();
+                rasterizer->ReleaseDrawLocks();
                 state.back.MarkRun();
                 rasterizer->ServiceInPlaceWaits();
             }
@@ -322,6 +323,7 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             {
                 ASSERT(false);
             }
+            rasterizer->ReleaseDrawLocks();
             gpu.ProcessPendingComposite();
         }
         state.signaled_fence.store(next.fence);
