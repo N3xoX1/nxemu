@@ -61,6 +61,17 @@ if(ARCHITECTURE_x86_64)
     nxemu_unit_test(test_dynarmic_regalloc LINUX)
 endif()
 
+if(ARCHITECTURE_x86_64 OR ARCHITECTURE_arm64)
+    add_executable(test_dynarmic_side_exits dynarmic_side_exits/jit.cpp
+        $<TARGET_OBJECTS:nxemu-cpu>)
+    target_include_directories(test_dynarmic_side_exits PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-cpu")
+    target_link_libraries(test_dynarmic_side_exits PRIVATE common yuzu_common fmt merry::mcl)
+    if(ARCHITECTURE_x86_64)
+        target_link_libraries(test_dynarmic_side_exits PRIVATE Zydis)
+    endif()
+    nxemu_unit_test(test_dynarmic_side_exits LINUX)
+endif()
+
 # Real Fermi2D, software blitter, GPU page tables and device-memory mappings.
 # The fixture models cache notifications; GPU cache integration needs a renderer.
 add_executable(test_fast_copy fast_copy/fast_copy.cpp)

@@ -327,10 +327,22 @@ A64AddressSpace::A64AddressSpace(const A64::UserConfig& conf)
     EmitPrelude();
 }
 
+static bool EndsInInterpreter(const IR::Block& block) {
+    const IR::Terminal terminal = block.GetTerminal();
+    return boost::get<IR::Term::Interpret>(&terminal) != nullptr;
+}
+
 IR::Block A64AddressSpace::GenerateIR(IR::LocationDescriptor descriptor) const {
     const auto get_code = [this](u64 vaddr) { return conf.callbacks->MemoryReadCode(vaddr); };
-    IR::Block ir_block = A64::Translate(A64::LocationDescriptor{descriptor}, get_code,
-                                        {conf.define_unpredictable_behaviour, conf.wall_clock_cntpct});
+    const A64::LocationDescriptor location{descriptor};
+    A64::TranslationOptions options{conf.define_unpredictable_behaviour, conf.wall_clock_cntpct};
+    options.side_exits = conf.HasOptimization(OptimizationFlag::BlockLinking) && (conf.test_variant & 64) == 0;
+    IR::Block ir_block = A64::Translate(location, get_code, options);
+    if (options.side_exits && EndsInInterpreter(ir_block)) {
+        options.side_exits = false;
+        ir_block.Reset(location);
+        A64::Translate(ir_block, location, get_code, options);
+    }
 
     Optimization::A64CallbackConfigPass(ir_block, conf);
     Optimization::NamingPass(ir_block);
@@ -594,6 +606,7 @@ EmitConfig A64AddressSpace::GetEmitConfig() {
         .coprocessors{},
 
         .very_verbose_debugging_output = conf.very_verbose_debugging_output,
+        .test_variant = conf.test_variant,
     };
 }
 

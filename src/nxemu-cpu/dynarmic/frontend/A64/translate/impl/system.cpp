@@ -125,8 +125,8 @@ bool TranslatorVisitor::MRS(Imm<1> o0, Imm<3> op1, Imm<4> CRn, Imm<4> CRm, Imm<3
         X(32, Rt, ir.GetCNTFRQ());
         return true;
     case SystemRegisterEncoding::CNTPCT_EL0:
-        // HACK: Ensure that this is the first instruction in the block it's emitted in, so the cycle count is most up-to-date.
-        if (!ir.block.empty() && !options.wall_clock_cntpct) {
+        // A block charges its cycles at its end, so the read starts a block to count the ones before it
+        if (ir.block.CycleCount() != 0 && !options.wall_clock_cntpct) {
             ir.block.CycleCount()--;
             ir.SetTerm(IR::Term::LinkBlock{*ir.current_location});
             return false;

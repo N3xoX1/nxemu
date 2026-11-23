@@ -175,7 +175,7 @@ void EmitIR<IR::Opcode::NZCVFromPackedFlags>(oaknut::CodeGenerator&, EmitContext
     ctx.reg_alloc.DefineAsExisting(inst, args[0]);
 }
 
-static void EmitAddCycles(oaknut::CodeGenerator& code, EmitContext& ctx, size_t cycles_to_add) {
+void EmitAddCycles(oaknut::CodeGenerator& code, EmitContext& ctx, size_t cycles_to_add) {
     if (!ctx.conf.enable_cycle_counting) {
         return;
     }
@@ -250,11 +250,15 @@ EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const E
         }
     }
 
+    const bool host_flags_are_guest_nzcv = ctx.host_flags_are_guest_nzcv_at == code.xptr<CodePtr>();
     fpsr_manager.Spill();
 
     reg_alloc.AssertNoMoreUses();
 
     EmitAddCycles(code, ctx, block.CycleCount());
+    if (host_flags_are_guest_nzcv) {
+        ctx.host_flags_are_guest_nzcv_at = code.xptr<CodePtr>();
+    }
     conf.emit_terminal(code, ctx);
     code.BRK(0);
 
