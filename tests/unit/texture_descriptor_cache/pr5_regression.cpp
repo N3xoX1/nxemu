@@ -28,6 +28,11 @@ struct Memory {
         ++reads;
         std::memcpy(dst, bytes.data() + address, size);
     }
+
+    // Keeps the reuse path on ReadBlockUnsafe, which counts reads
+    const u8* GetSpan(u64, size_t) const {
+        return nullptr;
+    }
 };
 
 struct Runtime {

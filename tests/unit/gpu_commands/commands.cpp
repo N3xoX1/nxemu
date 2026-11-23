@@ -1,4 +1,5 @@
 #include "yuzu_common/scope_exit.h"
+#include "yuzu_video_core/buffer_cache/uniform_stream_reuse.h"
 #include "yuzu_video_core/dirty_flags.h"
 #include "yuzu_video_core/dma_pusher.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -14,6 +15,8 @@
 #include <map>
 #include <random>
 #include <stdexcept>
+#include <string>
+#include <utility>
 using Maxwell3D = Tegra::Engines::Maxwell3D;
 namespace Engines = Tegra::Engines;
 constexpr u32 MacroRegistersStart = 0xe00, non_puller_methods = 0x40;
@@ -49,6 +52,8 @@ struct Raster {
   void FragmentBarrier() {}
   void InvalidateGPUCache() {}
   void TiledCacheBarrier() {}
+  void ApplyUniformPrefetch(size_t, u32, const VideoCommon::UniformPrefetch &) {}
+  void ResetUniformPrefetch(u64) {}
 };
 struct Macro {
   void ClearCode(u32) {}
@@ -133,6 +138,7 @@ struct Fixture : Engines::EngineInterface {
   void ProcessFirmwareCall4() {}
   void ProcessCBData(u32) {}
   void ProcessCBBind(u32) {}
+  void FrontBindUniform(size_t) {}
   void ProcessQueryGet() {}
   void ProcessCounterReset() {}
   void ProcessSyncPoint() {}
@@ -178,7 +184,30 @@ struct Dma {
   } puller;
   mutable std::array<std::vector<std::pair<u32, u32>>, 8> front_sinks;
   mutable std::vector<Engines::Puller::MethodCall> pending_puller;
-  bool IsThreaded() const { return false; }
+  mutable std::array<u32, non_puller_methods> front_puller_regs{};
+  mutable std::vector<std::string> *events{};
+  mutable std::vector<std::pair<u32, u32>> acquire_checks;
+  bool acquires_met{};
+  bool IsAcquireMet(u32 m, u32 a) const {
+    acquire_checks.push_back({m, a});
+    return acquires_met;
+  }
+  mutable bool unmet_acquire_seen{};
+  Engines::EngineInterface *maxwell3d_engine{};
+  struct Gpu {
+    struct Queue {
+      std::vector<std::string> **events;
+      bool idle = true;
+      void WaitIdle() { (*events)->push_back("wait"); }
+      bool IsIdle() const { return idle; }
+    } queue;
+    Queue &BackQueue() { return queue; }
+  };
+  mutable Gpu gpu{{&events}};
+  void UpdateUniformPrefetchAtAcquire(u32, u32) const;
+  void ResumeUniformPrefetch() const;
+  bool threaded{};
+  bool IsThreaded() const { return threaded; }
   void DrainMaxwell3D() const {}
   void PostBack(std::function<void()> &&work) const { work(); }
   std::vector<std::pair<u32, u32>> &SinkFor(u32) const;
@@ -290,6 +319,85 @@ void MacroStreamTests() {
   Check(g.hle_count == 1, "payload parameters were lowered before the GPU wrote them");
   g.DrainStream();
   Check(g.regs.reg_array[0x701] == 6, "kept macro call did not run");
+}
+
+struct PrefetchEngine : Engines::EngineInterface {
+  std::vector<std::string> &events;
+  explicit PrefetchEngine(std::vector<std::string> &events_) : events(events_) {}
+  void CallMethod(u32, u32, bool) override {}
+  void CallMultiMethod(u32, const u32 *, u32, u32) override {}
+  bool prefetching = true;
+  void StartUniformPrefetch() override {
+    events.push_back("start");
+    prefetching = true;
+  }
+  void RefreshUniformPrefetch() override {
+    if (prefetching) {
+      events.push_back("refresh");
+    }
+  }
+  bool StopUniformPrefetch() override {
+    events.push_back("stop");
+    return std::exchange(prefetching, false);
+  }
+};
+
+void UniformPrefetchStopTests() {
+  std::vector<std::string> events;
+  PrefetchEngine engine(events);
+  Dma d;
+  d.threaded = true;
+  d.events = &events;
+  d.maxwell3d_engine = &engine;
+  const u32 high = u32(BufferMethods::SemaphoreAddressHigh);
+  const u32 operation = u32(BufferMethods::SemaphoreOperation);
+  std::vector<CommandHeader> c;
+  Append(c, high, {0x1, 0x2000, 7, 0x2});
+  Append(c, operation, {0x1, 0x8}, SubmissionMode::NonIncreasing);
+  d.ProcessCommands(c);
+  const std::vector<std::pair<u32, u32>> acquires{{operation, 0x1}, {operation, 0x8}};
+  Check(d.acquire_checks == acquires, "an acquire skipped the check, or a release was checked");
+  Check(d.front_puller_regs[high + 2] == 7 && d.front_puller_regs[operation] == 0x8,
+        "the decode side lost a puller register");
+  Check(events == std::vector<std::string>{"stop", "stop"}, "an unmet acquire kept prefetching");
+
+  events.clear();
+  d.ResumeUniformPrefetch();
+  Check(events == std::vector<std::string>{"wait", "start"},
+        "prefetch resumed before the GPU thread ran the acquire");
+  events.clear();
+  d.ResumeUniformPrefetch();
+  Check(events == std::vector<std::string>{"start"}, "a met command list waited again");
+
+  d.acquires_met = true;
+  Append(c, operation, {0x4});
+  events.clear();
+  d.ProcessCommands(std::span(c).last(2));
+  d.ResumeUniformPrefetch();
+  Check(events == std::vector<std::string>{"refresh", "start"},
+        "a met acquire stopped prefetch or kept the earlier copies");
+
+  d.gpu.queue.idle = false;
+  events.clear();
+  d.ProcessCommands(std::span(c).last(2));
+  d.ResumeUniformPrefetch();
+  Check(events == std::vector<std::string>{"stop", "wait", "start"},
+        "a semaphore met ahead of queued work kept prefetching");
+  const u32 syncpoint = u32(BufferMethods::SyncpointOperation);
+  Append(c, syncpoint, {0x0});
+  events.clear();
+  d.ProcessCommands(std::span(c).last(2));
+  d.ResumeUniformPrefetch();
+  Check(events == std::vector<std::string>{"refresh", "start"},
+        "a met syncpoint stopped prefetch or kept the earlier copies");
+  d.gpu.queue.idle = true;
+
+  d.acquires_met = false;
+  engine.prefetching = false;
+  d.ProcessCommands(std::span(c).last(2));
+  events.clear();
+  d.ResumeUniformPrefetch();
+  Check(events == std::vector<std::string>{"start"}, "a channel that wasn't prefetching waited");
 }
 
 void Tests() {
@@ -489,6 +597,7 @@ void QueueTests();
 int main(int argc, char **) {
   Tests();
   MacroStreamTests();
+  UniformPrefetchStopTests();
   QueueTests();
   if (argc < 2)
     return 0;

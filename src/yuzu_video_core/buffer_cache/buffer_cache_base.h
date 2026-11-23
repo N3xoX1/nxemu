@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <tuple>
 #include <functional>
 #include <memory>
@@ -243,6 +244,14 @@ public:
     void BindGraphicsUniformBuffer(size_t stage, u32 index, GPUVAddr gpu_addr, u32 size);
 
     void DisableGraphicsUniformBuffer(size_t stage, u32 index);
+
+    /// Decode thread, without the cache lock
+    bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                         UniformPrefetch& prefetch);
+    u64 UniformPrefetchPosition();
+
+    void ApplyUniformPrefetch(size_t stage, u32 index, const UniformPrefetch& prefetch);
+    void ResetUniformPrefetch(u64 position);
 
     void UpdateGraphicsBuffers(bool is_indexed);
 
@@ -590,6 +599,13 @@ private:
 
     // Owned by this cache: a new renderer/scheduler must never reuse retired staging offsets.
     UniformStreamReuse<Runtime> uniform_stream_reuse;
+
+    std::array<std::array<std::atomic<u32>, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
+        prefetch_sizes{};
+    std::array<std::array<UniformPrefetch, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
+        prefetch_slots{};
+    bool prefetch_slots_used{};
+    const void* prefetch_channel{};
 
     Common::SlotVector<Buffer> slot_buffers;
     DelayedDestructionRing<Buffer, 8> delayed_destruction_ring;

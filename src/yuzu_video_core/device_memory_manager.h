@@ -174,6 +174,19 @@ public:
                     [&](uint64_t page) { written = written || TestPageBit(excluded_pages, page); });
         return written;
     }
+
+    void MarkEngineWritten(DAddr addr, uint64_t size) noexcept {
+        ForEachPage(addr, size, [this](uint64_t page) { SetPageBit(engine_pages, page); });
+    }
+    bool IsEngineWritten(DAddr addr, uint64_t size) const noexcept {
+        if (size != 0 && addr >= device_as_size) {
+            return true;
+        }
+        bool written = false;
+        ForEachPage(addr, size,
+                    [&](uint64_t page) { written = written || TestPageBit(engine_pages, page); });
+        return written;
+    }
     void PrepareEngineWrite(DAddr addr, uint64_t size);
 
     void HoldInPlaceRead(DAddr addr, uint64_t size, u64 tick) {
@@ -234,6 +247,9 @@ private:
     /// Calls func(memory, vaddr, size) for each run of the range backed by one process
     template <typename Func>
     void ForEachProcessRange(DAddr addr, uint64_t size, Func&& func);
+    template <typename Func>
+    void ForRangeAndAliases(DAddr addr, uint64_t size, Func&& func);
+    void MarkEngineWrittenAliases(DAddr addr, uint64_t size);
     static constexpr size_t device_as_size = 1ULL << device_virtual_bits;
     static constexpr size_t page_bits = 12;
     static constexpr size_t page_size = 1ULL << page_bits;
@@ -313,6 +329,7 @@ private:
     static constexpr size_t continuity_levels = (device_virtual_bits - page_bits + 5) / 6;
     std::array<Common::VirtualBuffer<u64>, continuity_levels> continuity_boundaries;
     Common::VirtualBuffer<u64> excluded_pages;
+    Common::VirtualBuffer<u64> engine_pages{(device_as_size >> page_bits) / 64};
     Common::VirtualBuffer<u64> in_place_ticks;
     Common::VirtualBuffer<u64> in_place_pages;
     std::atomic<bool> in_place_enabled{};
