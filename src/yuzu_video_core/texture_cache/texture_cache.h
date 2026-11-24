@@ -1040,7 +1040,7 @@ FramebufferId TextureCache<P>::GetFramebufferId(const RenderTargets& key) {
 template <class P>
 void TextureCache<P>::WriteMemory(DAddr cpu_addr, size_t size) {
     if (OverlapsDescriptorTables(cpu_addr, size)) {
-        BumpDescriptorEpoch();
+        UntrackGraphicsDescriptorTables();
     }
     ForEachImageInRegion(cpu_addr, size, [this](ImageId image_id, Image& image) {
         if (True(image.flags & ImageFlagBits::CpuModified)) {
