@@ -251,6 +251,14 @@ private:
     template <typename Func>
     void ForRangeAndAliases(DAddr addr, uint64_t size, Func&& func);
     void MarkEngineWrittenAliases(DAddr addr, uint64_t size);
+    bool HasAliases(uint64_t page) const noexcept {
+        const u32 physical = compressed_physical_ptr[page];
+        return physical != 0 && (compressed_device_addr[physical - 1U] >> MULTI_FLAG_BITS) != 0;
+    }
+    bool NeedsNoInPlacePreparation(uint64_t page) const noexcept {
+        return !InPlaceReadsEnabled() ||
+               (TestPageBit(excluded_pages, page) && !TestPageBit(in_place_pages, page));
+    }
     static constexpr size_t device_as_size = 1ULL << device_virtual_bits;
     static constexpr size_t page_bits = 12;
     static constexpr size_t page_size = 1ULL << page_bits;
