@@ -646,55 +646,68 @@ void A64EmitX64::RemoveFastDispatchTable(FastDispatchTable* table) {
     std::erase(fast_dispatch_tables, table);
 }
 
-void A64EmitX64::GenTerminalHandlers() {
-    // PC ends up in rbp, location_descriptor ends up in rbx
-    const auto calculate_location_descriptor = [this] {
-        // This calculation has to match up with A64::LocationDescriptor::UniqueHash
-        // TODO: Optimization is available here based on known state of fpcr.
-        code.mov(rbp, qword[r15 + offsetof(A64JitState, pc)]);
-        code.mov(rcx, A64::LocationDescriptor::pc_mask);
-        code.and_(rcx, rbp);
-        code.mov(ebx, dword[r15 + offsetof(A64JitState, fpcr)]);
-        code.and_(ebx, A64::LocationDescriptor::fpcr_mask);
-        code.shl(rbx, A64::LocationDescriptor::fpcr_shift);
-        code.or_(rbx, rcx);
-    };
+// PC ends up in rbp, location_descriptor ends up in rbx
+void A64EmitX64::EmitCalculateLocationDescriptor() {
+    // This calculation has to match up with A64::LocationDescriptor::UniqueHash
+    // TODO: Optimization is available here based on known state of fpcr.
+    code.mov(rbp, qword[r15 + offsetof(A64JitState, pc)]);
+    code.mov(rcx, A64::LocationDescriptor::pc_mask);
+    code.and_(rcx, rbp);
+    code.mov(ebx, dword[r15 + offsetof(A64JitState, fpcr)]);
+    code.and_(ebx, A64::LocationDescriptor::fpcr_mask);
+    code.shl(rbx, A64::LocationDescriptor::fpcr_shift);
+    code.or_(rbx, rcx);
+}
 
-    Xbyak::Label fast_dispatch_cache_miss, rsb_cache_miss;
-
-    code.align();
-    terminal_handler_pop_rsb_hint = code.getCurr<const void*>();
-    calculate_location_descriptor();
+template<typename MissTarget>
+void A64EmitX64::EmitPopRSBLookup(const MissTarget& miss) {
     code.mov(eax, dword[r15 + offsetof(A64JitState, rsb_ptr)]);
     code.sub(eax, 1);
     code.and_(eax, u32(A64JitState::RSBPtrMask));
     code.mov(dword[r15 + offsetof(A64JitState, rsb_ptr)], eax);
     code.cmp(rbx, qword[r15 + offsetof(A64JitState, rsb_location_descriptors) + rax * sizeof(u64)]);
-    if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
-        code.jne(rsb_cache_miss);
-    } else {
-        code.jne(code.GetReturnFromRunCodeAddress());
-    }
+    code.jne(miss);
     code.mov(rax, qword[r15 + offsetof(A64JitState, rsb_codeptrs) + rax * sizeof(u64)]);
     code.jmp(rax);
+}
+
+template<typename MissTarget>
+void A64EmitX64::EmitFastDispatchLookup(const MissTarget& miss) {
+    code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
+    code.mov(rbp, rbx);
+    if (code.HasHostFeature(HostFeature::SSE42)) {
+        code.crc32(rbp, r12);
+    }
+    code.and_(ebp, fast_dispatch_table_mask);
+    code.lea(rbp, ptr[r12 + rbp]);
+    code.cmp(rbx, qword[rbp + offsetof(FastDispatchEntry, location_descriptor)]);
+    code.jne(miss);
+    code.jmp(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)]);
+}
+
+void A64EmitX64::GenTerminalHandlers() {
+    Xbyak::Label fast_dispatch_cache_miss, rsb_cache_miss;
+
+    code.align();
+    terminal_handler_pop_rsb_hint = code.getCurr<const void*>();
+    EmitCalculateLocationDescriptor();
+    if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
+        EmitPopRSBLookup(rsb_cache_miss);
+    } else {
+        terminal_handler_rsb_miss = code.GetReturnFromRunCodeAddress();
+        EmitPopRSBLookup(terminal_handler_rsb_miss);
+    }
     PerfMapRegister(terminal_handler_pop_rsb_hint, code.getCurr(), "a64_terminal_handler_pop_rsb_hint");
 
     if (conf.HasOptimization(OptimizationFlag::FastDispatch)) {
         code.align();
         terminal_handler_fast_dispatch_hint = code.getCurr<const void*>();
-        calculate_location_descriptor();
+        EmitCalculateLocationDescriptor();
         code.L(rsb_cache_miss);
-        code.mov(r12, qword[r15 + offsetof(A64JitState, core_fast_dispatch_table)]);
-        code.mov(rbp, rbx);
-        if (code.HasHostFeature(HostFeature::SSE42)) {
-            code.crc32(rbp, r12);
-        }
-        code.and_(ebp, fast_dispatch_table_mask);
-        code.lea(rbp, ptr[r12 + rbp]);
-        code.cmp(rbx, qword[rbp + offsetof(FastDispatchEntry, location_descriptor)]);
-        code.jne(fast_dispatch_cache_miss);
-        code.jmp(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)]);
+        terminal_handler_rsb_miss = code.getCurr<const void*>();
+        EmitFastDispatchLookup(fast_dispatch_cache_miss);
         code.L(fast_dispatch_cache_miss);
+        terminal_handler_fast_dispatch_miss = code.getCurr<const void*>();
         code.mov(qword[rbp + offsetof(FastDispatchEntry, location_descriptor)], rbx);
         code.LookupBlock();
         code.mov(ptr[rbp + offsetof(FastDispatchEntry, code_ptr)], rax);
@@ -1448,7 +1461,13 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::PopRSBHint, IR::LocationDescriptor, 
         return;
     }
 
-    code.jmp(terminal_handler_pop_rsb_hint);
+    if (SharedTerminalHandlers()) {
+        code.jmp(terminal_handler_pop_rsb_hint);
+        return;
+    }
+    // A copy per block gives the host's indirect branch predictor one jump site per block
+    EmitCalculateLocationDescriptor();
+    EmitPopRSBLookup(terminal_handler_rsb_miss);
 }
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::FastDispatchHint, IR::LocationDescriptor, bool is_single_step) {
@@ -1457,7 +1476,12 @@ void A64EmitX64::EmitTerminalImpl(IR::Term::FastDispatchHint, IR::LocationDescri
         return;
     }
 
-    code.jmp(terminal_handler_fast_dispatch_hint);
+    if (SharedTerminalHandlers()) {
+        code.jmp(terminal_handler_fast_dispatch_hint);
+        return;
+    }
+    EmitCalculateLocationDescriptor();
+    EmitFastDispatchLookup(terminal_handler_fast_dispatch_miss);
 }
 
 void A64EmitX64::EmitTerminalImpl(IR::Term::If terminal, IR::LocationDescriptor initial_location, bool is_single_step) {
