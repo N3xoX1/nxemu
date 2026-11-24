@@ -17,8 +17,9 @@
 
 namespace AudioCore {
 constexpr u32 CurrentRevision = 15;
-/// Newest revision accepted (REV 0x42, firmware 23.0.0). Revisions above CurrentRevision run with
-/// its features; the update parser checks every section size, so a changed layout is refused.
+/// Newest revision accepted (firmware 23.0.0). Revisions 16 to 18 only add refinements stored in
+/// reserved bytes, which are ignored: the voice biquad crossfade curve (16) and volume ramps on
+/// the final and sub mixes (17) and on the buffer mixer (18). Rejecting them aborts the game.
 constexpr u32 MaxAcceptedRevision = 18;
 
 enum class SupportTags {

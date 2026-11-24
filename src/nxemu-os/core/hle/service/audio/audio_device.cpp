@@ -16,7 +16,11 @@ IAudioDevice::IAudioDevice(Core::System& system_, u64 applet_resource_user_id, u
                            u32 device_num)
     : ServiceFramework{system_, "IAudioDevice"}, service_context{system_, "IAudioDevice"},
       impl{std::make_unique<AudioDevice>(system_, applet_resource_user_id, revision)},
-      event{service_context.CreateEvent(fmt::format("IAudioDeviceEvent-{}", device_num))} {
+      event{service_context.CreateEvent(fmt::format("IAudioDeviceEvent-{}", device_num))},
+      notification_event{service_context.CreateEvent(
+          fmt::format("IAudioDeviceNotification-{}", device_num))},
+      // Switch 2 titles tag their revision 'REv' instead of 'REV'.
+      switch2_caller{(revision & 0xFFFFFF) == 0x764552} {
     static const FunctionInfo functions[] = {
         {0, D<&IAudioDevice::ListAudioDeviceName>, "ListAudioDeviceName"},
         {1, D<&IAudioDevice::SetAudioDeviceOutputVolume>, "SetAudioDeviceOutputVolume"},
@@ -32,10 +36,10 @@ IAudioDevice::IAudioDevice(Core::System& system_, u64 applet_resource_user_id, u
         {12, D<&IAudioDevice::QueryAudioDeviceOutputEvent>, "QueryAudioDeviceOutputEvent"},
         {13, D<&IAudioDevice::GetActiveAudioDeviceName>, "GetActiveAudioOutputDeviceName"},
         {14, D<&IAudioDevice::ListAudioOutputDeviceName>, "ListAudioOutputDeviceName"},
-        {15, D<&IAudioDevice::DeviceNotification>, "AcquireAudioInputDeviceNotification"},
-        {16, D<&IAudioDevice::DeviceNotification>, "ReleaseAudioInputDeviceNotification"},
-        {17, D<&IAudioDevice::DeviceNotification>, "AcquireAudioOutputDeviceNotification"},
-        {18, D<&IAudioDevice::DeviceNotification>, "ReleaseAudioOutputDeviceNotification"},
+        {15, D<&IAudioDevice::AcquireDeviceNotification>, "AcquireAudioInputDeviceNotification"},
+        {16, D<&IAudioDevice::ReleaseDeviceNotification>, "ReleaseAudioInputDeviceNotification"},
+        {17, D<&IAudioDevice::AcquireDeviceNotification>, "AcquireAudioOutputDeviceNotification"},
+        {18, D<&IAudioDevice::ReleaseDeviceNotification>, "ReleaseAudioOutputDeviceNotification"},
         {19, D<&IAudioDevice::SetAudioDeviceOutputVolumeAutoTuneEnabled>, "SetAudioDeviceOutputVolumeAutoTuneEnabled"},
         {20, D<&IAudioDevice::IsAudioDeviceOutputVolumeAutoTuneEnabled>, "IsAudioDeviceOutputVolumeAutoTuneEnabled"},
         {21, D<&IAudioDevice::IsActiveOutputDeviceEstimatedLowLatency>, "IsActiveOutputDeviceEstimatedLowLatency"},
@@ -65,6 +69,7 @@ IAudioDevice::~IAudioDevice() {
         listeners->Remove(output_listener_id);
     }
     system.CoreTiming().UnscheduleEvent(output_changed_event);
+    service_context.CloseEvent(notification_event);
     service_context.CloseEvent(event);
 }
 
@@ -189,10 +194,20 @@ Result IAudioDevice::ListAudioOutputDeviceName(
     R_SUCCEED();
 }
 
-// 15-18 (17.0.0+): device notifications. On the Switch 1 these only return an error.
-Result IAudioDevice::DeviceNotification(u64 device) {
+// 15-18 (17.0.0+): device notifications. The Switch 1 only returns an error; Switch 2 titles
+// need an event, which never fires as the emulated device set does not change.
+Result IAudioDevice::AcquireDeviceNotification(OutCopyHandle<Kernel::KReadableEvent> out_event,
+                                               u64 device) {
     LOG_DEBUG(Service_Audio, "called, device={:#x}", device);
-    R_THROW(ResultNotSupported);
+    R_UNLESS(switch2_caller, ResultNotSupported);
+    *out_event = &notification_event->GetReadableEvent();
+    R_SUCCEED();
+}
+
+Result IAudioDevice::ReleaseDeviceNotification(u64 device) {
+    LOG_DEBUG(Service_Audio, "called, device={:#x}", device);
+    R_UNLESS(switch2_caller, ResultNotSupported);
+    R_SUCCEED();
 }
 
 // 21.0.0+: true only for a low latency output, which the emulated devices are not.

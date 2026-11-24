@@ -122,11 +122,16 @@ Result InfoUpdater::UpdateVoices(VoiceContext& voice_context,
                 u8 flush_wave_buffer_count;
                 u16 reserved2;
                 VoiceInfo::Flags flags;
+                u8 reserved_flags; // The behaviour flags are a u16.
                 SrcQuality src_quality;
+                u8 crossfade_curve; // Revision 16+, not emulated.
                 u32 external_ctx;
                 u32 external_ctx_size;
                 u32 reserved3[2];
             };
+            static_assert(sizeof(VoiceInParameterV2) == sizeof(VoiceInfo::InParameter2));
+            static_assert(offsetof(VoiceInParameterV2, src_quality) ==
+                          offsetof(VoiceInfo::InParameter2, src_quality));
             const auto* vin = reinterpret_cast<const VoiceInParameterV2*>(input + i * in_stride);
             local_in.id = vin->id;
             local_in.node_id = vin->node_id;
