@@ -2247,6 +2247,63 @@ body.shaders-background #status-text
     white-space: nowrap;
 }
 
+/* Beside the volume, what the game is heard in: "5.1" green when the output
+   plays it, "5.1 > Stereo" with the stereo in green when the game offers 5.1
+   the output device cannot play, "Stereo" grey for a stereo game, "Stereo" red
+   when the player forced stereo. "5.1" and the red "Stereo" take a click, to
+   force stereo or give 5.1 back. */
+.surround-badge
+{
+    margin-left: 5dp;
+    padding: 0dp 3dp;
+    border: 1dp var(--success);
+    border-radius: 2dp;
+    color: var(--success);
+    font-size: 8dp;
+    font-weight: bold;
+    letter-spacing: 0.3dp;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.surround-badge.plain
+{
+    border-color: var(--border);
+    color: var(--text-muted);
+}
+
+.surround-badge.forced
+{
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.surround-badge.switchable
+{
+    cursor: pointer;
+}
+
+/* Keeps the colour of the state while pointed at. */
+.surround-badge.switchable:hover
+{
+    opacity: 0.8;
+}
+
+.surround-badge.downmix
+{
+    border-color: var(--border);
+}
+
+.surround-source
+{
+    color: var(--text-muted);
+}
+
+.surround-badge.absent
+{
+    display: none;
+}
+
 #resolution.absent,
 body.compact #resolution,
 body.compact #status-bar .status-separator,

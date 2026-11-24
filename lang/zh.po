@@ -284,14 +284,6 @@ msgid "Where the sound of games is played."
 msgstr "播放游戏音频的地方。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Output mode"
-msgstr "输出模式"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr "环绕声需要兼容的扬声器。"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "音频输出引擎"
 
@@ -1809,26 +1801,6 @@ msgstr "游戏使用计算机的默认输出，直到重新连接。"
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "立体声"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr "两个通道：耳机和大多数扬声器。"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Surround"
-msgstr "环绕声"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr "六个通道，用于放置在房间周围的扬声器。"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Mono"
-msgstr "单声道"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "One channel."
-msgstr "一个通道。"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -4495,3 +4467,23 @@ msgstr "区域"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "第一图层"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays 5.1 sound."
+msgstr "环绕声：输出设备正在播放 5.1 声音。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
+msgstr "环绕声：输出设备仅支持立体声，因此环绕声被缩混为两个声道。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Click to force stereo."
+msgstr "点击强制使用立体声。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Stereo is forced. Click to allow surround."
+msgstr "已强制使用立体声。点击允许环绕声。"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This game sends stereo sound."
+msgstr "此游戏输出立体声。"

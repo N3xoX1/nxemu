@@ -255,13 +255,6 @@
                     </div>
                     <select id="audio-device" />
                   </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Output mode</div>
-                      <div class="row-text">Surround needs speakers that play it.</div>
-                    </div>
-                    <select id="audio-mode" />
-                  </div>
                   <div class="row global-only">
                     <div class="row-texts">
                       <div class="row-label">Output engine</div>

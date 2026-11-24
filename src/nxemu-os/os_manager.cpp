@@ -13,6 +13,7 @@
 #include "core/perf_stats.h"
 #include "os_settings.h"
 #include "os_settings_identifiers.h"
+#include "yuzu_audio_core/output_status.h"
 #include "yuzu_audio_core/sink/sink_details.h"
 #include "yuzu_common/fs/path_util.h"
 #include "yuzu_common/settings.h"
@@ -495,6 +496,12 @@ void OSManager::AudioGetDeviceListForSink(uint32_t sinkId, bool capture, DeviceE
     {
         callback(devices[i].c_str(), userData);
     }
+}
+
+AudioOutputStatus OSManager::AudioGetOutputStatus() const
+{
+    const AudioCore::OutputStatus status = AudioCore::PublishedOutputStatus();
+    return {status.output_channels, status.host_channels, status.source_channels, status.surround_allowed};
 }
 
 void OSManager::RegisterHostThread()

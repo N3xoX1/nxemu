@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -73,6 +74,13 @@ public:
      */
     void SetSystemVolume(f32 volume) override;
 
+    PlayingChannels GetPlayingChannels() const override;
+
+protected:
+    u32 QueryHostChannels() override;
+    std::string OutputDeviceName() const override;
+    u32 ReopenPlayback(u32 channels) override;
+
 private:
     /// Backend Cubeb context
     cubeb* ctx{};
@@ -80,6 +88,12 @@ private:
     cubeb_devid output_device{};
     /// Cubeb id of the actual hardware input device
     cubeb_devid input_device{};
+    /// Name of the chosen output device, empty when streams follow the system default
+    std::string chosen_device;
+    /// Channels of the chosen output device at the last check
+    u32 chosen_device_channels{2};
+    /// Guards sink_streams, which the output monitor walks
+    mutable std::mutex streams_mutex;
     /// Vector of streams managed by this sink
     std::vector<SinkStreamPtr> sink_streams{};
 

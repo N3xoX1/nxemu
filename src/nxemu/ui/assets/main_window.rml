@@ -199,6 +199,7 @@
       </div>
       <div id="profile-separator" class="status-separator" />
       <div id="volume" class="volume-control" />
+      <div id="audio-surround" class="surround-badge absent" translate="no" />
       <div id="status-shaders">
         <div class="status-shaders-track"><div id="status-shaders-fill" /></div>
         <div id="status-shaders-text" />

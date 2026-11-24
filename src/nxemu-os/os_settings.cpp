@@ -62,7 +62,6 @@ public:
     OsSetting(const char * id, const char * path, u32 * val, u32 defaultValue, bool debugSetting = false);
     OsSetting(const char * id, const char * path, s64 * val, s64 defaultValue, s64 minValue, s64 maxValue, bool debugSetting = false);
     OsSetting(const char * id, const char * path, bool * val, const char * fallbackId);
-    OsSetting(const char * id, const char * path, AudioMode * val, const char * fallbackId);
     OsSetting(const char * id, const char * path, Language * val, const char * fallbackId);
     OsSetting(const char * id, const char * path, DockedMode * val, const char * fallbackId);
     OsSetting(const char * id, const char * path, MemoryLayout * val, const char * fallbackId);
@@ -495,7 +494,7 @@ static OsSetting settings[] = {
         {NXOsSetting::AudioSinkId, "audio\\sink_id", &osSettings.sink_id, AudioCore::Sink::AudioEngine::Auto},
         {NXOsSetting::AudioOutputDeviceId, "audio\\output_device_id", &osSettings.audio_output_device_id, "auto"},
         {NXOsSetting::AudioInputDeviceId, "audio\\input_device_id", &osSettings.audio_input_device_id, "auto"},
-        {NXOsSetting::SystemAudioMode, "audio\\mode", &osSettings.global_sound_index, AudioMode::Stereo},
+        {NXOsSetting::SystemAudioMode, "audio\\mode", &osSettings.global_sound_index, AudioMode::Surround},
         {NXOsSetting::AudioVolume, "audio\\volume", &osSettings.volume, 100, 0, 200},
         {NXOsSetting::AudioMuted, "audio\\muted", &osSettings.audio_muted, false},
         {NXOsSetting::SystemSpeedLimit, "system\\speed_limit", &osSettings.global_speed_limit, 100, 0, 9999},
@@ -537,7 +536,6 @@ static OsSetting settings[] = {
         {NXOsSetting::GameSpeedLimit, "system\\speed_limit", &osSettings.speed_limit, NXOsSetting::SystemSpeedLimit},
         {NXOsSetting::GameUseMultiCore, "system\\use_multi_core", &osSettings.use_multi_core, NXOsSetting::SystemUseMultiCore},
         {NXOsSetting::GameCpuHleSynchronization, "system\\cpu_hle_synchronization", &osSettings.cpu_hle_synchronization, NXOsSetting::SystemCpuHleSynchronization},
-        {NXOsSetting::GameAudioMode, "audio\\mode", &osSettings.sound_index, NXOsSetting::SystemAudioMode},
         {NXOsSetting::GameVibrationEnabled, "controller\\vibration_enabled", &osSettings.vibration_enabled, NXOsSetting::SystemVibrationEnabled},
         {NXOsSetting::GameEnableAccurateVibrations, "controller\\enable_accurate_vibrations", &osSettings.enable_accurate_vibrations, NXOsSetting::SystemEnableAccurateVibrations},
     };
@@ -565,6 +563,11 @@ void ApplyRangedS64(OsSetting & osSetting, s64 value)
 void BackgroundGpuReadbacksChanged(const char * /*setting*/, void * /*userData*/)
 {
     osSettings.background_gpu_readbacks.store(g_settings->GetBool(NXVideoSetting::GameBackgroundGpuReadbacks), std::memory_order_relaxed);
+}
+
+void AudioModeChanged(const char * /*setting*/, void * /*userData*/)
+{
+    osSettings.surround_allowed.store(g_settings->GetInt(NXOsSetting::SystemAudioMode) == static_cast<int>(AudioMode::Surround), std::memory_order_relaxed);
 }
 
 void VideoSettingsChanged(const char * /*setting*/, void * /*userData*/)
@@ -1067,6 +1070,8 @@ void SetupOsSetting(void)
     BackgroundGpuReadbacksChanged(nullptr, nullptr);
     g_settings->RegisterCallback(NXVideoSetting::GameBackgroundGpuReadbacks, BackgroundGpuReadbacksChanged, nullptr);
     g_settings->RegisterCallback(NXVideoSetting::GameSyncToFramerateOfVideoPlayback, VideoSettingsChanged, nullptr);
+    AudioModeChanged(nullptr, nullptr);
+    g_settings->RegisterCallback(NXOsSetting::SystemAudioMode, AudioModeChanged, nullptr);
 }
 
 void CleanupOsSetting(void)
@@ -1074,6 +1079,7 @@ void CleanupOsSetting(void)
     g_settings->UnregisterCallback(NXVideoSetting::GameEnableReactiveFlushing, VideoSettingsChanged, nullptr);
     g_settings->UnregisterCallback(NXVideoSetting::GameBackgroundGpuReadbacks, BackgroundGpuReadbacksChanged, nullptr);
     g_settings->UnregisterCallback(NXVideoSetting::GameSyncToFramerateOfVideoPlayback, VideoSettingsChanged, nullptr);
+    g_settings->UnregisterCallback(NXOsSetting::SystemAudioMode, AudioModeChanged, nullptr);
     ModuleSettingTable::CleanupSettings(settings, OsSettingChanged, GameSettingsChanged);
 }
 
@@ -1244,12 +1250,6 @@ OsSetting::OsSetting(const char * id, const char * path, s64 * val, s64 defaultV
 
 OsSetting::OsSetting(const char * id, const char * path, bool * val, const char * fallbackId) :
     OsSetting(id, path, val, false)
-{
-    fallback = fallbackId;
-}
-
-OsSetting::OsSetting(const char * id, const char * path, AudioMode * val, const char * fallbackId) :
-    OsSetting(id, path, val, AudioMode::Stereo)
 {
     fallback = fallbackId;
 }

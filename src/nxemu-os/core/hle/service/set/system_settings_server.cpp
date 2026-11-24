@@ -781,6 +781,8 @@ Result ISystemSettingsServer::SetTvSettings(TvSettings tv_settings)
 
 Result ISystemSettingsServer::GetAudioOutputMode(Out<AudioOutputMode> out_output_mode, AudioOutputModeTarget target)
 {
+    // The mode the system set for the target, as on the console. The host output follows the
+    // player's choice instead, and games learn its layout from IAudioDevice.
     switch (target)
     {
     case AudioOutputModeTarget::Hdmi:
@@ -802,7 +804,7 @@ Result ISystemSettingsServer::GetAudioOutputMode(Out<AudioOutputMode> out_output
         LOG_ERROR(Service_SET, "Invalid audio output mode target {}", target);
     }
 
-    LOG_INFO(Service_SET, "called, target={}, output_mode={}", target, *out_output_mode);
+    LOG_DEBUG(Service_SET, "called, target={}, output_mode={}", target, *out_output_mode);
     R_SUCCEED();
 }
 
@@ -1442,6 +1444,17 @@ void ISystemSettingsServer::SetupSettings()
     if (!LoadSettingsFile(system_dir, []() { return DefaultSystemSettings(); }))
     {
         ASSERT(false);
+    }
+    // Saves made before the audio output modes had defaults left them all at 0, which is mono.
+    const SystemSettings& loaded = m_system_settings;
+    if (loaded.audio_output_mode_hdmi == AudioOutputMode::ch_1 &&
+        loaded.audio_output_mode_speaker == AudioOutputMode::ch_1 &&
+        loaded.audio_output_mode_headphone == AudioOutputMode::ch_1 &&
+        loaded.audio_output_mode_type3 == AudioOutputMode::ch_1 &&
+        loaded.audio_output_mode_type4 == AudioOutputMode::ch_1)
+    {
+        SetDefaultAudioOutputModes(m_system_settings);
+        SetSaveNeeded();
     }
 
     auto private_dir = Common::FS::GetYuzuPath(Common::FS::YuzuPath::NANDDir) / "system/save/8000000000000052";

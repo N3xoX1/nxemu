@@ -284,14 +284,6 @@ msgid "Where the sound of games is played."
 msgstr "Wo der Spielton ausgegeben wird."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Output mode"
-msgstr "Ausgabemodus"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr "Surround benötigt passende Lautsprecher."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "Ausgabe-Engine"
 
@@ -1816,26 +1808,6 @@ msgstr "Spiele verwenden bis zur Wiederverbindung das Standardausgabegerät des 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "Stereo"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr "Zwei Kanäle: Kopfhörer und die meisten Lautsprecher."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Surround"
-msgstr "Surround"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr "Sechs Kanäle für im Raum verteilte Lautsprecher."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Mono"
-msgstr "Mono"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "One channel."
-msgstr "Ein Kanal."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -4512,3 +4484,23 @@ msgstr "Fläche"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "Erste Ebene"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays 5.1 sound."
+msgstr "Surround: Das Ausgabegerät gibt 5.1-Ton wieder."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
+msgstr "Surround: Das Ausgabegerät gibt nur Stereo wieder, daher wird Surround-Ton auf zwei Kanäle heruntergemischt."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Click to force stereo."
+msgstr "Klicken, um Stereo zu erzwingen."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Stereo is forced. Click to allow surround."
+msgstr "Stereo ist erzwungen. Klicken, um Surround zu erlauben."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This game sends stereo sound."
+msgstr "Dieses Spiel sendet Stereoton."

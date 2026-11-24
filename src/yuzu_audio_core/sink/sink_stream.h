@@ -35,6 +35,11 @@ struct SinkBuffer {
     u64 frames_played;
     u64 tag;
     bool consumed;
+    /// Samples per frame as queued; the callback converts to the device layout.
+    u32 channels;
+    /// The first frames whose samples are in the ring; the rest found no room and play as
+    /// silence, so that the buffer still lasts what the game submitted.
+    u64 stored_frames;
 };
 
 /**
@@ -77,6 +82,24 @@ public:
     virtual void Stop() {}
 
     /**
+     * Reopen the hardware stream with another number of channels, keeping queued audio. A
+     * layout the device refuses falls back to stereo. Never called from the audio callback.
+     *
+     * @param channels - 2 or 6.
+     * @return The channels the stream plays with now, 0 when no hardware stream could open.
+     */
+    virtual u32 SetDeviceChannels(u32 channels) {
+        return channels;
+    }
+
+    /**
+     * Get the type of this stream.
+     */
+    StreamType GetType() const {
+        return type;
+    }
+
+    /**
      * Check if the stream is paused.
      *
      * @return True if paused, otherwise false.
@@ -91,7 +114,7 @@ public:
      * @return Number of system channels.
      */
     u32 GetSystemChannels() const {
-        return system_channels;
+        return system_channels.load(std::memory_order_relaxed);
     }
 
     /**
@@ -100,7 +123,7 @@ public:
      * @param channels - New number of system channels.
      */
     void SetSystemChannels(u32 channels) {
-        system_channels = channels;
+        system_channels.store(channels, std::memory_order_relaxed);
     }
 
     /**
@@ -109,7 +132,7 @@ public:
      * @return Number of channels supported.
      */
     u32 GetDeviceChannels() const {
-        return device_channels;
+        return device_channels.load(std::memory_order_relaxed);
     }
 
     /**
@@ -219,29 +242,38 @@ protected:
      */
     void SignalPause();
 
+    /**
+     * Change the layout the callback writes. The hardware stream must be stopped.
+     */
+    void ResetDeviceChannels(u32 channels);
+
 protected:
     /// Core system
     Core::System& system;
     /// Type of this stream
     StreamType type;
     /// Set by the audio render/in/out system which uses this stream
-    u32 system_channels{2};
-    /// Channels supported by hardware
-    u32 device_channels{2};
+    std::atomic<u32> system_channels{2};
+    /// Channels of the hardware stream, changed only while it is stopped
+    std::atomic<u32> device_channels{2};
     /// Is this stream currently paused?
     std::atomic<bool> paused{true};
     /// Name of this stream
     std::string name{};
 
 private:
-    /// Ring buffer of the samples waiting to be played or consumed
-    Common::RingBuffer<s16, 0x10000> samples_buffer;
+    /// Ring buffer of the samples waiting to be played or consumed. They stay in the game's
+    /// layout, so it holds 43,690 frames of 5.1 (910 ms), no less time than the stereo the
+    /// sink queued once it had mixed 5.1 down on the way in.
+    Common::RingBuffer<s16, 0x40000> samples_buffer;
     /// Audio buffers queued and waiting to play
     Common::ReaderWriterQueue<SinkBuffer> queue;
     /// The currently-playing audio buffer
     SinkBuffer playing_buffer{};
     /// The last played (or received) frame of audio, used when the callback underruns
     std::array<s16, MaxChannels> last_frame{};
+    /// Queued samples read before conversion to the device layout, used only by the callback
+    std::array<s16, TargetSampleCount * MaxChannels> convert_buffer{};
     /// Number of buffers waiting to be played
     std::atomic<u32> queued_buffers{};
     /// The ring size for audio out buffers (usually 4, rarely 2 or 8)
