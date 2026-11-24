@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: macos-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Let master runs finish so they save the shared caches.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   build:
