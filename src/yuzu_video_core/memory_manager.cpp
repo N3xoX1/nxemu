@@ -635,13 +635,13 @@ template <bool is_safe>
 void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size,
                                    [[maybe_unused]] VideoCommon::CacheType which)
 {
-    PrepareEngineWrite(gpu_dest_addr, size);
     auto just_advance = [&]([[maybe_unused]] std::size_t page_index, [[maybe_unused]] std::size_t offset, std::size_t copy_amount) {
         src_buffer = static_cast<const u8 *>(src_buffer) + copy_amount;
     };
     auto mapped_normal = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
         const DAddr dev_addr_base =
             (static_cast<DAddr>(page_table[page_index]) << cpu_page_bits) + offset;
+        memory.PrepareEngineWrite(dev_addr_base, copy_amount);
         if constexpr (is_safe)
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
@@ -656,6 +656,7 @@ void MemoryManager::WriteBlockImpl(GPUVAddr gpu_dest_addr, const void * src_buff
     auto mapped_big = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
         const DAddr dev_addr_base =
             (static_cast<DAddr>(big_page_table_dev[page_index]) << cpu_page_bits) + offset;
+        memory.PrepareEngineWrite(dev_addr_base, copy_amount);
         if constexpr (is_safe)
         {
             rasterizer->InvalidateRegion(dev_addr_base, copy_amount, which);
@@ -694,10 +695,29 @@ void MemoryManager::WriteBlockCached(GPUVAddr gpu_dest_addr, const void * src_bu
     accumulated_other_than_const_buffers = true;
 }
 
-void MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
+std::optional<DAddr> MemoryManager::WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
 {
-    WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
+    std::optional<DAddr> device_addr = DeviceAddressWithinOneBigPageDevicePage(gpu_dest_addr, size);
+    if (device_addr)
+    {
+        // One device page is contiguous in host memory even when the rest of its big page is not
+        memory.PrepareEngineWrite(*device_addr, size);
+        if (u8 * physical = memory.GetPointer<u8>(*device_addr))
+        {
+            std::memcpy(physical, src_buffer, size);
+        }
+    }
+    else
+    {
+        WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
+        device_addr = GpuToCpuAddress(gpu_dest_addr);
+        if (device_addr && !IsContinuousRange(gpu_dest_addr, size))
+        {
+            device_addr.reset();
+        }
+    }
     accumulator->Add(gpu_dest_addr, size);
+    return device_addr;
 }
 
 void MemoryManager::PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size)
@@ -717,6 +737,19 @@ void MemoryManager::PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size)
         MemoryOperation<false>(base, copy_amount, mapped_normal, do_nothing, do_nothing);
     };
     MemoryOperation<true>(gpu_addr, size, mapped_big, do_nothing, prepare_short_pages);
+}
+
+std::optional<DAddr> MemoryManager::DeviceAddressWithinOneBigPageDevicePage(GPUVAddr gpu_addr, std::size_t size) const
+{
+    constexpr u64 device_page_size = u64{1} << cpu_page_bits;
+    const u64 device_page_offset = gpu_addr & (device_page_size - 1);
+    if (size == 0 || size > device_page_size - device_page_offset || !IsWithinGPUAddressRange(gpu_addr) ||
+        GetEntry<true>(gpu_addr) != EntryType::Mapped)
+    {
+        return std::nullopt;
+    }
+    return (static_cast<DAddr>(big_page_table_dev[PageEntryIndex<true>(gpu_addr)]) << cpu_page_bits) +
+           (gpu_addr & big_page_mask);
 }
 
 void MemoryManager::FlushRegion(GPUVAddr gpu_addr, size_t size, VideoCommon::CacheType which) const

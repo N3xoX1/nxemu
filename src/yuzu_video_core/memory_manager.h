@@ -105,7 +105,9 @@ public:
     void ReadBlockUnsafe(GPUVAddr gpu_src_addr, void* dest_buffer, std::size_t size) const;
     void WriteBlockUnsafe(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
     void WriteBlockCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
-    void WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
+    [[nodiscard]] std::optional<DAddr> WriteConstBufferCached(GPUVAddr gpu_dest_addr,
+                                                              const void* src_buffer,
+                                                              std::size_t size);
 
     void PrepareEngineWrite(GPUVAddr gpu_addr, uint64_t size);
 
@@ -188,6 +190,9 @@ private:
     template <bool is_safe>
     void WriteBlockImpl(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size,
                         VideoCommon::CacheType which);
+
+    [[nodiscard]] std::optional<DAddr> DeviceAddressWithinOneBigPageDevicePage(GPUVAddr gpu_addr,
+                                                                             std::size_t size) const;
 
     template <bool is_big_page>
     [[nodiscard]] std::size_t PageEntryIndex(GPUVAddr gpu_addr) const {

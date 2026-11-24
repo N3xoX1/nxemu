@@ -549,6 +549,16 @@ target_link_libraries(test_in_place_reads PRIVATE nxemu_test_support
     fmt bc_decoder stb_dxt)
 nxemu_unit_test(test_in_place_reads)
 
+add_executable(test_constant_uploads constant_uploads/upload.cpp)
+target_include_directories(test_constant_uploads PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/boost")
+add_dependencies(test_constant_uploads video_core yuzu_common common)
+target_link_libraries(test_constant_uploads PRIVATE nxemu_test_support
+    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
+    fmt bc_decoder stb_dxt)
+nxemu_unit_test(test_constant_uploads)
+
 # Each test suite owns its build and CTest registration.
 file(GLOB unit_suites RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*/CMakeLists.txt")

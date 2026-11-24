@@ -206,6 +206,15 @@ void TestEngineWriteWaits() {
           "an engine write releases the page and marks it");
 }
 
+void TestEngineWriteToExcludedPageHeldAgain() {
+    Fixture f;
+    f.device.PrepareEngineWrite(Base, 4);
+    f.device.HoldInPlaceRead(Base, 0x100, 8);
+    f.device.PrepareEngineWrite(Base + 0x80, 4);
+    Check(f.rasterizer.waits == std::vector<u64>{8} && f.WriteProtected() == 0,
+          "an engine write to an excluded page waits for a read in place held since");
+}
+
 void TestAliasedEngineWrite() {
     Fixture f;
     f.device.Map(AliasBase, CpuBase, Page, f.asid, true);
@@ -227,6 +236,20 @@ void TestWritableSpan() {
                                                                                       Base, 4);
     Check(f.rasterizer.waits == std::vector<u64>{14} && f.WriteProtected() == 0,
           "a writable span waits for the read in place");
+}
+
+void TestGpuWritableSpan() {
+    Fixture f;
+    Tegra::MemoryManager gpu{f.device, 32, 1ULL << 32};
+    gpu.BindRasterizer(&f.rasterizer);
+    constexpr GPUVAddr GpuBase = 0x10000000;
+    gpu.Map(GpuBase, Base, Page, Tegra::PTEKind::INVALID, false);
+    f.device.HoldInPlaceRead(Base, 0x100, 15);
+    Tegra::Memory::GpuGuestMemoryScoped<u8, GuestMemoryFlags::UnsafeReadWrite> span(gpu, GpuBase,
+                                                                                   4);
+    Check(f.rasterizer.waits == std::vector<u64>{15} && f.WriteProtected() == 0,
+          "a writable span at a GPU address waits for the read in place");
+    Check(f.device.IsEngineWritten(Base, 4), "a writable span at a GPU address marks its page");
 }
 
 void TestRemap() {
@@ -293,8 +316,10 @@ int main() {
         TestSecondWriteWhileReleasing();
         TestPartialRelease();
         TestEngineWriteWaits();
+        TestEngineWriteToExcludedPageHeldAgain();
         TestAliasedEngineWrite();
         TestWritableSpan();
+        TestGpuWritableSpan();
         TestRemap();
         TestExclusion();
         TestDisabled();
