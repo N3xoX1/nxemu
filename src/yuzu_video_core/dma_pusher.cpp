@@ -270,13 +270,10 @@ bool DmaPusher::Step()
             // The rasterizer runs on the GPU thread: flush there, then read here
             const GPUVAddr address = dma_state.dma_get;
             const size_t size = header.size * sizeof(u32);
-            // Queued draws mark their shader writes GPU modified only when they run. Waiting for them
-            // at High, the desktop default, would undo the decode overlap, so only Safe does.
-            if (Settings::IsDMALevelSafe())
-            {
-                DrainMaxwell3D();
-                gpu.BackQueue().WaitIdle();
-            }
+            // Diagnostic P0: wait for queued draws to register their GPU writes before the dirty check.
+            // Also do this at High accuracy to isolate a possible decode/draw ordering regression.
+            DrainMaxwell3D();
+            gpu.BackQueue().WaitIdle();
             if (memory_manager.IsMemoryDirty(address, size))
             {
                 DrainMaxwell3D();
