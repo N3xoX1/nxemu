@@ -117,7 +117,7 @@ jobs:
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
           runtime="$NXEMU_MOLTENVK_CACHE_DIR/libMoltenVK.dylib"
-          if [ -s "$runtime" ] && lipo -verify_arch "${NXEMU_MACOS_ARCHITECTURE:-arm64}" "$runtime"; then
+          if [ -s "$runtime" ] && lipo "$runtime" -verify_arch "${NXEMU_MACOS_ARCHITECTURE:-arm64}"; then
             echo 'Using the cached MoltenVK runtime'
           else
             echo 'MoltenVK cache miss: building the pinned runtime'
@@ -138,7 +138,7 @@ jobs:
             cp "$build_directory/external/moltenvk/fork/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$runtime"
           fi
           test -s "$runtime"
-          lipo -verify_arch "${NXEMU_MACOS_ARCHITECTURE:-arm64}" "$runtime"
+          lipo "$runtime" -verify_arch "${NXEMU_MACOS_ARCHITECTURE:-arm64}"
 
       - name: Save MoltenVK runtime
         if: ${{ steps.moltenvk-cache.outputs.cache-hit != 'true' }}
