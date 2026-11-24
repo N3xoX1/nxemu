@@ -40,8 +40,14 @@ public:
     }
     void Stop() override {
         SignalPause();
-        // Wait for a block in progress, so that the queue can be cleared once this returns.
+        // Wait for a block in progress, so that nothing is consumed once this returns.
         std::scoped_lock lock{consume_mutex};
+    }
+    void ClearQueue() override {
+        // Also called by the renderer to reset a stream that keeps playing, so it must not
+        // run while the consumer is in the middle of a block.
+        std::scoped_lock lock{consume_mutex};
+        SinkStream::ClearQueue();
     }
 
 private:
@@ -72,7 +78,7 @@ private:
         }
     }
 
-    /// Held while a block is consumed, so that Stop can wait for it
+    /// Held while a block is consumed, so that Stop and ClearQueue wait for it
     std::mutex consume_mutex;
     std::jthread consumer;
 };

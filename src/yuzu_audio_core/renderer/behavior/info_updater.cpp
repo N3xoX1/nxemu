@@ -4,6 +4,8 @@
 // SPDX-FileCopyrightText: Copyright 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+
 #include "yuzu_audio_core/common/feature_support.h"
 #include "yuzu_audio_core/renderer/behavior/behavior_info.h"
 #include "yuzu_audio_core/renderer/behavior/info_updater.h"
@@ -366,19 +368,34 @@ Result InfoUpdater::UpdateEffectsVersion2(EffectContext& effect_context, const b
 
 Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_count,
                                 EffectContext& effect_context, SplitterContext& splitter_context) {
-    s32 mix_count{0};
-    u32 consumed_input_size{0};
-
-    if (behaviour.IsMixInParameterDirtyOnlyUpdateSupported()) {
-        auto in_dirty_params{reinterpret_cast<const MixInfo::InDirtyParameter*>(input)};
-        mix_count = in_dirty_params->count;
-        input += sizeof(MixInfo::InDirtyParameter);
-        consumed_input_size = static_cast<u32>(sizeof(MixInfo::InDirtyParameter) +
-                                               mix_count * sizeof(MixInfo::InParameter));
-    } else {
-        mix_count = mix_context.GetCount();
-        consumed_input_size = static_cast<u32>(mix_count * sizeof(MixInfo::InParameter));
+    // The whole section must lie inside the input before anything in it is read.
+    const u64 consumed{static_cast<u64>(CpuAddr(input) - CpuAddr(input_origin.data()))};
+    const u64 section_size{in_header->mix_size};
+    if (consumed > expected_input_size || section_size > expected_input_size - consumed) {
+        return Service::Audio::ResultInvalidUpdateInfo;
     }
+
+    const bool dirty_only{behaviour.IsMixInParameterDirtyOnlyUpdateSupported()};
+    u64 header_size{0};
+    s64 mix_count{mix_context.GetCount()};
+    if (dirty_only) {
+        header_size = sizeof(MixInfo::InDirtyParameter);
+        if (section_size < header_size) {
+            return Service::Audio::ResultInvalidUpdateInfo;
+        }
+        mix_count = reinterpret_cast<const MixInfo::InDirtyParameter*>(input)->count;
+    }
+
+    // The records must be exactly what the header announces, as the console checks.
+    const u64 records_size{static_cast<u64>(std::max<s64>(mix_count, 0)) *
+                           sizeof(MixInfo::InParameter)};
+    if (mix_count < 0 || mix_count > mix_context.GetCount() ||
+        header_size + records_size != section_size) {
+        LOG_ERROR(Service_Audio, "Invalid mixes section, header size={}, mix count={}",
+                  in_header->mix_size, mix_count);
+        return Service::Audio::ResultInvalidUpdateInfo;
+    }
+    input += header_size;
 
     if (mix_buffer_count == 0) {
         return Service::Audio::ResultInvalidUpdateInfo;
@@ -388,9 +405,10 @@ Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_co
         reinterpret_cast<const MixInfo::InParameter*>(input), static_cast<size_t>(mix_count)};
 
     u32 total_buffer_count{0};
-    for (s32 i = 0; i < mix_count; i++) {
-        const auto& params{in_params[i]};
-
+    for (const auto& params : in_params) {
+        if (dirty_only && (params.mix_id < 0 || params.mix_id >= mix_context.GetCount())) {
+            return Service::Audio::ResultInvalidUpdateInfo;
+        }
         if (params.in_use) {
             total_buffer_count += params.buffer_count;
             if (params.dest_mix_id > static_cast<s32>(mix_context.GetCount()) &&
@@ -405,11 +423,11 @@ Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_co
     }
 
     bool mix_dirty{false};
-    for (s32 i = 0; i < mix_count; i++) {
+    for (s32 i = 0; i < static_cast<s32>(in_params.size()); i++) {
         const auto& params{in_params[i]};
 
         s32 mix_id{i};
-        if (behaviour.IsMixInParameterDirtyOnlyUpdateSupported()) {
+        if (dirty_only) {
             mix_id = params.mix_id;
         }
 
@@ -438,13 +456,7 @@ Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_co
         }
     }
 
-    if (consumed_input_size != in_header->mix_size) {
-        LOG_ERROR(Service_Audio, "Consumed an incorrect mixes size, header size={}, consumed={}",
-                  in_header->mix_size, consumed_input_size);
-        return Service::Audio::ResultInvalidUpdateInfo;
-    }
-
-    input += mix_count * sizeof(MixInfo::InParameter);
+    input += records_size;
 
     return ResultSuccess;
 }
