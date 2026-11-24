@@ -284,14 +284,6 @@ msgid "Where the sound of games is played."
 msgstr "Waar game-audio wordt afgespeeld."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Output mode"
-msgstr "Uitgangsmodus"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr "Voor surroundgeluid zijn compatibele luidsprekers vereist."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "Audio-uitvoerbackend"
 
@@ -1816,26 +1808,6 @@ msgstr "Games gebruiken de standaarduitvoer van de computer totdat ze opnieuw wo
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "Stereo"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr "Twee kanalen: hoofdtelefoon en de meeste luidsprekers."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Surround"
-msgstr "Surround"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr "Zes kanalen, voor luidsprekers die in de kamer zijn geplaatst."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Mono"
-msgstr "Mono"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "One channel."
-msgstr "Eén kanaal."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -4512,3 +4484,23 @@ msgstr "Oppervlak"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "Eerste laag"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays 5.1 sound."
+msgstr "Surround: het uitvoerapparaat speelt 5.1-geluid af."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
+msgstr "Surround: het uitvoerapparaat speelt alleen stereo af, dus surroundgeluid wordt naar twee kanalen gemixt."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Click to force stereo."
+msgstr "Klik om stereo af te dwingen."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Stereo is forced. Click to allow surround."
+msgstr "Stereo is afgedwongen. Klik om surround toe te staan."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This game sends stereo sound."
+msgstr "Deze game stuurt stereogeluid."

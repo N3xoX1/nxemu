@@ -180,6 +180,7 @@ private:
     void SetDockedMode(bool docked);
     void RefreshProfiles();
     void UpdateStatusWidgets();
+    void UpdateSurroundBadge();
     void ApplyIconSize();
     void SizeCard(Rml::Element * card) const;
     float CardStep() const;

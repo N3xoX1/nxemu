@@ -7,6 +7,17 @@
 namespace Service::Set
 {
 
+void SetDefaultAudioOutputModes(SystemSettings& settings)
+{
+    // Surround on HDMI, so that a game reading the setting keeps its 5.1 mix: the host plays
+    // what the player chose, mixing 5.1 down when needed. The console's own outputs are stereo.
+    settings.audio_output_mode_hdmi = AudioOutputMode::ch_5_1;
+    settings.audio_output_mode_speaker = AudioOutputMode::ch_2;
+    settings.audio_output_mode_headphone = AudioOutputMode::ch_2;
+    settings.audio_output_mode_type3 = AudioOutputMode::ch_2;
+    settings.audio_output_mode_type4 = AudioOutputMode::ch_2;
+}
+
 SystemSettings DefaultSystemSettings()
 {
     SystemSettings settings{};
@@ -32,6 +43,8 @@ SystemSettings DefaultSystemSettings()
         .tv_gama = 1.0f,
         .contrast_ratio = 0.5f,
     };
+
+    SetDefaultAudioOutputModes(settings);
 
     settings.initial_launch_settings_packed = {
         .flags = {0x10001},

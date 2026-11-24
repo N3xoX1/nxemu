@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <atomic>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -71,11 +73,31 @@ public:
      */
     void SetSystemVolume(f32 volume) override;
 
+    PlayingChannels GetPlayingChannels() const override;
+
+protected:
+    bool OutputDeviceChanged() override;
+    u32 QueryHostChannels() override;
+    std::string OutputDeviceName() const override;
+    u32 ReopenPlayback(u32 channels) override;
+
 private:
+    /// Reads the output's own layout. Only right while no playback stream has it open, or
+    /// once SDL reported a new format for it.
+    u32 ProbeOutputChannels() const;
+
     /// Name of the output device used by streams
     std::string output_device;
     /// Name of the input device used by streams
     std::string input_device;
+    /// The system default output at the last check, when streams follow it
+    std::string default_output;
+    /// Channels the output played when it was last probed
+    u32 output_channels{2};
+    /// Set when SDL reports a new format for a playback device
+    std::atomic<bool> format_changed{};
+    /// Guards sink_streams, which the output monitor walks
+    mutable std::mutex streams_mutex;
     /// Vector of streams managed by this sink
     std::vector<SinkStreamPtr> sink_streams;
 };

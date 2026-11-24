@@ -284,14 +284,6 @@ msgid "Where the sound of games is played."
 msgstr "Где воспроизводится игровой звук."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Output mode"
-msgstr "Режим вывода"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr "Для объемного звука требуются совместимые динамики."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "Модуль вывода звука"
 
@@ -1823,26 +1815,6 @@ msgstr "Игры используют выход компьютера по ум�
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "Стерео"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr "Два канала: наушники и большинство динамиков."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Surround"
-msgstr "Объемный звук"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr "Шесть каналов для динамиков, расставленных по комнате."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Mono"
-msgstr "Моно"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "One channel."
-msgstr "Один канал."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -4529,3 +4501,23 @@ msgstr "Площадь"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "Первый слой"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays 5.1 sound."
+msgstr "Объемный звук: устройство вывода воспроизводит звук 5.1."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
+msgstr "Объемный звук: устройство вывода воспроизводит только стерео, поэтому объемный звук сводится в два канала."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Click to force stereo."
+msgstr "Нажмите, чтобы включить стерео."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Stereo is forced. Click to allow surround."
+msgstr "Включено стерео. Нажмите, чтобы разрешить объемный звук."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This game sends stereo sound."
+msgstr "Эта игра выдает стереозвук."

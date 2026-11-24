@@ -39,7 +39,6 @@ struct OSSettings
     AudioCore::Sink::AudioEngine sink_id;
     std::string audio_output_device_id;
     std::string audio_input_device_id;
-    AudioMode sound_index;
     AudioMode global_sound_index;
     u8 volume;
     bool audio_muted;
@@ -73,6 +72,8 @@ struct OSSettings
     // Video
     bool use_reactive_flushing;
     std::atomic<bool> background_gpu_readbacks;
+    /// global_sound_index == Surround, for the audio output monitor thread
+    std::atomic<bool> surround_allowed;
     bool use_video_framerate;
 
     // Linux

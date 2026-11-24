@@ -284,14 +284,6 @@ msgid "Where the sound of games is played."
 msgstr "Dónde se reproduce el sonido de los juegos."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Output mode"
-msgstr "Modo de salida"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr "El sonido envolvente requiere altavoces compatibles."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "Motor de salida"
 
@@ -1816,26 +1808,6 @@ msgstr "Los juegos usan la salida predeterminada del equipo hasta que vuelva a c
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "Estéreo"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr "Dos canales: auriculares y la mayoría de los altavoces."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Surround"
-msgstr "Envolvente"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr "Seis canales, para altavoces distribuidos por la habitación."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Mono"
-msgstr "Mono"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "One channel."
-msgstr "Un canal."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -4512,3 +4484,23 @@ msgstr "Área"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "Primera capa"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays 5.1 sound."
+msgstr "Envolvente: el dispositivo de salida reproduce sonido 5.1."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
+msgstr "Envolvente: el dispositivo de salida solo reproduce estéreo, así que el sonido envolvente se mezcla en dos canales."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Click to force stereo."
+msgstr "Haz clic para forzar el estéreo."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Stereo is forced. Click to allow surround."
+msgstr "Estéreo forzado. Haz clic para permitir el sonido envolvente."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This game sends stereo sound."
+msgstr "Este juego envía sonido estéreo."

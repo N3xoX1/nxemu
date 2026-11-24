@@ -125,10 +125,10 @@ Result IAudioController::GetForceMutePolicy(Out<ForceMutePolicy> out_mute_policy
 
 Result IAudioController::GetOutputModeSetting(Out<Set::AudioOutputMode> out_output_mode,
                                               Set::AudioOutputModeTarget target) {
-    LOG_WARNING(Audio, "(STUBBED) called, target={}", target);
-
-    *out_output_mode = Set::AudioOutputMode::ch_7_1;
-    R_SUCCEED();
+    // The same answer as the settings service.
+    const auto result = m_set_sys->GetAudioOutputMode(out_output_mode, target);
+    LOG_DEBUG(Audio, "called, target={}, output_mode={}", target, *out_output_mode);
+    R_RETURN(result);
 }
 
 Result IAudioController::SetOutputModeSetting(Set::AudioOutputModeTarget target,

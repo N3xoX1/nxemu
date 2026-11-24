@@ -284,14 +284,6 @@ msgid "Where the sound of games is played."
 msgstr "게임 오디오가 재생되는 곳입니다."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Output mode"
-msgstr "출력 모드"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr "서라운드 사운드에는 호환되는 스피커가 필요합니다."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "오디오 출력 엔진"
 
@@ -1809,26 +1801,6 @@ msgstr "게임은 다시 연결될 때까지 컴퓨터의 기본 출력을 사�
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "스테레오"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr "2개 채널: 헤드폰과 대부분의 스피커."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Surround"
-msgstr "서라운드"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr "방 주위에 배치된 스피커용 6개 채널."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Mono"
-msgstr "모노"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "One channel."
-msgstr "채널 1개."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -4495,3 +4467,23 @@ msgstr "영역"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "첫 번째 레이어"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays 5.1 sound."
+msgstr "서라운드: 출력 장치가 5.1 사운드를 재생합니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
+msgstr "서라운드: 출력 장치가 스테레오만 재생하므로 서라운드 사운드가 2채널로 다운믹스됩니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Click to force stereo."
+msgstr "클릭하면 스테레오로 고정합니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Stereo is forced. Click to allow surround."
+msgstr "스테레오로 고정되어 있습니다. 클릭하면 서라운드를 허용합니다."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This game sends stereo sound."
+msgstr "이 게임은 스테레오 사운드를 보냅니다."

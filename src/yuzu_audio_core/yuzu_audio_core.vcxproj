@@ -267,7 +267,9 @@
     <ClInclude Include="sink\null_sink.h" />
     <ClInclude Include="sink\sink.h" />
     <ClCompile Include="sink\sink_details.cpp" />
+    <ClCompile Include="sink\speaker_layout.cpp" />
     <ClInclude Include="sink\sink_details.h" />
+    <ClInclude Include="sink\speaker_layout.h" />
     <ClCompile Include="sink\sink_stream.cpp" />
     <ClInclude Include="sink\sink_stream.h" />
     <ClCompile Include="sink\cubeb_sink.cpp" />

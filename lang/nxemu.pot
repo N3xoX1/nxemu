@@ -334,14 +334,6 @@ msgid "Where the sound of games is played."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Output mode"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr ""
 
@@ -1963,26 +1955,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
-msgstr ""
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr ""
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Surround"
-msgstr ""
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr ""
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Mono"
-msgstr ""
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "One channel."
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -4544,4 +4516,24 @@ msgstr ""
 
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays 5.1 sound."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Click to force stereo."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Stereo is forced. Click to allow surround."
+msgstr ""
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This game sends stereo sound."
 msgstr ""

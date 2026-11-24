@@ -297,14 +297,6 @@ msgid "Where the sound of games is played."
 msgstr "Var spelljudet spelas upp."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Output mode"
-msgstr "Utmatningsläge"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Surround needs speakers that play it."
-msgstr "Surroundljud kräver högtalare som stöder det."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "Utmatningsmotor"
 
@@ -1935,26 +1927,6 @@ msgstr ""
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "Stereo"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Two channels: headphones and most speakers."
-msgstr "Två kanaler: hörlurar och de flesta högtalare."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Surround"
-msgstr "Surround"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Six channels, for speakers set around the room."
-msgstr "Sex kanaler för högtalare placerade runt om i rummet."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Mono"
-msgstr "Mono"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "One channel."
-msgstr "En kanal."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -4900,3 +4872,23 @@ msgstr "Area"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "Första lagret"
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays 5.1 sound."
+msgstr "Surround: utmatningsenheten spelar 5.1-ljud."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
+msgstr "Surround: utmatningsenheten spelar bara stereo, så surroundljudet mixas ner till två kanaler."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Click to force stereo."
+msgstr "Klicka för att tvinga stereo."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Stereo is forced. Click to allow surround."
+msgstr "Stereo är påtvingat. Klicka för att tillåta surround."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "This game sends stereo sound."
+msgstr "Det här spelet skickar stereoljud."

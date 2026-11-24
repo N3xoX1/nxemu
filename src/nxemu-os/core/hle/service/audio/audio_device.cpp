@@ -5,6 +5,9 @@
 #include "yuzu_common/string_util.h"
 #include "core/hle/service/audio/audio_device.h"
 #include "core/hle/service/cmif_serialization.h"
+#include "core/core.h"
+#include "core/core_timing.h"
+#include "core/hle/kernel/k_event.h"
 
 namespace Service::Audio {
 using namespace AudioCore::Renderer;
@@ -34,10 +37,29 @@ IAudioDevice::IAudioDevice(Core::System& system_, u64 applet_resource_user_id, u
     };
     RegisterHandlers(functions);
 
+    // Games read the active channel count again when this event fires, after the player
+    // switches between surround and stereo.
+    output_changed_event = Core::Timing::CreateEvent(
+        fmt::format("IAudioDeviceOutputChanged-{}", device_num),
+        [this](s64, std::chrono::nanoseconds) -> std::optional<std::chrono::nanoseconds> {
+            event->Signal();
+            return std::nullopt;
+        });
+    output_listeners = system.AudioCore().GetOutputListeners();
+    if (const auto listeners = output_listeners.lock()) {
+        output_listener_id = listeners->Add([this] {
+            system.CoreTiming().ScheduleEvent(std::chrono::nanoseconds{0}, output_changed_event);
+        });
+    }
+
     event->Signal();
 }
 
 IAudioDevice::~IAudioDevice() {
+    if (const auto listeners = output_listeners.lock()) {
+        listeners->Remove(output_listener_id);
+    }
+    system.CoreTiming().UnscheduleEvent(output_changed_event);
     service_context.CloseEvent(event);
 }
 
@@ -138,8 +160,8 @@ Result IAudioDevice::QueryAudioDeviceOutputEvent(OutCopyHandle<Kernel::KReadable
 }
 
 Result IAudioDevice::GetActiveChannelCount(Out<u32> out_active_channel_count) {
-    *out_active_channel_count = system.AudioCore().GetOutputSink().GetSystemChannels();
-    LOG_DEBUG(Service_Audio, "(STUBBED) called. Channels={}", *out_active_channel_count);
+    *out_active_channel_count = system.AudioCore().GetOutputSink().GetGuestChannels();
+    LOG_DEBUG(Service_Audio, "called. Channels={}", *out_active_channel_count);
     R_SUCCEED();
 }
 

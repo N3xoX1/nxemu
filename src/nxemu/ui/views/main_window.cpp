@@ -85,6 +85,7 @@ constexpr float kNarrowWidth = 800.0f;
 constexpr float kCompactWidth = 560.0f;
 constexpr uint64_t kVersionCopiedMs = 1500;
 constexpr uint64_t kStatusIntervalMs = 1000;
+constexpr uint64_t kAudioSwitchMs = 250;
 constexpr int kGameIconMin = 96;
 constexpr int kGameIconMax = 240;
 constexpr int kGameIconSteps[] = {108, 146, 176, 216};
@@ -1105,6 +1106,20 @@ void MainWindow::BindEvents()
         m_session.FlushSettings();
         UpdateStatusWidgets();
     });
+    // The audio badge forces stereo or gives the 5.1 back; the choice is kept for every game.
+    UiEvents::Listen(m_document->GetElementById("audio-surround"), "click", [this](Rml::Event & event) {
+        if (!event.GetCurrentElement()->IsClassSet("switchable"))
+        {
+            return;
+        }
+        SettingsStore & store = SettingsStore::GetInstance();
+        const bool surround = store.GetInt(NXOsSetting::SystemAudioMode) == static_cast<int>(AudioMode::Surround);
+        store.SetInt(NXOsSetting::SystemAudioMode, static_cast<int>(surround ? AudioMode::Stereo : AudioMode::Surround));
+        m_session.FlushSettings();
+        // The badge follows the output once it has switched, a tenth of a second later: look
+        // again soon rather than at the next second.
+        m_lastStatusUpdate = SDL_GetTicks() - kStatusIntervalMs + kAudioSwitchMs;
+    });
     UiEvents::Listen(m_document->GetElementById("games-list-header"), "click", [this](Rml::Event & event) {
         const int sort = event.GetTargetElement()->GetAttribute<int>("data-sort", -1);
         if (std::find(std::begin(kOfferedSorts), std::end(kOfferedSorts), sort) != std::end(kOfferedSorts))
@@ -1887,6 +1902,53 @@ void MainWindow::UpdateStatusWidgets()
     if (m_volume != nullptr)
     {
         m_volume->Show();
+    }
+    UpdateSurroundBadge();
+}
+
+void MainWindow::UpdateSurroundBadge()
+{
+    Rml::Element * badge = m_document->GetElementById("audio-surround");
+    if (badge == nullptr)
+    {
+        return;
+    }
+    // While a game plays: "5.1" green when the output plays the game's 5.1, "5.1 > Stereo"
+    // with the stereo in green when the game offers 5.1 the output device cannot play, "Stereo"
+    // grey for a stereo game, and "Stereo" red when the player forced stereo. Only "5.1" and
+    // the red "Stereo" take a click.
+    const AudioOutputStatus audio = m_session.IsValid() && m_session.IsRunning()
+        ? m_session.Modules().OperatingSystem().AudioGetOutputStatus() : AudioOutputStatus{};
+    const bool playing = audio.outputChannels != 0 && audio.sourceChannels != 0;
+    const bool surroundAllowed = audio.surroundAllowed;
+    const bool gameSurround = surroundAllowed && audio.sourceChannels >= 6;
+    const bool surround = gameSurround && audio.outputChannels >= 6;
+    badge->SetClass("absent", !playing);
+    badge->SetClass("plain", playing && surroundAllowed && !gameSurround);
+    badge->SetClass("downmix", playing && gameSurround && !surround);
+    badge->SetClass("forced", playing && !surroundAllowed);
+    badge->SetClass("switchable", playing && (surround || !surroundAllowed));
+    if (!playing)
+    {
+        return;
+    }
+    // A game's 5.1 that the output mixes down reads "5.1 > Stereo", the stereo heard in green.
+    Rml::String label = surround ? Rml::String("5.1") : Tr("Stereo");
+    if (gameSurround && !surround)
+    {
+        label = "<span class=\"surround-source\">5.1 &#8250;</span> " + label;
+    }
+    if (badge->GetInnerRML() != label)
+    {
+        badge->SetInnerRML(label);
+    }
+    const std::string hint = !surroundAllowed ? Tr("Stereo is forced. Click to allow surround.")
+        : surround ? Tr("Surround: the output device plays 5.1 sound.") + "\n" + Tr("Click to force stereo.")
+        : gameSurround ? Tr("Surround: the output device plays stereo only, so surround sound is mixed down to two channels.")
+        : Tr("This game sends stereo sound.");
+    if (badge->GetAttribute<Rml::String>("title", "") != hint)
+    {
+        badge->SetAttribute("title", hint);
     }
 }
 
