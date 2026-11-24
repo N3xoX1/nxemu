@@ -118,9 +118,6 @@ struct VideoSettings
 
     bool use_asynchronous_shaders;
     bool global_use_asynchronous_shaders;
-    int32_t nxshader_warmup_mode;
-    int32_t nxshader_initial_minimum;
-    int32_t nxshader_initial_seconds;
     bool use_fast_gpu_time;
     bool global_use_fast_gpu_time;
     bool use_vulkan_driver_pipeline_cache;

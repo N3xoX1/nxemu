@@ -514,6 +514,7 @@ void MainWindow::Update()
     }
     SyncPhase();
     m_playTime.SetPlaying(m_phase == EmulatorSession::Phase::Running ? m_playingProgram : 0);
+    UpdateShaderProgress();
     if (m_rescanGames && m_phase == EmulatorSession::Phase::Idle && m_pendingGame.empty() && !m_firmwareDialog->Installing())
     {
         m_rescanGames = false;
@@ -1109,6 +1110,12 @@ void MainWindow::BindEvents()
         if (std::find(std::begin(kOfferedSorts), std::end(kOfferedSorts), sort) != std::end(kOfferedSorts))
         {
             Post(static_cast<Action>(static_cast<int>(Action::GameSortFirst) + sort));
+        }
+    });
+    UiEvents::Listen(m_document->GetElementById("loading-continue"), "click", [this](Rml::Event &) {
+        if (m_session.IsValid() && m_loadingScreen->RequestContinue())
+        {
+            m_session.Modules().Video().ContinueShadersInBackground();
         }
     });
     onClick("title-settings", Action::OpenSettings);
@@ -2418,6 +2425,55 @@ void MainWindow::UpdateLoadingScreen()
     m_loadingScreen->Update();
 }
 
+// The shaders the player left to the background when the game started: shown in the status
+// bar beside the speed until they are ready, then "ready" for a moment.
+void MainWindow::UpdateShaderProgress()
+{
+    constexpr uint64_t kReadyShownMs = 2500;
+    Rml::Element * item = m_document->GetElementById("status-shaders");
+    if (item == nullptr)
+    {
+        return;
+    }
+    uint32_t done = 0, total = 0;
+    if (m_session.IsValid() && m_session.IsRunning())
+    {
+        m_session.Modules().Video().BackgroundShaderProgress(done, total);
+    }
+    const bool finished = total != 0 && done >= total;
+    const uint64_t now = SDL_GetTicks();
+    if (!finished)
+    {
+        m_shaderProgressFinished = 0;
+    }
+    else if (m_shaderProgressFinished == 0)
+    {
+        m_shaderProgressFinished = now;
+    }
+    const bool show = total != 0 && (!finished || now - m_shaderProgressFinished < kReadyShownMs);
+    m_document->SetClass("shaders-background", show);
+    item->SetClass("finished", finished);
+    std::string text = !show ? std::string() : finished ? Tr("Shaders ready") : Tr("Preparing shaders") + "  " + std::to_string(done) + " / " + std::to_string(total);
+    if (text != m_shaderProgressText)
+    {
+        const bool wasShown = !m_shaderProgressText.empty();
+        m_shaderProgressText = std::move(text);
+        SetText("status-shaders-text", m_shaderProgressText);
+        if (wasShown != show)
+        {
+            UpdateStatusText(); // The builds count hides while the background count shows.
+        }
+    }
+    if (!show)
+    {
+        return;
+    }
+    if (Rml::Element * fill = m_document->GetElementById("status-shaders-fill"))
+    {
+        fill->SetProperty(Rml::PropertyId::Width, Rml::Property(100.0f * done / total, Rml::Unit::PERCENT));
+    }
+}
+
 void MainWindow::LayoutGameArea()
 {
     Rml::Element * contents = m_document->GetElementById("main-contents");
@@ -2657,7 +2713,8 @@ void MainWindow::UpdateStatusText()
         {
             parts.push_back(Tr("Paused"));
         }
-        const uint32_t shaders = m_session.Modules().Video().ShadersBuilding();
+        // The background shaders show their own count, which includes these builds.
+        const uint32_t shaders = m_shaderProgressText.empty() ? m_session.Modules().Video().ShadersBuilding() : 0;
         if (shaders > 0)
         {
             parts.push_back(TrCount("Building: %n shader", "Building: %n shaders", shaders));

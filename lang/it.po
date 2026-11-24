@@ -200,14 +200,6 @@ msgid "Shaders"
 msgstr "Shader"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Shader warmup mode"
-msgstr "Modalità di preriscaldamento degli shader"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
-msgstr "Prepara i primi shader prima dell'avvio e il resto in background. Ha effetto al prossimo avvio del gioco."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "Conserva gli shader su disco"
 
@@ -373,26 +365,6 @@ msgstr "Impostazioni di debug"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
 msgstr "Se disattivate, usano i valori predefiniti; ciò che hai impostato viene conservato per quando verranno riattivate."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "NXShader"
-msgstr "NXShader"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Minimum initial pipelines"
-msgstr "Numero minimo di pipeline iniziali"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
-msgstr "Predefinito: 512. Entrambi i minimi devono essere raggiunti, a meno che tutte le pipeline non siano pronte."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Minimum initial time (seconds)"
-msgstr "Tempo iniziale minimo (secondi)"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
-msgstr "Predefinito: 60. Continua a preparare gli shader per questo tempo, poi compila il resto in background."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -1809,14 +1781,6 @@ msgid "The console's applet, from the installed firmware."
 msgstr "L'applet della console, dal firmware installato."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Full warmup (default)"
-msgstr "Preriscaldamento completo (predefinito)"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Progressive (experimental)"
-msgstr "Progressivo (sperimentale)"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
 msgstr "Nessuno (senza audio)"
 
@@ -2461,10 +2425,6 @@ msgid "Opening the game..."
 msgstr "Apertura del gioco..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "Potrebbe richiedere alcuni minuti. Gli shader compilati vengono memorizzati nella cache per velocizzare gli avvii successivi."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "Gli shader non vengono registrati mentre sono attive mod o trucchi."
 
@@ -2481,6 +2441,30 @@ msgstr "Circa %1 min rimanenti"
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Estimating time remaining..."
 msgstr "Stima del tempo rimanente..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Play now, finish in the background"
+msgstr "Gioca ora, completa in background"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Starting the game..."
+msgstr "Avvio del gioco..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Wait %1 s to play now"
+msgstr "Attendi %1 s per giocare ora"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Wait %1 min to play now"
+msgstr "Attendi %1 min per giocare ora"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Preparing the first shaders..."
+msgstr "Preparazione dei primi shader..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Shaders ready"
+msgstr "Shader pronti"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Finishing shader preparation..."

@@ -4,63 +4,15 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <charconv>
 #include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <thread>
 #include <vector>
-#include <string_view>
 
 #include "yuzu_video_core/renderer_vulkan/native_pipeline_build_queue.h"
 
 namespace Vulkan {
-
-inline bool ProgressiveWarmupEnabled(const char* option) {
-    return option && std::string_view(option) == "1";
-}
-
-// Shared by the disk loader and tests. Compute precedes graphics; this is not a
-// global chronology across pipeline types. Full warmup remains the default.
-class InitialWarmupBudget {
-public:
-    using Clock = std::chrono::steady_clock;
-    static constexpr size_t InitialCount = 512;
-    static constexpr size_t InitialMilliseconds = 60000;
-    explicit InitialWarmupBudget(bool enabled_, size_t minimum_ = InitialCount,
-                                size_t milliseconds = InitialMilliseconds)
-        : enabled(enabled_), minimum(minimum_), duration(milliseconds) {}
-    // A full parse is required: malformed environment variables keep defaults.
-    static size_t ParseOption(const char* option, size_t fallback, size_t maximum) {
-        if (!option || !*option) return fallback;
-        size_t value{};
-        const auto end = option + std::string_view(option).size();
-        const auto parsed = std::from_chars(option, end, value);
-        return parsed.ec == std::errc{} && parsed.ptr == end && value <= maximum ? value : fallback;
-    }
-    bool DeferNext(Clock::time_point now = Clock::now()) {
-        if (deferred) return true;
-        if (!started) { start = now; started = true; }
-        if (enabled && initial >= minimum && now - start >= duration) {
-            deferred = true;
-            return true;
-        }
-        ++initial;
-        return false;
-    }
-    // Drain bounded waves after reaching the minimum, so quick enqueueing cannot
-    // consume the entire cache before the wall-clock budget can be observed.
-    bool NeedsCheckpoint(size_t wave) const {
-        return enabled && !deferred && initial >= minimum &&
-               (initial == minimum || (initial - minimum) % wave == 0);
-    }
-    size_t Scheduled() const { return initial; }
-private:
-    bool enabled, started{}, deferred{};
-    size_t minimum, initial{};
-    std::chrono::milliseconds duration;
-    Clock::time_point start{};
-};
 
 // Owns admission/synchronization only. Compiler inputs and completed Vulkan
 // objects belong to the cache owner, which publishes them on its GPU thread.
@@ -70,9 +22,10 @@ public:
     enum class DemandResult { Runtime, Pending, Complete };
     using Clock = std::chrono::steady_clock;
 
+    // finished_: called once per job that leaves the queue (built, failed, or taken by the runtime).
     ProgressivePipelineWarmup(NativePipelineBuildQueue& queue_, size_t count,
-                              std::function<bool(size_t)> build_)
-        : queue(queue_), build(std::move(build_)), jobs(count) {
+                              std::function<bool(size_t)> build_, std::function<void()> finished_ = {})
+        : queue(queue_), build(std::move(build_)), finished(std::move(finished_)), jobs(count) {
         completed.reserve(count); // Completion cannot allocate on a compiler worker.
         admission = std::jthread([this](std::stop_token stop) { Run(stop); });
     }
@@ -121,6 +74,7 @@ public:
         auto& job = jobs.at(index);
         if (job.status == Status::Queued) {
             job.status = Status::Cancelled; // The runtime now owns this exact key.
+            if (finished) finished();
             return DemandResult::Runtime;
         }
         if (job.status == Status::Running) {
@@ -157,6 +111,7 @@ private:
             }
         }
         changed.notify_all();
+        if (finished) finished();
     }
     void Run(std::stop_token stop) {
         for (size_t i = 0; i < jobs.size(); ++i) {
@@ -174,6 +129,8 @@ private:
                 lock.lock();
                 jobs[i].status = Status::Failed;
                 changed.notify_all();
+                lock.unlock();
+                if (finished) finished();
                 continue;
             }
             lock.lock();
@@ -185,6 +142,7 @@ private:
 
     NativePipelineBuildQueue& queue;
     std::function<bool(size_t)> build;
+    std::function<void()> finished;
     std::vector<Job> jobs;
     std::vector<size_t> completed;
     std::atomic<bool> has_ready{};

@@ -367,10 +367,6 @@ msgid "Off, they act as their defaults; what you set is kept for when they are e
 msgstr "Désactivés, ils utilisent leurs valeurs par défaut ; vos réglages sont conservés pour leur prochaine activation."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "NXShader"
-msgstr "NXShader"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
 msgstr "Moteur du processeur"
 
@@ -2419,10 +2415,6 @@ msgid "Opening the game..."
 msgstr "Ouverture du jeu..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
-msgstr "Cela peut prendre quelques minutes. Les shaders compilés sont mis en cache pour accélérer les prochains lancements."
-
-#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "Les shaders ne sont pas enregistrés quand des mods ou des codes de triche sont actifs."
 
@@ -2439,6 +2431,30 @@ msgstr "Environ %1 min restantes"
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Estimating time remaining..."
 msgstr "Estimation du temps restant..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Play now, finish in the background"
+msgstr "Jouer maintenant, terminer en arrière-plan"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Starting the game..."
+msgstr "Démarrage du jeu..."
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Wait %1 s to play now"
+msgstr "Patientez %1 s pour jouer maintenant"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Wait %1 min to play now"
+msgstr "Patientez %1 min pour jouer maintenant"
+
+#: src/nxemu/ui/views/loading_screen.cpp
+msgid "Preparing the first shaders..."
+msgstr "Préparation des premiers shaders..."
+
+#: src/nxemu/ui/views/main_window.cpp
+msgid "Shaders ready"
+msgstr "Shaders prêts"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Finishing shader preparation..."
@@ -4225,38 +4241,6 @@ msgstr "GitHub a renvoyé %1"
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
 msgstr "Impossible de joindre GitHub"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Shader warmup mode"
-msgstr "Mode de préchauffage des shaders"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
-msgstr "Prépare les premiers shaders avant le démarrage, puis le reste en arrière-plan. Au prochain lancement du jeu."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Minimum initial pipelines"
-msgstr "Nombre minimum de pipelines au démarrage"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
-msgstr "Par défaut : 512. Les deux minimums doivent être atteints, sauf si tous les pipelines sont prêts."
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Minimum initial time (seconds)"
-msgstr "Durée minimum au démarrage (secondes)"
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
-msgstr "Par défaut : 60. Prépare les shaders pendant cette durée, puis compile le reste en arrière-plan."
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Full warmup (default)"
-msgstr "Préchauffage complet (par défaut)"
-
-#: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Progressive (experimental)"
-msgstr "Progressif (expérimental)"
 
 #: src/nxemu/ui/views/scaling_filters.h
 msgid "Catmull-Rom fast"
