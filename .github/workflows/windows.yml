@@ -8,7 +8,8 @@ permissions:
   contents: read
 concurrency:
   group: windows-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Let master runs finish so they save the shared caches.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 jobs:
   build:
     runs-on: windows-2022
@@ -20,6 +21,8 @@ jobs:
       SCCACHE_CACHE_SIZE: 2G
       SCCACHE_IDLE_TIMEOUT: '0'
       NXEMU_BUILD_JOBS: '4'
+      GLSLANG_VERSION: '16.6.0'
+      GLSLANG_SHA256: '82bf434e69b9bb4829de7e2b4bc2c5e7a7861e53d66cf75e5cc70f5f694a8d9b'
     steps:
       - name: Fetch dependencies in parallel
         run: git config --global submodule.fetchJobs 4
@@ -27,6 +30,14 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+      - name: Restore verified Windows tool archives
+        id: tools-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            build/sccache-tools/*.zip
+            ${{ runner.temp }}/glslang.zip
+          key: windows-tools-v1-${{ env.GLSLANG_VERSION }}-${{ env.GLSLANG_SHA256 }}-${{ hashFiles('src/script/setup_sccache_windows.ps1') }}
       - name: Install compiler cache
         id: compiler-cache
         run: |
@@ -38,11 +49,14 @@ jobs:
       - name: Install shader compiler
         run: |
           # Only the offline shader compiler is needed; Vulkan headers are in-tree.
-          $version = '16.6.0'
+          $version = $env:GLSLANG_VERSION
           $archive = Join-Path $env:RUNNER_TEMP glslang.zip
           $toolDir = Join-Path $env:RUNNER_TEMP glslang
-          Invoke-WebRequest -Uri "https://github.com/KhronosGroup/glslang/releases/download/$version/glslang-$version-windows-x86_64-release.zip" -OutFile $archive -MaximumRetryCount 3 -RetryIntervalSec 5
-          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne '82bf434e69b9bb4829de7e2b4bc2c5e7a7861e53d66cf75e5cc70f5f694a8d9b') {
+          $expectedHash = $env:GLSLANG_SHA256
+          if (!(Test-Path $archive -PathType Leaf) -or (Get-FileHash $archive -Algorithm SHA256).Hash -ne $expectedHash) {
+            Invoke-WebRequest -Uri "https://github.com/KhronosGroup/glslang/releases/download/$version/glslang-$version-windows-x86_64-release.zip" -OutFile $archive -MaximumRetryCount 3 -RetryIntervalSec 5
+          }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expectedHash) {
             throw 'The downloaded glslang archive failed its SHA256 check.'
           }
           Expand-Archive -Path $archive -DestinationPath $toolDir -Force
@@ -52,6 +66,14 @@ jobs:
           $binDir >> $env:GITHUB_PATH
           & (Join-Path $binDir glslangValidator.exe) --version
           if ($LASTEXITCODE -ne 0) { throw 'glslang installation failed' }
+      - name: Save Windows tool archives
+        if: ${{ github.ref == 'refs/heads/master' && steps.tools-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            build/sccache-tools/*.zip
+            ${{ runner.temp }}/glslang.zip
+          key: ${{ steps.tools-cache.outputs.cache-primary-key }}
       - name: Identify cache toolchain
         id: toolchain
         run: |
@@ -61,6 +83,7 @@ jobs:
           $identity = (Get-Content $versionFile -Raw) + (& cmake --version | Out-String) + (& ninja --version | Out-String) + (& sccache --version | Out-String)
           $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($identity))).ToLowerInvariant()
           "fingerprint=$hash" >> $env:GITHUB_OUTPUT
+          "cache_epoch=$([DateTime]::UtcNow.ToString('yyyy-MM-dd'))" >> $env:GITHUB_OUTPUT
           # Git object IDs of everything nxemu-cpu is built from, submodules included.
           $cpu = git ls-tree HEAD -- CMakeLists.txt src/cmake src/nxemu-cpu src/yuzu_common src/nxemu-os src/nxemu-module-spec src/3rd_party external | Out-String
           if ($LASTEXITCODE -ne 0 -or -not $cpu) { throw 'Could not list the CPU sources' }
@@ -71,8 +94,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.SCCACHE_DIR }}
-          key: windows-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
+          # Immutable daily snapshots, written only on master.
+          key: windows-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-daily-${{ steps.toolchain.outputs.cache_epoch }}
           restore-keys: |
+            windows-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-daily-
             windows-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-
       # MSVC validates these intermediate optimization results at link time.
       # Keep them separate so existing sccache archives remain reusable.
@@ -105,7 +130,7 @@ jobs:
           sccache --show-stats
           sccache --stop-server
       - name: Save compiler cache
-        if: ${{ !cancelled() && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.ref == 'refs/heads/master' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |
