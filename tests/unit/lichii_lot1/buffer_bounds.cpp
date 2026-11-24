@@ -112,6 +112,11 @@ struct BufferCache
     {
         gpu_write_history.Mark(address, static_cast<u32>(size));
     }
+    void MarkRegionAsGpuModified(DAddr address, u64 size)
+    {
+        MarkGpuWriteHistory(address, size);
+        memory_tracker.MarkRegionAsGpuModified(address, static_cast<u32>(size));
+    }
     void UploadMemory(Buffer &, u64, u64, std::span<BufferCopy>)
     {
         ++uploads;
