@@ -362,7 +362,7 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
 }
 
 void Maxwell3D::RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>> & segments,
-                                      std::vector<u32> & params)
+                                      std::vector<u32> & params, bool flush)
 {
     size_t current_index = 0;
     for (const std::pair<GPUVAddr, size_t> & segment : segments)
@@ -372,8 +372,16 @@ void Maxwell3D::RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size
             current_index += segment.second;
             continue;
         }
-        memory_manager.ReadBlock(segment.first, &params[current_index],
-                                 sizeof(u32) * segment.second);
+        if (flush)
+        {
+            memory_manager.ReadBlock(segment.first, &params[current_index],
+                                     sizeof(u32) * segment.second);
+        }
+        else
+        {
+            memory_manager.ReadBlockUnsafe(segment.first, &params[current_index],
+                                           sizeof(u32) * segment.second);
+        }
         current_index += segment.second;
     }
 }
@@ -1151,13 +1159,12 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             HLECall & call = calls[count];
             if (call.recheck)
             {
-                // The decode thread fetched the parameters before the queued work ran. GPU written
-                // ones are read by RefreshParameters, only when Execute needs them.
+                // The decode thread fetched the parameters before the queued work ran, so read
+                // them again. GPU written ones are read without a flush, as DmaPusher does
+                // without the thread: a flush would wait for the host GPU even when the draw is
+                // indirect. The macro flushes them itself when it needs them (RefreshParameters).
                 call.dirty = call.dirty || AnySegmentDirty(call.segments);
-                if (!call.dirty)
-                {
-                    RefreshParametersImpl(call.segments, call.params);
-                }
+                RefreshParametersImpl(call.segments, call.params, !call.dirty);
             }
             // Execute writes registers directly, before and after its draws
             const GenerationKind kind = call.program->ChangesDrawState() ? GEN_STATE : GEN_NONE;
@@ -1177,6 +1184,9 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             break;
         case StreamPrefetch:
         {
+            // The prefetch changes the bound uniform buffer, a reused draw must bind it again
+            ++generations[GEN_BUFFERS];
+            buffer_changes.rebound_slots[count & 7] |= 1U << (count >> 3);
             const VideoCommon::UniformPrefetch prefetch{
                 .device_addr =
                     static_cast<DAddr>(words[pos]) | (static_cast<DAddr>(words[pos + 1]) << 32),
@@ -1188,6 +1198,8 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             break;
         }
         case StreamPrefetchReset:
+            // Every prefetched binding goes back to the guest buffer
+            ++generations[GEN_STATE];
             rasterizer->ResetUniformPrefetch(static_cast<u64>(words[pos]) |
                                              (static_cast<u64>(words[pos + 1]) << 32));
             pos += 2;

@@ -3387,8 +3387,9 @@ private:
     /// Handles writes to syncing register.
     void ProcessSyncPoint();
 
+    /// Reads the parameters again, flush false skips the host GPU flush of GPU written ones
     void RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>>& segments,
-                               std::vector<u32>& params);
+                               std::vector<u32>& params, bool flush = true);
 
     bool IsMethodExecutable(u32 method);
 
