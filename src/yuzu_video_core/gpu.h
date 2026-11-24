@@ -3,6 +3,10 @@
 
 #pragma once
 
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+#include <chrono>
+#include <optional>
+#endif
 #include <memory>
 #include <mutex>
 
@@ -234,6 +238,12 @@ public:
 
     // Called only by the GPU worker, with its graphics context current.
     void ProcessPendingComposite();
+
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    // Returns the guest frame deadline after a completed composite (zero if hidden).
+    // The GPU worker alone produces and consumes these notifications.
+    std::optional<std::chrono::nanoseconds> TakeCompletedFrameBudget();
+#endif
 
     std::vector<u8> GetAppletCaptureBuffer();
 

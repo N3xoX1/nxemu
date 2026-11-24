@@ -190,6 +190,16 @@ struct SynchState final {
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
     std::atomic<bool> service_ready{};
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    // Published by RunDecodeThread on startup so RunDrawThread can enroll both
+    // cooperating GPU pipeline threads into one ADPF session.
+    std::atomic<int32_t> decode_tid{};
+    // Active work accumulated by RunDecodeThread since the last reported frame.
+    std::atomic<int64_t> decode_work_ns{};
+    // Mirrors RunDrawThread's ADPF availability so RunDecodeThread skips timing
+    // when ADPF is unavailable on the device.
+    std::atomic<bool> adpf_active{};
+#endif
 
     void NotifyComposite() {
         if (!composite_ready.exchange(true, std::memory_order_release)) {

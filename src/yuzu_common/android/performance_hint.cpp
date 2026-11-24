@@ -2,8 +2,10 @@
 
 #include "yuzu_common/android/performance_hint.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <utility>
+#include <vector>
 #if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
 #include <unistd.h>
 
@@ -64,11 +66,29 @@ struct PerformanceHintSession::Impl {
     Clock::time_point last_work_end{};
     std::chrono::nanoseconds work_duration{};
     std::chrono::nanoseconds target{};
+    std::vector<int32_t> extra_tids;
     bool failed{};
 };
 
 PerformanceHintSession::PerformanceHintSession() : impl{std::make_unique<Impl>()} {}
 PerformanceHintSession::~PerformanceHintSession() = default;
+
+bool PerformanceHintSession::IsAvailable() const {
+    return impl->manager != nullptr && !impl->failed;
+}
+
+void PerformanceHintSession::AddThread(int32_t tid) {
+    if (!impl->manager || impl->failed || tid <= 0 || tid == gettid()) {
+        return;
+    }
+    if (std::ranges::find(impl->extra_tids, tid) != impl->extra_tids.end()) {
+        return;
+    }
+    impl->extra_tids.push_back(tid);
+    // Recreate on the next frame so the session includes the full thread set
+    // while staying compatible with Android API 33 (before setThreads in API 34).
+    impl->Close();
+}
 
 void PerformanceHintSession::BeginWork() {
     if (impl->manager && !impl->failed) {
@@ -93,8 +113,16 @@ void PerformanceHintSession::EndWork() {
     }
 }
 
+std::chrono::nanoseconds PerformanceHintSession::TakeWorkDuration() {
+    return std::exchange(impl->work_duration, std::chrono::nanoseconds{});
+}
+
 void PerformanceHintSession::ReportFrame(std::chrono::nanoseconds target) {
-    const auto actual = std::exchange(impl->work_duration, std::chrono::nanoseconds{});
+    ReportFrameDuration(TakeWorkDuration(), target);
+}
+
+void PerformanceHintSession::ReportFrameDuration(std::chrono::nanoseconds actual,
+                                                 std::chrono::nanoseconds target) {
     if (!impl->manager || impl->failed) {
         return;
     }
@@ -104,8 +132,22 @@ void PerformanceHintSession::ReportFrame(std::chrono::nanoseconds target) {
         return;
     }
     if (!impl->session) {
-        const int32_t tid = gettid();
-        impl->session = impl->create_session(impl->manager, &tid, 1, target.count());
+        const int32_t self_tid = gettid();
+        std::vector<int32_t> tids;
+        tids.reserve(1 + impl->extra_tids.size());
+        tids.push_back(self_tid);
+        for (const int32_t extra_tid : impl->extra_tids) {
+            if (extra_tid > 0 && extra_tid != self_tid) {
+                tids.push_back(extra_tid);
+            }
+        }
+        impl->session =
+            impl->create_session(impl->manager, tids.data(), tids.size(), target.count());
+        if (!impl->session && tids.size() > 1) {
+            // Fall back to the owning thread alone if an OEM PowerHAL rejects peer TIDs.
+            impl->extra_tids.clear();
+            impl->session = impl->create_session(impl->manager, &self_tid, 1, target.count());
+        }
         if (!impl->session) {
             LOG_DEBUG(Common, "Android performance hint session unavailable on this device");
             impl->failed = true;
@@ -139,9 +181,14 @@ namespace Common::Android {
 struct PerformanceHintSession::Impl {};
 PerformanceHintSession::PerformanceHintSession() = default;
 PerformanceHintSession::~PerformanceHintSession() = default;
+bool PerformanceHintSession::IsAvailable() const { return false; }
+void PerformanceHintSession::AddThread(int32_t) {}
 void PerformanceHintSession::BeginWork() {}
 void PerformanceHintSession::EndWork() {}
+std::chrono::nanoseconds PerformanceHintSession::TakeWorkDuration() { return {}; }
 void PerformanceHintSession::ReportFrame(std::chrono::nanoseconds) {}
+void PerformanceHintSession::ReportFrameDuration(std::chrono::nanoseconds,
+                                                 std::chrono::nanoseconds) {}
 } // namespace Common::Android
 
 #endif

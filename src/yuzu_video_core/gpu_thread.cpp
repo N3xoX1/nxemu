@@ -2,6 +2,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+#include <chrono>
+#include <unistd.h>
+#include "yuzu_common/android/performance_hint.h"
+#endif
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/scope_exit.h"
@@ -19,6 +24,83 @@ namespace VideoCommon::GPUThread {
 
 namespace {
 constexpr size_t MaxWriteRanges = 1024;
+
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+// Tracks active GPU thread work across command batches (excluding idle queue waits)
+// and reports completed frames to an ADPF session independent of VulkanWorker's session.
+// In async GPU mode, the decode peer thread is enrolled in the same session and the
+// reported duration is the larger of draw and decode active work.
+class GpuAdpfTracker final {
+public:
+    class ScopedWork final {
+    public:
+        explicit ScopedWork(GpuAdpfTracker& tracker_) : tracker{tracker_} {
+            tracker.performance_hint.BeginWork();
+        }
+        ~ScopedWork() {
+            tracker.performance_hint.EndWork();
+        }
+        ScopedWork(const ScopedWork&) = delete;
+        ScopedWork& operator=(const ScopedWork&) = delete;
+
+    private:
+        GpuAdpfTracker& tracker;
+    };
+
+    GpuAdpfTracker(Tegra::GPU& gpu_, SynchState& state_) : gpu{gpu_}, state{state_} {
+        state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
+    }
+
+    ~GpuAdpfTracker() {
+        state.adpf_active.store(false, std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] ScopedWork TrackWork() {
+        return ScopedWork{*this};
+    }
+
+    // Must be called outside execution_mutex and after waking fence/idle waiters
+    // so ADPF Binder IPC never blocks emulated CPUs or the decode thread.
+    void ReportCompletedFrame() {
+        const auto budget = gpu.TakeCompletedFrameBudget();
+        if (!budget) {
+            return;
+        }
+        const auto draw_work = performance_hint.TakeWorkDuration();
+        const auto decode_work = std::chrono::nanoseconds{
+            state.decode_work_ns.exchange(0, std::memory_order_relaxed)};
+        const auto actual = std::max(draw_work, decode_work);
+        if (*budget <= std::chrono::nanoseconds{}) {
+            // Hidden window or unlocked cadence: close the session instead of boosting.
+            performance_hint.ReportFrameDuration({}, {});
+            state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
+            return;
+        }
+        if (!decode_enrolled) {
+            if (const int32_t decode_tid = state.decode_tid.load(std::memory_order_acquire);
+                decode_tid > 0) {
+                performance_hint.AddThread(decode_tid);
+                decode_enrolled = true;
+            }
+        }
+        if (actual <= std::chrono::nanoseconds{} ||
+            (actual > std::chrono::milliseconds{250} && actual > *budget * 4)) {
+            // Loading or shader-compile stall: pass zero duration so a new session can
+            // still initialize or update its target without feeding an outlier to ADPF.
+            performance_hint.ReportFrameDuration({}, *budget);
+        } else {
+            performance_hint.ReportFrameDuration(actual, *budget);
+        }
+        state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
+    }
+
+private:
+    Tegra::GPU& gpu;
+    SynchState& state;
+    Common::Android::PerformanceHintSession performance_hint;
+    bool decode_enrolled{};
+};
+#endif
 } // namespace
 
 void BackQueue::Push(Work&& work, Writes writes) {
@@ -198,18 +280,30 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
 
     Core::Frontend::GraphicsContext::Scoped current_context = context.Acquire();
     VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    GpuAdpfTracker adpf{gpu, state};
+#endif
     std::deque<BackQueue::Work> batch;
     while (!stop_token.stop_requested()) {
         {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+            const auto tracked_work = adpf.TrackWork();
+#endif
             std::scoped_lock execution_lock{state.execution_mutex};
             ServiceWaits(state, rasterizer);
             gpu.ProcessPendingComposite();
         }
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+        adpf.ReportCompletedFrame();
+#endif
         if (!state.back.PopWait(batch, stop_token, state.composite_ready, state.service_ready)) {
             continue;
         }
         const u64 count = batch.size();
         {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+            const auto tracked_work = adpf.TrackWork();
+#endif
             std::scoped_lock execution_lock{state.execution_mutex};
             for (BackQueue::Work& work : batch) {
                 // On exit the guest memory is unmapped before the GPU stops
@@ -225,6 +319,9 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
             gpu.ProcessPendingComposite();
         }
         state.back.FinishMany(count);
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+        adpf.ReportCompletedFrame();
+#endif
     }
 }
 
@@ -236,6 +333,9 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
     gpu.RegisterHostThread();
     VideoCore::gpu_thread_role = VideoCore::GpuThreadRole::Decode;
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    state.decode_tid.store(static_cast<int32_t>(gettid()), std::memory_order_release);
+#endif
 
     CommandDataContainer next;
     while (!stop_token.stop_requested()) {
@@ -245,26 +345,43 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
         if (stop_token.stop_requested()) {
             break;
         }
-        std::scoped_lock decode_lock{state.decode_mutex};
-        if (SubmitListCommand* submit_list = std::get_if<SubmitListCommand>(&next.data)) {
-            scheduler.Push(submit_list->channel, std::move(submit_list->entries));
-        } else if (std::holds_alternative<GPUTickCommand>(next.data)) {
-            state.back.Push([&gpu] { gpu.TickWork(); });
-        } else if (const FlushRegionCommand* flush = std::get_if<FlushRegionCommand>(&next.data)) {
-            state.back.Push([rasterizer, addr = flush->addr, size = flush->size] {
-                rasterizer->FlushRegion(addr, size);
-            });
-        } else if (const InvalidateRegionCommand* invalidate =
-                       std::get_if<InvalidateRegionCommand>(&next.data)) {
-            state.back.Push([rasterizer, addr = invalidate->addr, size = invalidate->size] {
-                rasterizer->OnCacheInvalidation(addr, size);
-            });
-        } else {
-            ASSERT(false);
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+        const bool track_adpf = state.adpf_active.load(std::memory_order_relaxed);
+        const auto work_start =
+            track_adpf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+#endif
+        {
+            std::scoped_lock decode_lock{state.decode_mutex};
+            if (SubmitListCommand* submit_list = std::get_if<SubmitListCommand>(&next.data)) {
+                scheduler.Push(submit_list->channel, std::move(submit_list->entries));
+            } else if (std::holds_alternative<GPUTickCommand>(next.data)) {
+                state.back.Push([&gpu] { gpu.TickWork(); });
+            } else if (const FlushRegionCommand* flush = std::get_if<FlushRegionCommand>(&next.data)) {
+                state.back.Push([rasterizer, addr = flush->addr, size = flush->size] {
+                    rasterizer->FlushRegion(addr, size);
+                });
+            } else if (const InvalidateRegionCommand* invalidate =
+                           std::get_if<InvalidateRegionCommand>(&next.data)) {
+                state.back.Push([rasterizer, addr = invalidate->addr, size = invalidate->size] {
+                    rasterizer->OnCacheInvalidation(addr, size);
+                });
+            } else {
+                ASSERT(false);
+            }
+            state.back.Push(
+                [&state, fence = next.fence, block = next.block] { SignalFence(state, fence, block); },
+                BackQueue::Writes::Nothing);
         }
-        state.back.Push(
-            [&state, fence = next.fence, block = next.block] { SignalFence(state, fence, block); },
-            BackQueue::Writes::Nothing);
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+        if (track_adpf) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                     std::chrono::steady_clock::now() - work_start)
+                                     .count();
+            if (elapsed > 0) {
+                state.decode_work_ns.fetch_add(elapsed, std::memory_order_relaxed);
+            }
+        }
+#endif
     }
 }
 
@@ -278,23 +395,40 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
 
     auto current_context = context.Acquire();
     VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    GpuAdpfTracker adpf{gpu, state};
+#endif
 
     CommandDataContainer next;
 
     while (!stop_token.stop_requested())
     {
         {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+            const auto tracked_work = adpf.TrackWork();
+#endif
             std::scoped_lock execution_lock{state.execution_mutex};
             ServiceWaits(state, rasterizer);
             gpu.ProcessPendingComposite();
         }
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+        adpf.ReportCompletedFrame();
+#endif
         const bool has_command = state.queue.PopWait(next, stop_token, [&] {
             return state.composite_ready.load(std::memory_order_acquire) ||
                    state.service_ready.load(std::memory_order_acquire);
         });
         if (!has_command && !stop_token.stop_requested()) {
-            std::scoped_lock execution_lock{state.execution_mutex};
-            gpu.ProcessPendingComposite();
+            {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+                const auto tracked_work = adpf.TrackWork();
+#endif
+                std::scoped_lock execution_lock{state.execution_mutex};
+                gpu.ProcessPendingComposite();
+            }
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+            adpf.ReportCompletedFrame();
+#endif
             continue;
         }
         if (stop_token.stop_requested())
@@ -302,6 +436,9 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             break;
         }
         {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+            const auto tracked_work = adpf.TrackWork();
+#endif
             std::scoped_lock execution_lock{state.execution_mutex};
             if (auto * submit_list = std::get_if<SubmitListCommand>(&next.data))
             {
@@ -334,6 +471,10 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             std::scoped_lock lk{state.write_lock};
             state.cv.notify_all();
         }
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+        // Never delay an emulated CPU waiting for this fence with ADPF IPC.
+        adpf.ReportCompletedFrame();
+#endif
     }
 }
 
@@ -352,6 +493,11 @@ void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Fronte
         state->stopping = false;
     }
     state->queue.ResetClosed();
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    state->decode_tid.store(0, std::memory_order_relaxed);
+    state->decode_work_ns.store(0, std::memory_order_relaxed);
+    state->adpf_active.store(false, std::memory_order_relaxed);
+#endif
     rasterizer = renderer.ReadRasterizer();
     if (is_async)
     {
