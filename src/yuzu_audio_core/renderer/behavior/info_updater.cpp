@@ -612,13 +612,20 @@ Result InfoUpdater::UpdateErrorInfo(const BehaviorInfo& behaviour_) {
 }
 
 Result InfoUpdater::UpdateSplitterInfo(SplitterContext& splitter_context) {
-    if (!splitter_context.Update(input)) {
+    // The section size comes from the header, as the console does: the splitter data the
+    // game sends can be larger than what is parsed, or present while splitters are unused.
+    // It must still lie inside the input, as the later sections are read from its end.
+    const u64 consumed{static_cast<u64>(CpuAddr(input) - CpuAddr(input_origin.data()))};
+    const u64 section_size{in_header->splitter_size};
+    if (consumed > expected_input_size || section_size > expected_input_size - consumed) {
         return Service::Audio::ResultInvalidUpdateInfo;
     }
 
-    // The section size comes from the header, as the console does: the splitter data the
-    // game sends can be larger than what is parsed, or present while splitters are unused.
-    input += in_header->splitter_size;
+    if (!splitter_context.Update({input, static_cast<size_t>(section_size)})) {
+        return Service::Audio::ResultInvalidUpdateInfo;
+    }
+
+    input += section_size;
 
     return ResultSuccess;
 }

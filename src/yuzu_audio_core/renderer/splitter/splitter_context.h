@@ -102,33 +102,34 @@ public:
     /**
      * Update the context.
      *
-     * @param input         - Input buffer with the new info,
-     *                        expected to point to a InParameterHeader.
+     * @param input - The splitter section of the input buffer, starting with an
+     *                InParameterHeader. Nothing outside it is read.
+     * @return False if the section is invalid or too short.
      */
-    bool Update(const u8* input);
+    bool Update(std::span<const u8> input);
 
     /**
      * Update the splitters.
      *
-     * @param input          - Input buffer with the new info.
-     * @param offset         - Current offset within the input buffer,
+     * @param input          - The splitter section of the input buffer.
+     * @param offset         - Current offset within the section,
      *                         input + offset should point to a SplitterInfo::InParameter.
      * @param splitter_count - Number of splitters in the input buffer.
-     * @return Number of bytes consumed in input.
+     * @return The offset after the last splitter read.
      */
-    u32 UpdateInfo(const u8* input, u32 offset, u32 splitter_count);
+    u32 UpdateInfo(std::span<const u8> input, u32 offset, u32 splitter_count);
 
     /**
      * Update the splitters.
      *
-     * @param input             - Input buffer with the new info.
-     * @param offset            - Current offset within the input buffer,
+     * @param input             - The splitter section of the input buffer.
+     * @param offset            - Current offset within the section,
      *                            input + offset should point to a
      *                            SplitterDestinationData::InParameter.
      * @param destination_count - Number of destinations in the input buffer.
-     * @return Number of bytes consumed in input.
+     * @return The offset after the last destination read.
      */
-    u32 UpdateData(const u8* input, u32 offset, u32 destination_count);
+    u32 UpdateData(std::span<const u8> input, u32 offset, u32 destination_count);
 
     /**
      * Update the state of all destinations in all splitters.

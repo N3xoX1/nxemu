@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -24,45 +25,55 @@ class NullSinkStreamImpl final : public SinkStream {
 public:
     explicit NullSinkStreamImpl(Core::System& system_, StreamType type_)
         : SinkStream{system_, type_} {
-        if (type != StreamType::In) {
-            consumer = std::jthread([this](std::stop_token stop_token) { Consume(stop_token); });
-        }
+        consumer = std::jthread([this](std::stop_token stop_token) { Consume(stop_token); });
     }
     ~NullSinkStreamImpl() override {}
 
-    void AppendBuffer(SinkBuffer& buffer, std::span<s16> samples) override {
-        // Nothing reads captured buffers back, so they must not pile up in the queue.
-        if (type != StreamType::In) {
-            SinkStream::AppendBuffer(buffer, samples);
-        }
+    void AppendBuffer(SinkBuffer& buffer, std::span<s16>) override {
+        // Only the buffer is queued, for its timing. The samples are never played, and
+        // SinkStream::AppendBuffer would scale them in place, in the game's own memory for
+        // audio out.
+        SinkStream::AppendBuffer(buffer, {});
     }
     void Start(bool) override {
         paused = false;
     }
     void Stop() override {
         SignalPause();
+        // Wait for a block in progress, so that the queue can be cleared once this returns.
+        std::scoped_lock lock{consume_mutex};
     }
 
 private:
-    /// Plays queued output into nothing at the device rate. The audio renderer waits only for
-    /// free queue space, so without it the renderer would run as fast as the game answers.
+    /// Plays queued output into nothing, or captures silence, at the device rate. The audio
+    /// renderer waits only for free queue space, so without it the renderer would run as fast
+    /// as the game answers, and captured buffers would never be released.
     void Consume(std::stop_token stop_token) {
         Common::SetCurrentThreadName("NullSinkStream");
         constexpr std::chrono::microseconds period{TargetSampleCount * 1'000'000ULL /
                                                    TargetSampleRate};
-        std::vector<s16> discarded(TargetSampleCount * GetDeviceChannels());
+        std::vector<s16> block(TargetSampleCount * GetDeviceChannels());
         auto next = std::chrono::steady_clock::now();
         while (!stop_token.stop_requested()) {
             next += period;
             std::this_thread::sleep_until(next);
-            if (!paused) {
-                ProcessAudioOutAndRender(discarded, TargetSampleCount);
+            {
+                std::scoped_lock lock{consume_mutex};
+                if (!paused) {
+                    if (type == StreamType::In) {
+                        ProcessAudioIn(block, TargetSampleCount);
+                    } else {
+                        ProcessAudioOutAndRender(block, TargetSampleCount);
+                    }
+                }
             }
             // Catch up after a late wake-up, but not with more than 20 blocks.
             next = std::max(next, std::chrono::steady_clock::now() - 20 * period);
         }
     }
 
+    /// Held while a block is consumed, so that Stop can wait for it
+    std::mutex consume_mutex;
     std::jthread consumer;
 };
 
