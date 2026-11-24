@@ -79,7 +79,7 @@ std::vector<Recipe> Read(const std::filesystem::path& path,const std::filesystem
     const auto packed=Measure(timings,Phase::ProfileIO,[&] {
         return Bytes(path,0,std::filesystem::file_size(path),MaxProfileFileBytes);
     });
-    Check(packed.starts_with("NXSHADR2"),"Expected a compressed NXShader profile");
+    Check(packed.starts_with(ProfileMagic),"Expected a compressed NXShader profile");
     const auto payload=Measure(timings,Phase::ProfileDecompression,[&] { return Unpack(packed); });
     if(timings) timings->Add(Counter::ProfileBytes,packed.size());
     return ReadCompact(payload, root, title_id, unresolved_count, timings, progress, report, target_context, existing_recipes, existing_programs, allow_cross_version);

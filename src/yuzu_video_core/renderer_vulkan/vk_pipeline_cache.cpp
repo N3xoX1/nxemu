@@ -68,6 +68,7 @@
 #include "yuzu_video_core/shader_profile_import_status.h"
 #include "yuzu_video_core/shader_profile_location.h"
 #include "yuzu_video_core/shader_profile_audit.h"
+#include "yuzu_video_core/shader_profile_synthetic_budget.h"
 #include "yuzu_video_core/renderer_vulkan/startup_pipeline_variants.h"
 #include "yuzu_video_core/shader_notify.h"
 #include "yuzu_video_core/surface.h"
@@ -1553,7 +1554,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             dynamic_features.has_vertex_stride_workaround})flags|=u32(feature)<<bit++;
         const auto profile_bytes=read_small(std::filesystem::u8path(import_path),VideoCommon::ShaderProfile::MaxProfileFileBytes);
         // A file people chose is refused by name when it is not a shader file.
-        if(importing && !profile_bytes.starts_with("NXSHADR2"))throw std::runtime_error("Expected a compressed NXShader profile");
+        if(importing && !profile_bytes.starts_with(VideoCommon::ShaderProfile::ProfileMagic))throw std::runtime_error("Expected a compressed NXShader profile");
         const auto profile_hash=VideoCommon::ShaderProfile::ResourceSha256(profile_bytes);
         import_stamp=VideoCommon::ShaderProfile::ImportIdentity(profile_hash,content_identity,title_id,flags,CACHE_VERSION);
         integration_stamp=import_stamp.empty()?VideoCommon::ShaderProfile::ResourceSha256(
@@ -1654,8 +1655,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             std::unordered_set<const void*> indexed_programs;
             for(const auto& record:cached_records)for(const auto& env:record.environments) {
                 if(env.ProgramIdentity() && indexed_programs.insert(env.ProgramIdentity()).second)
-                    for(const auto hash:VideoCommon::ShaderProfile::ProgramHashCandidates(env.ProgramBytes()))
-                        if(hash)available_programs.emplace(hash,env.ProgramStorage());
+                    available_programs.emplace(VideoCommon::ShaderProfile::ProgramIdentity(env.ProgramBytes()),env.ProgramStorage());
             }
             const auto recipes = VideoCommon::ShaderProfile::Read(
                 std::filesystem::u8path(path), std::filesystem::u8path(root), title_id, &unresolved_count,
@@ -1705,6 +1705,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             // Each receipt lists every record so far, so writing one per fixed number of recipes grows with the
             // square of the import. It only saves an interrupted import from repeating work: a few seconds is fine.
             auto last_receipt=std::chrono::steady_clock::now();
+            // A base pack lists each program set's synthetic recipes most likely first: build only the
+            // first ones that give this device a new pipeline (docs/nxshader-format.md, RCPS).
+            VideoCommon::ShaderProfile::SyntheticSetBudget synthetic_budget;
             // Integrate recipes for the running game first; optional foreign
             // contexts must not exhaust the input budget ahead of local work.
             for (bool foreign_pass : {false, true}) for (const auto& recipe : recipes) {
@@ -1718,6 +1721,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 VideoCommon::CacheStore::Record record;
                 record.environments = recipe.environments;
                 JournalEntry entry{};
+                bool over_budget{};
                 Timing::Timer projection_timer(state.timings.get(), Timing::Phase::GuestProjection);
                 if (recipe.compute) {
                     ComputePipelineCacheKey key{};
@@ -1738,6 +1742,19 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     key.cbuf_sizes = recipe.cbuf_sizes;
                     key.texture_pool = recipe.texture_pool;
                     key.state = guest->Project(dynamic_features);
+                    if (!recipe.requires_validation && !envs.empty()) {
+                        // The whole key the cache will hold for this device (bindings included), its
+                        // state masked as load_graphics masks it.
+                        auto masked = key;
+                        masked.state.MaskUnusedState(key.unique_hashes[0] == 0 && key.unique_hashes[1] != 0
+                                                         ? VideoCommon::DeclaredInputTypeMask(envs.front().SPH())
+                                                         : ~0ULL);
+                        const std::string_view set(reinterpret_cast<const char*>(key.unique_hashes.data()),
+                                                   sizeof(key.unique_hashes));
+                        over_budget = !synthetic_budget.Admit(
+                            set, std::string_view(reinterpret_cast<const char*>(&masked), masked.Size()),
+                            recipe.synthetic && !recipe.played);
+                    }
                     record.key.assign(reinterpret_cast<const char*>(&key), sizeof(key));
                     // Feature bits, the guest words, then the key up to its projected state.
                     const auto words = guest->Words();
@@ -1747,6 +1764,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                                 (entry.size() - 1 - GuestPipelineState::WordCount) * sizeof(u32));
                 }
                 projection_timer.Stop();
+                if (over_budget) {
+                    ++imported;
+                    profile_progress(VideoCore::LoadCallbackStage::ImportProfile,imported,recipes.size());
+                    continue;
+                }
                 std::string id;
                 Timing::Measure(state.timings.get(), Timing::Phase::CacheAppend, [&] {
                     VideoCommon::CacheStore::Append(pipeline_cache_filename, CACHE_VERSION, record, &id,
@@ -1815,12 +1837,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     for (const auto& recipe : recipes) for (const auto& env : recipe.environments) {
                         if (!env.ProgramIdentity() || !seen_programs.insert(env.ProgramIdentity()).second) continue;
                         const auto& code = env.ProgramBytes();
-                        for (const auto hash : VideoCommon::ShaderProfile::ProgramHashCandidates(code)) {
-                            const auto key = VideoCommon::ShaderProfile::ProgramKey(hash, code.size());
-                            if (!hash || !shaders.isMember(key) || shaders[key]["references"].empty()) continue;
+                        const auto key = VideoCommon::ShaderProfile::ProgramKey(code);
+                        if (shaders.isMember(key) && !shaders[key]["references"].empty())
                             references.emplace(VideoCommon::ShaderProfile::ResourceSha256(code), shaders[key]["references"][int32_t{0}]);
-                            break;
-                        }
                     }
                     for (const auto& [context, entries] : imported_entries)
                         VideoCommon::ShaderProfile::SeedDiscoveryIndex(
@@ -1835,8 +1854,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 if (importing) import->imported = true;
             } else if (!recipe_records.empty()) publish_integration(false);
             import_unresolved=unresolved_count;imported_records=imported;
-            LOG_INFO(Render_Vulkan, "NXShader imported {} recipes; reused={} skipped={} missing_resources={} incompatible_resources={} incompatible_contexts={}",
-                imported, import_report.reused, import_report.skipped, import_report.missing_resources, import_report.incompatible_resources, import_report.incompatible_contexts);
+            LOG_INFO(Render_Vulkan, "NXShader imported {} recipes; reused={} skipped={} synthetic_over_budget={} missing_resources={} incompatible_resources={} incompatible_contexts={}",
+                imported, import_report.reused, import_report.skipped, synthetic_budget.Rejected(), import_report.missing_resources, import_report.incompatible_resources, import_report.incompatible_contexts);
             if (unresolved_count) LOG_WARNING(Render_Vulkan,
                 "NXShader retains {} observations without serialized environments; these cannot be prewarmed", unresolved_count);
         } catch (const std::exception& error) {

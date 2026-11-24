@@ -81,9 +81,13 @@ add_library(video_core STATIC
     shader_profile_export.h
     shader_profile_discovery.cpp
     shader_profile_discovery.h
+    shader_profile_harvest.cpp
+    shader_profile_harvest.h
     shader_profile_nx.cpp
     shader_profile_nx.h
     shader_profile_compact.cpp
+    shader_profile_guest_state.cpp
+    shader_profile_guest_state.h
     shader_profile_compact.h
     shader_profile_codec.cpp
     shader_profile_codec.h

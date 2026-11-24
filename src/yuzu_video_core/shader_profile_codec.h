@@ -1,13 +1,25 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 namespace VideoCommon::ShaderProfile {
-// Bounded compression envelope; the runtime separately requires NXSHBIN1 or NXSHBIN2.
-// Unpack also accepts raw bytes for offline diagnostic tools.
-std::string Pack(std::string_view json, int level = 3);
-std::string Unpack(std::string_view bytes);
+// The NXShader container (docs/nxshader-format.md): a fixed 48-byte header, up
+// to 4 KiB of extensions, then one checksummed zstd frame holding the payload.
+inline constexpr std::string_view ProfileMagic = "NXSHADR1";
+inline constexpr uint32_t ProfileMajor = 1, ProfileMinor = 0, ProfileSchema = 1;
+inline constexpr size_t ProfileHeaderSize = 48, MaxProfileExtensionBytes = 4096;
+// Platforms: 1 Switch, 2 Switch 2.
+inline constexpr uint32_t SwitchPlatform = 1, Switch2Platform = 2;
+struct ContainerInfo {
+    uint32_t major{}, minor{}, platform{}, schema{}, features{};
+    std::string extensions;
+};
+std::string Pack(std::string_view payload, int level = 3, uint32_t platform = SwitchPlatform);
+// Also reads raw payload bytes (major 0) for tools.
+// Without info, a file for another platform than the Switch is refused.
+std::string Unpack(std::string_view bytes, ContainerInfo* info = nullptr);
 // One record of an append-only local file. PackFrame returns an empty string when
 // compression would not save space; the caller then stores the bytes as they are.
 // UnpackFrame is false unless bytes are exactly one frame of at most max_size bytes.

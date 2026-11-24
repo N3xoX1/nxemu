@@ -4353,6 +4353,10 @@ msgid "Some shaders were not included: the game version they belong to is unknow
 msgstr "部分着色器未包含在内：无法确定它们所属的游戏版本。"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Predicted shaders left out, imported but never used in play: %1"
+msgstr "已省略的预测着色器（已导入但游戏中从未使用）：%1"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Choose the folder for the %1 shader files"
 msgstr "选择用于保存这 %1 个着色器文件的文件夹"
 

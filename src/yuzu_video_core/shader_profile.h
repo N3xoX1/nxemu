@@ -34,8 +34,8 @@ struct Recipe {
     u32 texture_table_size{};
     std::vector<SharedShaderBytes> environments;
 };
-// Local program bytes keyed by every hash the emulator can give them.
-using ProgramMap = std::map<u64,std::shared_ptr<const std::string>>;
+// Local program bytes keyed by ProgramIdentity (the first 8 bytes of their SHA-256).
+using ProgramMap = std::map<std::string,std::shared_ptr<const std::string>>;
 struct ImportReport {
     size_t candidates{}, accepted{}, reused{}, skipped{}, missing_resources{}, incompatible_resources{}, incompatible_contexts{};
     std::vector<std::string> reused_ids;

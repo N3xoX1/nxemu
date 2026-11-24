@@ -393,11 +393,11 @@ int main() try {
     // A falsely labelled cached program must never bypass verification. It may
     // fall back to local game bytes, but cannot work after those bytes disappear.
     Profile::ProgramMap available;
-    available[hash]=std::make_shared<const std::string>(code.size(),'X');
+    available[Profile::ProgramIdentity(code)]=std::make_shared<const std::string>(code.size(),'X');
     Require(Profile::ReadCompact(payload,scratch.root,title,nullptr,nullptr,{},nullptr,{},nullptr,&available).size()==1,"Bad cache prevented valid resource fallback");
     std::filesystem::remove(scratch.root/"game.dnsp");
     Reject([&]{Profile::ReadCompact(payload,scratch.root,title,nullptr,nullptr,{},nullptr,{},nullptr,&available);});
-    available[hash]=std::make_shared<const std::string>(code);
+    available[Profile::ProgramIdentity(code)]=std::make_shared<const std::string>(code);
     Require(Profile::ReadCompact(payload,scratch.root,title,nullptr,nullptr,{},nullptr,{},nullptr,&available).size()==1,"Verified local program was not reused");
     const std::set<std::string> existing{recipes[0].identity};Profile::ImportReport reused;
     Require(Profile::ReadCompact(payload,scratch.root/"absent",title,nullptr,nullptr,{},&reused,{},&existing).empty() && reused.reused==1,"Verified recipe reuse performed resource IO");

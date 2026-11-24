@@ -4370,6 +4370,10 @@ msgid "Some shaders were not included: the game version they belong to is unknow
 msgstr "Alcuni shader non sono stati inclusi: la versione del gioco a cui appartengono è sconosciuta."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
+msgid "Predicted shaders left out, imported but never used in play: %1"
+msgstr "Shader previsti esclusi, importati ma mai usati in gioco: %1"
+
+#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Choose the folder for the %1 shader files"
 msgstr "Scegli la cartella per i %1 file degli shader"
 

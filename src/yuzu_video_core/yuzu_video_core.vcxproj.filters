@@ -5,10 +5,14 @@
     <ClCompile Include="shader_profile_export.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="shader_profile_discovery.h"><Filter>Header Files</Filter></ClInclude>
     <ClCompile Include="shader_profile_discovery.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="shader_profile_harvest.h"><Filter>Header Files</Filter></ClInclude>
+    <ClCompile Include="shader_profile_harvest.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="shader_profile_nx.h"><Filter>Header Files</Filter></ClInclude>
     <ClCompile Include="shader_profile_nx.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="shader_profile_compact.h"><Filter>Header Files</Filter></ClInclude>
     <ClCompile Include="shader_profile_compact.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="shader_profile_guest_state.h"><Filter>Header Files</Filter></ClInclude>
+    <ClCompile Include="shader_profile_guest_state.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="shader_profile_journal.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="renderer_vulkan\guest_pipeline_recorder.h"><Filter>Header Files\renderer_vulkan</Filter></ClInclude>
     <ClInclude Include="renderer_vulkan\guest_recipe_input_cache.h"><Filter>Header Files\renderer_vulkan</Filter></ClInclude>
