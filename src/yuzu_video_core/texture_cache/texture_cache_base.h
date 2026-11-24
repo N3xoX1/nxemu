@@ -23,6 +23,7 @@
 #include "yuzu_common/literals.h"
 #include "yuzu_common/lru_cache.h"
 #include "yuzu_common/polyfill_ranges.h"
+#include "yuzu_common/range_sets.h"
 #include "yuzu_common/recursive_mutex.h"
 #include "yuzu_common/scratch_buffer.h"
 #include "yuzu_common/slot_vector.h"
@@ -287,17 +288,21 @@ public:
     /// Return true when the caller should wait for async downloads
     [[nodiscard]] bool ShouldWaitAsyncFlushes() const noexcept;
 
-    [[nodiscard]] bool HasUnpublishedDownloads() const noexcept {
-        return std::ranges::any_of(committed_downloads,
-                                   [](const auto& downloads) { return !downloads.empty(); });
+    /// Return true when the uncommitted downloads could be read by the CPU before they are
+    /// published
+    [[nodiscard]] bool HasUnprotectedUncommittedFlushes();
+
+    /// Return true when a committed download the CPU can read before its publication is
+    /// still in flight
+    [[nodiscard]] bool HasUnprotectedDownloads() const noexcept {
+        return unprotected_downloads != 0;
     }
 
-#if defined(__APPLE__)
-    static constexpr bool ReadFaultsWaitForDownloads = true;
-#else
-    // x64 read faults wait for buffer downloads and query results, not for image downloads
-    static constexpr bool ReadFaultsWaitForDownloads = false;
-#endif
+    /// Lock-free: true when the region may hold a committed download that keeps it unreadable
+    /// by the CPU until it is published
+    [[nodiscard]] bool AwaitsProtectedDownload(DAddr addr, size_t size) const noexcept {
+        return protected_download_pages.Any(addr, size);
+    }
 
     /// Commit asynchronous downloads
     void CommitAsyncFlushes();
@@ -614,6 +619,10 @@ private:
         u64 modification_tick{};
         u64 gpu_write_tick{};
     };
+    /// Whether a CPU read of these downloads before their publication waits for it
+    bool DownloadsProtected(std::span<const PendingDownload> downloads);
+    void ProtectCommittedDownloads();
+    void ReleaseDownloadProtection();
     bool TryDownloadObservedImage(Image& image, AsyncBuffer& map, PendingDownload& download);
 
     // Keeps, across a writeback of an image, the guest bytes of overlapping images that the
@@ -646,6 +655,15 @@ private:
 
     std::vector<PendingDownload> uncommitted_downloads;
     std::deque<std::vector<PendingDownload>> committed_downloads;
+    // Per committed download list: the pages kept unreadable until publication, or whether
+    // the CPU may read them before it
+    std::deque<boost::container::small_vector<std::pair<DAddr, u64>, 4>> pending_protected_ranges;
+    std::deque<bool> pending_unprotected_downloads;
+    size_t unprotected_downloads = 0;
+    /// Committed downloads above this size keep the fence waiting, as the buffer cache does
+    static constexpr u64 MAX_PROTECTED_DOWNLOAD_BYTES = 1_MiB;
+    Common::OverlapRangeSet<DAddr> protected_downloads;
+    AtomicPageBits<34, 12> protected_download_pages;
     std::vector<AsyncBuffer> uncommitted_async_buffers;
     std::deque<std::vector<AsyncBuffer>> async_buffers;
     std::deque<AsyncBuffer> async_buffers_death_ring;

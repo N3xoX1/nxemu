@@ -982,7 +982,8 @@ bool RasterizerVulkan::AwaitsProtectedDownload(DAddr addr, u64 size) {
 }
 
 bool RasterizerVulkan::AwaitsProtectedBufferDownload(DAddr addr, u64 size) {
-    return buffer_cache.AwaitsProtectedDownload(addr, size);
+    return buffer_cache.AwaitsProtectedDownload(addr, size) ||
+           texture_cache.AwaitsProtectedDownload(addr, size);
 }
 
 bool RasterizerVulkan::HasPendingResult(DAddr addr, u64 size) {
@@ -1014,9 +1015,7 @@ bool RasterizerVulkan::CommitReadbacksForEarlySignal() {
         fence_manager.SignalReference();
     }
     std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
-    const bool images_protected =
-        TextureCache::ReadFaultsWaitForDownloads || !texture_cache.HasUnpublishedDownloads();
-    return images_protected && !buffer_cache.HasUnprotectedDownloads();
+    return !texture_cache.HasUnprotectedDownloads() && !buffer_cache.HasUnprotectedDownloads();
 }
 
 VideoCore::SharedPageAccess RasterizerVulkan::ObserveSharedPage(DAddr addr, u64 size) {

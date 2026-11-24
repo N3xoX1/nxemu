@@ -12,6 +12,7 @@
 
 #include "video_settings.h"
 #include "yuzu_common/alignment.h"
+#include "yuzu_common/range_sets.inc"
 #include "yuzu_common/settings.h"
 #include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_video_core/control/channel_state.h"
@@ -1475,6 +1476,87 @@ bool TextureCache<P>::HasUncommittedFlushes() const noexcept {
 }
 
 template <class P>
+bool TextureCache<P>::HasUnprotectedUncommittedFlushes() {
+    return !DownloadsProtected(uncommitted_downloads);
+}
+
+template <class P>
+bool TextureCache<P>::DownloadsProtected(std::span<const PendingDownload> downloads) {
+#if defined(__APPLE__)
+    // Native reads of images download them synchronously
+    return true;
+#else
+    if (downloads.empty()) {
+        return true;
+    }
+    // Pages of GPU written images fault on CPU reads, and the fault waits for the pages
+    // ProtectCommittedDownloads marks
+    if (!device_memory.ProtectsReadCachedPages()) {
+        return false;
+    }
+    // Above the limit, protecting and releasing the pages costs more than the fence wait saves
+    u64 total_bytes = 0;
+    return std::ranges::all_of(downloads, [this, &total_bytes](const PendingDownload& download) {
+        if (!download.is_swizzle) {
+            return false;
+        }
+        const ImageBase& image = slot_images[download.object_id];
+        total_bytes += image.guest_size_bytes;
+        return False(image.flags & ImageFlagBits::Sparse) && image.cpu_addr < (1ULL << 40) &&
+               total_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES;
+    });
+#endif
+}
+
+template <class P>
+void TextureCache<P>::ProtectCommittedDownloads() {
+    auto& protected_ranges = pending_protected_ranges.emplace_back();
+    const bool is_protected = DownloadsProtected(uncommitted_downloads);
+    pending_unprotected_downloads.push_back(!is_protected);
+    unprotected_downloads += is_protected ? 0 : 1;
+#if !defined(__APPLE__)
+    if (!is_protected) {
+        return;
+    }
+    for (const PendingDownload& download : uncommitted_downloads) {
+        const ImageBase& image = slot_images[download.object_id];
+        const DAddr addr = image.cpu_addr;
+        const u64 size = image.guest_size_bytes;
+        protected_download_pages.Set(addr, size);
+        device_memory.UpdatePagesReadCachedCount(addr, size, 1);
+        protected_downloads.Add(addr, size);
+        protected_ranges.emplace_back(addr, size);
+    }
+#endif
+}
+
+template <class P>
+void TextureCache<P>::ReleaseDownloadProtection() {
+    unprotected_downloads -= pending_unprotected_downloads.front() ? 1 : 0;
+    pending_unprotected_downloads.pop_front();
+    using PageBits = decltype(protected_download_pages);
+    for (const auto& [addr, size] : pending_protected_ranges.front()) {
+        device_memory.UpdatePagesReadCachedCount(addr, size, -1);
+        protected_downloads.Subtract(addr, size);
+        // Clear the pages between the downloads still in flight, which keep theirs. Readers
+        // test the pages without a lock, so a kept page is never cleared, even briefly.
+        const DAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
+        DAddr cursor = Common::AlignDown(addr, PageBits::PAGE_SIZE);
+        protected_downloads.ForEachInRange(cursor, end - cursor, [&](DAddr begin, DAddr last, s32) {
+            const DAddr kept = Common::AlignDown(begin, PageBits::PAGE_SIZE);
+            if (kept > cursor) {
+                protected_download_pages.Clear(cursor, kept - cursor);
+            }
+            cursor = std::max(cursor, Common::AlignUp(last, PageBits::PAGE_SIZE));
+        });
+        if (cursor < end) {
+            protected_download_pages.Clear(cursor, end - cursor);
+        }
+    }
+    pending_protected_ranges.pop_front();
+}
+
+template <class P>
 bool TextureCache<P>::ShouldWaitAsyncFlushes() const noexcept {
     return !committed_downloads.empty() && !committed_downloads.front().empty();
 }
@@ -1583,6 +1665,7 @@ void TextureCache<P>::CommitAsyncFlushes() {
             download.gpu_write_tick = slot_images[download.object_id].gpu_write_tick;
         }
     }
+    ProtectCommittedDownloads();
     // This is intentionally passing the value by copy
     if constexpr (IMPLEMENTS_ASYNC_DOWNLOADS) {
         auto& download_ids = uncommitted_downloads;
@@ -1776,6 +1859,7 @@ void TextureCache<P>::PopAsyncFlushes() {
     if constexpr (IMPLEMENTS_ASYNC_DOWNLOADS) {
         const auto& download_ids = committed_downloads.front();
         if (download_ids.empty()) {
+            ReleaseDownloadProtection();
             committed_downloads.pop_front();
             async_buffers.pop_front();
             return;
@@ -1842,11 +1926,14 @@ void TextureCache<P>::PopAsyncFlushes() {
         for (auto& download_buffer : download_map) {
             async_buffers_death_ring.emplace_back(download_buffer);
         }
+        // Published: CPU reads may go on
+        ReleaseDownloadProtection();
         committed_downloads.pop_front();
         async_buffers.pop_front();
     } else {
         const auto& download_ids = committed_downloads.front();
         if (download_ids.empty()) {
+            ReleaseDownloadProtection();
             committed_downloads.pop_front();
             return;
         }
@@ -1888,6 +1975,7 @@ void TextureCache<P>::PopAsyncFlushes() {
             download_map.offset += image.unswizzled_size_bytes;
             download_span = download_span.subspan(image.unswizzled_size_bytes);
         }
+        ReleaseDownloadProtection();
         committed_downloads.pop_front();
     }
 }
