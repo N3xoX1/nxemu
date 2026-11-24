@@ -1012,17 +1012,10 @@ void Maxwell3D::Publish(bool verify)
     if (back_queue->IsThreaded())
     {
         // Remaps wait for the queue to drain, so these device ranges hold until the writes run
-        for (const auto & [begin, end] : stream_write_ranges)
-        {
-            for (const auto & [address, size] : memory_manager.GetSubmappedDeviceRange(begin, end - begin))
-            {
-                device_write_ranges.emplace_back(address, address + size);
-            }
-        }
+        ConvertWriteRanges();
         back_queue->AddWrites(device_write_ranges);
-        device_write_ranges.clear();
     }
-    stream_write_ranges.clear();
+    ClearWriteRanges();
     const auto writes = std::exchange(stream_writes_anywhere, false)
                             ? VideoCommon::GPUThread::BackQueue::Writes::Anywhere
                             : VideoCommon::GPUThread::BackQueue::Writes::AddedRanges;
@@ -1041,9 +1034,63 @@ void Maxwell3D::Publish(bool verify)
     back_queue->Push([this, block]() { RunBlock(block); }, writes);
 }
 
+bool Maxwell3D::UnpublishedMayWrite(std::span<const std::pair<DAddr, std::size_t>> ranges)
+{
+    if (!stream_writes_memory)
+    {
+        return false;
+    }
+    if (stream_writes_anywhere)
+    {
+        return true;
+    }
+    ConvertWriteRanges();
+    for (const auto & [address, size] : ranges)
+    {
+        const DAddr end = address + size;
+        if (end <= device_writes_begin || device_writes_end <= address)
+        {
+            continue;
+        }
+        for (const auto & [write_begin, write_end] : device_write_ranges)
+        {
+            if (address < write_end && write_begin < end)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void Maxwell3D::ConvertWriteRanges()
+{
+    for (; converted_write_ranges < stream_write_ranges.size(); ++converted_write_ranges)
+    {
+        const auto & [begin, end] = stream_write_ranges[converted_write_ranges];
+        for (const auto & [address, size] : memory_manager.GetSubmappedDeviceRange(begin, end - begin))
+        {
+            device_write_ranges.emplace_back(address, address + size);
+            device_writes_begin = std::min(device_writes_begin, address);
+            device_writes_end = std::max<DAddr>(device_writes_end, address + size);
+        }
+    }
+}
+
+void Maxwell3D::ClearWriteRanges()
+{
+    stream_write_ranges.clear();
+    device_write_ranges.clear();
+    converted_write_ranges = 0;
+    device_writes_begin = ~DAddr{};
+    device_writes_end = 0;
+}
+
 void Maxwell3D::FrontMemoryWrite(GPUVAddr address, u64 size)
 {
-    if (!stream_write_ranges.empty() && address == stream_write_ranges.back().second)
+    // A range already converted to device ranges stays as it is
+    if (stream_write_ranges.size() > converted_write_ranges &&
+        address == stream_write_ranges.back().second)
     {
         stream_write_ranges.back().second += size;
         return;
@@ -1095,7 +1142,7 @@ void Maxwell3D::DrainStream(bool verify)
     stream.clear();
     hle_count = 0;
     stream_writes_memory = false;
-    stream_write_ranges.clear();
+    ClearWriteRanges();
     stream_writes_anywhere = false;
     stream_draining = false;
     ++stream_drains;

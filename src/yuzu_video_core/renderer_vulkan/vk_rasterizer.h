@@ -125,6 +125,8 @@ public:
                      VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void FlushNativeRegion(DAddr addr, u64 size) override;
     bool MayFlushSharedPage(DAddr addr, u64 size) override;
+    bool MayHaveComputeWrites(DAddr addr, u64 size) override;
+    u64 ComputeWriteEpoch() override;
     VideoCore::SharedPageAccess ObserveSharedPage(DAddr addr, u64 size) override;
     bool AwaitsProtectedDownload(DAddr addr, u64 size) override;
     bool AwaitsProtectedBufferDownload(DAddr addr, u64 size) override;

@@ -5,6 +5,8 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <utility>
 
 namespace VideoCommon {
 // Only proves that a region has NEVER been GPU-dirty. No clearing means CPU
@@ -18,18 +20,21 @@ class GpuWriteHistory {
     static constexpr size_t WordCount = ((Limit >> PageBits) + 63) / 64;
 
 public:
-    void Mark(std::uint64_t address, std::uint64_t size) noexcept {
-        if (!size) return;
+    /// Returns true when a page was not marked yet
+    bool Mark(std::uint64_t address, std::uint64_t size) noexcept {
+        if (!size) return false;
         if (address >= Limit || size > Limit-address) {
-            unbounded.store(true,std::memory_order_release);
-            return;
+            return !unbounded.exchange(true,std::memory_order_acq_rel);
         }
+        bool added = false;
         VisitWords(address,size,[&](size_t word,std::uint64_t mask) {
             // Published bits never clear, so avoid rewriting an unchanged word.
             if ((pages[word].load(std::memory_order_relaxed)&mask)==mask) return false;
             pages[word].fetch_or(mask,std::memory_order_release);
+            added = true;
             return false;
         });
+        return added;
     }
 
     [[nodiscard]] bool MayHaveWrites(std::uint64_t address,std::uint64_t size) const noexcept {
@@ -115,5 +120,36 @@ private:
     }
     std::array<std::atomic<std::uint64_t>, WordCount> pages{};
     std::atomic<bool> unbounded{};
+};
+// Pages compute dispatches wrote, marked by the GPU thread before a dispatch runs and probed
+// lock-free by the decode thread for the pushbuffer entries it fetches meanwhile
+class ComputeWriteHistory {
+public:
+    void Mark(std::uint64_t address, std::uint64_t size) noexcept {
+        // Dispatches write the same buffers and images again: the pages they marked stay marked
+        const std::uint64_t end = address + size;
+        for (const auto& [begin, marked_end] : marked) {
+            if (begin <= address && end <= marked_end) return;
+        }
+        marked[next++ % marked.size()] = {address, end};
+        if (pages->Mark(address, size)) {
+            epoch.fetch_add(1, std::memory_order_release);
+        }
+    }
+
+    [[nodiscard]] bool MayHaveWrites(std::uint64_t address, std::uint64_t size) const noexcept {
+        return pages->MayHaveWrites(address, size);
+    }
+
+    /// Changes when a page no dispatch wrote before is marked
+    [[nodiscard]] std::uint64_t Epoch() const noexcept {
+        return epoch.load(std::memory_order_acquire);
+    }
+
+private:
+    std::unique_ptr<GpuWriteHistory<34, 12>> pages = std::make_unique<GpuWriteHistory<34, 12>>();
+    std::atomic<std::uint64_t> epoch{};
+    std::array<std::pair<std::uint64_t, std::uint64_t>, 16> marked{};
+    size_t next{};
 };
 } // namespace VideoCommon

@@ -976,6 +976,16 @@ bool RasterizerVulkan::MayFlushSharedPage(DAddr addr, u64 size) {
            texture_cache.MayHaveUnpublishedReadImage(addr, size);
 }
 
+bool RasterizerVulkan::MayHaveComputeWrites(DAddr addr, u64 size) {
+    return buffer_cache.MayHaveComputeWrites(addr, size) ||
+           texture_cache.MayHaveComputeWrites(addr, size);
+}
+
+u64 RasterizerVulkan::ComputeWriteEpoch() {
+    // Both only grow, so the sum changes whenever one does
+    return buffer_cache.ComputeWriteEpoch() + texture_cache.ComputeWriteEpoch();
+}
+
 bool RasterizerVulkan::AwaitsProtectedDownload(DAddr addr, u64 size) {
     return buffer_cache.AwaitsProtectedDownload(addr, size) ||
            query_cache.AwaitsProtectedResult(addr, size);

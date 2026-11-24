@@ -326,6 +326,21 @@ public:
     [[nodiscard]] bool HasUnpublishedReadImage(DAddr addr, size_t size);
 
     /// Lock-free: false proves that no image the guest reads back has unpublished data here.
+    /// Lock-free: false proves that no compute dispatch ever wrote an image in this memory
+    [[nodiscard]] bool MayHaveComputeWrites(DAddr addr, size_t size) const noexcept {
+        return compute_writes.MayHaveWrites(addr, size);
+    }
+
+    /// Lock-free: changes when a dispatch writes an image page no dispatch wrote before
+    [[nodiscard]] u64 ComputeWriteEpoch() const noexcept {
+        return compute_writes.Epoch();
+    }
+
+    /// The images marked modified meanwhile are written by a compute dispatch
+    void SetComputeBinding(bool binding) noexcept {
+        binding_compute = binding;
+    }
+
     [[nodiscard]] bool MayHaveUnpublishedReadImage(DAddr addr, size_t size) const noexcept {
         return unpublished_read_pages.Any(addr, size);
     }
@@ -647,6 +662,9 @@ private:
     std::vector<PendingDownload> uncommitted_downloads;
     std::deque<std::vector<PendingDownload>> committed_downloads;
     std::vector<AsyncBuffer> uncommitted_async_buffers;
+    /// Images compute dispatches wrote, probed by the decode thread
+    ComputeWriteHistory compute_writes;
+    bool binding_compute{};
     std::deque<std::vector<AsyncBuffer>> async_buffers;
     std::deque<AsyncBuffer> async_buffers_death_ring;
 

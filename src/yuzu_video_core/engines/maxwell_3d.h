@@ -3298,6 +3298,8 @@ public:
     }
 
     void FrontMemoryWrite(GPUVAddr address, u64 size);
+    void ConvertWriteRanges();
+    void ClearWriteRanges();
 
     /// Decode side: queues an HLE macro call for the execute side.
     void FrontHLEMacro(CachedMacro* program, const std::vector<u32>& parameters, u32 method);
@@ -3314,6 +3316,9 @@ public:
     bool HasPendingMemoryWrites() const {
         return stream_writes_memory;
     }
+
+    /// Decode side: the methods not handed to the GPU thread yet may write these device ranges
+    bool UnpublishedMayWrite(std::span<const std::pair<DAddr, std::size_t>> ranges);
 
     u32 GetMaxCurrentVertices();
 
@@ -3456,6 +3461,10 @@ private:
     bool stream_writes_memory{};
     std::vector<std::pair<GPUVAddr, GPUVAddr>> stream_write_ranges;
     std::vector<std::pair<DAddr, DAddr>> device_write_ranges;
+    /// The first stream_write_ranges already in device_write_ranges, and their bounds
+    size_t converted_write_ranges{};
+    DAddr device_writes_begin{~DAddr{}};
+    DAddr device_writes_end{};
     bool stream_writes_anywhere{};
     bool stream_draining{};
     std::vector<HLECall> hle_calls;
