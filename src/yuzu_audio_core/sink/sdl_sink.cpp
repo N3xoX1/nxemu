@@ -295,6 +295,7 @@ SinkStream* SDLSink::AcquireSinkStream(Core::System& system, u32 system_channels
     std::scoped_lock lock{streams_mutex};
     SinkStreamPtr& stream = sink_streams.emplace_back(std::make_unique<SDLSinkStream>(
         GetDeviceChannels(), system_channels_, output_device, input_device, type, system));
+    stream->SetDeviceVolume(device_volume);
     return stream.get();
 }
 
@@ -321,15 +322,12 @@ void SDLSink::CloseStreams() {
 
 f32 SDLSink::GetDeviceVolume() const {
     std::scoped_lock lock{streams_mutex};
-    if (sink_streams.empty()) {
-        return 1.0f;
-    }
-
-    return sink_streams[0]->GetDeviceVolume();
+    return device_volume;
 }
 
 void SDLSink::SetDeviceVolume(f32 volume) {
     std::scoped_lock lock{streams_mutex};
+    device_volume = volume;
     for (auto& stream : sink_streams) {
         stream->SetDeviceVolume(volume);
     }

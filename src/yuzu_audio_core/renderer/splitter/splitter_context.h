@@ -104,9 +104,8 @@ public:
      *
      * @param input         - Input buffer with the new info,
      *                        expected to point to a InParameterHeader.
-     * @param consumed_size - Output with the number of bytes consumed from input.
      */
-    bool Update(const u8* input, u32& consumed_size);
+    bool Update(const u8* input);
 
     /**
      * Update the splitters.

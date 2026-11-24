@@ -17,6 +17,9 @@
 
 namespace AudioCore {
 constexpr u32 CurrentRevision = 15;
+/// Newest revision accepted (REV 0x42, firmware 23.0.0). Revisions above CurrentRevision run with
+/// its features; the update parser checks every section size, so a changed layout is refused.
+constexpr u32 MaxAcceptedRevision = 18;
 
 enum class SupportTags {
     CommandProcessingTimeEstimatorVersion5,
@@ -116,7 +119,7 @@ constexpr bool CheckFeatureSupported(SupportTags tag, u32 user_revision) {
 }
 
 constexpr bool CheckValidRevision(u32 user_revision) {
-    return GetRevisionNum(user_revision) <= CurrentRevision;
+    return GetRevisionNum(user_revision) <= MaxAcceptedRevision;
 };
 
 } // namespace AudioCore

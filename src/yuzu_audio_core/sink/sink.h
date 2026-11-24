@@ -248,6 +248,9 @@ protected:
     /// Checks since the last try to reopen it, and checks until the next one. Monitor only.
     u32 closed_checks{};
     u32 retry_interval{1};
+    /// Device volume set by the guest, kept for streams opened later. Needs the streams lock
+    /// in backends that have one.
+    f32 device_volume{1.0f};
 };
 
 using SinkPtr = std::unique_ptr<Sink>;

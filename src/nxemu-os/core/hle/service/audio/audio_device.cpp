@@ -32,8 +32,13 @@ IAudioDevice::IAudioDevice(Core::System& system_, u64 applet_resource_user_id, u
         {12, D<&IAudioDevice::QueryAudioDeviceOutputEvent>, "QueryAudioDeviceOutputEvent"},
         {13, D<&IAudioDevice::GetActiveAudioDeviceName>, "GetActiveAudioOutputDeviceName"},
         {14, D<&IAudioDevice::ListAudioOutputDeviceName>, "ListAudioOutputDeviceName"},
+        {15, D<&IAudioDevice::DeviceNotification>, "AcquireAudioInputDeviceNotification"},
+        {16, D<&IAudioDevice::DeviceNotification>, "ReleaseAudioInputDeviceNotification"},
+        {17, D<&IAudioDevice::DeviceNotification>, "AcquireAudioOutputDeviceNotification"},
+        {18, D<&IAudioDevice::DeviceNotification>, "ReleaseAudioOutputDeviceNotification"},
         {19, D<&IAudioDevice::SetAudioDeviceOutputVolumeAutoTuneEnabled>, "SetAudioDeviceOutputVolumeAutoTuneEnabled"},
         {20, D<&IAudioDevice::IsAudioDeviceOutputVolumeAutoTuneEnabled>, "IsAudioDeviceOutputVolumeAutoTuneEnabled"},
+        {21, D<&IAudioDevice::IsActiveOutputDeviceEstimatedLowLatency>, "IsActiveOutputDeviceEstimatedLowLatency"},
     };
     RegisterHandlers(functions);
 
@@ -181,6 +186,18 @@ Result IAudioDevice::ListAudioOutputDeviceName(
     }
 
     LOG_DEBUG(Service_Audio, "called.\nNames={}", out);
+    R_SUCCEED();
+}
+
+// 15-18 (17.0.0+): device notifications. On the Switch 1 these only return an error.
+Result IAudioDevice::DeviceNotification(u64 device) {
+    LOG_DEBUG(Service_Audio, "called, device={:#x}", device);
+    R_THROW(ResultNotSupported);
+}
+
+// 21.0.0+: true only for a low latency output, which the emulated devices are not.
+Result IAudioDevice::IsActiveOutputDeviceEstimatedLowLatency(Out<bool> out_low_latency) {
+    *out_low_latency = false;
     R_SUCCEED();
 }
 

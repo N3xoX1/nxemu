@@ -61,6 +61,8 @@ private:
         Out<s32> out_count);
     Result SetAudioDeviceOutputVolumeAutoTuneEnabled(bool enabled);
     Result IsAudioDeviceOutputVolumeAutoTuneEnabled(Out<bool> out_enabled);
+    Result DeviceNotification(u64 device);
+    Result IsActiveOutputDeviceEstimatedLowLatency(Out<bool> out_low_latency);
 
     KernelHelpers::ServiceContext service_context;
     std::unique_ptr<AudioCore::Renderer::AudioDevice> impl;
