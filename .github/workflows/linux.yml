@@ -49,6 +49,18 @@ jobs:
             timeout 6m sudo apt-get "${apt_options[@]}" update --error-on=any &&
               timeout 6m sudo apt-get "${apt_options[@]}" install -y --download-only "${packages[@]}"
           }
+          # Avoid contacting mirrors when all required packages are already installed.
+          all_installed=true
+          for package in "${packages[@]}"; do
+            if [ "$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)" != installed ]; then
+              all_installed=false
+              break
+            fi
+          done
+          if [ "$all_installed" = true ]; then
+            echo 'All required packages are already installed'
+            exit 0
+          fi
           if ! download_packages; then
             echo "::warning::apt download failed or stalled, retrying on archive.ubuntu.com"
             # The runner images list their mirrors in apt-mirrors.txt, the regional one first
@@ -61,7 +73,7 @@ jobs:
           sudo chown -R "$(id -un)" "$archives"
           echo "key=apt-ubuntu-24.04-v2-$(find "$archives" -maxdepth 1 -name '*.deb' -printf '%f\n' | sort | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
       - name: Save apt packages
-        if: ${{ !env.ACT && steps.apt-packages.outputs.key != steps.apt-cache.outputs.cache-matched-key }}
+        if: ${{ !env.ACT && github.ref == 'refs/heads/master' && steps.apt-packages.outputs.key != '' && steps.apt-packages.outputs.key != steps.apt-cache.outputs.cache-matched-key }}
         uses: actions/cache/save@v4
         with:
           path: ~/apt-archives
@@ -85,14 +97,18 @@ jobs:
         run: |
           fingerprint=$( { clang --version; ld.lld --version; cmake --version; ninja --version; ccache --version; } | sha256sum | cut -d ' ' -f 1)
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          echo "cache_epoch=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Restore build caches
-        uses: actions/cache@v4
+        id: build-cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             ${{ env.CCACHE_DIR }}
             ${{ env.NXEMU_THINLTO_CACHE_DIR }}
-          key: linux-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
+          # Immutable daily snapshots, written only on master.
+          key: linux-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-daily-${{ steps.toolchain.outputs.cache_epoch }}
           restore-keys: |
+            linux-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-daily-
             linux-x64-release-v1-${{ steps.toolchain.outputs.fingerprint }}-
       - name: Reset compiler cache statistics
         run: ccache --zero-stats
@@ -111,7 +127,17 @@ jobs:
           ctest --test-dir "${NXEMU_BUILD_DIRECTORY:-build/linux}" --output-on-failure --no-tests=error -L '^linux_ci$'
       - name: Compiler cache statistics
         if: ${{ always() }}
-        run: ccache --show-stats --verbose
+        run: |
+          ccache --show-stats --verbose
+          du -sh "$CCACHE_DIR" "$NXEMU_THINLTO_CACHE_DIR" 2>/dev/null || true
+      - name: Save compiler cache
+        if: ${{ github.ref == 'refs/heads/master' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ env.CCACHE_DIR }}
+            ${{ env.NXEMU_THINLTO_CACHE_DIR }}
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
       - name: Package
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |

@@ -9,7 +9,9 @@ $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $toolDir = Join-Path $repo 'build/sccache-tools'
 New-Item -ItemType Directory -Force -Path $toolDir | Out-Null
 $archive = Join-Path $toolDir $archiveName
-Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/mozilla/sccache/releases/download/v$version/$archiveName" -OutFile $archive
+if (!(Test-Path $archive -PathType Leaf) -or (Get-FileHash $archive -Algorithm SHA256).Hash -ne $archiveHash) {
+    Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/mozilla/sccache/releases/download/v$version/$archiveName" -OutFile $archive
+}
 if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $archiveHash) {
     throw 'The downloaded sccache archive failed its SHA256 check.'
 }

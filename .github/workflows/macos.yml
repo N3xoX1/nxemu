@@ -14,18 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fast-tests:
-    name: Fast unit tests
-    runs-on: macos-26
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build and run standalone tests
-        run: |
-          cmake -S tests/fast -B build/fast-tests -DCMAKE_BUILD_TYPE=Release
-          cmake --build build/fast-tests --target nxemu_fast_tests --parallel "$(sysctl -n hw.logicalcpu)"
-          ctest --test-dir build/fast-tests --output-on-failure --no-tests=error -L '^fast$'
-
   build:
     runs-on: macos-26
     timeout-minutes: 90
@@ -44,12 +32,23 @@ jobs:
 
       - name: Install build tools
         run: |
-          if ! command -v cmake >/dev/null || ! command -v ninja >/dev/null || ! command -v ccache >/dev/null; then
-            brew install cmake ninja ccache
+          missing=()
+          for tool in cmake ninja ccache; do
+            command -v "$tool" >/dev/null || missing+=("$tool")
+          done
+          command -v glslangValidator >/dev/null || missing+=(glslang)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            brew install "${missing[@]}"
           fi
-          if ! command -v glslangValidator >/dev/null; then
-            brew install glslang
-          fi
+
+      # Run first: a failure stops the job before the long build.
+      - name: Build and run standalone tests
+        timeout-minutes: 10
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          cmake -S tests/fast -B build/fast-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/fast-tests --target nxemu_fast_tests --parallel "$(sysctl -n hw.logicalcpu)"
+          ctest --test-dir build/fast-tests --output-on-failure --no-tests=error -L '^fast$'
 
       - name: Prepare build cache paths
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
@@ -74,6 +73,7 @@ jobs:
         run: |
           fingerprint=$( { xcodebuild -version; clang --version; cmake --version; ninja --version; ccache --version; } | shasum -a 256 | cut -d ' ' -f 1)
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+          echo "cache_epoch=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Restore build caches
         id: build-cache
@@ -82,9 +82,21 @@ jobs:
           path: |
             ${{ env.CCACHE_DIR }}
             ${{ env.NXEMU_THINLTO_CACHE_DIR }}
-          key: macos-arm64-release-v2-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
+          # Immutable daily snapshots, written only on master.
+          key: macos-arm64-release-v2-${{ steps.toolchain.outputs.fingerprint }}-daily-${{ steps.toolchain.outputs.cache_epoch }}
           restore-keys: |
+            macos-arm64-release-v2-${{ steps.toolchain.outputs.fingerprint }}-daily-
             macos-arm64-release-v2-${{ steps.toolchain.outputs.fingerprint }}-
+
+      - name: Identify MoltenVK recipe
+        id: moltenvk-recipe
+        shell: bash
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          # Hash the runtime recipe, patches and Xcode/SDK rather than unrelated code.
+          recipe=$(awk '/^# MoltenVK runtime [(]macOS[)]/{found=1} /^# Interface:/{if(found) exit} found{print} END{if(!found) exit 1}' external/CMakeLists.txt)
+          fingerprint=$( { printf '%s\n' "$recipe" "${NXEMU_MACOS_ARCHITECTURE:-arm64}" "${MACOSX_DEPLOYMENT_TARGET:-}"; shasum -a 256 external/moltenvk-patches/*.patch; xcodebuild -version; xcrun --sdk macosx --show-sdk-build-version; } | shasum -a 256 | cut -d ' ' -f 1)
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
 
       # Cache only the runtime, not ExternalProject stamps or Xcode build trees.
       # The recipe contains the pinned source revision and patch/build commands.
@@ -93,32 +105,40 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.NXEMU_MOLTENVK_CACHE_DIR }}
-          key: macos-moltenvk-v1-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('external/CMakeLists.txt', 'external/moltenvk-patches/*.patch', 'CMakeLists.txt', 'src/script/build_macos.sh') }}
+          key: macos-moltenvk-v2-${{ runner.arch }}-${{ steps.moltenvk-recipe.outputs.fingerprint }}
+          restore-keys: |
+            macos-moltenvk-v1-${{ runner.arch }}-${{ steps.toolchain.outputs.fingerprint }}-${{ hashFiles('external/CMakeLists.txt', 'external/moltenvk-patches/*.patch', 'CMakeLists.txt', 'src/script/build_macos.sh') }}
 
       - name: Reset compiler cache statistics
         run: ccache --zero-stats
 
-      - name: Build
+      # Save the runtime before compiling the emulator so cancelled builds do not lose it.
+      - name: Build MoltenVK on cache miss
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
           runtime="$NXEMU_MOLTENVK_CACHE_DIR/libMoltenVK.dylib"
-          if [ -f "$runtime" ]; then
+          if [ -s "$runtime" ] && lipo -verify_arch "${NXEMU_MACOS_ARCHITECTURE:-arm64}" "$runtime"; then
             echo 'Using the cached MoltenVK runtime'
-            prebuilt="$runtime"
           else
             echo 'MoltenVK cache miss: building the pinned runtime'
-            prebuilt=""
-          fi
-          sh src/script/build_macos.sh Release "${NXEMU_BUILD_DIRECTORY:-build}" \
-            -DNXEMU_USE_CCACHE=ON -DNXEMU_USE_SCCACHE=OFF \
-            -DNXEMU_THINLTO_CACHE_DIR="$NXEMU_THINLTO_CACHE_DIR" \
-            -DNXEMU_MOLTENVK_PREBUILT="$prebuilt" \
-            -DNXEMU_BUILD_UI_SETTINGS_TESTS=ON \
-            -DNXEMU_BUILD_TESTS=ON -DNXEMU_BUILD_PLATFORM_TESTS=OFF -DNXEMU_BUILD_FAST_TESTS=OFF
-          if [ -z "$prebuilt" ]; then
+            build_directory="$NXEMU_EFFECTIVE_BUILD_DIRECTORY"
+            generator=()
+            if [ ! -f "$build_directory/CMakeCache.txt" ]; then
+              generator=(-G Ninja)
+            fi
+            cmake -S . -B "$build_directory" "${generator[@]}" \
+              -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="${NXEMU_MACOS_ARCHITECTURE:-arm64}" \
+              -DNXEMU_MACOS_BUNDLE=ON -DNXEMU_MOLTENVK_PREBUILT="" \
+              -DNXEMU_USE_CCACHE=ON -DNXEMU_USE_SCCACHE=OFF \
+              -DNXEMU_THINLTO_CACHE_DIR="$NXEMU_THINLTO_CACHE_DIR" \
+              -DNXEMU_BUILD_UI_SETTINGS_TESTS=ON \
+              -DNXEMU_BUILD_TESTS=ON -DNXEMU_BUILD_PLATFORM_TESTS=OFF -DNXEMU_BUILD_FAST_TESTS=OFF
+            cmake --build "$build_directory" --config Release --target nxemu_moltenvk --parallel "$NXEMU_BUILD_JOBS"
             mkdir -p "$NXEMU_MOLTENVK_CACHE_DIR"
-            cp "$NXEMU_EFFECTIVE_BUILD_DIRECTORY/external/moltenvk/fork/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$runtime"
+            cp "$build_directory/external/moltenvk/fork/Package/Latest/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib" "$runtime"
           fi
+          test -s "$runtime"
+          lipo -verify_arch "${NXEMU_MACOS_ARCHITECTURE:-arm64}" "$runtime"
 
       - name: Save MoltenVK runtime
         if: ${{ steps.moltenvk-cache.outputs.cache-hit != 'true' }}
@@ -126,6 +146,16 @@ jobs:
         with:
           path: ${{ env.NXEMU_MOLTENVK_CACHE_DIR }}
           key: ${{ steps.moltenvk-cache.outputs.cache-primary-key }}
+
+      - name: Build
+        working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
+        run: |
+          sh src/script/build_macos.sh Release "${NXEMU_BUILD_DIRECTORY:-build}" \
+            -DNXEMU_USE_CCACHE=ON -DNXEMU_USE_SCCACHE=OFF \
+            -DNXEMU_THINLTO_CACHE_DIR="$NXEMU_THINLTO_CACHE_DIR" \
+            -DNXEMU_MOLTENVK_PREBUILT="$NXEMU_MOLTENVK_CACHE_DIR/libMoltenVK.dylib" \
+            -DNXEMU_BUILD_UI_SETTINGS_TESTS=ON \
+            -DNXEMU_BUILD_TESTS=ON -DNXEMU_BUILD_PLATFORM_TESTS=OFF -DNXEMU_BUILD_FAST_TESTS=OFF
 
       - name: Test
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
@@ -135,10 +165,12 @@ jobs:
 
       - name: Compiler cache statistics
         if: ${{ always() }}
-        run: ccache --show-stats --verbose
+        run: |
+          ccache --show-stats --verbose
+          du -sh "$CCACHE_DIR" "$NXEMU_THINLTO_CACHE_DIR" 2>/dev/null || true
 
       - name: Save compiler cache
-        if: ${{ !cancelled() && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
+        if: ${{ github.ref == 'refs/heads/master' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |
