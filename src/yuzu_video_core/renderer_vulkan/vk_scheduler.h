@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -55,8 +56,9 @@ public:
     /// safe to touch worker resources.
     void WaitWorker();
 
-    /// Sends currently recorded work to the worker thread.
-    void DispatchWork();
+    /// Sends the current chunk to the worker. Without `urgent`, a sleeping worker is woken
+    /// only once a few chunks wait: the chunks are recorded before any submission anyway.
+    void DispatchWork(bool urgent = true);
 
     /// Requests to begin a renderpass.
     void RequestRenderpass(const Framebuffer* framebuffer, u32 color_scratch_mask = 0);
@@ -254,6 +256,8 @@ private:
     };
 
     void WorkerThread(std::stop_token stop_token);
+    /// Worker: waits until a chunk is queued or the worker stops
+    void WaitForChunks(std::stop_token stop_token, u32& quick_idles);
 
     void AllocateWorkerCommandBuffer();
 
@@ -299,7 +303,13 @@ private:
     std::mutex execution_mutex;
     std::mutex reserve_mutex;
     std::mutex queue_mutex;
+    /// WaitWorker waits here for an empty queue
     std::condition_variable_any event_cv;
+    /// WaitWorker callers, guarded by queue_mutex
+    u32 queue_waiters = 0;
+    /// Chunks in work_queue, readable without queue_mutex. The worker sleeps on it.
+    std::atomic<u32> pending_chunks{0};
+    std::atomic<bool> worker_sleeping{false};
     std::jthread worker_thread;
 };
 
