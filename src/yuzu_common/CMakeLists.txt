@@ -152,6 +152,8 @@ if(ANDROID)
         android/java_bridge.cpp
         android/frame_interval.h
         android/java_bridge.h
+        android/thread_placement.cpp
+        android/thread_placement.h
         fs/fs_android.cpp
         fs/fs_android.h
     )

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <unistd.h>
 #include "yuzu_common/android/performance_hint.h"
+#include "yuzu_common/android/thread_placement.h"
 #endif
 
 #include "yuzu_common/yuzu_assert.h"
@@ -48,11 +49,15 @@ public:
     };
 
     GpuAdpfTracker(Tegra::GPU& gpu_, SynchState& state_) : gpu{gpu_}, state{state_} {
-        state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
+        state.adpf.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
     }
 
     ~GpuAdpfTracker() {
-        state.adpf_active.store(false, std::memory_order_relaxed);
+        state.adpf.adpf_active.store(false, std::memory_order_relaxed);
+        draw_placement.Reset(0);
+        if (cached_decode_tid > 0) {
+            decode_placement.Reset(cached_decode_tid);
+        }
     }
 
     [[nodiscard]] ScopedWork TrackWork() {
@@ -68,37 +73,57 @@ public:
         }
         const auto draw_work = performance_hint.TakeWorkDuration();
         const auto decode_work = std::chrono::nanoseconds{
-            state.decode_work_ns.exchange(0, std::memory_order_relaxed)};
+            state.adpf.decode_work_ns.exchange(0, std::memory_order_relaxed)};
         const auto actual = std::max(draw_work, decode_work);
         if (*budget <= std::chrono::nanoseconds{}) {
-            // Hidden window or unlocked cadence: close the session instead of boosting.
+            // Hidden window or unlocked cadence: close the session and release
+            // performance-core affinity instead of boosting in the background.
             performance_hint.ReportFrameDuration({}, {});
-            state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
+            draw_placement.Reset(0);
+            if (cached_decode_tid > 0) {
+                decode_placement.Reset(cached_decode_tid);
+            }
+            state.adpf.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
             return;
         }
-        if (!decode_enrolled) {
-            if (const int32_t decode_tid = state.decode_tid.load(std::memory_order_acquire);
+        if (cached_decode_tid <= 0) {
+            if (const int32_t decode_tid = state.adpf.decode_tid.load(std::memory_order_acquire);
                 decode_tid > 0) {
                 performance_hint.AddThread(decode_tid);
-                decode_enrolled = true;
+                cached_decode_tid = decode_tid;
             }
         }
-        if (actual <= std::chrono::nanoseconds{} ||
-            (actual > std::chrono::milliseconds{250} && actual > *budget * 4)) {
+        const auto is_outlier = [&](std::chrono::nanoseconds duration) {
+            return duration > std::chrono::milliseconds{250} && duration > *budget * 4;
+        };
+        if (actual <= std::chrono::nanoseconds{} || is_outlier(actual)) {
             // Loading or shader-compile stall: pass zero duration so a new session can
             // still initialize or update its target without feeding an outlier to ADPF.
             performance_hint.ReportFrameDuration({}, *budget);
         } else {
             performance_hint.ReportFrameDuration(actual, *budget);
         }
-        state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
+        // Adaptively promote each thread only when it becomes a frame bottleneck:
+        // GpuDraw gets Prime+Big while GpuDecode gets Big to avoid Prime contention.
+        draw_placement.Update(0, is_outlier(draw_work) ? std::chrono::nanoseconds{} : draw_work,
+                              *budget);
+        if (cached_decode_tid > 0) {
+            decode_placement.Update(
+                cached_decode_tid,
+                is_outlier(decode_work) ? std::chrono::nanoseconds{} : decode_work, *budget);
+        }
+        state.adpf.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
     }
 
 private:
     Tegra::GPU& gpu;
     SynchState& state;
     Common::Android::PerformanceHintSession performance_hint;
-    bool decode_enrolled{};
+    Common::Android::AdaptiveThreadPlacement draw_placement{
+        Common::Android::ThreadPlacementRole::GpuDraw};
+    Common::Android::AdaptiveThreadPlacement decode_placement{
+        Common::Android::ThreadPlacementRole::GpuDecode};
+    int32_t cached_decode_tid{};
 };
 #endif
 } // namespace
@@ -334,7 +359,7 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
     gpu.RegisterHostThread();
     VideoCore::gpu_thread_role = VideoCore::GpuThreadRole::Decode;
 #if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    state.decode_tid.store(static_cast<int32_t>(gettid()), std::memory_order_release);
+    state.adpf.decode_tid.store(static_cast<int32_t>(gettid()), std::memory_order_release);
 #endif
 
     CommandDataContainer next;
@@ -346,7 +371,7 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
             break;
         }
 #if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        const bool track_adpf = state.adpf_active.load(std::memory_order_relaxed);
+        const bool track_adpf = state.adpf.adpf_active.load(std::memory_order_relaxed);
         const auto work_start =
             track_adpf ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
 #endif
@@ -378,7 +403,7 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
                                      std::chrono::steady_clock::now() - work_start)
                                      .count();
             if (elapsed > 0) {
-                state.decode_work_ns.fetch_add(elapsed, std::memory_order_relaxed);
+                state.adpf.decode_work_ns.fetch_add(elapsed, std::memory_order_relaxed);
             }
         }
 #endif
@@ -494,9 +519,9 @@ void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Fronte
     }
     state->queue.ResetClosed();
 #if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    state->decode_tid.store(0, std::memory_order_relaxed);
-    state->decode_work_ns.store(0, std::memory_order_relaxed);
-    state->adpf_active.store(false, std::memory_order_relaxed);
+    state->adpf.decode_tid.store(0, std::memory_order_relaxed);
+    state->adpf.decode_work_ns.store(0, std::memory_order_relaxed);
+    state->adpf.adpf_active.store(false, std::memory_order_relaxed);
 #endif
     rasterizer = renderer.ReadRasterizer();
     if (is_async)

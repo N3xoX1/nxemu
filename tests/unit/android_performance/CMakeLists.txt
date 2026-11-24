@@ -7,6 +7,14 @@ target_compile_definitions(test_android_adpf PRIVATE __ANDROID__ NXEMU_ENABLE_AN
 target_link_libraries(test_android_adpf PRIVATE Threads::Threads)
 nxemu_unit_test(test_android_adpf)
 
+add_executable(test_android_placement placement.cpp
+    "${CMAKE_SOURCE_DIR}/src/yuzu_common/android/thread_placement.cpp")
+target_include_directories(test_android_placement PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_features(test_android_placement PRIVATE cxx_std_20)
+target_compile_options(test_android_placement PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>)
+nxemu_unit_test(test_android_placement)
+
 add_executable(test_android_refresh refresh.cpp
     "${CMAKE_SOURCE_DIR}/src/android/app/src/main/jni/android_render_window.cpp")
 target_include_directories(test_android_refresh BEFORE PRIVATE

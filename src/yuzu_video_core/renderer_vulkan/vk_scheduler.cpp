@@ -22,6 +22,7 @@
 #include "video_settings.h"
 #if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
 #include "yuzu_common/android/performance_hint.h"
+#include "yuzu_common/android/thread_placement.h"
 #endif
 
 namespace Vulkan {
@@ -164,6 +165,8 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
 
 #if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
     Common::Android::PerformanceHintSession performance_hint;
+    Common::Android::AdaptiveThreadPlacement thread_placement{
+        Common::Android::ThreadPlacementRole::VulkanWorker};
 #endif
 
     const auto TryPopQueue{[this](auto& work) -> bool {
@@ -222,7 +225,13 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
 
 #if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
         if (frame_budget) {
-            performance_hint.ReportFrame(*frame_budget);
+            const auto work_duration = performance_hint.TakeWorkDuration();
+            performance_hint.ReportFrameDuration(work_duration, *frame_budget);
+            const bool is_outlier = work_duration > std::chrono::milliseconds{250} &&
+                                    *frame_budget > std::chrono::nanoseconds{} &&
+                                    work_duration > *frame_budget * 4;
+            thread_placement.Update(
+                0, is_outlier ? std::chrono::nanoseconds{} : work_duration, *frame_budget);
         }
 #endif
 
