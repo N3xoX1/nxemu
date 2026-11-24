@@ -1471,7 +1471,8 @@ void Maxwell3D::ProcessCBMultiData(const u32 * start_base, u32 amount)
 
     const GPUVAddr address{buffer_address + regs.const_buffer.offset};
     const size_t copy_size = amount * sizeof(u32);
-    const auto device_addr = memory_manager.WriteConstBufferCached(address, start_base, copy_size);
+    const std::optional<DAddr> device_addr =
+        memory_manager.WriteConstBufferCached(address, start_base, copy_size);
     ++generations[GEN_BUFFERS];
     if (device_addr)
     {
@@ -1527,18 +1528,32 @@ bool Maxwell3D::BufferChanges::IsWritten(DAddr address, u64 size) const noexcept
 u32 Maxwell3D::ChangedConstBuffers(size_t stage, u32 slots) const noexcept
 {
     u32 changed = buffer_changes.rebound_slots[stage] & slots;
-    if (buffer_changes.num_writes == 0 && !buffer_changes.untracked_writes)
+    if (buffer_changes.untracked_writes)
+    {
+        return slots;
+    }
+    if (buffer_changes.num_writes == 0)
     {
         return changed;
     }
+    const u64 mapping_generation = memory_manager.MappingGeneration();
     const auto & buffers = state.shader_stages[stage].const_buffers;
     for (u32 unchanged = slots & ~changed; unchanged != 0; unchanged &= unchanged - 1)
     {
         const u32 slot = static_cast<u32>(std::countr_zero(unchanged));
         const ConstBufferInfo & buffer = buffers[slot];
-        const auto device_addr = memory_manager.GpuToCpuAddress(buffer.address);
-        if (!device_addr || !memory_manager.IsContinuousRange(buffer.address, buffer.size) ||
-            buffer_changes.IsWritten(*device_addr, buffer.size))
+        ConstBufferRange & range = const_buffer_ranges[stage][slot];
+        if (range.gpu_address != buffer.address || range.size != buffer.size ||
+            range.mapping_generation != mapping_generation)
+        {
+            std::optional<DAddr> device_address = memory_manager.GpuToCpuAddress(buffer.address);
+            if (device_address && !memory_manager.IsContinuousRange(buffer.address, buffer.size))
+            {
+                device_address.reset();
+            }
+            range = {buffer.address, mapping_generation, buffer.size, device_address};
+        }
+        if (!range.device_address || buffer_changes.IsWritten(*range.device_address, buffer.size))
         {
             changed |= 1U << slot;
         }

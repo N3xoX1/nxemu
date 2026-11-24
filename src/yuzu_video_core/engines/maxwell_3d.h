@@ -3498,6 +3498,14 @@ private:
 
     std::array<u64, 3> generations{};
     BufferChanges buffer_changes;
+    struct ConstBufferRange {
+        GPUVAddr gpu_address{};
+        u64 mapping_generation{};
+        u32 size{};
+        std::optional<DAddr> device_address;
+    };
+    mutable std::array<std::array<ConstBufferRange, Regs::MaxConstBuffers>, Regs::MaxShaderStage>
+        const_buffer_ranges{};
 
     bool execute_on{true};
 

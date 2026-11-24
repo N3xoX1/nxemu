@@ -117,6 +117,13 @@ public:
     GPUVAddr index_buffer_sparse_gpu_addr = 0;
     std::array<Binding, NUM_VERTEX_BUFFERS> vertex_buffers;
     std::array<std::array<Binding, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES> uniform_buffers;
+    struct UniformSource {
+        GPUVAddr address{};
+        u64 mapping_generation{};
+        u64 deleted_buffers_epoch{};
+    };
+    std::array<std::array<UniformSource, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
+        uniform_sources{};
     std::array<std::array<Binding, NUM_STORAGE_BUFFERS>, NUM_STAGES> storage_buffers;
     std::array<std::array<TextureBufferBinding, NUM_TEXTURE_BUFFERS>, NUM_STAGES> texture_buffers;
     std::array<Binding, NUM_TRANSFORM_FEEDBACK_BUFFERS> transform_feedback_buffers;
@@ -537,6 +544,11 @@ private:
     void MarkGpuWriteHistory(DAddr device_addr, u64 size) noexcept {
         gpu_write_history.Mark(device_addr, size);
         ++gpu_write_epoch;
+    }
+
+    void MarkRegionAsGpuModified(DAddr device_addr, u64 size) {
+        MarkGpuWriteHistory(device_addr, size);
+        memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     }
 
     /// Write tracking words of a written binding, or disabled ones when it cannot be tracked
