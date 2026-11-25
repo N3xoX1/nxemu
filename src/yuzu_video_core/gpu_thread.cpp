@@ -525,7 +525,7 @@ void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Fronte
     state->adpf_active.store(false, std::memory_order_relaxed);
 #endif
     rasterizer = renderer.ReadRasterizer();
-    if (is_async)
+    if (is_async && Settings::IsGpuThreadSplit())
     {
         state->back.threaded = true;
         thread = std::jthread(RunDrawThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(*state));
