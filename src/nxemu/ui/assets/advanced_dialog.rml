@@ -398,6 +398,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Split GPU thread</div>
+                      <div class="row-text">Reads the game commands on one thread and draws on another.</div>
+                    </div>
+                    <div id="split-gpu-thread" class="switch" data-command="toggle:split-gpu-thread" title="Faster. Off, one thread does both, as older versions did. Takes effect when a game starts.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Untracked shader writes</div>
                       <div class="row-text">Skips reading back buffers a shader only might write.</div>
                     </div>

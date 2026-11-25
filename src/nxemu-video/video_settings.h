@@ -42,6 +42,7 @@ bool IsDMALevelDefault();
 bool IsDMALevelSafe();
 bool UseSafeDMAReads();
 bool IsGpuCommandSynchronizationEnabled();
+bool IsGpuThreadSplit();
 bool IsUntrackedStoreReadbackSkipped();
 bool IsGpuReadbackExact();
 bool IsLegacyFsrEnabled();
@@ -111,6 +112,8 @@ struct VideoSettings
     bool global_background_gpu_readbacks;
     bool gpu_command_synchronization;
     bool global_gpu_command_synchronization;
+    bool split_gpu_thread;
+    bool global_split_gpu_thread;
     bool skip_untracked_store_readback;
     bool global_skip_untracked_store_readback;
     bool fast_gpu_readback;
