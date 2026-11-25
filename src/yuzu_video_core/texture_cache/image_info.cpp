@@ -119,7 +119,7 @@ ImageInfo::ImageInfo(const TICEntry& config) noexcept {
         // FIXME: Call this without passing *this
         layer_stride = CalculateLayerStride(*this);
         maybe_unaligned_layer_stride = CalculateLayerSize(*this);
-        rescaleable &= (block.depth == 0) && resources.levels == 1;
+        rescaleable &= block.depth == 0;
         // Match render-target eligibility for depth textures too. Scaling only the
         // depth prepass changes its sample positions before a native-size color
         // pass, so an EQUAL depth test can reject the same geometry.

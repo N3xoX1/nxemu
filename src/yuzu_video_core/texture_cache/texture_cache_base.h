@@ -539,6 +539,8 @@ private:
     void InvalidateScale(Image& image);
     bool ScaleUp(Image& image);
     bool ScaleDown(Image& image);
+    void KeepNativeIfLevelIsMissing(ImageId image_id, s32 level);
+    void ResyncMissingLevels(const Image& image);
     u64 GetScaledImageSizeBytes(const ImageBase& image);
 
     void QueueAsyncDecode(Image& image, ImageId image_id);

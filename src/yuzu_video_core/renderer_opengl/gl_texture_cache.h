@@ -223,6 +223,8 @@ public:
 
     bool IsRescaled() const;
 
+    [[nodiscard]] s32 CurrentLevels() const;
+
     bool ScaleUp(bool ignore = false);
 
     bool ScaleDown(bool ignore = false);
@@ -233,6 +235,8 @@ private:
     void CopyImageToBuffer(const VideoCommon::BufferImageCopy& copy, size_t buffer_offset);
 
     void Scale(bool up_scale);
+
+    [[nodiscard]] s32 ScaledLevels() const;
 
     OGLTexture texture;
     OGLTexture upscaled_backup;

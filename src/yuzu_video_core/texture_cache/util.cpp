@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -574,6 +575,15 @@ void SwizzleBlockLinearImage(Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr
         guest_offset += layer_stride;
     }
     ASSERT(host_offset - copy.buffer_offset == copy.buffer_size);
+}
+
+[[nodiscard]] Extent3D ScaleExtent(Extent3D size, ImageType type,
+                                   const Settings::ResolutionScalingInfo& resolution) {
+    size.width = resolution.ScaleUp(size.width);
+    if (type == ImageType::e2D) {
+        size.height = resolution.ScaleUp(size.height);
+    }
+    return size;
 }
 
 } // Anonymous namespace
@@ -1338,6 +1348,35 @@ u32 MapSizeBytes(const ImageBase& image) {
     } else {
         return image.unswizzled_size_bytes;
     }
+}
+
+ImageInfo ScaledImageInfo(const ImageInfo& info,
+                          const Settings::ResolutionScalingInfo& resolution) {
+    ImageInfo scaled = info;
+    scaled.size = ScaleExtent(info.size, info.type, resolution);
+    // A halved full chain has no room for its 1x1 level
+    const u32 max_dimension =
+        std::max({scaled.size.width, scaled.size.height, scaled.size.depth});
+    scaled.resources.levels =
+        std::min(info.resources.levels, static_cast<s32>(std::bit_width(max_dimension)));
+    return scaled;
+}
+
+bool ScaledLevelsMatch(const ImageInfo& info, const Settings::ResolutionScalingInfo& resolution) {
+    const ImageInfo scaled = ScaledImageInfo(info, resolution);
+    for (s32 level = 1; level < scaled.resources.levels; ++level) {
+        const Extent3D scaled_guest_level =
+            ScaleExtent(MipSize(info.size, level), info.type, resolution);
+        if (MipSize(scaled.size, level) != scaled_guest_level) {
+            return false;
+        }
+    }
+    return true;
+}
+
+SubresourceRange ClampLevels(SubresourceRange range, s32 num_levels) {
+    range.extent.levels = std::min(range.extent.levels, num_levels - range.base.level);
+    return range;
 }
 
 static_assert(CalculateLevelSize(LevelInfo{{1920, 1080, 1}, {0, 2, 0}, {1, 1}, 2, 0, 1}, 0) ==

@@ -1324,6 +1324,11 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
 
     Image& dst_image = slot_images[dst_id];
     Image& src_image = slot_images[src_id];
+    const std::optional src_base = src_image.TryFindBase(src.Address());
+    const std::optional dst_base = dst_image.TryFindBase(dst.Address());
+    // Before any view is made: scaling an image down erases its views, and src may be dst
+    KeepNativeIfLevelIsMissing(src_id, src_base.value().level);
+    KeepNativeIfLevelIsMissing(dst_id, dst_base.value().level);
     bool is_src_rescaled = True(src_image.flags & ImageFlagBits::Rescaled);
     bool is_dst_rescaled = True(dst_image.flags & ImageFlagBits::Rescaled);
 
@@ -1361,7 +1366,6 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
     };
 
     // TODO: Deduplicate
-    const std::optional src_base = src_image.TryFindBase(src.Address());
     const SubresourceRange src_range{.base = src_base.value(), .extent = {1, 1}};
     const ImageViewInfo src_view_info(ImageViewType::e2D, images.src_format, src_range);
     const auto [src_framebuffer_id, src_view_id] = RenderTargetFromImage(src_id, src_view_info);
@@ -1374,7 +1378,6 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
         scale_region(src_region);
     }
 
-    const std::optional dst_base = dst_image.TryFindBase(dst.Address());
     const SubresourceRange dst_range{.base = dst_base.value(), .extent = {1, 1}};
     const ImageViewInfo dst_view_info(ImageViewType::e2D, images.dst_format, dst_range);
     const auto [dst_framebuffer_id, dst_view_id] = RenderTargetFromImage(dst_id, dst_view_info);
@@ -2330,6 +2333,9 @@ bool TextureCache<P>::ImageCanRescale(ImageBase& image) {
     if (videoSettings.resolution_info.downscale && !image.info.downscaleable) {
         return false;
     }
+    if (!ScaledLevelsMatch(image.info, videoSettings.resolution_info)) {
+        return false;
+    }
     if (True(image.flags & (ImageFlagBits::Rescaled | ImageFlagBits::CheckingRescalable))) {
         return true;
     }
@@ -2500,7 +2506,59 @@ bool TextureCache<P>::ScaleDown(Image& image) {
         return false;
     }
     InvalidateScale(image);
+    ResyncMissingLevels(image);
     return true;
+}
+
+template <class P>
+void TextureCache<P>::KeepNativeIfLevelIsMissing(ImageId image_id, s32 level) {
+    Image& image = slot_images[image_id];
+    const auto& resolution = videoSettings.resolution_info;
+    if (level < ScaledImageInfo(image.info, resolution).resources.levels) {
+        return;
+    }
+    if (image.info.rescaleable) {
+        image.info.rescaleable = false;
+        // ImageCanRescale caches its answer on every image of the alias graph
+        boost::container::small_vector<ImageId, 8> alias_graph{image_id};
+        for (size_t index = 0; index < alias_graph.size(); ++index) {
+            ImageBase& member = slot_images[alias_graph[index]];
+            member.flags &= ~ImageFlagBits::IsRescalable;
+            for (const AliasedImage& alias : member.aliased_images) {
+                if (std::ranges::find(alias_graph, alias.id) == alias_graph.end()) {
+                    alias_graph.push_back(alias.id);
+                }
+            }
+        }
+    }
+    // A rescaled alias can scale this image up again, since ScaleUp doesn't ask ImageCanRescale
+    if (ScaleDown(image)) {
+        has_deleted_images = true;
+    }
+}
+
+template <class P>
+void TextureCache<P>::ResyncMissingLevels(const Image& image) {
+    const s32 scaled_levels =
+        ScaledImageInfo(image.info, videoSettings.resolution_info).resources.levels;
+    if (scaled_levels == image.info.resources.levels) {
+        return;
+    }
+    const auto is_missing_level = [scaled_levels](const ImageCopy& copy) {
+        return copy.dst_subresource.base_level >= scaled_levels;
+    };
+    boost::container::small_vector<ImageBase*, 4> sources;
+    for (const AliasedImage& alias : image.aliased_images) {
+        if (std::ranges::all_of(alias.copies, is_missing_level)) {
+            sources.push_back(&slot_images[alias.id]);
+        }
+    }
+    // Copies from these aliases were skipped while the image was scaled. Marking them newer
+    // copies them in at the next synchronization, in the order they were written.
+    std::ranges::sort(sources, {}, &ImageBase::modification_tick);
+    for (ImageBase* const source : sources) {
+        source->modification_tick = ++modification_tick;
+    }
 }
 
 template <class P>
@@ -2602,7 +2660,12 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
     ForEachSparseImageInRegion(channel_state->gpu_memory.GetID(), gpu_addr, size_bytes,
                                region_check_gpu);
 
-    bool can_rescale = info.rescaleable;
+    const auto& resolution = videoSettings.resolution_info;
+    const auto loses_levels = [&resolution](const ImageInfo& image_info) {
+        return ScaledImageInfo(image_info, resolution).resources.levels <
+               image_info.resources.levels;
+    };
+    bool can_rescale = info.rescaleable && ScaledLevelsMatch(new_info, resolution);
     bool any_rescaled = false;
     for (const auto& copy : join_copies_to_do) {
         if (!can_rescale) {
@@ -2610,6 +2673,10 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         }
         Image& sibling = slot_images[copy.id];
         can_rescale &= ImageCanRescale(sibling);
+        // A merged overlap is deleted, so a level missing on either side would lose its data
+        if (!copy.is_alias) {
+            can_rescale &= !loses_levels(new_info) && !loses_levels(sibling.info);
+        }
         any_rescaled |= True(sibling.flags & ImageFlagBits::Rescaled);
     }
 
@@ -2654,12 +2721,21 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
     });
 
     ImageBase& new_image_base = new_image;
+    const auto scale_lower_mip_with_chain = [](ImageBase& chain, ImageBase& mip) {
+        const bool is_lower_mip =
+            chain.aliased_images.back().copies.front().dst_subresource.base_level > 0;
+        if (chain.info.rescaleable && is_lower_mip) {
+            mip.info.rescaleable = true;
+            mip.info.downscaleable = chain.info.downscaleable;
+        }
+    };
     for (const ImageId aliased_id : join_right_aliased_ids) {
         ImageBase& aliased = slot_images[aliased_id];
         size_t alias_index = new_image_base.aliased_images.size();
         if (!AddImageAlias(new_image_base, aliased, new_image_id, aliased_id)) {
             continue;
         }
+        scale_lower_mip_with_chain(new_image_base, aliased);
         join_alias_indices.emplace(aliased_id, alias_index);
         new_image.flags |= ImageFlagBits::Alias;
     }
@@ -2669,6 +2745,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         if (!AddImageAlias(aliased, new_image_base, aliased_id, new_image_id)) {
             continue;
         }
+        scale_lower_mip_with_chain(aliased, new_image_base);
         join_alias_indices.emplace(aliased_id, alias_index);
         new_image.flags |= ImageFlagBits::Alias;
     }
@@ -2753,7 +2830,6 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         if (True(overlap.flags & ImageFlagBits::GpuModified)) {
             new_image.flags |= ImageFlagBits::GpuModified;
             UpdateNativeReadTracking(new_image, new_image_id);
-            const auto& resolution = videoSettings.resolution_info;
             const SubresourceBase base = new_image.TryFindBase(overlap.gpu_addr).value();
             const u32 up_scale = can_rescale ? resolution.up_scale : 1;
             const u32 down_shift = can_rescale ? resolution.down_shift : 0;
@@ -3288,6 +3364,7 @@ ImageViewId TextureCache<P>::FindOrEmplaceImageView(ImageId image_id, const Imag
     if (const ImageViewId image_view_id = image.FindView(info); image_view_id) {
         return image_view_id;
     }
+    KeepNativeIfLevelIsMissing(image_id, info.range.base.level);
     const ImageViewId image_view_id =
         slot_image_views.insert(runtime, info, image_id, image, slot_images);
     image.InsertView(info, image_view_id);
@@ -3809,7 +3886,7 @@ void TextureCache<P>::SynchronizeAliases(ImageId image_id) {
                 runtime.NeedsAliasCopyThroughBuffer()) {
                 std::vector<ImageCopy> copies = aliased->copies;
                 ScaleImageCopies(image, source, copies);
-                if (runtime.CopyImageThroughBuffer(image, source, copies)) {
+                if (copies.empty() || runtime.CopyImageThroughBuffer(image, source, copies)) {
                     return;
                 }
             }
@@ -3889,6 +3966,12 @@ void TextureCache<P>::ScaleImageCopies(const ImageBase& dst, const ImageBase& sr
             copy.extent.height = resolution.ScaleUp(copy.extent.height);
         }
     }
+    const s32 src_levels = ScaledImageInfo(src.info, resolution).resources.levels;
+    const s32 dst_levels = ScaledImageInfo(dst.info, resolution).resources.levels;
+    std::erase_if(copies, [&](const ImageCopy& copy) {
+        return copy.src_subresource.base_level >= src_levels ||
+               copy.dst_subresource.base_level >= dst_levels;
+    });
 }
 
 template <class P>
@@ -3897,6 +3980,9 @@ void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<Imag
     Image& src = slot_images[src_id];
     const bool is_rescaled = True(src.flags & ImageFlagBits::Rescaled);
     ScaleImageCopies(dst, src, copies);
+    if (copies.empty()) {
+        return;
+    }
     const auto dst_format_type = GetFormatType(dst.info.format);
     const auto src_format_type = GetFormatType(src.info.format);
     if (src_format_type == dst_format_type) {

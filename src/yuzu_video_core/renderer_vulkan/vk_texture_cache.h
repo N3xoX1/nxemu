@@ -241,6 +241,8 @@ public:
 
     bool IsRescaled() const noexcept;
 
+    [[nodiscard]] s32 CurrentLevels() const;
+
     bool ScaleUp(bool ignore = false);
 
     bool ScaleDown(bool ignore = false);
