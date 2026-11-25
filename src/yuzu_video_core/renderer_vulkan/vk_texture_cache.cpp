@@ -761,6 +761,7 @@ void BlitScale(Scheduler& scheduler, VkImage src_image, VkImage dst_image, const
                bool up_scaling = true) {
     const bool is_2d = info.type == ImageType::e2D;
     const auto resources = info.resources;
+    const s32 num_levels = VideoCommon::ScaledImageInfo(info, resolution).resources.levels;
     const VkExtent2D extent{
         .width = info.size.width,
         .height = info.size.height,
@@ -771,8 +772,8 @@ void BlitScale(Scheduler& scheduler, VkImage src_image, VkImage dst_image, const
     const VkFilter vk_filter = is_bilinear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
 
     scheduler.RequestOutsideRenderPassOperationContext();
-    scheduler.Record([dst_image, src_image, extent, resources, aspect_mask, resolution, is_2d,
-                      vk_filter, up_scaling](vk::CommandBuffer cmdbuf) {
+    scheduler.Record([dst_image, src_image, extent, resources, num_levels, aspect_mask, resolution,
+                      is_2d, vk_filter, up_scaling](vk::CommandBuffer cmdbuf) {
         const VkOffset2D src_size{
             .x = static_cast<s32>(up_scaling ? extent.width : resolution.ScaleUp(extent.width)),
             .y = static_cast<s32>(is_2d && up_scaling ? extent.height
@@ -784,8 +785,8 @@ void BlitScale(Scheduler& scheduler, VkImage src_image, VkImage dst_image, const
                                                       : extent.height),
         };
         boost::container::small_vector<VkImageBlit, 4> regions;
-        regions.reserve(resources.levels);
-        for (s32 level = 0; level < resources.levels; level++) {
+        regions.reserve(num_levels);
+        for (s32 level = 0; level < num_levels; level++) {
             regions.push_back({
                 .srcSubresource{
                     .aspectMask = aspect_mask,
@@ -828,7 +829,7 @@ void BlitScale(Scheduler& scheduler, VkImage src_image, VkImage dst_image, const
         const VkImageSubresourceRange subresource_range{
             .aspectMask = aspect_mask,
             .baseMipLevel = 0,
-            .levelCount = VK_REMAINING_MIP_LEVELS,
+            .levelCount = static_cast<u32>(num_levels),
             .baseArrayLayer = 0,
             .layerCount = VK_REMAINING_ARRAY_LAYERS,
         };
@@ -2137,13 +2138,8 @@ bool Image::ScaleUp(bool ignore) {
     flags |= ImageFlagBits::Rescaled;
     has_scaled = true;
     if (!scaled_image) {
-        const bool is_2d = info.type == ImageType::e2D;
-        const u32 scaled_width = resolution.ScaleUp(info.size.width);
-        const u32 scaled_height = is_2d ? resolution.ScaleUp(info.size.height) : info.size.height;
-        auto scaled_info = info;
-        scaled_info.size.width = scaled_width;
-        scaled_info.size.height = scaled_height;
-        scaled_image = MakeImage(runtime->device, runtime->memory_allocator, scaled_info,
+        scaled_image = MakeImage(runtime->device, runtime->memory_allocator,
+                                 VideoCommon::ScaledImageInfo(info, resolution),
                                  runtime->ViewFormats(info.format));
         // The scale helper renders into the new image through a render pass that loads it
         RecordInitialLayout(*scheduler, *scaled_image, ImageAspectMask(info.format));
@@ -2193,6 +2189,13 @@ bool Image::ScaleDown(bool ignore) {
     return true;
 }
 
+s32 Image::CurrentLevels() const {
+    if (True(flags & ImageFlagBits::Rescaled)) {
+        return VideoCommon::ScaledImageInfo(info, runtime->resolution).resources.levels;
+    }
+    return info.resources.levels;
+}
+
 bool Image::BlitScaleHelper(bool scale_up) {
     using namespace VideoCommon;
     static constexpr auto BLIT_OPERATION = Tegra::Engines::Fermi2D::Operation::SrcCopy;
@@ -2229,8 +2232,9 @@ bool Image::BlitScaleHelper(bool scale_up) {
         };
     };
 
+    const s32 num_levels = ScaledImageInfo(info, resolution).resources.levels;
     for (s32 layer = 0; layer < info.resources.layers; ++layer) {
-        for (s32 level = 0; level < info.resources.levels; ++level) {
+        for (s32 level = 0; level < num_levels; ++level) {
             const Region2D src_region = level_region(src_size, level);
             const Region2D dst_region = level_region(dst_size, level);
             ImageView& src_view = *HelperTarget(src_targets, src_image, layer, level).view;
@@ -2305,6 +2309,7 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
       samples(ConvertSampleCount(runtime.device, image.info.num_samples)) {
     using Shader::TextureType;
 
+    range = VideoCommon::ClampLevels(range, image.CurrentLevels());
     const VkImageAspectFlags aspect_mask = ImageViewAspectMask(info);
     std::array<SwizzleSource, 4> swizzle{
         SwizzleSource::R,
@@ -2351,7 +2356,7 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
             .b = ComponentSwizzle(swizzle[2]),
             .a = ComponentSwizzle(swizzle[3]),
         },
-        .subresourceRange = MakeSubresourceRange(aspect_mask, info.range),
+        .subresourceRange = MakeSubresourceRange(aspect_mask, range),
     };
     const auto create = [&](TextureType tex_type, std::optional<u32> num_layers) {
         VkImageViewCreateInfo ci{create_info};
