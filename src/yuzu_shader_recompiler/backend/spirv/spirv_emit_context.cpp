@@ -1025,7 +1025,7 @@ void EmitContext::DefineWriteStorageCasLoopFunction(const Info& info) {
 
 void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
     const Info& info{program.info};
-    if (!info.uses_global_memory || !profile.support_int64) {
+    if (!info.uses_global_memory) {
         return;
     }
     // Only compute shaders have shown pathological Metal builds when these helpers are inlined.
@@ -1036,6 +1036,24 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
     using DefPtr = Id StorageDefinitions::*;
     const Id zero{u32_zero_value};
     const bool supports_uniform_aliasing{profile.SupportsUniformBufferDescriptorAliasing()};
+    // Without 64-bit integers, LowerInt64ToInt32 has made every address a pair of 32-bit words
+    const Id address_type{profile.support_int64 ? U64 : U32[2]};
+    const auto low_word{[&](Id pair) { return OpCompositeExtract(U32[1], pair, 0U); }};
+    const auto high_word{[&](Id pair) { return OpCompositeExtract(U32[1], pair, 1U); }};
+    const auto subtract_pairs{[&](Id lhs, Id rhs) {
+        const Id borrow{
+            OpSelect(U32[1], OpULessThan(U1, low_word(lhs), low_word(rhs)), Const(1u), zero)};
+        return OpCompositeConstruct(
+            U32[2], OpISub(U32[1], low_word(lhs), low_word(rhs)),
+            OpISub(U32[1], OpISub(U32[1], high_word(lhs), high_word(rhs)), borrow));
+    }};
+    const auto pair_at_least{[&](Id lhs, Id rhs) {
+        const Id high_greater{OpUGreaterThan(U1, high_word(lhs), high_word(rhs))};
+        const Id high_equal{OpIEqual(U1, high_word(lhs), high_word(rhs))};
+        return OpLogicalOr(U1, high_greater,
+                           OpLogicalAnd(U1, high_equal,
+                                        OpUGreaterThanEqual(U1, low_word(lhs), low_word(rhs))));
+    }};
     const auto define_body{[&](DefPtr ssbo_member, Id addr, Id element_pointer, u32 shift,
                                u32 scalar_components, bool is_write, auto&& callback) {
         AddLabel();
@@ -1048,14 +1066,12 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
             if (is_write && !ssbo.is_written) {
                 continue;
             }
-            Id unaligned_addr{};
-            Id ssbo_size_pointer{};
+            Id unaligned_pair{};
             Id ssbo_size_word{};
             if (!supports_uniform_aliasing) {
                 // The canonical uniform view has no U32/U32x2 descriptor aliases.
                 const IR::Value cbuf_index{ssbo.cbuf_index};
-                unaligned_addr = OpBitcast(
-                    U64, EmitGetCbufU32x2(*this, cbuf_index, IR::Value{ssbo.cbuf_offset}));
+                unaligned_pair = EmitGetCbufU32x2(*this, cbuf_index, IR::Value{ssbo.cbuf_offset});
                 ssbo_size_word =
                     EmitGetCbufU32(*this, cbuf_index, IR::Value{ssbo.cbuf_offset + 8});
             } else {
@@ -1063,38 +1079,66 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
                 const Id ssbo_size_cbuf_offset{Const(ssbo.cbuf_offset / 4 + 2)};
                 const Id ssbo_addr_pointer{OpAccessChain(
                     uniform_types.U32x2, cbufs[ssbo.cbuf_index].U32x2, zero, ssbo_addr_cbuf_offset)};
-                ssbo_size_pointer = OpAccessChain(uniform_types.U32, cbufs[ssbo.cbuf_index].U32,
-                                                zero, ssbo_size_cbuf_offset);
-                unaligned_addr = OpBitcast(U64, OpLoad(U32[2], ssbo_addr_pointer));
+                const Id ssbo_size_pointer{OpAccessChain(
+                    uniform_types.U32, cbufs[ssbo.cbuf_index].U32, zero, ssbo_size_cbuf_offset)};
+                unaligned_pair = OpLoad(U32[2], ssbo_addr_pointer);
+                ssbo_size_word = OpLoad(U32[1], ssbo_size_pointer);
             }
             const u64 ssbo_align_mask{~(profile.min_ssbo_alignment - 1U)};
-            const Id ssbo_addr{OpBitwiseAnd(U64, unaligned_addr, Constant(U64, ssbo_align_mask))};
-            const Id ssbo_size{OpUConvert(U64, !supports_uniform_aliasing
-                                                   ? ssbo_size_word
-                                                   : OpLoad(U32[1], ssbo_size_pointer))};
-            // Validate the complete access against the guest range, not the host
-            // binding's alignment padding. Subtraction avoids overflowing its end.
-            const Id guest_offset{OpISub(U64, addr, unaligned_addr)};
-            const Id offset_in_range{
-                OpLogicalAnd(U1, OpUGreaterThanEqual(U1, addr, unaligned_addr),
-                             OpULessThanEqual(U1, guest_offset, ssbo_size))};
-            const Id access_size{Constant(U64, u64{1} << shift)};
-            const Id host_offset{OpISub(U64, addr, ssbo_addr)};
-            // Storage buffer byte offsets are 32-bit; do not truncate a large offset.
-            const Id max_host_offset{Constant(U64, u64{0x1'0000'0000} - (u64{1} << shift))};
-            const Id cond{
-                OpLogicalAnd(
+            Id cond{};
+            Id ssbo_offset{};
+            if (profile.support_int64) {
+                const Id unaligned_addr{OpBitcast(U64, unaligned_pair)};
+                const Id ssbo_addr{
+                    OpBitwiseAnd(U64, unaligned_addr, Constant(U64, ssbo_align_mask))};
+                const Id ssbo_size{OpUConvert(U64, ssbo_size_word)};
+                // Validate the complete access against the guest range, not the host
+                // binding's alignment padding. Subtraction avoids overflowing its end.
+                const Id guest_offset{OpISub(U64, addr, unaligned_addr)};
+                const Id offset_in_range{
+                    OpLogicalAnd(U1, OpUGreaterThanEqual(U1, addr, unaligned_addr),
+                                 OpULessThanEqual(U1, guest_offset, ssbo_size))};
+                const Id access_size{Constant(U64, u64{1} << shift)};
+                const Id host_offset{OpISub(U64, addr, ssbo_addr)};
+                // Storage buffer byte offsets are 32-bit; do not truncate a large offset.
+                const Id max_host_offset{Constant(U64, u64{0x1'0000'0000} - (u64{1} << shift))};
+                cond = OpLogicalAnd(
                     U1, offset_in_range,
                     OpLogicalAnd(U1, OpULessThanEqual(U1, host_offset, max_host_offset),
                                  OpULessThanEqual(U1, access_size,
-                                                  OpISub(U64, ssbo_size, guest_offset))))};
+                                                  OpISub(U64, ssbo_size, guest_offset))));
+                ssbo_offset = OpUConvert(U32[1], host_offset);
+            } else {
+                // The same checks on word pairs; the aligned base only differs in its low word
+                const Id ssbo_addr{OpCompositeConstruct(
+                    U32[2],
+                    OpBitwiseAnd(U32[1], low_word(unaligned_pair),
+                                 Const(static_cast<u32>(ssbo_align_mask))),
+                    high_word(unaligned_pair))};
+                const Id guest_offset{subtract_pairs(addr, unaligned_pair)};
+                const Id offset_in_range{OpLogicalAnd(
+                    U1, pair_at_least(addr, unaligned_pair),
+                    OpLogicalAnd(U1, OpIEqual(U1, high_word(guest_offset), zero),
+                                 OpULessThanEqual(U1, low_word(guest_offset), ssbo_size_word)))};
+                const Id access_size{Const(1u << shift)};
+                const Id host_offset{subtract_pairs(addr, ssbo_addr)};
+                const Id max_host_offset{Const(0u - (1u << shift))};
+                cond = OpLogicalAnd(
+                    U1, offset_in_range,
+                    OpLogicalAnd(
+                        U1,
+                        OpLogicalAnd(U1, OpIEqual(U1, high_word(host_offset), zero),
+                                     OpULessThanEqual(U1, low_word(host_offset), max_host_offset)),
+                        OpULessThanEqual(U1, access_size,
+                                         OpISub(U32[1], ssbo_size_word, low_word(guest_offset)))));
+                ssbo_offset = low_word(host_offset);
+            }
             const Id then_label{OpLabel()};
             const Id else_label{OpLabel()};
             OpSelectionMerge(else_label, spv::SelectionControlMask::MaskNone);
             OpBranchConditional(cond, then_label, else_label);
             AddLabel(then_label);
             const Id ssbo_id{ssbos[index].*ssbo_member};
-            const Id ssbo_offset{OpUConvert(U32[1], host_offset)};
             Id ssbo_index{OpShiftRightLogical(U32[1], ssbo_offset, Const(shift))};
             if (scalar_components > 1) {
                 // Keep the vector view's alignment when indexing the canonical U32 view.
@@ -1109,9 +1153,9 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
     }};
     const auto define_load{[&](DefPtr ssbo_member, Id element_pointer, Id type, u32 shift,
                                u32 scalar_components) {
-        const Id function_type{TypeFunction(type, U64)};
+        const Id function_type{TypeFunction(type, address_type)};
         const Id func_id{OpFunction(type, function_control, function_type)};
-        const Id addr{OpFunctionParameter(U64)};
+        const Id addr{OpFunctionParameter(address_type)};
         define_body(ssbo_member, addr, element_pointer, shift, scalar_components, false,
                     [&](Id ssbo_pointer, Id ssbo_id, Id ssbo_index) {
                         if (scalar_components == 1) {
@@ -1134,9 +1178,9 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
     }};
     const auto define_write{[&](DefPtr ssbo_member, Id element_pointer, Id type, u32 shift,
                                 u32 scalar_components) {
-        const Id function_type{TypeFunction(void_id, U64, type)};
+        const Id function_type{TypeFunction(void_id, address_type, type)};
         const Id func_id{OpFunction(void_id, function_control, function_type)};
-        const Id addr{OpFunctionParameter(U64)};
+        const Id addr{OpFunctionParameter(address_type)};
         const Id data{OpFunctionParameter(type)};
         define_body(ssbo_member, addr, element_pointer, shift, scalar_components, true,
                     [&](Id ssbo_pointer, Id ssbo_id, Id ssbo_index) {
@@ -1222,9 +1266,9 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
         if (!used_atomics[i]) {
             continue;
         }
-        const Id function_type{TypeFunction(U32[1], U64, U32[1])};
+        const Id function_type{TypeFunction(U32[1], address_type, U32[1])};
         const Id func_id{OpFunction(U32[1], function_control, function_type)};
-        const Id addr{OpFunctionParameter(U64)};
+        const Id addr{OpFunctionParameter(address_type)};
         const Id value{OpFunctionParameter(U32[1])};
         define_body(&StorageDefinitions::U32, addr, storage_types.U32.element, 2, 1, true,
                     [&](Id ssbo_pointer, Id, Id) {
