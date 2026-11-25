@@ -72,10 +72,14 @@ void CheckBacking() {
         Check(!buffer.IsBackingDirty(Granule), "released backing still dirty");
         Check(std::all_of(data + Granule, data + 2 * Granule, [](u8 b) { return b == 0; }),
               "reallocated backing was not zero");
-        if (auto* alias = buffer.VirtualBasePointer()) {
+        if (volatile u8* alias = buffer.VirtualBasePointer()) {
+            // Two offsets of the same base pointer alias the same physical page via mmap/MapViewOfFile;
+            // use volatile so the optimizer cannot assume alias[1] and alias[Granule + 1] are distinct.
+            volatile u8* backing = data;
             Check(alias[1] == 0 && alias[Granule + 1] == 0, "reclaimed alias held stale data");
             alias[1] = 0x7f;
-            Check(alias[Granule + 1] == 0x7f && data[Granule + 1] == 0x7f, "alias lost coherence");
+            Check(alias[Granule + 1] == 0x7f && backing[Granule + 1] == 0x7f,
+                  "alias lost coherence");
         }
     }
     Check(data[Granule - 1] == 0x5a && data[2 * Granule] == 0x5a, "reclaim crossed granule");
