@@ -8,6 +8,7 @@
 
 #include "video_settings.h"
 #include "yuzu_common/cityhash.h"
+#include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/alignment.h"
@@ -293,6 +294,10 @@ bool DmaPusher::Step()
         {
             Tegra::Memory::GpuGuestMemory<Tegra::CommandHeader, GuestMemoryFlags::UnsafeRead> headers(
                 memory_manager, dma_state.dma_get, header.size, &command_headers);
+            if (IsThreaded())
+            {
+                RecordUnwaitedEntry(dma_state.dma_get, header.size * sizeof(u32));
+            }
             ProcessCommands(headers);
         }
     }
@@ -585,6 +590,70 @@ bool DmaPusher::DispatchMayWrite(GPUVAddr address, size_t size,
     return queued_dispatch && (new_pages || written);
 }
 
+void DmaPusher::RecordUnwaitedEntry(GPUVAddr address, size_t size) const
+{
+    // Read after the entry: a dispatch that ran before the read is not counted
+    const u64 first = completed_dispatches.load(std::memory_order_acquire) + 1;
+    if (first > launched_dispatches)
+    {
+        return;
+    }
+    const u64 count = unwaited_count.load(std::memory_order_relaxed);
+    UnwaitedEntry & entry = unwaited_entries[count % UnwaitedEntryCount];
+    entry.address.store(address, std::memory_order_relaxed);
+    entry.size.store(size, std::memory_order_relaxed);
+    entry.first.store(first, std::memory_order_relaxed);
+    entry.last.store(launched_dispatches, std::memory_order_relaxed);
+    unwaited_count.store(count + 1, std::memory_order_release);
+}
+
+bool DmaPusher::UnwaitedEntryWritten(u64 id) const
+{
+    // Only the dispatches launched before an entry and still queued when it was read must have
+    // written it first. A dispatch it launches itself comes after it.
+    const u64 count = unwaited_count.load(std::memory_order_acquire);
+    const u64 begin = count > UnwaitedEntryCount ? count - UnwaitedEntryCount : 0;
+    for (u64 i = begin; i < count; ++i)
+    {
+        const UnwaitedEntry & entry = unwaited_entries[i % UnwaitedEntryCount];
+        if (id < entry.first.load(std::memory_order_relaxed) || id > entry.last.load(std::memory_order_relaxed))
+        {
+            continue;
+        }
+        const GPUVAddr address = entry.address.load(std::memory_order_relaxed);
+        const size_t size = entry.size.load(std::memory_order_relaxed);
+        for (const auto & [device_address, device_size] : memory_manager.GetSubmappedDeviceRange(address, size))
+        {
+            if (rasterizer->MayHaveComputeWrites(device_address, device_size))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void DmaPusher::DispatchRan(u64 id) const
+{
+    // Entries are read without waiting when no dispatch wrote their pages yet. A queued
+    // dispatch writing one of them first marks a new page and changes the epoch: the entry was
+    // read too early. Dispatches run in launch order, so this one and the earlier ones ran.
+    if (rasterizer != nullptr && !strict_dispatch_wait.load(std::memory_order_relaxed))
+    {
+        const u64 epoch = rasterizer->ComputeWriteEpoch();
+        if (epoch != checked_epoch)
+        {
+            checked_epoch = epoch;
+            if (UnwaitedEntryWritten(id))
+            {
+                strict_dispatch_wait.store(true, std::memory_order_relaxed);
+                LOG_WARNING(HW_GPU, "A compute dispatch wrote commands read before it ran, waiting for every dispatch from now on");
+            }
+        }
+    }
+    completed_dispatches.store(id, std::memory_order_release);
+}
+
 void DmaPusher::DrainMaxwell3DMemoryWrites(GPUVAddr address, size_t size) const
 {
     if (IsThreaded())
@@ -785,9 +854,15 @@ DmaPusher::BackWrites DmaPusher::EngineWrites(u32 subchannel_id, u32 method) con
     case Engines::EngineTypes::KeplerCompute:
         if (method == ComputeLaunch)
         {
+            if (strict_dispatch_wait.load(std::memory_order_relaxed) ||
+                Settings::IsStrictComputeOrderingEnabled())
+            {
+                return {};
+            }
             // The dispatch marks its shader writes GPU modified only when it runs, see
-            // DrainMaxwell3DMemoryWrites
+            // DrainMaxwell3DMemoryWrites and DispatchRan
             queued_dispatch = true;
+            posted_dispatch = ++launched_dispatches;
             return {BackWrites::Kind::Nothing};
         }
         [[fallthrough]];
@@ -1076,10 +1151,11 @@ void DmaPusher::CallMethod(u32 argument) const
             {
                 ApplyFrontSink(dma_state.subchannel);
                 TrackFrontRegister(dma_state.subchannel, dma_state.method, argument);
+                posted_dispatch = 0;
                 const BackWrites writes = EngineWrites(dma_state.subchannel, dma_state.method);
-                PostBack([subchannel, sink = std::move(front_sinks[dma_state.subchannel]), segment,
+                PostBack([this, subchannel, sink = std::move(front_sinks[dma_state.subchannel]), segment,
                           method = dma_state.method, argument,
-                          is_last_call = dma_state.is_last_call]() mutable {
+                          is_last_call = dma_state.is_last_call, dispatch = posted_dispatch]() mutable {
                     if (!sink.empty())
                     {
                         subchannel->method_sink = std::move(sink);
@@ -1087,6 +1163,10 @@ void DmaPusher::CallMethod(u32 argument) const
                     }
                     subchannel->current_dma_segment = segment;
                     subchannel->CallMethod(method, argument, is_last_call);
+                    if (dispatch != 0)
+                    {
+                        DispatchRan(dispatch);
+                    }
                 }, writes);
                 front_sinks[dma_state.subchannel].clear();
                 return;
@@ -1141,11 +1221,13 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
                 {
                     TrackFrontRegister(dma_state.subchannel, dma_state.method, base_start[num_methods - 1]);
                 }
+                posted_dispatch = 0;
                 const BackWrites writes = EngineWrites(dma_state.subchannel, dma_state.method);
-                PostBack([subchannel, sink = std::move(front_sinks[dma_state.subchannel]),
+                PostBack([this, subchannel, sink = std::move(front_sinks[dma_state.subchannel]),
                           segment = dma_state.dma_get + dma_state.dma_word_offset,
                           payload = std::vector<u32>(base_start, base_start + num_methods),
-                          method = dma_state.method, pending = dma_state.method_count]() mutable {
+                          method = dma_state.method, pending = dma_state.method_count,
+                          dispatch = posted_dispatch]() mutable {
                     if (!sink.empty())
                     {
                         subchannel->method_sink = std::move(sink);
@@ -1154,6 +1236,10 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
                     subchannel->current_dma_segment = segment;
                     subchannel->CallMultiMethod(method, payload.data(),
                                                 static_cast<u32>(payload.size()), pending);
+                    if (dispatch != 0)
+                    {
+                        DispatchRan(dispatch);
+                    }
                 }, writes);
                 front_sinks[dma_state.subchannel].clear();
                 return;

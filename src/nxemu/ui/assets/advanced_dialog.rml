@@ -407,6 +407,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Strict compute ordering</div>
+                      <div class="row-text">Waits for every compute shader before reading the next commands.</div>
+                    </div>
+                    <div id="strict-compute" class="switch" data-command="toggle:strict-compute" title="Slower. Off, NXEmu waits only for the shaders that may write the commands, and turns this on by itself when a game needs it.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Untracked shader writes</div>
                       <div class="row-text">Skips reading back buffers a shader only might write.</div>
                     </div>

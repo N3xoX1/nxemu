@@ -182,6 +182,13 @@ private:
     void ApplyFrontSink(u32 subchannel_id) const;
     /// Records the pages of a fetched entry, true when one was never fetched before
     bool FetchesNewPages(DAddr address, u64 size) const;
+    /// Decode thread, after reading an entry: keeps it while dispatches launched before it may
+    /// still be queued
+    void RecordUnwaitedEntry(GPUVAddr address, size_t size) const;
+    /// True when an entry read while dispatch `id` was queued now lies in compute written pages
+    bool UnwaitedEntryWritten(u64 id) const;
+    /// GPU thread, after dispatch `id` ran
+    void DispatchRan(u64 id) const;
     bool IsKnownPushbuffer(GPUVAddr address, size_t size) const;
     /// Records the entry pages, true when a queued dispatch may have written the entry
     bool DispatchMayWrite(GPUVAddr address, size_t size,
@@ -227,6 +234,28 @@ private:
     mutable bool unmet_acquire_seen{};
     /// A compute dispatch may still be queued for the GPU thread
     mutable bool queued_dispatch{};
+    /// Dispatches launched by the decode thread without a wait, numbered from 1
+    mutable u64 launched_dispatches{};
+    /// The dispatch the method being posted launches, 0 for none
+    mutable u64 posted_dispatch{};
+    /// The last dispatch the GPU thread ran
+    mutable std::atomic<u64> completed_dispatches{};
+    /// Entries read while dispatches first..last were queued, see DispatchRan. Atomic fields:
+    /// the GPU thread reads them while the decode thread records more.
+    struct UnwaitedEntry
+    {
+        std::atomic<u64> address{};
+        std::atomic<u64> size{};
+        std::atomic<u64> first{};
+        std::atomic<u64> last{};
+    };
+    static constexpr size_t UnwaitedEntryCount = 2048;
+    mutable std::array<UnwaitedEntry, UnwaitedEntryCount> unwaited_entries{};
+    mutable std::atomic<u64> unwaited_count{};
+    /// GPU thread: the compute write epoch at the last dispatch that ran
+    mutable u64 checked_epoch{};
+    /// A dispatch wrote commands read before it ran: every dispatch is waited for
+    mutable std::atomic<bool> strict_dispatch_wait{};
     /// Device pages fetched as pushbuffer entries, see FetchesNewPages
     static constexpr unsigned FetchedAddressBits = 34;
     static constexpr unsigned FetchedPageBits = 12;
