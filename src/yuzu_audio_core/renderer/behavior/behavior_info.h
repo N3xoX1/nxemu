@@ -73,8 +73,9 @@ public:
     u32 GetUserRevisionNum() const;
 
     /**
-     * Get the user revision in chars, e.g REV8.
-     * Rev 10 and higher use the ascii characters above 9. REV: REV; etc.
+     * Get the user revision in chars, e.g REV8, as the user opened the renderer with it.
+     * Rev 10 and higher use the ascii characters above 9. REV: REV; etc. Switch 2 callers
+     * use REv.
      *
      * @return The user revision.
      */
@@ -407,6 +408,8 @@ public:
     u32 process_revision;
     /// User version
     u32 user_revision{};
+    /// User version tag, as the user gave it
+    u32 user_revision_tag{};
     /// Behaviour flags
     Flags flags{};
     /// Errors generated and reported during Update

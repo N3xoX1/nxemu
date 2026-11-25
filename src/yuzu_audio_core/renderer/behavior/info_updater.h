@@ -161,6 +161,16 @@ public:
 
 private:
     /**
+     * Whether the next size bytes of the input lie inside it.
+     */
+    bool InputFits(u64 size) const;
+
+    /**
+     * Whether the next size bytes of the output lie inside it.
+     */
+    bool OutputFits(u64 size) const;
+
+    /**
      * Update effects version 1.
      *
      * @param effect_context    - Effect context to update.

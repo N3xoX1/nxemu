@@ -369,9 +369,8 @@ Result InfoUpdater::UpdateEffectsVersion2(EffectContext& effect_context, const b
 Result InfoUpdater::UpdateMixes(MixContext& mix_context, const u32 mix_buffer_count,
                                 EffectContext& effect_context, SplitterContext& splitter_context) {
     // The whole section must lie inside the input before anything in it is read.
-    const u64 consumed{static_cast<u64>(CpuAddr(input) - CpuAddr(input_origin.data()))};
     const u64 section_size{in_header->mix_size};
-    if (consumed > expected_input_size || section_size > expected_input_size - consumed) {
+    if (!InputFits(section_size)) {
         return Service::Audio::ResultInvalidUpdateInfo;
     }
 
@@ -466,12 +465,23 @@ Result InfoUpdater::UpdateSinks(SinkContext& sink_context, std::span<MemoryPoolI
     PoolMapper pool_mapper(process_handle, memory_pools, memory_pool_count,
                            behaviour.IsMemoryForceMappingEnabled());
 
-    std::span<const SinkInfoBase::InParameter> in_params{
-        reinterpret_cast<const SinkInfoBase::InParameter*>(input), memory_pool_count};
-    std::span<SinkInfoBase::OutStatus> out_params{
-        reinterpret_cast<SinkInfoBase::OutStatus*>(output), memory_pool_count};
-
     const auto sink_count{sink_context.GetCount()};
+    const auto consumed_input_size{sink_count *
+                                   static_cast<u32>(sizeof(SinkInfoBase::InParameter))};
+    const auto consumed_output_size{sink_count * static_cast<u32>(sizeof(SinkInfoBase::OutStatus))};
+    if (consumed_input_size != in_header->sinks_size) {
+        LOG_ERROR(Service_Audio, "Consumed an incorrect sinks size, header size={}, consumed={}",
+                  in_header->sinks_size, consumed_input_size);
+        return Service::Audio::ResultInvalidUpdateInfo;
+    }
+    if (!InputFits(consumed_input_size) || !OutputFits(consumed_output_size)) {
+        return Service::Audio::ResultInvalidUpdateInfo;
+    }
+
+    std::span<const SinkInfoBase::InParameter> in_params{
+        reinterpret_cast<const SinkInfoBase::InParameter*>(input), sink_count};
+    std::span<SinkInfoBase::OutStatus> out_params{
+        reinterpret_cast<SinkInfoBase::OutStatus*>(output), sink_count};
 
     for (u32 i = 0; i < sink_count; i++) {
         const auto& params{in_params[i]};
@@ -502,15 +512,6 @@ Result InfoUpdater::UpdateSinks(SinkContext& sink_context, std::span<MemoryPoolI
         if (error_info.error_code.IsError()) {
             behaviour.AppendError(error_info);
         }
-    }
-
-    const auto consumed_input_size{sink_count *
-                                   static_cast<u32>(sizeof(SinkInfoBase::InParameter))};
-    const auto consumed_output_size{sink_count * static_cast<u32>(sizeof(SinkInfoBase::OutStatus))};
-    if (consumed_input_size != in_header->sinks_size) {
-        LOG_ERROR(Service_Audio, "Consumed an incorrect sinks size, header size={}, consumed={}",
-                  in_header->sinks_size, consumed_input_size);
-        return Service::Audio::ResultInvalidUpdateInfo;
     }
 
     input += consumed_input_size;
@@ -562,6 +563,18 @@ Result InfoUpdater::UpdateMemoryPools(std::span<MemoryPoolInfo> memory_pools,
 Result InfoUpdater::UpdatePerformanceBuffer(std::span<u8> performance_output,
                                             const u64 performance_output_size,
                                             PerformanceManager* performance_manager) {
+    const auto consumed_input_size{static_cast<u32>(sizeof(PerformanceManager::InParameter))};
+    const auto consumed_output_size{static_cast<u32>(sizeof(PerformanceManager::OutStatus))};
+    if (consumed_input_size != in_header->performance_buffer_size) {
+        LOG_ERROR(Service_Audio,
+                  "Consumed an incorrect performance size, header size={}, consumed={}",
+                  in_header->performance_buffer_size, consumed_input_size);
+        return Service::Audio::ResultInvalidUpdateInfo;
+    }
+    if (!InputFits(consumed_input_size) || !OutputFits(consumed_output_size)) {
+        return Service::Audio::ResultInvalidUpdateInfo;
+    }
+
     auto in_params{reinterpret_cast<const PerformanceManager::InParameter*>(input)};
     auto out_params{reinterpret_cast<PerformanceManager::OutStatus*>(output)};
 
@@ -573,15 +586,6 @@ Result InfoUpdater::UpdatePerformanceBuffer(std::span<u8> performance_output,
         out_params->history_size = 0;
     }
 
-    const auto consumed_input_size{static_cast<u32>(sizeof(PerformanceManager::InParameter))};
-    const auto consumed_output_size{static_cast<u32>(sizeof(PerformanceManager::OutStatus))};
-    if (consumed_input_size != in_header->performance_buffer_size) {
-        LOG_ERROR(Service_Audio,
-                  "Consumed an incorrect performance size, header size={}, consumed={}",
-                  in_header->performance_buffer_size, consumed_input_size);
-        return Service::Audio::ResultInvalidUpdateInfo;
-    }
-
     input += consumed_input_size;
     output += consumed_output_size;
     out_header->performance_buffer_size = consumed_output_size;
@@ -590,6 +594,11 @@ Result InfoUpdater::UpdatePerformanceBuffer(std::span<u8> performance_output,
 }
 
 Result InfoUpdater::UpdateBehaviorInfo(BehaviorInfo& behaviour_) {
+    if (in_header->behaviour_size != sizeof(BehaviorInfo::InParameter) ||
+        !InputFits(sizeof(BehaviorInfo::InParameter))) {
+        return Service::Audio::ResultInvalidUpdateInfo;
+    }
+
     const auto in_params{reinterpret_cast<const BehaviorInfo::InParameter*>(input)};
 
     if (!CheckValidRevision(in_params->revision)) {
@@ -602,10 +611,6 @@ Result InfoUpdater::UpdateBehaviorInfo(BehaviorInfo& behaviour_) {
 
     behaviour_.ClearError();
     behaviour_.UpdateFlags(in_params->flags);
-
-    if (in_header->behaviour_size != sizeof(BehaviorInfo::InParameter)) {
-        return Service::Audio::ResultInvalidUpdateInfo;
-    }
 
     input += sizeof(BehaviorInfo::InParameter);
     return ResultSuccess;
@@ -627,9 +632,8 @@ Result InfoUpdater::UpdateSplitterInfo(SplitterContext& splitter_context) {
     // The section size comes from the header, as the console does: the splitter data the
     // game sends can be larger than what is parsed, or present while splitters are unused.
     // It must still lie inside the input, as the later sections are read from its end.
-    const u64 consumed{static_cast<u64>(CpuAddr(input) - CpuAddr(input_origin.data()))};
     const u64 section_size{in_header->splitter_size};
-    if (consumed > expected_input_size || section_size > expected_input_size - consumed) {
+    if (!InputFits(section_size)) {
         return Service::Audio::ResultInvalidUpdateInfo;
     }
 
@@ -659,6 +663,16 @@ Result InfoUpdater::UpdateRendererInfo(const u64 elapsed_frames) {
     out_header->size += consumed_output_size;
 
     return ResultSuccess;
+}
+
+bool InfoUpdater::InputFits(const u64 size) const {
+    const u64 consumed{static_cast<u64>(CpuAddr(input) - CpuAddr(input_origin.data()))};
+    return consumed <= expected_input_size && size <= expected_input_size - consumed;
+}
+
+bool InfoUpdater::OutputFits(const u64 size) const {
+    const u64 consumed{static_cast<u64>(CpuAddr(output) - CpuAddr(output_origin.data()))};
+    return consumed <= expected_output_size && size <= expected_output_size - consumed;
 }
 
 Result InfoUpdater::CheckConsumedSize() {
