@@ -36,15 +36,35 @@ void R2P(TranslatorVisitor& v, u64 insn, const IR::U32& mask) {
     } const r2p{insn};
     const IR::U32 src{v.X(r2p.src_reg)};
     const IR::U32 count{v.ir.Imm32(1)};
+    const IR::U32 zero{v.ir.Imm32(0)};
     const bool pr_mode{r2p.mode == Mode::PR};
     const u32 num_items{pr_mode ? 7U : 4U};
     const u32 offset_base{static_cast<u32>(r2p.byte_selector) * 8};
-    for (u32 index = 0; index < num_items; ++index) {
+    // Plain compares, not GetZeroFromOp: constant propagation does not fold an instruction with a
+    // pseudo-operation.
+    const auto read_bit = [&](u32 index) {
         const IR::U32 offset{v.ir.Imm32(offset_base + index)};
-        const IR::U1 src_zero{v.ir.GetZeroFromOp(v.ir.BitFieldExtract(src, offset, count, false))};
-        const IR::U1 src_bit{v.ir.LogicalNot(src_zero)};
+        return v.ir.INotEqual(v.ir.BitFieldExtract(src, offset, count, false), zero);
+    };
+    if (mask.IsImmediate()) {
+        // Only the predicates or flags the mask selects change.
+        const u32 mask_bits{mask.U32()};
+        for (u32 index = 0; index < num_items; ++index) {
+            if (((mask_bits >> index) & 1) == 0) {
+                continue;
+            }
+            if (pr_mode) {
+                v.ir.SetPred(IR::Pred{index}, read_bit(index));
+            } else {
+                SetFlag(v.ir, v.ir.Imm1(false), read_bit(index), index);
+            }
+        }
+        return;
+    }
+    for (u32 index = 0; index < num_items; ++index) {
+        const IR::U1 src_bit{read_bit(index)};
         const IR::U32 mask_bfe{v.ir.BitFieldExtract(mask, v.ir.Imm32(index), count, false)};
-        const IR::U1 inv_mask_bit{v.ir.GetZeroFromOp(mask_bfe)};
+        const IR::U1 inv_mask_bit{v.ir.IEqual(mask_bfe, zero)};
         if (pr_mode) {
             const IR::Pred pred{index};
             v.ir.SetPred(pred, IR::U1{v.ir.Select(inv_mask_bit, v.ir.GetPred(pred), src_bit)});
