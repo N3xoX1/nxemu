@@ -246,7 +246,15 @@ public:
     bool ScaleDown(bool ignore = false);
 
 private:
+    struct ScaleHelperTarget {
+        std::unique_ptr<ImageView> view;
+        std::unique_ptr<Framebuffer> framebuffer;
+    };
+
     bool BlitScaleHelper(bool scale_up);
+
+    ScaleHelperTarget& HelperTarget(std::vector<ScaleHelperTarget>& targets, VkImage image,
+                                    s32 layer, s32 level);
 
     bool NeedsScaleHelper() const;
 
@@ -260,16 +268,15 @@ private:
     vk::Image scaled_image{};
     VkImage current_image{};
 
-    std::unique_ptr<Framebuffer> scale_framebuffer;
-    std::unique_ptr<ImageView> scale_view;
-
-    std::unique_ptr<Framebuffer> normal_framebuffer;
-    std::unique_ptr<ImageView> normal_view;
+    std::vector<ScaleHelperTarget> original_helper_targets;
+    std::vector<ScaleHelperTarget> scaled_helper_targets;
 };
 
 class ImageView : public VideoCommon::ImageViewBase {
 public:
     explicit ImageView(TextureCacheRuntime&, const VideoCommon::ImageViewInfo&, ImageId, Image&);
+    explicit ImageView(TextureCacheRuntime&, const VideoCommon::ImageViewInfo&, ImageId, Image&,
+                       VkImage handle);
     explicit ImageView(TextureCacheRuntime&, const VideoCommon::ImageViewInfo&, ImageId, Image&,
                        const SlotVector<Image>&);
     explicit ImageView(TextureCacheRuntime&, const VideoCommon::ImageInfo&,
