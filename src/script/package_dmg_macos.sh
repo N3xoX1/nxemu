@@ -8,6 +8,7 @@ cd "$(dirname "$0")/../.."
 
 app="bin/arm64/$configuration/NxEmu.app"
 codesign --verify --deep --strict "$app"
+test -s "$app/Contents/Resources/game_defaults.json"
 
 staging_directory="$(mktemp -d "${TMPDIR:-/tmp}/nxemu-dmg.XXXXXX")"
 trap 'rm -rf "$staging_directory"' EXIT

@@ -147,6 +147,15 @@ jobs:
           $symbols = @(Get-ChildItem bin/x64/Release, modules/x64 -Recurse -Filter *.pdb)
           if ($symbols.Count -eq 0) { throw 'Linker debug symbols were not generated' }
           Compress-Archive -Path $symbols.FullName -DestinationPath package/NxEmu-windows-x64-symbols.zip -Force
+      - name: Check package contents
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path package/NxEmu-windows-x64.zip))
+          $files = @($zip.Entries | Where-Object Length -gt 0 | ForEach-Object FullName)
+          $zip.Dispose()
+          foreach ($required in 'nxemu.exe', 'SDL3.dll', 'nxemu.lang', 'game_defaults.json') {
+            if ($files -notcontains $required) { throw "The package has no $required beside nxemu.exe" }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: NxEmu-windows-x64

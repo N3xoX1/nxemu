@@ -148,6 +148,7 @@ jobs:
           cp -a external/nxemu-switch-mods/*\] build/package/mods/
           # The executable loads SDL by its soname, beside it.
           tar -C bin/x64/Release --dereference -czf package/NxEmu-linux-x64.tar.gz nxemu libSDL3.so.0 nxemu.lang modules ui -C ../../../config game_defaults.json -C ../build/package mods
+          tar -tzf package/NxEmu-linux-x64.tar.gz game_defaults.json
       - name: Package AppImage from the existing Release build
         working-directory: ${{ env.NXEMU_LOCAL_WORKSPACE || github.workspace }}
         run: |
