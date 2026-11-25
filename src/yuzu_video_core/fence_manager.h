@@ -25,6 +25,9 @@
 #include "yuzu_video_core/host1x/syncpoint_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
 #include "video_settings.h"
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+#include "yuzu_common/android/performance_hint.h"
+#endif
 
 namespace VideoCommon {
 
@@ -112,6 +115,9 @@ public:
             TryReleasePendingFences<true>();
         }
 
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+        const Common::Android::PerformanceHintWait hint_wait;
+#endif
         wait_finished.wait(false, std::memory_order_acquire);
     }
 

@@ -199,4 +199,25 @@ int main() {
     }
     assert(closed == 11);
     reject_multi_thread = false;
+    {
+        using Common::Android::PerformanceHintWait;
+        PerformanceHintSession hint;
+        hint.ReportFrame(16ms);
+        hint.BeginWork();
+        {
+            const PerformanceHintWait wait;
+            std::this_thread::sleep_for(20ms);
+        }
+        hint.EndWork();
+        assert(hint.TakeWorkDuration() < 20ms);
+        {
+            const PerformanceHintWait wait; // Not inside work, so not subtracted.
+            std::this_thread::sleep_for(5ms);
+        }
+        const std::chrono::nanoseconds elapsed = Work(hint);
+        const std::chrono::nanoseconds counted = hint.TakeWorkDuration();
+        assert(counted >= 1ms && counted <= elapsed);
+        assert(PerformanceHintWait::Take() == 0ns);
+    }
+    assert(created == 14 && closed == 12);
 }

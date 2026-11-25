@@ -33,4 +33,19 @@ private:
     std::unique_ptr<Impl> impl;
 };
 
+// A blocking wait on the calling thread, left out of the work EndWork counts.
+class PerformanceHintWait {
+public:
+    PerformanceHintWait();
+    ~PerformanceHintWait();
+    PerformanceHintWait(const PerformanceHintWait&) = delete;
+    PerformanceHintWait& operator=(const PerformanceHintWait&) = delete;
+
+    // Wait time on the calling thread since the last call.
+    static std::chrono::nanoseconds Take();
+
+private:
+    std::chrono::steady_clock::time_point start;
+};
+
 } // namespace Common::Android

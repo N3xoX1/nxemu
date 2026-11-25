@@ -14,6 +14,9 @@
 #include "yuzu_video_core/host1x/host1x.h"
 #include "yuzu_video_core/memory_manager.h"
 #include "yuzu_video_core/rasterizer_interface.h"
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+#include "yuzu_common/android/performance_hint.h"
+#endif
 
 namespace Tegra
 {
@@ -298,6 +301,9 @@ void DmaPusher::WaitForArmedMemoryOperationSync()
 {
     ASSERT(memory_operation_sync_state == MemoryOperationSyncState::Armed);
 
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    const Common::Android::PerformanceHintWait hint_wait;
+#endif
     memory_operation_sync_ready.wait(false, std::memory_order_acquire);
     memory_operation_sync_state = MemoryOperationSyncState::None;
 }
