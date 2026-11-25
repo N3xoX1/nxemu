@@ -5,10 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(VERSION_HEADER_IN "${CMAKE_SOURCE_DIR}/src/nxemu-loader/version.h.in")
-set(VERSION_HEADER_OUT "${CMAKE_BINARY_DIR}/generated/nxemu-loader/version.h")
-include(generate_version_header)
-
 file(GLOB_RECURSE NXEMU_LOADER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )

@@ -129,8 +129,7 @@ if(APPLE AND NXEMU_MACOS_BUNDLE)
         "-DOTOOL=${NXEMU_OTOOL}"
         "-DINFO_PLIST=${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist.in"
         "-DICON=${_nxemu_icon}"
-        "-DSHORT_VERSION=${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_REVISION}"
-        "-DBUILD_VERSION=${VERSION_BUILD}"
+        "-DVERSION_HEADER=${VERSION_OUTPUT_DIR}/nxemu-core/version.h"
         "-DMINIMUM_MACOS=${CMAKE_OSX_DEPLOYMENT_TARGET}"
         -P "${_nxemu_bundle_script}")
     # Module-only rebuilds must refresh the app even when its own code did not change.
