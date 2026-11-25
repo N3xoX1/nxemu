@@ -387,6 +387,23 @@ public:
         return protected_download_pages.Any(addr, size);
     }
 
+    /// Wait until every protected download overlapping the exact byte range is published.
+    void WaitProtectedDownload(DAddr addr, size_t size) const noexcept {
+        while (protected_download_pages.Any(addr, size)) {
+            const u64 epoch = protected_download_epoch.load(std::memory_order_acquire);
+            bool hit = false;
+            {
+                std::scoped_lock lk{protected_downloads_mutex};
+                protected_downloads.ForEachInRange(addr, size,
+                                                   [&](DAddr, DAddr, s32) { hit = true; });
+            }
+            if (!hit) {
+                return;
+            }
+            protected_download_epoch.wait(epoch, std::memory_order_acquire);
+        }
+    }
+
     /// Return true when every GPU write in the region waits in a download that keeps it
     /// unreadable by the CPU until it is published.
     [[nodiscard]] bool IsGpuModifiedRegionProtected(DAddr addr, size_t size);
@@ -762,8 +779,10 @@ private:
     std::deque<bool> pending_unprotected_downloads;
     size_t unprotected_downloads = 0;
     bool pending_downloads_protected = true;
+    mutable std::mutex protected_downloads_mutex;
     Common::OverlapRangeSet<DAddr> protected_downloads;
     VideoCommon::AtomicPageBits<34, 12> protected_download_pages;
+    std::atomic<u64> protected_download_epoch{0};
     std::deque<std::pair<u64, u64>> incomplete_downloads;
     u64 incomplete_download_bytes = 0;
     /// GPU writes since their last download that the bitmap of written pages does not record

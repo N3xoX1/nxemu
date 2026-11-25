@@ -1521,14 +1521,19 @@ void TextureCache<P>::ProtectCommittedDownloads() {
     if (!is_protected) {
         return;
     }
-    for (const PendingDownload& download : uncommitted_downloads) {
-        const ImageBase& image = slot_images[download.object_id];
-        const DAddr addr = image.cpu_addr;
-        const u64 size = image.guest_size_bytes;
-        protected_download_pages.Set(addr, size);
+    {
+        std::scoped_lock lk{protected_downloads_mutex};
+        for (const PendingDownload& download : uncommitted_downloads) {
+            const ImageBase& image = slot_images[download.object_id];
+            const DAddr addr = image.cpu_addr;
+            const u64 size = image.guest_size_bytes;
+            protected_downloads.Add(addr, size);
+            protected_download_pages.Set(addr, size);
+            protected_ranges.emplace_back(addr, size);
+        }
+    }
+    for (const auto& [addr, size] : protected_ranges) {
         device_memory.UpdatePagesReadCachedCount(addr, size, 1);
-        protected_downloads.Add(addr, size);
-        protected_ranges.emplace_back(addr, size);
     }
 #endif
 }
@@ -1537,24 +1542,35 @@ template <class P>
 void TextureCache<P>::ReleaseDownloadProtection() {
     unprotected_downloads -= pending_unprotected_downloads.front() ? 1 : 0;
     pending_unprotected_downloads.pop_front();
-    using PageBits = decltype(protected_download_pages);
-    for (const auto& [addr, size] : pending_protected_ranges.front()) {
+    const auto& released_ranges = pending_protected_ranges.front();
+    for (const auto& [addr, size] : released_ranges) {
         device_memory.UpdatePagesReadCachedCount(addr, size, -1);
-        protected_downloads.Subtract(addr, size);
-        // Clear the pages between the downloads still in flight, which keep theirs. Readers
-        // test the pages without a lock, so a kept page is never cleared, even briefly.
-        const DAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
-        DAddr cursor = Common::AlignDown(addr, PageBits::PAGE_SIZE);
-        protected_downloads.ForEachInRange(cursor, end - cursor, [&](DAddr begin, DAddr last, s32) {
-            const DAddr kept = Common::AlignDown(begin, PageBits::PAGE_SIZE);
-            if (kept > cursor) {
-                protected_download_pages.Clear(cursor, kept - cursor);
+    }
+    if (!released_ranges.empty()) {
+        {
+            std::scoped_lock lk{protected_downloads_mutex};
+            using PageBits = decltype(protected_download_pages);
+            for (const auto& [addr, size] : released_ranges) {
+                protected_downloads.Subtract(addr, size);
+                // Clear the pages between the downloads still in flight, which keep theirs. Readers
+                // test the pages without a lock, so a kept page is never cleared, even briefly.
+                const DAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
+                DAddr cursor = Common::AlignDown(addr, PageBits::PAGE_SIZE);
+                protected_downloads.ForEachInRange(cursor, end - cursor,
+                                                   [&](DAddr begin, DAddr last, s32) {
+                    const DAddr kept = Common::AlignDown(begin, PageBits::PAGE_SIZE);
+                    if (kept > cursor) {
+                        protected_download_pages.Clear(cursor, kept - cursor);
+                    }
+                    cursor = std::max(cursor, Common::AlignUp(last, PageBits::PAGE_SIZE));
+                });
+                if (cursor < end) {
+                    protected_download_pages.Clear(cursor, end - cursor);
+                }
             }
-            cursor = std::max(cursor, Common::AlignUp(last, PageBits::PAGE_SIZE));
-        });
-        if (cursor < end) {
-            protected_download_pages.Clear(cursor, end - cursor);
         }
+        protected_download_epoch.fetch_add(1, std::memory_order_release);
+        protected_download_epoch.notify_all();
     }
     pending_protected_ranges.pop_front();
 }
