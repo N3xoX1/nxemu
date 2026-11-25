@@ -149,6 +149,9 @@ public:
     uint64_t PhysicalSize() const noexcept {
         return static_cast<uint64_t>(compressed_device_addr.size()) << page_bits;
     }
+    void MarkBackingPinned(uint64_t physical_offset, uint64_t length) const {
+        backing_memory.MarkBackingPinned(physical_offset, length);
+    }
 
     void EnableInPlaceReads() {
         if (InPlaceReadsEnabled()) {
@@ -331,6 +334,7 @@ private:
 
     std::unique_ptr<DeviceMemoryManagerAllocator<Traits>> impl;
 
+    const IDeviceMemory& backing_memory;
     const uintptr_t physical_base;
     DeviceInterface* device_inter;
     Common::VirtualBuffer<u32> compressed_physical_ptr;

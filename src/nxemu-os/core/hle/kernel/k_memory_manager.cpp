@@ -129,8 +129,9 @@ void KMemoryManager::ReleaseFreeBacking() {
         for (size_t granule = 0; granule < num_granules; ++granule) {
             u8& seen_free = heap.GranuleReleaseState(granule);
             const size_t offset = heap_offset + (granule << KPageHeap::GranuleShift);
-            if (!heap.IsGranuleFree(granule) || !buffer.IsBackingDirty(offset)) {
-                // In use, or already zero: a granule freed and soon taken again keeps its RAM.
+            if (!heap.IsGranuleFree(granule) || !buffer.IsBackingDirty(offset) ||
+                buffer.IsBackingPinned(offset)) {
+                // In use, already zero, or pinned for GPU import: keep its backing page intact.
                 flush_run();
                 seen_free = 0;
                 continue;

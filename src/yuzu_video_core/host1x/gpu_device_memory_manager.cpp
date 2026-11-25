@@ -192,6 +192,7 @@ struct DeviceMemoryManagerAllocator
 
 template <typename Traits>
 DeviceMemoryManager<Traits>::DeviceMemoryManager(const IDeviceMemory & device_memory_) :
+    backing_memory{device_memory_},
     physical_base{reinterpret_cast<const uintptr_t>(device_memory_.BackingBasePointer())},
     device_inter{nullptr}
 {

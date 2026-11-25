@@ -20,6 +20,7 @@
 #include <sys/mman.h>
 #if defined(__linux__)
 #include <linux/falloc.h>
+#include <shared_mutex>
 #include <sys/random.h>
 #endif
 #include <unistd.h>
@@ -368,6 +369,7 @@ public:
 
     u8* backing_base{};
     u8* virtual_base{};
+    mutable std::atomic<bool> has_pinned_granules{false};
 
 private:
     static constexpr size_t CommitGranule = 64 * 1024;
@@ -930,6 +932,15 @@ public:
     u8* backing_base{reinterpret_cast<u8*>(MAP_FAILED)};
     u8* virtual_base{reinterpret_cast<u8*>(MAP_FAILED)};
     u8* virtual_map_base{reinterpret_cast<u8*>(MAP_FAILED)};
+    mutable std::atomic<bool> has_pinned_granules{false};
+#ifdef __linux__
+    [[nodiscard]] std::shared_lock<std::shared_mutex> LockHolePunchShared() const {
+        return std::shared_lock<std::shared_mutex>{hole_punch_mutex};
+    }
+    [[nodiscard]] std::unique_lock<std::shared_mutex> LockHolePunchExclusive() const {
+        return std::unique_lock<std::shared_mutex>{hole_punch_mutex};
+    }
+#endif
 
 private:
     /// Release all resources in the object
@@ -979,6 +990,9 @@ private:
 
     int fd{-1}; // Shared backing file descriptor; -1 means no file.
     FreeRegionManager free_manager{};
+#ifdef __linux__
+    mutable std::shared_mutex hole_punch_mutex;
+#endif
 };
 
 #else // ^^^ POSIX ^^^ vvv Generic vvv
@@ -1009,6 +1023,7 @@ public:
 
     u8* backing_base{nullptr};
     u8* virtual_base{nullptr};
+    mutable std::atomic<bool> has_pinned_granules{false};
 };
 
 #endif // ^^^ Generic ^^^
@@ -1098,31 +1113,53 @@ void HostMemory::ClearBackingRegion(size_t physical_offset, size_t length, u32 f
         return;
     }
     MarkBackingUsed(physical_offset, length);
-    const auto clear = [this, fill_value](size_t offset, size_t size) {
-        if (!impl || fill_value != 0 || !impl->ClearBackingRegion(offset, size)) {
+    const auto clear = [this, fill_value](size_t offset, size_t size, bool allow_hole_punch) {
+        if (!impl || fill_value != 0 || !allow_hole_punch) {
             std::memset(backing_base + offset, fill_value, size);
+            return;
         }
+#ifdef __linux__
+        {
+            const auto lock = impl->LockHolePunchShared();
+            if (!HasPinnedGranule(offset, size) && impl->ClearBackingRegion(offset, size)) {
+                return;
+            }
+        }
+        std::memset(backing_base + offset, 0, size);
+#else
+        if (!impl->ClearBackingRegion(offset, size)) {
+            std::memset(backing_base + offset, 0, size);
+        }
+#endif
     };
     if (fill_value != 0) {
-        clear(physical_offset, length);
+        clear(physical_offset, length, false);
         MarkBackingDirty(physical_offset, length);
         return;
     }
     // Clear only the granules that may hold data; the rest is still zero and untouched, and a
     // memset would make the host commit it (and spend the time) for nothing. A granule
-    // cleared in full is zero again.
+    // cleared in full is zero again. Split spans on pinned boundaries so unpinned chunks
+    // still reclaim via hole punching while pinned chunks zero in place.
     constexpr size_t GranuleSize = size_t{1} << GranuleShift;
     const size_t end = physical_offset + length;
     size_t span_begin = end;
+    bool span_pinned = false;
     for (size_t offset = physical_offset; offset < end;) {
         const size_t index = offset >> GranuleShift;
         const size_t granule_end = (index + 1) << GranuleShift;
         const size_t clear_end = std::min(granule_end, end);
-        const bool dirty =
-            (granules[index].load(std::memory_order_acquire) & GranuleDirty) != 0;
+        const u8 state = granules[index].load(std::memory_order_acquire);
+        const bool dirty = (state & GranuleDirty) != 0;
+        const bool pinned = (state & GranulePinned) != 0;
         if (dirty) {
+            if (span_begin != end && span_pinned != pinned) {
+                clear(span_begin, offset - span_begin, !span_pinned);
+                span_begin = end;
+            }
             if (span_begin == end) {
                 span_begin = offset;
+                span_pinned = pinned;
             }
             if (offset == granule_end - GranuleSize && clear_end == granule_end) {
                 // Cleared below, before anyone can see this granule allocated.
@@ -1130,13 +1167,13 @@ void HostMemory::ClearBackingRegion(size_t physical_offset, size_t length, u32 f
                                           std::memory_order_release);
             }
         } else if (span_begin != end) {
-            clear(span_begin, offset - span_begin);
+            clear(span_begin, offset - span_begin, !span_pinned);
             span_begin = end;
         }
         offset = clear_end;
     }
     if (span_begin != end) {
-        clear(span_begin, end - span_begin);
+        clear(span_begin, end - span_begin, !span_pinned);
     }
 }
 
@@ -1175,6 +1212,57 @@ bool HostMemory::IsBackingDirty(size_t physical_offset) const {
            (granules[index].load(std::memory_order_acquire) & GranuleDirty) != 0;
 }
 
+void HostMemory::MarkBackingPinned(size_t physical_offset, size_t length) const {
+    if (length == 0 || num_granules == 0 || physical_offset >= backing_size) {
+        return;
+    }
+    const size_t clamped_len = std::min(length, backing_size - physical_offset);
+    const size_t first = physical_offset >> GranuleShift;
+    const size_t last = std::min((physical_offset + clamped_len - 1) >> GranuleShift,
+                                 num_granules - 1);
+#ifdef __linux__
+    std::unique_lock<std::shared_mutex> lock;
+    if (impl) {
+        lock = impl->LockHolePunchExclusive();
+    }
+#endif
+    for (size_t index = first; index <= last; ++index) {
+        if ((granules[index].load(std::memory_order_relaxed) & GranulePinned) == 0) {
+            granules[index].fetch_or(GranulePinned, std::memory_order_release);
+        }
+    }
+    if (impl) {
+        impl->has_pinned_granules.store(true, std::memory_order_release);
+    }
+}
+
+bool HostMemory::IsBackingPinned(size_t physical_offset) const noexcept {
+    if (impl && !impl->has_pinned_granules.load(std::memory_order_acquire)) {
+        return false;
+    }
+    const size_t index = physical_offset >> GranuleShift;
+    return index < num_granules &&
+           (granules[index].load(std::memory_order_acquire) & GranulePinned) != 0;
+}
+
+bool HostMemory::HasPinnedGranule(size_t physical_offset, size_t length) const noexcept {
+    if (length == 0 || num_granules == 0 ||
+        (impl && !impl->has_pinned_granules.load(std::memory_order_acquire))) {
+        return false;
+    }
+    const size_t first = physical_offset >> GranuleShift;
+    if (first >= num_granules) {
+        return false;
+    }
+    const size_t last = std::min((physical_offset + length - 1) >> GranuleShift, num_granules - 1);
+    for (size_t index = first; index <= last; ++index) {
+        if ((granules[index].load(std::memory_order_acquire) & GranulePinned) != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool HostMemory::ReleaseFreeBacking(size_t physical_offset) {
     return ReleaseFreeBackingRange(physical_offset, size_t{1} << GranuleShift);
 }
@@ -1184,6 +1272,9 @@ bool HostMemory::ReleaseFreeBackingRange(size_t physical_offset, size_t length) 
     if (!impl || length == 0 || physical_offset % GranuleSize != 0 ||
         length % GranuleSize != 0 || physical_offset > backing_size ||
         backing_size - physical_offset < length) {
+        return false;
+    }
+    if (HasPinnedGranule(physical_offset, length)) {
         return false;
     }
 #ifdef _WIN32
@@ -1205,7 +1296,15 @@ bool HostMemory::ReleaseFreeBackingRange(size_t physical_offset, size_t length) 
         VirtualUnlock(backing_base + offset, span_len);
         offset = span_end;
     }
-#elif defined(__linux__) || defined(__APPLE__)
+#elif defined(__linux__)
+    {
+        const auto lock = impl->LockHolePunchShared();
+        if (HasPinnedGranule(physical_offset, length) ||
+            !impl->ClearBackingRegion(physical_offset, length)) {
+            return false;
+        }
+    }
+#elif defined(__APPLE__)
     if (!impl->ClearBackingRegion(physical_offset, length)) {
         return false;
     }

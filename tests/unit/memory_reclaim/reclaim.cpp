@@ -104,6 +104,31 @@ void CheckBacking() {
     if (lazy_buf.ReleaseFreeBackingRange(Granule, Granule)) {
         Check(!lazy_buf.IsBackingDirty(Granule), "uncommitted dirty granule stayed dirty");
     }
+
+    // Pinned granules (e.g. GPU host-imported chunks on drivers without MMU notifiers) must
+    // never be hole-punched by ReleaseFreeBacking*, while neighbors still reclaim and
+    // ClearBackingRegion(..., 0) still zeroes pinned granules in place.
+    Common::HostMemory pinned_buf(3 * Granule, 4 * Granule);
+    pinned_buf.ClearBackingRegion(0, 3 * Granule, 0x4b);
+    pinned_buf.MarkBackingPinned(Granule, Granule);
+    Check(!pinned_buf.IsBackingPinned(0) && pinned_buf.IsBackingPinned(Granule) &&
+              !pinned_buf.IsBackingPinned(2 * Granule),
+          "pinned granule mask mismatch");
+    Check(!pinned_buf.ReleaseFreeBacking(Granule), "released pinned granule");
+    Check(!pinned_buf.ReleaseFreeBackingRange(0, 2 * Granule),
+          "released range overlapping pinned granule");
+    auto* pinned_data = pinned_buf.BackingBasePointer();
+    Check(pinned_data[Granule] == 0x4b && pinned_buf.IsBackingDirty(Granule),
+          "pinned granule modified by rejected release");
+    if (pinned_buf.ReleaseFreeBacking(0)) {
+        Check(pinned_data[0] == 0 && pinned_data[Granule] == 0x4b,
+              "unpinned neighbor release affected pinned granule");
+    }
+    pinned_buf.ClearBackingRegion(0, 3 * Granule, 0);
+    Check(std::all_of(pinned_data, pinned_data + 3 * Granule, [](u8 b) { return b == 0; }),
+          "clear across pinned boundary did not zero full span");
+    Check(!pinned_buf.IsBackingDirty(Granule) && pinned_buf.IsBackingPinned(Granule),
+          "clear across pinned granule lost pinned state");
 }
 
 void CheckMultiLevelPageTableLifetime() {

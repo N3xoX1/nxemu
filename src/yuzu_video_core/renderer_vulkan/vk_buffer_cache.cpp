@@ -589,7 +589,32 @@ void BufferCacheRuntime::ReleasePrefetch(uint64_t position) {
     prefetch_releases.push_back({position, tick});
 }
 
-bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, uint64_t size) {
+namespace {
+[[nodiscard]] bool HostImportNeedsPinnedBacking(VkDriverId driver_id) noexcept {
+#ifdef __linux__
+    // Drivers with kernel MMU notifiers (HMM/userptr) or CPU software rasterizers stay coherent
+    // across memfd hole punching (MADV_REMOVE / fallocate). Other Linux/Android drivers (such as
+    // NVIDIA proprietary) pin physical pages via get_user_pages and would keep reading stale pages
+    // if a hole were punched in an imported chunk.
+    switch (driver_id) {
+    case VK_DRIVER_ID_MESA_RADV:
+    case VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA:
+    case VK_DRIVER_ID_MESA_NVK:
+    case VK_DRIVER_ID_MESA_LLVMPIPE:
+    case VK_DRIVER_ID_GOOGLE_SWIFTSHADER:
+        return false;
+    default:
+        return true;
+    }
+#else
+    (void)driver_id;
+    return false;
+#endif
+}
+} // namespace
+
+bool BufferCacheRuntime::InitHostMappedGuestMemory(
+    const u8* base, uint64_t size, std::function<void(uint64_t, uint64_t)> on_pin) {
     // MoltenVK can accept the import and then fail Metal command buffers with out-of-memory errors
     if (device.GetDriverID() == VK_DRIVER_ID_MOLTENVK ||
         !device.IsExtExternalMemoryHostSupported() || base == nullptr || size == 0) {
@@ -662,9 +687,11 @@ bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, uint64_t size
     host_mapped_type_bits = host_type_bits;
     host_mapped_ubo_alignment =
         std::max<uint64_t>(16, static_cast<uint64_t>(device.GetUniformBufferAlignment()));
+    host_mapped_pin_backing = HostImportNeedsPinnedBacking(device.GetDriverID());
+    host_mapped_on_pin = std::move(on_pin);
     LOG_INFO(Render_Vulkan,
-             "Guest RAM ready for on-demand device import: {} MiB ({} x {} MiB chunks)",
-             size >> 20, num_chunks, HostMappedChunkSize >> 20);
+             "Guest RAM ready for on-demand device import: {} MiB ({} x {} MiB chunks, pin={})",
+             size >> 20, num_chunks, HostMappedChunkSize >> 20, host_mapped_pin_backing);
     return true;
 }
 
@@ -740,6 +767,11 @@ VkBuffer BufferCacheRuntime::ImportHostMappedChunk(size_t chunk_index) {
         .allocationSize = chunk_size,
         .memoryTypeIndex = static_cast<u32>(std::countr_zero(type_bits)),
     };
+    if (host_mapped_pin_backing && host_mapped_on_pin) {
+        // Pin before vkAllocateMemory so no concurrent or future Linux hole punch can detach
+        // physical pages pinned by the Vulkan driver.
+        host_mapped_on_pin(chunk_offset, chunk_size);
+    }
     VkDeviceMemory memory{};
     if (dld.vkAllocateMemory(handle, &allocate_info, nullptr, &memory) != VK_SUCCESS) {
         dld.vkDestroyBuffer(handle, buffer, nullptr);

@@ -86,6 +86,13 @@ public:
 
     /// Whether the 64 KiB granule at `physical_offset` may hold data.
     [[nodiscard]] bool IsBackingDirty(size_t physical_offset) const;
+    /// Marks a backing range as pinned by an external consumer (such as a Vulkan host-memory
+    /// import on drivers without MMU notifiers) so hole punching (MADV_REMOVE / fallocate)
+    /// never detaches its physical pages. On Linux this waits for any in-flight hole punch
+    /// to complete before returning.
+    void MarkBackingPinned(size_t physical_offset, size_t length) const;
+    /// Whether the 64 KiB granule at `physical_offset` is pinned against hole punching.
+    [[nodiscard]] bool IsBackingPinned(size_t physical_offset) const noexcept;
     /// Gives the host memory of dirty 64 KiB granules that the kernel holds free back to the
     /// host, leaving them zero and clean. The caller guarantees nobody uses them meanwhile.
     /// Returns false where the platform cannot do it without a cost (then nothing changed).
@@ -146,9 +153,12 @@ private:
     // Fallback if fastmem is not supported on this platform
     std::unique_ptr<Common::VirtualBuffer<u8>> fallback_buffer;
 
+    [[nodiscard]] bool HasPinnedGranule(size_t physical_offset, size_t length) const noexcept;
+
     static constexpr size_t GranuleShift = 16;
     static constexpr u8 GranuleUsed = 1;
     static constexpr u8 GranuleDirty = 2;
+    static constexpr u8 GranulePinned = 4;
     size_t num_granules{};
     std::unique_ptr<std::atomic<u8>[]> granules;
 };

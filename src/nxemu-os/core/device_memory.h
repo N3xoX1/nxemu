@@ -53,6 +53,11 @@ public:
         buffer.EnableDirectMappedAddress();
     }
 
+    void MarkBackingPinned(uint64_t physical_offset, uint64_t length) const
+    {
+        buffer.MarkBackingPinned(static_cast<size_t>(physical_offset), static_cast<size_t>(length));
+    }
+
     template <typename T>
     Common::PhysicalAddress GetPhysicalAddr(const T* ptr) const {
         return (reinterpret_cast<uintptr_t>(ptr) -
