@@ -365,12 +365,8 @@ private:
     }
 
     bool HasUnprotectedImageFlushes() const {
-        if constexpr (TTextureCache::ReadFaultsWaitForDownloads) {
-            return false;
-        } else {
-            std::scoped_lock lock{texture_cache.mutex};
-            return texture_cache.HasUncommittedFlushes();
-        }
+        std::scoped_lock lock{texture_cache.mutex};
+        return texture_cache.HasUnprotectedUncommittedFlushes();
     }
 
     void PopAsyncFlushes() {

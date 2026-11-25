@@ -650,6 +650,9 @@ void VideoManager::HandleRasterizerWrite(const uint8_t * pointer, uint64_t size,
     thread_local Common::ScratchBuffer<u32> scratch;
     impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
         const uint64_t subaddress = address >> page_bits;
+        // A fence may signal before a download it protects is published: a store must land
+        // after the publication, which would otherwise copy the older GPU data over it
+        impl->m_gpuCore->WaitProtectedBufferDownloads(address, size);
         impl->m_gpuCore->WaitInPlaceReads(address, size);
         bool do_collection = *last_page == subaddress;
         if (!do_collection) [[unlikely]]
