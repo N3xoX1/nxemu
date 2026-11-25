@@ -22,9 +22,6 @@ struct ExportOptions
     u32 nx_update_version{};
     bool allow_partial{}, compact{}, automatic_sources{};
     bool full_game{}; // The author recorded the whole game.
-    // Leave out synthetic recipes no draw confirmed (origin 1): the file then holds only what was
-    // drawn, recorded or predicted and seen drawn. Players' exports do; a base pack does not.
-    bool drop_unconfirmed{};
     int compression_level{19}; // Offline export only.
     Progress progress;
 };
@@ -36,8 +33,6 @@ struct ExportReport
     u64 inherited{}, versions{}; // Recipes kept from the previous profile; game versions covered.
     enum class Previous { None, Merged, Unreadable } previous{};
     u64 dropped_recipes{}, dropped_versions{}; // Older game versions removed to fit the limits.
-    u64 dropped_unconfirmed{}; // Synthetic recipes no draw confirmed, left out by drop_unconfirmed.
-    u64 dropped_unrepresentable{}; // Recipes whose guest state has no Maxwell register form, left out.
     double seconds{};
 };
 // Throws on cancellation/error; publication is atomic and never replaces an output.
@@ -59,12 +54,6 @@ struct TrimReport
 // exceeds `limits`, the oldest game version other than `keep` (the order in
 // which versions first appear) with the recipes recorded only with it.
 TrimReport TrimToLimits(JsonValue & profile, const std::string & keep, const ProfileLimits & limits);
-// Removes the synthetic recipes no draw confirmed (origin 1); returns how many. TrimToLimits then
-// removes the programs and environments only they used.
-u64 DropUnconfirmed(JsonValue & profile);
-// Removes the graphics recipes whose guest state NXShader cannot store as Maxwell registers;
-// returns how many. Without this, one such state would make the whole file fail to write.
-u64 DropUnrepresentable(JsonValue & profile);
 // Stable ASCII, sorted-key JSON for offline diagnostic and local metadata.
 std::string Canonical(const JsonValue & value);
 JsonValue ParseMetadata(std::string_view bytes, size_t limit = 32 * 1024 * 1024);

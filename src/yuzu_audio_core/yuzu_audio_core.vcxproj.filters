@@ -250,9 +250,6 @@
     <ClCompile Include="sink\sink_details.cpp">
       <Filter>sink</Filter>
     </ClCompile>
-    <ClCompile Include="sink\speaker_layout.cpp">
-      <Filter>sink</Filter>
-    </ClCompile>
     <ClCompile Include="sink\sink_stream.cpp">
       <Filter>sink</Filter>
     </ClCompile>
@@ -599,9 +596,6 @@
       <Filter>sink</Filter>
     </ClInclude>
     <ClInclude Include="sink\sink_details.h">
-      <Filter>sink</Filter>
-    </ClInclude>
-    <ClInclude Include="sink\speaker_layout.h">
       <Filter>sink</Filter>
     </ClInclude>
     <ClInclude Include="sink\sink_stream.h">

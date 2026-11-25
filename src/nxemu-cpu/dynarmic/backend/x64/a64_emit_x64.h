@@ -132,14 +132,7 @@ protected:
 
     const void* terminal_handler_pop_rsb_hint;
     const void* terminal_handler_fast_dispatch_hint = nullptr;
-    const void* terminal_handler_rsb_miss = nullptr;
-    const void* terminal_handler_fast_dispatch_miss = nullptr;
     FastDispatchEntry& (*fast_dispatch_table_lookup)(u64, FastDispatchEntry*) = nullptr;
-    void EmitCalculateLocationDescriptor();
-    template<typename MissTarget>
-    void EmitPopRSBLookup(const MissTarget& miss);
-    template<typename MissTarget>
-    void EmitFastDispatchLookup(const MissTarget& miss);
     void GenTerminalHandlers();
 
     // Microinstruction emitters

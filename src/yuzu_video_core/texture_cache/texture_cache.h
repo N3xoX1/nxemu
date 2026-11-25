@@ -12,7 +12,6 @@
 
 #include "video_settings.h"
 #include "yuzu_common/alignment.h"
-#include "yuzu_common/range_sets.inc"
 #include "yuzu_common/settings.h"
 #include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_video_core/control/channel_state.h"
@@ -1041,7 +1040,7 @@ FramebufferId TextureCache<P>::GetFramebufferId(const RenderTargets& key) {
 template <class P>
 void TextureCache<P>::WriteMemory(DAddr cpu_addr, size_t size) {
     if (OverlapsDescriptorTables(cpu_addr, size)) {
-        UntrackGraphicsDescriptorTables();
+        BumpDescriptorEpoch();
     }
     ForEachImageInRegion(cpu_addr, size, [this](ImageId image_id, Image& image) {
         if (True(image.flags & ImageFlagBits::CpuModified)) {
@@ -1325,11 +1324,6 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
 
     Image& dst_image = slot_images[dst_id];
     Image& src_image = slot_images[src_id];
-    const std::optional src_base = src_image.TryFindBase(src.Address());
-    const std::optional dst_base = dst_image.TryFindBase(dst.Address());
-    // Before any view is made: scaling an image down erases its views, and src may be dst
-    KeepNativeIfLevelIsMissing(src_id, src_base.value().level);
-    KeepNativeIfLevelIsMissing(dst_id, dst_base.value().level);
     bool is_src_rescaled = True(src_image.flags & ImageFlagBits::Rescaled);
     bool is_dst_rescaled = True(dst_image.flags & ImageFlagBits::Rescaled);
 
@@ -1367,6 +1361,7 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
     };
 
     // TODO: Deduplicate
+    const std::optional src_base = src_image.TryFindBase(src.Address());
     const SubresourceRange src_range{.base = src_base.value(), .extent = {1, 1}};
     const ImageViewInfo src_view_info(ImageViewType::e2D, images.src_format, src_range);
     const auto [src_framebuffer_id, src_view_id] = RenderTargetFromImage(src_id, src_view_info);
@@ -1379,6 +1374,7 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
         scale_region(src_region);
     }
 
+    const std::optional dst_base = dst_image.TryFindBase(dst.Address());
     const SubresourceRange dst_range{.base = dst_base.value(), .extent = {1, 1}};
     const ImageViewInfo dst_view_info(ImageViewType::e2D, images.dst_format, dst_range);
     const auto [dst_framebuffer_id, dst_view_id] = RenderTargetFromImage(dst_id, dst_view_info);
@@ -1476,87 +1472,6 @@ std::pair<typename P::ImageView*, bool> TextureCache<P>::TryFindFramebufferImage
 template <class P>
 bool TextureCache<P>::HasUncommittedFlushes() const noexcept {
     return !uncommitted_downloads.empty();
-}
-
-template <class P>
-bool TextureCache<P>::HasUnprotectedUncommittedFlushes() {
-    return !DownloadsProtected(uncommitted_downloads);
-}
-
-template <class P>
-bool TextureCache<P>::DownloadsProtected(std::span<const PendingDownload> downloads) {
-#if defined(__APPLE__)
-    // Native reads of images download them synchronously
-    return true;
-#else
-    if (downloads.empty()) {
-        return true;
-    }
-    // Pages of GPU written images fault on CPU reads, and the fault waits for the pages
-    // ProtectCommittedDownloads marks
-    if (!device_memory.ProtectsReadCachedPages()) {
-        return false;
-    }
-    // Above the limit, protecting and releasing the pages costs more than the fence wait saves
-    u64 total_bytes = 0;
-    return std::ranges::all_of(downloads, [this, &total_bytes](const PendingDownload& download) {
-        if (!download.is_swizzle) {
-            return false;
-        }
-        const ImageBase& image = slot_images[download.object_id];
-        total_bytes += image.guest_size_bytes;
-        return False(image.flags & ImageFlagBits::Sparse) && image.cpu_addr < (1ULL << 40) &&
-               total_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES;
-    });
-#endif
-}
-
-template <class P>
-void TextureCache<P>::ProtectCommittedDownloads() {
-    auto& protected_ranges = pending_protected_ranges.emplace_back();
-    const bool is_protected = DownloadsProtected(uncommitted_downloads);
-    pending_unprotected_downloads.push_back(!is_protected);
-    unprotected_downloads += is_protected ? 0 : 1;
-#if !defined(__APPLE__)
-    if (!is_protected) {
-        return;
-    }
-    for (const PendingDownload& download : uncommitted_downloads) {
-        const ImageBase& image = slot_images[download.object_id];
-        const DAddr addr = image.cpu_addr;
-        const u64 size = image.guest_size_bytes;
-        protected_download_pages.Set(addr, size);
-        device_memory.UpdatePagesReadCachedCount(addr, size, 1);
-        protected_downloads.Add(addr, size);
-        protected_ranges.emplace_back(addr, size);
-    }
-#endif
-}
-
-template <class P>
-void TextureCache<P>::ReleaseDownloadProtection() {
-    unprotected_downloads -= pending_unprotected_downloads.front() ? 1 : 0;
-    pending_unprotected_downloads.pop_front();
-    using PageBits = decltype(protected_download_pages);
-    for (const auto& [addr, size] : pending_protected_ranges.front()) {
-        device_memory.UpdatePagesReadCachedCount(addr, size, -1);
-        protected_downloads.Subtract(addr, size);
-        // Clear the pages between the downloads still in flight, which keep theirs. Readers
-        // test the pages without a lock, so a kept page is never cleared, even briefly.
-        const DAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
-        DAddr cursor = Common::AlignDown(addr, PageBits::PAGE_SIZE);
-        protected_downloads.ForEachInRange(cursor, end - cursor, [&](DAddr begin, DAddr last, s32) {
-            const DAddr kept = Common::AlignDown(begin, PageBits::PAGE_SIZE);
-            if (kept > cursor) {
-                protected_download_pages.Clear(cursor, kept - cursor);
-            }
-            cursor = std::max(cursor, Common::AlignUp(last, PageBits::PAGE_SIZE));
-        });
-        if (cursor < end) {
-            protected_download_pages.Clear(cursor, end - cursor);
-        }
-    }
-    pending_protected_ranges.pop_front();
 }
 
 template <class P>
@@ -1668,7 +1583,6 @@ void TextureCache<P>::CommitAsyncFlushes() {
             download.gpu_write_tick = slot_images[download.object_id].gpu_write_tick;
         }
     }
-    ProtectCommittedDownloads();
     // This is intentionally passing the value by copy
     if constexpr (IMPLEMENTS_ASYNC_DOWNLOADS) {
         auto& download_ids = uncommitted_downloads;
@@ -1862,7 +1776,6 @@ void TextureCache<P>::PopAsyncFlushes() {
     if constexpr (IMPLEMENTS_ASYNC_DOWNLOADS) {
         const auto& download_ids = committed_downloads.front();
         if (download_ids.empty()) {
-            ReleaseDownloadProtection();
             committed_downloads.pop_front();
             async_buffers.pop_front();
             return;
@@ -1929,14 +1842,11 @@ void TextureCache<P>::PopAsyncFlushes() {
         for (auto& download_buffer : download_map) {
             async_buffers_death_ring.emplace_back(download_buffer);
         }
-        // Published: CPU reads may go on
-        ReleaseDownloadProtection();
         committed_downloads.pop_front();
         async_buffers.pop_front();
     } else {
         const auto& download_ids = committed_downloads.front();
         if (download_ids.empty()) {
-            ReleaseDownloadProtection();
             committed_downloads.pop_front();
             return;
         }
@@ -1978,7 +1888,6 @@ void TextureCache<P>::PopAsyncFlushes() {
             download_map.offset += image.unswizzled_size_bytes;
             download_span = download_span.subspan(image.unswizzled_size_bytes);
         }
-        ReleaseDownloadProtection();
         committed_downloads.pop_front();
     }
 }
@@ -2421,9 +2330,6 @@ bool TextureCache<P>::ImageCanRescale(ImageBase& image) {
     if (videoSettings.resolution_info.downscale && !image.info.downscaleable) {
         return false;
     }
-    if (!ScaledLevelsMatch(image.info, videoSettings.resolution_info)) {
-        return false;
-    }
     if (True(image.flags & (ImageFlagBits::Rescaled | ImageFlagBits::CheckingRescalable))) {
         return true;
     }
@@ -2594,59 +2500,7 @@ bool TextureCache<P>::ScaleDown(Image& image) {
         return false;
     }
     InvalidateScale(image);
-    ResyncMissingLevels(image);
     return true;
-}
-
-template <class P>
-void TextureCache<P>::KeepNativeIfLevelIsMissing(ImageId image_id, s32 level) {
-    Image& image = slot_images[image_id];
-    const auto& resolution = videoSettings.resolution_info;
-    if (level < ScaledImageInfo(image.info, resolution).resources.levels) {
-        return;
-    }
-    if (image.info.rescaleable) {
-        image.info.rescaleable = false;
-        // ImageCanRescale caches its answer on every image of the alias graph
-        boost::container::small_vector<ImageId, 8> alias_graph{image_id};
-        for (size_t index = 0; index < alias_graph.size(); ++index) {
-            ImageBase& member = slot_images[alias_graph[index]];
-            member.flags &= ~ImageFlagBits::IsRescalable;
-            for (const AliasedImage& alias : member.aliased_images) {
-                if (std::ranges::find(alias_graph, alias.id) == alias_graph.end()) {
-                    alias_graph.push_back(alias.id);
-                }
-            }
-        }
-    }
-    // A rescaled alias can scale this image up again, since ScaleUp doesn't ask ImageCanRescale
-    if (ScaleDown(image)) {
-        has_deleted_images = true;
-    }
-}
-
-template <class P>
-void TextureCache<P>::ResyncMissingLevels(const Image& image) {
-    const s32 scaled_levels =
-        ScaledImageInfo(image.info, videoSettings.resolution_info).resources.levels;
-    if (scaled_levels == image.info.resources.levels) {
-        return;
-    }
-    const auto is_missing_level = [scaled_levels](const ImageCopy& copy) {
-        return copy.dst_subresource.base_level >= scaled_levels;
-    };
-    boost::container::small_vector<ImageBase*, 4> sources;
-    for (const AliasedImage& alias : image.aliased_images) {
-        if (std::ranges::all_of(alias.copies, is_missing_level)) {
-            sources.push_back(&slot_images[alias.id]);
-        }
-    }
-    // Copies from these aliases were skipped while the image was scaled. Marking them newer
-    // copies them in at the next synchronization, in the order they were written.
-    std::ranges::sort(sources, {}, &ImageBase::modification_tick);
-    for (ImageBase* const source : sources) {
-        source->modification_tick = ++modification_tick;
-    }
 }
 
 template <class P>
@@ -2748,12 +2602,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
     ForEachSparseImageInRegion(channel_state->gpu_memory.GetID(), gpu_addr, size_bytes,
                                region_check_gpu);
 
-    const auto& resolution = videoSettings.resolution_info;
-    const auto loses_levels = [&resolution](const ImageInfo& image_info) {
-        return ScaledImageInfo(image_info, resolution).resources.levels <
-               image_info.resources.levels;
-    };
-    bool can_rescale = info.rescaleable && ScaledLevelsMatch(new_info, resolution);
+    bool can_rescale = info.rescaleable;
     bool any_rescaled = false;
     for (const auto& copy : join_copies_to_do) {
         if (!can_rescale) {
@@ -2761,10 +2610,6 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         }
         Image& sibling = slot_images[copy.id];
         can_rescale &= ImageCanRescale(sibling);
-        // A merged overlap is deleted, so a level missing on either side would lose its data
-        if (!copy.is_alias) {
-            can_rescale &= !loses_levels(new_info) && !loses_levels(sibling.info);
-        }
         any_rescaled |= True(sibling.flags & ImageFlagBits::Rescaled);
     }
 
@@ -2809,21 +2654,12 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
     });
 
     ImageBase& new_image_base = new_image;
-    const auto scale_lower_mip_with_chain = [](ImageBase& chain, ImageBase& mip) {
-        const bool is_lower_mip =
-            chain.aliased_images.back().copies.front().dst_subresource.base_level > 0;
-        if (chain.info.rescaleable && is_lower_mip) {
-            mip.info.rescaleable = true;
-            mip.info.downscaleable = chain.info.downscaleable;
-        }
-    };
     for (const ImageId aliased_id : join_right_aliased_ids) {
         ImageBase& aliased = slot_images[aliased_id];
         size_t alias_index = new_image_base.aliased_images.size();
         if (!AddImageAlias(new_image_base, aliased, new_image_id, aliased_id)) {
             continue;
         }
-        scale_lower_mip_with_chain(new_image_base, aliased);
         join_alias_indices.emplace(aliased_id, alias_index);
         new_image.flags |= ImageFlagBits::Alias;
     }
@@ -2833,7 +2669,6 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         if (!AddImageAlias(aliased, new_image_base, aliased_id, new_image_id)) {
             continue;
         }
-        scale_lower_mip_with_chain(aliased, new_image_base);
         join_alias_indices.emplace(aliased_id, alias_index);
         new_image.flags |= ImageFlagBits::Alias;
     }
@@ -2918,6 +2753,7 @@ ImageId TextureCache<P>::JoinImages(const ImageInfo& info, GPUVAddr gpu_addr, DA
         if (True(overlap.flags & ImageFlagBits::GpuModified)) {
             new_image.flags |= ImageFlagBits::GpuModified;
             UpdateNativeReadTracking(new_image, new_image_id);
+            const auto& resolution = videoSettings.resolution_info;
             const SubresourceBase base = new_image.TryFindBase(overlap.gpu_addr).value();
             const u32 up_scale = can_rescale ? resolution.up_scale : 1;
             const u32 down_shift = can_rescale ? resolution.down_shift : 0;
@@ -3452,7 +3288,6 @@ ImageViewId TextureCache<P>::FindOrEmplaceImageView(ImageId image_id, const Imag
     if (const ImageViewId image_view_id = image.FindView(info); image_view_id) {
         return image_view_id;
     }
-    KeepNativeIfLevelIsMissing(image_id, info.range.base.level);
     const ImageViewId image_view_id =
         slot_image_views.insert(runtime, info, image_id, image, slot_images);
     image.InsertView(info, image_view_id);
@@ -3908,9 +3743,6 @@ void TextureCache<P>::MarkModification(ImageBase& image, ImageId image_id) noexc
     if (!image.aliased_images.empty()) {
         BumpDescriptorEpoch();
     }
-    if (binding_compute) {
-        compute_writes.Mark(image.cpu_addr, image.guest_size_bytes);
-    }
     image.flags |= ImageFlagBits::GpuModified;
     image.modification_tick = ++modification_tick;
     image.gpu_write_tick = modification_tick;
@@ -3977,7 +3809,7 @@ void TextureCache<P>::SynchronizeAliases(ImageId image_id) {
                 runtime.NeedsAliasCopyThroughBuffer()) {
                 std::vector<ImageCopy> copies = aliased->copies;
                 ScaleImageCopies(image, source, copies);
-                if (copies.empty() || runtime.CopyImageThroughBuffer(image, source, copies)) {
+                if (runtime.CopyImageThroughBuffer(image, source, copies)) {
                     return;
                 }
             }
@@ -4057,12 +3889,6 @@ void TextureCache<P>::ScaleImageCopies(const ImageBase& dst, const ImageBase& sr
             copy.extent.height = resolution.ScaleUp(copy.extent.height);
         }
     }
-    const s32 src_levels = ScaledImageInfo(src.info, resolution).resources.levels;
-    const s32 dst_levels = ScaledImageInfo(dst.info, resolution).resources.levels;
-    std::erase_if(copies, [&](const ImageCopy& copy) {
-        return copy.src_subresource.base_level >= src_levels ||
-               copy.dst_subresource.base_level >= dst_levels;
-    });
 }
 
 template <class P>
@@ -4071,9 +3897,6 @@ void TextureCache<P>::CopyImage(ImageId dst_id, ImageId src_id, std::vector<Imag
     Image& src = slot_images[src_id];
     const bool is_rescaled = True(src.flags & ImageFlagBits::Rescaled);
     ScaleImageCopies(dst, src, copies);
-    if (copies.empty()) {
-        return;
-    }
     const auto dst_format_type = GetFormatType(dst.info.format);
     const auto src_format_type = GetFormatType(src.info.format);
     if (src_format_type == dst_format_type) {

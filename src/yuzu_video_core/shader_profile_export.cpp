@@ -8,7 +8,6 @@
 #include "yuzu_video_core/shader_profile_codec.h"
 #include "yuzu_video_core/shader_profile_compact.h"
 #include "yuzu_video_core/shader_profile_discovery.h"
-#include "yuzu_video_core/shader_profile_guest_state.h"
 #include "yuzu_video_core/shader_profile_hash.h"
 #include "yuzu_video_core/shader_profile_journal.h"
 #include "yuzu_video_core/shader_profile_resources.h"
@@ -627,25 +626,6 @@ void CanonicalizeEnvironments(JsonValue & profile, const std::map<std::string, s
 u64 MergeProfiles(JsonValue previous, JsonValue & current)
 {
     u64 inherited{};
-    // A program is one key whichever profile names it: a decoded profile knows
-    // only the start of its SHA-256, so both name shader hashes from that start.
-    for (auto * profile : {&previous, &current})
-        for (unsigned i = 0; i < (*profile)["recipes"].size(); ++i)
-        {
-            auto & r = (*profile)["recipes"][i];
-            const auto key = [&](unsigned index) {
-                Require(index < r["environments"].size(), "Recipe program count mismatch");
-                return ProgramKeyHash(std::as_const(*profile)["environments"][r["environments"][index].asString()]["shader"].asString());
-            };
-            if (r["kind"].asString() == "compute")
-            {
-                r["shader_hash"] = std::to_string(key(0));
-                continue;
-            }
-            unsigned index{};
-            for (unsigned slot = 0; slot < 6; ++slot)
-                if (Number(r["shader_hashes"][slot])) r["shader_hashes"][slot] = std::to_string(key(index++));
-        }
     // Game versions of the previous profile stay named; the new export's flag wins.
     if (current["versions"].isNull()) current["versions"] = JsonValue(JsonValueType::Object);
     if (previous["versions"].isObject())
@@ -819,41 +799,6 @@ u64 MergeProfiles(JsonValue previous, JsonValue & current)
     return inherited;
 }
 
-u64 DropUnconfirmed(JsonValue & profile)
-{
-    u64 dropped{};
-    JsonValue kept(JsonValueType::Array);
-    for (const auto & r : std::as_const(profile)["recipes"])
-    {
-        if (r["synthetic"].asBool() && !r["played"].asBool()) ++dropped;
-        else kept.Append(r);
-    }
-    profile["recipes"] = std::move(kept);
-    return dropped;
-}
-u64 DropUnrepresentable(JsonValue & profile)
-{
-    u64 dropped{};
-    JsonValue kept(JsonValueType::Array);
-    for (const auto & r : std::as_const(profile)["recipes"])
-    {
-        bool representable = true;
-        if (r["kind"].asString() == "graphics")
-        {
-            std::vector<u32> words;
-            for (const auto & n : r["guest_words"])
-            {
-                if (Number(n) > UINT32_MAX) break;
-                words.push_back(static_cast<u32>(Number(n)));
-            }
-            representable = words.size() == r["guest_words"].size() && GuestState::FromWords(words).has_value();
-        }
-        if (representable) kept.Append(r);
-        else ++dropped;
-    }
-    profile["recipes"] = std::move(kept);
-    return dropped;
-}
 TrimReport TrimToLimits(JsonValue & profile, const std::string & keep, const ProfileLimits & limits)
 {
     TrimReport report;
@@ -1059,7 +1004,7 @@ ExportReport Export(const ExportOptions & requested)
         try
         {
             const auto packed = Load(options.previous, MaxProfileFileBytes);
-            Require(packed.starts_with(ProfileMagic), "Expected a compressed NXShader profile");
+            Require(packed.starts_with("NXSHADR2"), "Expected a compressed NXShader profile");
             report.inherited = MergeProfiles(DecodeCompact(Unpack(packed), options.title_id), profile);
             report.previous = ExportReport::Previous::Merged;
         }
@@ -1068,9 +1013,6 @@ ExportReport Export(const ExportOptions & requested)
             report.previous = ExportReport::Previous::Unreadable;
         }
     }
-    // After the merge, so that the previous file's unconfirmed guesses go too.
-    if (options.drop_unconfirmed) report.dropped_unconfirmed = DropUnconfirmed(profile);
-    report.dropped_unrepresentable = DropUnrepresentable(profile);
     {
         const auto trimmed = TrimToLimits(profile, options.context, ProfileLimits{});
         report.dropped_recipes = trimmed.recipes;

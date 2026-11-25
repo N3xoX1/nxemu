@@ -1873,27 +1873,17 @@ img[data-icon]
     bottom: 16dp;
 }
 
-/* The icon keeps its place, an empty frame until it is known, so the box beside it never moves. */
-#loading-panel #loading-icon
+#loading-icon
 {
-    display: block;
-    flex-shrink: 0;
     width: 256dp;
     height: 256dp;
     margin-right: 28dp;
-    border-radius: 8dp;
-    background-color: #0e1524;
 }
 
-#loading-panel #loading-icon.shown
-{
-    background-color: transparent;
-}
-
-/* A fixed width: longer texts must not move the icon. */
 .loading-box
 {
-    width: 520dp;
+    min-width: 330dp;
+    max-width: 520dp;
 }
 
 /* The game's name: it stays while what is under the bar says what is being done. */
@@ -1910,7 +1900,6 @@ img[data-icon]
 .loading-status
 {
     display: flex;
-    align-items: center;
     height: 18dp;
     margin-top: 9dp;
     font-size: 13dp;
@@ -1921,9 +1910,7 @@ img[data-icon]
 
 #loading-text
 {
-    flex: 0 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: 1;
 }
 
 #loading-count
@@ -1931,27 +1918,23 @@ img[data-icon]
     color: #b4bfce;
 }
 
-/* The time left, on the line of what is being done: it takes the space up to the count. */
 #loading-eta
 {
-    flex: 1;
-    min-width: 0;
-    margin: 0 12dp 0 8dp;
-    color: #4cc9e6;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    min-height: 18dp;
+    margin-top: 6dp;
+    font-size: 13dp;
+    line-height: 18dp;
+    color: #b4bfce;
 }
 
-/* Fixed height, with or without a text: the box keeps its size and stays centered in place. */
 #loading-hint
 {
-    height: 36dp;
+    min-height: 36dp;
     margin-top: 8dp;
     font-size: 13dp;
     line-height: 18dp;
     color: #8f9bb0;
     white-space: normal;
-    overflow: hidden;
 }
 
 .loading-track
@@ -1982,41 +1965,6 @@ img[data-icon]
     /* A transform, not a margin: moving the bar must not resize its box. */
     from { opacity: 0.45; transform: translateX(0%); }
     to { opacity: 1; transform: translateX(138%); }
-}
-
-/* Always in place, so nothing moves; it can be pressed once the shaders the game uses first are ready. */
-.loading-actions
-{
-    margin-top: 16dp;
-    text-align: center;
-}
-
-.loading-continue
-{
-    display: inline-block;
-    min-width: 240dp;
-    height: 32dp;
-    padding: 0 20dp;
-    border-radius: 16dp;
-    background-color: #18233a;
-    color: #5d6a82;
-    font-size: 13dp;
-    font-weight: bold;
-    line-height: 32dp;
-    white-space: nowrap;
-    cursor: default;
-}
-
-.loading-continue.enabled
-{
-    background-color: #0093b8;
-    color: #ffffff;
-    cursor: pointer;
-}
-
-.loading-continue.enabled:hover
-{
-    background-color: #00a6cf;
 }
 
 /* ---- Status bar ---- */
@@ -2173,61 +2121,6 @@ body.speed-uncapped #status-unlocked
     color: var(--warning);
 }
 
-/* Shaders the game left to the background, just before the speed: a small bar and the count.
-   It takes the free space, so the speed text keeps its place at the right. */
-#status-shaders
-{
-    display: none;
-    flex: 1;
-    min-width: 0;
-    flex-direction: row;
-    justify-content: flex-end;
-    align-items: center;
-}
-
-body.shaders-background #status-shaders
-{
-    display: flex;
-}
-
-body.shaders-background #status-text
-{
-    flex: 0 1 auto;
-}
-
-.status-shaders-track
-{
-    flex-shrink: 0;
-    width: 56dp;
-    height: 5dp;
-    margin-right: 8dp;
-    border-radius: 3dp;
-    background-color: rgba(120, 135, 160, 80);
-    overflow: hidden;
-}
-
-#status-shaders-fill
-{
-    width: 0%;
-    height: 100%;
-    border-radius: 3dp;
-    background-color: #00b4d8;
-}
-
-#status-shaders.finished #status-shaders-fill
-{
-    background-color: var(--success);
-}
-
-#status-shaders-text
-{
-    font-size: 12dp;
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
 #status-text
 {
     flex: 1;
@@ -2245,63 +2138,6 @@ body.shaders-background #status-text
     background-color: var(--surface);
     font-size: 11dp;
     white-space: nowrap;
-}
-
-/* Beside the volume, what the game is heard in: "5.1" green when the output
-   plays it, "5.1 > Stereo" with the stereo in green when the game offers 5.1
-   the output device cannot play, "Stereo" grey for a stereo game, "Stereo" red
-   when the player forced stereo. "5.1" and the red "Stereo" take a click, to
-   force stereo or give 5.1 back. */
-.surround-badge
-{
-    margin-left: 5dp;
-    padding: 0dp 3dp;
-    border: 1dp var(--success);
-    border-radius: 2dp;
-    color: var(--success);
-    font-size: 8dp;
-    font-weight: bold;
-    letter-spacing: 0.3dp;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.surround-badge.plain
-{
-    border-color: var(--border);
-    color: var(--text-muted);
-}
-
-.surround-badge.forced
-{
-    border-color: var(--danger);
-    color: var(--danger);
-}
-
-.surround-badge.switchable
-{
-    cursor: pointer;
-}
-
-/* Keeps the colour of the state while pointed at. */
-.surround-badge.switchable:hover
-{
-    opacity: 0.8;
-}
-
-.surround-badge.downmix
-{
-    border-color: var(--border);
-}
-
-.surround-source
-{
-    color: var(--text-muted);
-}
-
-.surround-badge.absent
-{
-    display: none;
 }
 
 #resolution.absent,

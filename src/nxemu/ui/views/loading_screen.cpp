@@ -3,7 +3,6 @@
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/StringUtilities.h>
 #include <algorithm>
-#include <optional>
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-core/settings/settings.h>
 #include <nxemu/ui/host/ui_renderer.h>
@@ -15,9 +14,6 @@ namespace
 constexpr int kIndeterminate = -1;
 constexpr const char * kUnnamed = TrMark("Loading");
 constexpr const char * kOpening = TrMark("Opening the game...");
-// The game starts with the shaders it uses first, in the order it first used them: the button
-// comes once that many are ready (a quarter of a smaller cache), so the start does not stutter.
-constexpr int kContinueAfter = 512;
 } // namespace
 
 LoadingScreen::LoadingScreen(Rml::Element * panel, UiRenderer & renderer) :
@@ -48,8 +44,6 @@ void LoadingScreen::Reset()
     m_images.clear();
     m_title.clear();
     m_hasGame = false;
-    m_canContinue = false;
-    m_continueRequested = false;
     m_timeEstimate.Reset();
     SetText("loading-hint", "");
     SetText("loading-eta", "");
@@ -95,16 +89,17 @@ void LoadingScreen::Update()
     const int current = settings.GetInt(NXCoreSetting::DiskCacheLoadCurrent);
     const int total = settings.GetInt(NXCoreSetting::DiskCacheLoadTotal);
     const bool compiling = stage == LoadStage::Shaders || stage == LoadStage::BuildProfile;
-    SetText("loading-hint", settings.GetBool(NXCoreSetting::ShaderRecordingOff) ? Tr("Shaders are not recorded while mods or cheats are active.") : "");
+    std::string hint = compiling ? Tr("This may take a few minutes. Compiled shaders are cached to speed up future launches.") : "";
+    if (settings.GetBool(NXCoreSetting::ShaderRecordingOff))
+        hint += (hint.empty() ? "" : " ") + Tr("Shaders are not recorded while mods or cheats are active.");
+    SetText("loading-hint", hint);
     std::string remaining;
-    std::optional<long long> secondsLeft;
     if (compiling)
     {
         const auto estimate = m_timeEstimate.Update(static_cast<int>(stage), current, total);
         if (estimate)
         {
-            secondsLeft = estimate->count();
-            const auto seconds = *secondsLeft;
+            const auto seconds = estimate->count();
             if (seconds < 60)
                 remaining = Tr("About %1 s remaining", {std::to_string(5 * ((seconds + 4) / 5))});
             else
@@ -116,29 +111,7 @@ void LoadingScreen::Update()
             remaining = Tr("Finishing shader preparation...");
     }
     else m_timeEstimate.Reset();
-    SetText("loading-eta", remaining.empty() ? remaining : "·  " + remaining);
-    const int continueAfter = std::min(kContinueAfter, total / 4);
-    m_canContinue = stage == LoadStage::Shaders && total > 0 && current < total && current >= continueAfter;
-    if (Rml::Element * button = m_panel->GetElementById("loading-continue"))
-    {
-        button->SetClass("enabled", m_canContinue && !m_continueRequested);
-    }
-    std::string action = Tr("Play now, finish in the background");
-    if (m_continueRequested)
-        action = Tr("Starting the game...");
-    else if (stage == LoadStage::Shaders && total > 0 && current < continueAfter)
-    {
-        // The time to the button, at the pace of the whole estimate.
-        if (secondsLeft && total > current)
-        {
-            const long long seconds = std::max(1LL, *secondsLeft * (continueAfter - current) / (total - current));
-            action = seconds < 60 ? Tr("Wait %1 s to play now", {std::to_string(5 * ((seconds + 4) / 5))})
-                                  : Tr("Wait %1 min to play now", {std::to_string((seconds + 59) / 60)});
-        }
-        else
-            action = Tr("Preparing the first shaders...");
-    }
-    SetText("loading-continue", action);
+    SetText("loading-eta", remaining);
     if (stage == LoadStage::Shaders || stage == LoadStage::ReadProfile ||
         stage == LoadStage::ImportProfile || stage == LoadStage::BuildProfile)
     {
@@ -158,17 +131,6 @@ void LoadingScreen::Update()
         SetStatus(Tr(kOpening));
         SetProgress(kIndeterminate);
     }
-}
-
-bool LoadingScreen::RequestContinue()
-{
-    if (!m_canContinue || m_continueRequested)
-    {
-        return false;
-    }
-    m_continueRequested = true;
-    Update();
-    return true;
 }
 
 void LoadingScreen::SetImage(const char * id, std::vector<uint8_t> encoded)

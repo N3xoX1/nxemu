@@ -1,4 +1,3 @@
-#include <span>
 #include <array>
 #include <bitset>
 #include <cstring>
@@ -94,15 +93,7 @@ struct Dma {
  void UpdateUniformPrefetchAtAcquire(u32,u32) const {}
  bool IsPullerRegisterOnly(u32) const { return false; }
  bool IsPullerWait(u32,u32) const { return false; }
- struct BackWrites {};
  template<typename F> void PostBack(F&& f) const { f(); }
- template<typename F> void PostBack(F&& f, BackWrites) const { f(); }
- BackWrites PullerWrites(u32, std::span<const u32>) const { return {}; }
- BackWrites EngineWrites(u32, u32) const { return {}; }
- mutable u64 posted_dispatch{};
- void DispatchRan(u64) const {}
- void TrackFrontRegister(u32, u32, u32) const {}
- void ApplyFrontSink(u32) const {}
  std::vector<std::pair<u32,u32>>& SinkFor(u32 sc) const {
   if (IsThreaded() && subchannel_type[sc] != Engines::EngineTypes::Maxwell3D) { return front_sinks[sc]; }
   return subchannels[sc]->method_sink;

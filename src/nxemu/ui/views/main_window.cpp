@@ -85,7 +85,6 @@ constexpr float kNarrowWidth = 800.0f;
 constexpr float kCompactWidth = 560.0f;
 constexpr uint64_t kVersionCopiedMs = 1500;
 constexpr uint64_t kStatusIntervalMs = 1000;
-constexpr uint64_t kAudioSwitchMs = 250;
 constexpr int kGameIconMin = 96;
 constexpr int kGameIconMax = 240;
 constexpr int kGameIconSteps[] = {108, 146, 176, 216};
@@ -515,7 +514,6 @@ void MainWindow::Update()
     }
     SyncPhase();
     m_playTime.SetPlaying(m_phase == EmulatorSession::Phase::Running ? m_playingProgram : 0);
-    UpdateShaderProgress();
     if (m_rescanGames && m_phase == EmulatorSession::Phase::Idle && m_pendingGame.empty() && !m_firmwareDialog->Installing())
     {
         m_rescanGames = false;
@@ -1106,31 +1104,11 @@ void MainWindow::BindEvents()
         m_session.FlushSettings();
         UpdateStatusWidgets();
     });
-    // The audio badge forces stereo or gives the 5.1 back; the choice is kept for every game.
-    UiEvents::Listen(m_document->GetElementById("audio-surround"), "click", [this](Rml::Event & event) {
-        if (!event.GetCurrentElement()->IsClassSet("switchable"))
-        {
-            return;
-        }
-        SettingsStore & store = SettingsStore::GetInstance();
-        const bool surround = store.GetInt(NXOsSetting::SystemAudioMode) == static_cast<int>(AudioMode::Surround);
-        store.SetInt(NXOsSetting::SystemAudioMode, static_cast<int>(surround ? AudioMode::Stereo : AudioMode::Surround));
-        m_session.FlushSettings();
-        // The badge follows the output once it has switched, a tenth of a second later: look
-        // again soon rather than at the next second.
-        m_lastStatusUpdate = SDL_GetTicks() - kStatusIntervalMs + kAudioSwitchMs;
-    });
     UiEvents::Listen(m_document->GetElementById("games-list-header"), "click", [this](Rml::Event & event) {
         const int sort = event.GetTargetElement()->GetAttribute<int>("data-sort", -1);
         if (std::find(std::begin(kOfferedSorts), std::end(kOfferedSorts), sort) != std::end(kOfferedSorts))
         {
             Post(static_cast<Action>(static_cast<int>(Action::GameSortFirst) + sort));
-        }
-    });
-    UiEvents::Listen(m_document->GetElementById("loading-continue"), "click", [this](Rml::Event &) {
-        if (m_session.IsValid() && m_loadingScreen->RequestContinue())
-        {
-            m_session.Modules().Video().ContinueShadersInBackground();
         }
     });
     onClick("title-settings", Action::OpenSettings);
@@ -1903,53 +1881,6 @@ void MainWindow::UpdateStatusWidgets()
     {
         m_volume->Show();
     }
-    UpdateSurroundBadge();
-}
-
-void MainWindow::UpdateSurroundBadge()
-{
-    Rml::Element * badge = m_document->GetElementById("audio-surround");
-    if (badge == nullptr)
-    {
-        return;
-    }
-    // While a game plays: "5.1" green when the output plays the game's 5.1, "5.1 > Stereo"
-    // with the stereo in green when the game offers 5.1 the output device cannot play, "Stereo"
-    // grey for a stereo game, and "Stereo" red when the player forced stereo. Only "5.1" and
-    // the red "Stereo" take a click.
-    const AudioOutputStatus audio = m_session.IsValid() && m_session.IsRunning()
-        ? m_session.Modules().OperatingSystem().AudioGetOutputStatus() : AudioOutputStatus{};
-    const bool playing = audio.outputChannels != 0 && audio.sourceChannels != 0;
-    const bool surroundAllowed = audio.surroundAllowed;
-    const bool gameSurround = surroundAllowed && audio.sourceChannels >= 6;
-    const bool surround = gameSurround && audio.outputChannels >= 6;
-    badge->SetClass("absent", !playing);
-    badge->SetClass("plain", playing && surroundAllowed && !gameSurround);
-    badge->SetClass("downmix", playing && gameSurround && !surround);
-    badge->SetClass("forced", playing && !surroundAllowed);
-    badge->SetClass("switchable", playing && (surround || !surroundAllowed));
-    if (!playing)
-    {
-        return;
-    }
-    // A game's 5.1 that the output mixes down reads "5.1 > Stereo", the stereo heard in green.
-    Rml::String label = surround ? Rml::String("5.1") : Tr("Stereo");
-    if (gameSurround && !surround)
-    {
-        label = "<span class=\"surround-source\">5.1 &#8250;</span> " + label;
-    }
-    if (badge->GetInnerRML() != label)
-    {
-        badge->SetInnerRML(label);
-    }
-    const std::string hint = !surroundAllowed ? Tr("Stereo is forced. Click to allow surround.")
-        : surround ? Tr("Surround: the output device plays 5.1 sound.") + "\n" + Tr("Click to force stereo.")
-        : gameSurround ? Tr("Surround: the output device plays stereo only, so surround sound is mixed down to two channels.")
-        : Tr("This game sends stereo sound.");
-    if (badge->GetAttribute<Rml::String>("title", "") != hint)
-    {
-        badge->SetAttribute("title", hint);
-    }
 }
 
 void MainWindow::ShowGameMenu(Rml::Element * origin)
@@ -2487,55 +2418,6 @@ void MainWindow::UpdateLoadingScreen()
     m_loadingScreen->Update();
 }
 
-// The shaders the player left to the background when the game started: shown in the status
-// bar beside the speed until they are ready, then "ready" for a moment.
-void MainWindow::UpdateShaderProgress()
-{
-    constexpr uint64_t kReadyShownMs = 2500;
-    Rml::Element * item = m_document->GetElementById("status-shaders");
-    if (item == nullptr)
-    {
-        return;
-    }
-    uint32_t done = 0, total = 0;
-    if (m_session.IsValid() && m_session.IsRunning())
-    {
-        m_session.Modules().Video().BackgroundShaderProgress(done, total);
-    }
-    const bool finished = total != 0 && done >= total;
-    const uint64_t now = SDL_GetTicks();
-    if (!finished)
-    {
-        m_shaderProgressFinished = 0;
-    }
-    else if (m_shaderProgressFinished == 0)
-    {
-        m_shaderProgressFinished = now;
-    }
-    const bool show = total != 0 && (!finished || now - m_shaderProgressFinished < kReadyShownMs);
-    m_document->SetClass("shaders-background", show);
-    item->SetClass("finished", finished);
-    std::string text = !show ? std::string() : finished ? Tr("Shaders ready") : Tr("Preparing shaders") + "  " + std::to_string(done) + " / " + std::to_string(total);
-    if (text != m_shaderProgressText)
-    {
-        const bool wasShown = !m_shaderProgressText.empty();
-        m_shaderProgressText = std::move(text);
-        SetText("status-shaders-text", m_shaderProgressText);
-        if (wasShown != show)
-        {
-            UpdateStatusText(); // The builds count hides while the background count shows.
-        }
-    }
-    if (!show)
-    {
-        return;
-    }
-    if (Rml::Element * fill = m_document->GetElementById("status-shaders-fill"))
-    {
-        fill->SetProperty(Rml::PropertyId::Width, Rml::Property(100.0f * done / total, Rml::Unit::PERCENT));
-    }
-}
-
 void MainWindow::LayoutGameArea()
 {
     Rml::Element * contents = m_document->GetElementById("main-contents");
@@ -2775,8 +2657,7 @@ void MainWindow::UpdateStatusText()
         {
             parts.push_back(Tr("Paused"));
         }
-        // The background shaders show their own count, which includes these builds.
-        const uint32_t shaders = m_shaderProgressText.empty() ? m_session.Modules().Video().ShadersBuilding() : 0;
+        const uint32_t shaders = m_session.Modules().Video().ShadersBuilding();
         if (shaders > 0)
         {
             parts.push_back(TrCount("Building: %n shader", "Building: %n shaders", shaders));

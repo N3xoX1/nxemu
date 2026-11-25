@@ -1,12 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <algorithm>
 #include <array>
 #include <atomic>
-#include <cmath>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <span>
 #include <vector>
@@ -25,56 +22,6 @@
 namespace AudioCore::Sink
 {
 
-namespace
-{
-// Rounds to the nearest value: truncating would bias every sample towards zero.
-s16 Clamp(f32 sample)
-{
-    constexpr f32 min = std::numeric_limits<s16>::min(), max = std::numeric_limits<s16>::max();
-    return static_cast<s16>(std::lrint(std::clamp(sample, min, max)));
-}
-
-// Writes frames of `in_channels` samples as frames of `out_channels` samples (2 or 6).
-// No upmix: a stereo source plays on the front speakers of a 5.1 output.
-void ConvertFrames(const s16 * in, u32 in_channels, s16 * out, u32 out_channels, std::size_t frames)
-{
-    // Default 5.1 to stereo weights of the console: center and back -3 dB, LFE -12 dB.
-    constexpr f32 front = 1.0f, center = 0.707f, lfe = 0.251f, back = 0.707f;
-    for (std::size_t i = 0; i < frames; i++, in += in_channels, out += out_channels)
-    {
-        if (out_channels == 2 && in_channels == 6)
-        {
-            const f32 common = in[2] * center + in[3] * lfe;
-            out[0] = Clamp(in[0] * front + common + in[4] * back);
-            out[1] = Clamp(in[1] * front + common + in[5] * back);
-            continue;
-        }
-        if (out_channels == 2 && in_channels == 4)
-        {
-            out[0] = Clamp(in[0] * front + in[2] * back);
-            out[1] = Clamp(in[1] * front + in[3] * back);
-            continue;
-        }
-        std::fill_n(out, out_channels, s16{0});
-        switch (in_channels)
-        {
-        case 1:
-            out[0] = out[1] = in[0];
-            break;
-        case 4: // Front and back pairs, into a 5.1 frame.
-            out[0] = in[0];
-            out[1] = in[1];
-            out[4] = in[2];
-            out[5] = in[3];
-            break;
-        default:
-            std::copy_n(in, std::min(in_channels, out_channels), out);
-            break;
-        }
-    }
-}
-} // namespace
-
 void SinkStream::AppendBuffer(SinkBuffer & buffer, std::span<s16> samples)
 {
     SCOPE_EXIT
@@ -88,32 +35,97 @@ void SinkStream::AppendBuffer(SinkBuffer & buffer, std::span<s16> samples)
         return;
     }
 
-    // Samples stay in the layout of the game; the callback converts them to the
-    // device's, which can change while they wait.
-    const u32 channels = GetSystemChannels();
-    buffer.channels = channels;
-    buffer.stored_frames = 0;
-    if (channels == 0 || channels > MaxChannels)
-    {
-        return;
-    }
-    // The buffer keeps the length the game submitted: the played count must reach its end for
-    // the game to get it back. Frames past the free room in the ring play as silence.
-    const std::size_t free_frames = (samples_buffer.Capacity() - samples_buffer.Size()) / channels;
-    buffer.stored_frames = std::min<u64>({buffer.frames, samples.size() / channels, free_frames});
-    samples = samples.first(buffer.stored_frames * channels);
-
+    constexpr s32 min{std::numeric_limits<s16>::min()};
+    constexpr s32 max{std::numeric_limits<s16>::max()};
     f32 yuzu_volume = osSettings.audio_muted ? 0.0f : osSettings.volume / 100.0f;
     if (yuzu_volume > 1.0f)
     {
         yuzu_volume = 0.6f + 20 * std::log10(yuzu_volume);
     }
-    const f32 volume = system_volume * device_volume * yuzu_volume;
+    auto volume{system_volume * device_volume * yuzu_volume};
+
+    if (system_channels == 6 && device_channels == 2)
+    {
+        // We're given 6 channels, but our device only outputs 2, so downmix.
+        // Front = 1.0
+        // Center = 0.596
+        // LFE = 0.354
+        // Back = 0.707
+        static constexpr std::array<f32, 4> down_mix_coeff{1.0, 0.596f, 0.354f, 0.707f};
+
+        for (u32 read_index = 0, write_index = 0; read_index < samples.size();
+             read_index += system_channels, write_index += device_channels)
+        {
+            const auto fl =
+                static_cast<f32>(samples[read_index + static_cast<u32>(Channels::FrontLeft)]);
+            const auto fr =
+                static_cast<f32>(samples[read_index + static_cast<u32>(Channels::FrontRight)]);
+            const auto c =
+                static_cast<f32>(samples[read_index + static_cast<u32>(Channels::Center)]);
+            const auto lfe =
+                static_cast<f32>(samples[read_index + static_cast<u32>(Channels::LFE)]);
+            const auto bl =
+                static_cast<f32>(samples[read_index + static_cast<u32>(Channels::BackLeft)]);
+            const auto br =
+                static_cast<f32>(samples[read_index + static_cast<u32>(Channels::BackRight)]);
+
+            const auto left_sample{
+                static_cast<s32>((fl * down_mix_coeff[0] + c * down_mix_coeff[1] +
+                                  lfe * down_mix_coeff[2] + bl * down_mix_coeff[3]) *
+                                 volume)};
+
+            const auto right_sample{
+                static_cast<s32>((fr * down_mix_coeff[0] + c * down_mix_coeff[1] +
+                                  lfe * down_mix_coeff[2] + br * down_mix_coeff[3]) *
+                                 volume)};
+
+            samples[write_index + static_cast<u32>(Channels::FrontLeft)] =
+                static_cast<s16>(std::clamp(left_sample, min, max));
+            samples[write_index + static_cast<u32>(Channels::FrontRight)] =
+                static_cast<s16>(std::clamp(right_sample, min, max));
+        }
+
+        samples_buffer.Push(samples.subspan(0, samples.size() / system_channels * device_channels));
+        return;
+    }
+
+    if (system_channels == 2 && device_channels == 6)
+    {
+        // We need moar samples! Not all games will provide 6 channel audio.
+        // TODO: Implement some upmixing here. Currently just passthrough, with other
+        // channels left as silence.
+        std::vector<s16> new_samples(samples.size() / system_channels * device_channels);
+
+        for (u32 read_index = 0, write_index = 0; read_index < samples.size();
+             read_index += system_channels, write_index += device_channels)
+        {
+            const auto left_sample{static_cast<s16>(std::clamp(
+                static_cast<s32>(
+                    static_cast<f32>(samples[read_index + static_cast<u32>(Channels::FrontLeft)]) *
+                    volume),
+                min, max))};
+
+            new_samples[write_index + static_cast<u32>(Channels::FrontLeft)] = left_sample;
+
+            const auto right_sample{static_cast<s16>(std::clamp(
+                static_cast<s32>(
+                    static_cast<f32>(samples[read_index + static_cast<u32>(Channels::FrontRight)]) *
+                    volume),
+                min, max))};
+
+            new_samples[write_index + static_cast<u32>(Channels::FrontRight)] = right_sample;
+        }
+
+        samples_buffer.Push(new_samples);
+        return;
+    }
+
     if (volume != 1.0f)
     {
-        for (s16 & sample : samples)
+        for (u32 i = 0; i < samples.size(); ++i)
         {
-            sample = Clamp(static_cast<f32>(sample) * volume);
+            samples[i] = static_cast<s16>(
+                std::clamp(static_cast<s32>(static_cast<f32>(samples[i]) * volume), min, max));
         }
     }
 
@@ -228,10 +240,6 @@ void SinkStream::ProcessAudioOutAndRender(std::span<s16> output_buffer, std::siz
     const std::size_t frame_size_bytes = frame_size * sizeof(s16);
     size_t frames_written{0};
     size_t actual_frames_written{0};
-    if (num_frames == 0)
-    {
-        return;
-    }
 
     // If we're paused or going to shut down, we don't want to consume buffers as coretiming is
     // paused and we'll desync, so just play silence.
@@ -285,36 +293,8 @@ void SinkStream::ProcessAudioOutAndRender(std::span<s16> output_buffer, std::siz
         size_t frames_available{std::min<u64>(playing_buffer.frames - playing_buffer.frames_played,
                                               num_frames - frames_written)};
 
-        s16 * out = &output_buffer[frames_written * frame_size];
-        const u32 channels = playing_buffer.channels;
-        // Only the frames this buffer stored are read from the ring, so that the samples of the
-        // next buffer stay for it.
-        const std::size_t stored_left =
-            playing_buffer.stored_frames > playing_buffer.frames_played
-                ? static_cast<std::size_t>(playing_buffer.stored_frames - playing_buffer.frames_played)
-                : 0;
-        const std::size_t stored = std::min(frames_available, stored_left);
-        if (channels == frame_size)
-        {
-            const std::size_t wanted = frames_available * frame_size;
-            const std::size_t read = samples_buffer.Pop(out, stored * frame_size);
-            std::fill(out + read, out + wanted, s16{0});
-        }
-        else
-        {
-            const std::size_t chunk_frames = convert_buffer.size() / MaxChannels;
-            for (std::size_t done = 0; done < frames_available; done += chunk_frames)
-            {
-                const std::size_t frames = std::min(chunk_frames, frames_available - done);
-                const std::size_t from_ring = stored > done ? std::min(frames, stored - done) : 0;
-                const std::size_t wanted = frames * channels;
-                const std::size_t read =
-                    from_ring > 0 ? samples_buffer.Pop(convert_buffer.data(), from_ring * channels) : 0;
-                std::fill(convert_buffer.begin() + read, convert_buffer.begin() + wanted, s16{0});
-                ConvertFrames(convert_buffer.data(), channels, out + done * frame_size,
-                              static_cast<u32>(frame_size), frames);
-            }
-        }
+        samples_buffer.Pop(&output_buffer[frames_written * frame_size],
+                           frames_available * frame_size);
 
         frames_written += frames_available;
         actual_frames_written += frames_available;
@@ -361,12 +341,6 @@ void SinkStream::WaitFreeSpace(std::stop_token stop_token)
         Common::CondvarWait(release_cv, lk, stop_token,
                             [this] { return paused || queued_buffers < max_queue_size; });
     }
-}
-
-void SinkStream::ResetDeviceChannels(u32 channels)
-{
-    device_channels.store(channels, std::memory_order_relaxed);
-    last_frame.fill(0);
 }
 
 void SinkStream::SignalPause()

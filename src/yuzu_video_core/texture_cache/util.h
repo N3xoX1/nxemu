@@ -15,10 +15,6 @@
 #include "yuzu_video_core/texture_cache/types.h"
 #include "yuzu_video_core/textures/texture.h"
 
-namespace Settings {
-struct ResolutionScalingInfo;
-}
-
 namespace VideoCommon {
 
 using Tegra::Texture::TICEntry;
@@ -122,13 +118,5 @@ void DeduceBlitImages(ImageInfo& dst_info, ImageInfo& src_info, const ImageBase*
                       const ImageBase* src);
 
 [[nodiscard]] u32 MapSizeBytes(const ImageBase& image);
-
-[[nodiscard]] ImageInfo ScaledImageInfo(const ImageInfo& info,
-                                        const Settings::ResolutionScalingInfo& resolution);
-
-[[nodiscard]] bool ScaledLevelsMatch(const ImageInfo& info,
-                                     const Settings::ResolutionScalingInfo& resolution);
-
-[[nodiscard]] SubresourceRange ClampLevels(SubresourceRange range, s32 num_levels);
 
 } // namespace VideoCommon

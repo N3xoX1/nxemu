@@ -135,15 +135,9 @@ namespace
     JsonValue LoadGameDefaults()
     {
         const std::filesystem::path setting(Common::FS::ToU8String(coreSettings.gameDefaultsFile));
-#if defined(ANDROID)
-        // The app copies it out of its assets into its storage
-        const std::filesystem::path bases[] = {Common::FS::GetYuzuPath(Common::FS::YuzuPath::YuzuDir)};
-#else
         const std::filesystem::path exeDir = Common::FS::GetExeDirectory();
         const std::filesystem::path macBundleResources = exeDir.parent_path() / "Resources";
-        const std::filesystem::path bases[] = {exeDir, macBundleResources};
-#endif
-        for (const std::filesystem::path & base : bases)
+        for (const std::filesystem::path & base : {exeDir, macBundleResources})
         {
             const std::filesystem::path path = (base / setting).lexically_normal();
             std::error_code error;

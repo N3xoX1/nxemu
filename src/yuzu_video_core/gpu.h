@@ -3,10 +3,6 @@
 
 #pragma once
 
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-#include <chrono>
-#include <functional>
-#endif
 #include <memory>
 #include <mutex>
 
@@ -238,12 +234,6 @@ public:
 
     // Called only by the GPU worker, with its graphics context current.
     void ProcessPendingComposite();
-
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    // Called only by the GPU worker. The hook runs after each composite with its frame budget,
-    // zero if hidden.
-    void SetFrameCompleteHook(std::function<void(std::chrono::nanoseconds)> hook);
-#endif
 
     std::vector<u8> GetAppletCaptureBuffer();
 

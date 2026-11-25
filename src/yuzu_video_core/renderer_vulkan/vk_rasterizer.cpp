@@ -976,24 +976,13 @@ bool RasterizerVulkan::MayFlushSharedPage(DAddr addr, u64 size) {
            texture_cache.MayHaveUnpublishedReadImage(addr, size);
 }
 
-bool RasterizerVulkan::MayHaveComputeWrites(DAddr addr, u64 size) {
-    return buffer_cache.MayHaveComputeWrites(addr, size) ||
-           texture_cache.MayHaveComputeWrites(addr, size);
-}
-
-u64 RasterizerVulkan::ComputeWriteEpoch() {
-    // Both only grow, so the sum changes whenever one does
-    return buffer_cache.ComputeWriteEpoch() + texture_cache.ComputeWriteEpoch();
-}
-
 bool RasterizerVulkan::AwaitsProtectedDownload(DAddr addr, u64 size) {
     return buffer_cache.AwaitsProtectedDownload(addr, size) ||
            query_cache.AwaitsProtectedResult(addr, size);
 }
 
 bool RasterizerVulkan::AwaitsProtectedBufferDownload(DAddr addr, u64 size) {
-    return buffer_cache.AwaitsProtectedDownload(addr, size) ||
-           texture_cache.AwaitsProtectedDownload(addr, size);
+    return buffer_cache.AwaitsProtectedDownload(addr, size);
 }
 
 bool RasterizerVulkan::HasPendingResult(DAddr addr, u64 size) {
@@ -1025,7 +1014,9 @@ bool RasterizerVulkan::CommitReadbacksForEarlySignal() {
         fence_manager.SignalReference();
     }
     std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
-    return !texture_cache.HasUnprotectedDownloads() && !buffer_cache.HasUnprotectedDownloads();
+    const bool images_protected =
+        TextureCache::ReadFaultsWaitForDownloads || !texture_cache.HasUnpublishedDownloads();
+    return images_protected && !buffer_cache.HasUnprotectedDownloads();
 }
 
 VideoCore::SharedPageAccess RasterizerVulkan::ObserveSharedPage(DAddr addr, u64 size) {
@@ -1605,10 +1596,8 @@ void RasterizerVulkan::FlushWork() {
     if (draw_counter < DRAWS_TO_DISPATCH) {
         // Batch opportunistic worker handoffs. Explicit guest flushes/waits
         // and the periodic driver submission below retain their original cadence.
-        // Not urgent: a busy or spinning worker takes each chunk at once, a sleeping one is
-        // woken only once two wait.
         if ((draw_counter & 31) == 31) {
-            scheduler.DispatchWork(false);
+            scheduler.DispatchWork();
         }
         return;
     }

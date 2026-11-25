@@ -17,10 +17,6 @@
 
 namespace AudioCore {
 constexpr u32 CurrentRevision = 15;
-/// Newest revision accepted (firmware 23.0.0). Revisions 16 to 18 only add refinements stored in
-/// reserved bytes, which are ignored: the voice biquad crossfade curve (16) and volume ramps on
-/// the final and sub mixes (17) and on the buffer mixer (18). Rejecting them aborts the game.
-constexpr u32 MaxAcceptedRevision = 18;
 
 enum class SupportTags {
     CommandProcessingTimeEstimatorVersion5,
@@ -120,7 +116,7 @@ constexpr bool CheckFeatureSupported(SupportTags tag, u32 user_revision) {
 }
 
 constexpr bool CheckValidRevision(u32 user_revision) {
-    return GetRevisionNum(user_revision) <= MaxAcceptedRevision;
+    return GetRevisionNum(user_revision) <= CurrentRevision;
 };
 
 } // namespace AudioCore

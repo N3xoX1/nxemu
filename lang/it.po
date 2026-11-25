@@ -200,6 +200,14 @@ msgid "Shaders"
 msgstr "Shader"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr "Modalità di preriscaldamento degli shader"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "Prepara i primi shader prima dell'avvio e il resto in background. Ha effetto al prossimo avvio del gioco."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "Conserva gli shader su disco"
 
@@ -284,6 +292,14 @@ msgid "Where the sound of games is played."
 msgstr "Dove viene riprodotto l'audio dei giochi."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output mode"
+msgstr "Modalità di uscita"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr "L'audio surround richiede altoparlanti compatibili."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "Motore di uscita"
 
@@ -357,6 +373,26 @@ msgstr "Impostazioni di debug"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
 msgstr "Se disattivate, usano i valori predefiniti; ciò che hai impostato viene conservato per quando verranno riattivate."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr "NXShader"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr "Numero minimo di pipeline iniziali"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "Predefinito: 512. Entrambi i minimi devono essere raggiunti, a meno che tutte le pipeline non siano pronte."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr "Tempo iniziale minimo (secondi)"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "Predefinito: 60. Continua a preparare gli shader per questo tempo, poi compila il resto in background."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -1773,6 +1809,14 @@ msgid "The console's applet, from the installed firmware."
 msgstr "L'applet della console, dal firmware installato."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Full warmup (default)"
+msgstr "Preriscaldamento completo (predefinito)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
+msgstr "Progressivo (sperimentale)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
 msgstr "Nessuno (senza audio)"
 
@@ -1808,6 +1852,26 @@ msgstr "I giochi usano l'uscita predefinita del computer finché non viene ricol
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "Stereo"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr "Due canali: cuffie e la maggior parte degli altoparlanti."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Surround"
+msgstr "Surround"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr "Sei canali, per altoparlanti disposti intorno alla stanza."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Mono"
+msgstr "Mono"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "One channel."
+msgstr "Un canale."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -2397,6 +2461,10 @@ msgid "Opening the game..."
 msgstr "Apertura del gioco..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "Potrebbe richiedere alcuni minuti. Gli shader compilati vengono memorizzati nella cache per velocizzare gli avvii successivi."
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "Gli shader non vengono registrati mentre sono attive mod o trucchi."
 
@@ -2413,30 +2481,6 @@ msgstr "Circa %1 min rimanenti"
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Estimating time remaining..."
 msgstr "Stima del tempo rimanente..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Play now, finish in the background"
-msgstr "Gioca ora, completa in background"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Starting the game..."
-msgstr "Avvio del gioco..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 s to play now"
-msgstr "Attendi %1 s per giocare ora"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 min to play now"
-msgstr "Attendi %1 min per giocare ora"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Preparing the first shaders..."
-msgstr "Preparazione dei primi shader..."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Shaders ready"
-msgstr "Shader pronti"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Finishing shader preparation..."
@@ -4326,10 +4370,6 @@ msgid "Some shaders were not included: the game version they belong to is unknow
 msgstr "Alcuni shader non sono stati inclusi: la versione del gioco a cui appartengono è sconosciuta."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Predicted shaders left out, imported but never used in play: %1"
-msgstr "Shader previsti esclusi, importati ma mai usati in gioco: %1"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Choose the folder for the %1 shader files"
 msgstr "Scegli la cartella per i %1 file degli shader"
 
@@ -4484,23 +4524,3 @@ msgstr "Area"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "Primo livello"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays 5.1 sound."
-msgstr "Surround: il dispositivo di uscita riproduce audio 5.1."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
-msgstr "Surround: il dispositivo di uscita riproduce solo stereo, quindi l'audio surround viene mixato su due canali."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Click to force stereo."
-msgstr "Fai clic per forzare lo stereo."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Stereo is forced. Click to allow surround."
-msgstr "Stereo forzato. Fai clic per consentire il surround."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "This game sends stereo sound."
-msgstr "Questo gioco invia audio stereo."

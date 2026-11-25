@@ -5,7 +5,6 @@
 #include "yuzu_video_core/shader_profile_compact.h"
 #include "yuzu_video_core/shader_profile_context.h"
 #include "yuzu_video_core/shader_profile_export.h"
-#include "yuzu_video_core/shader_profile_guest_state.h"
 #include "yuzu_video_core/shader_profile_hash.h"
 #include "yuzu_video_core/shader_profile_validation.h"
 #include "video_settings.h"
@@ -170,6 +169,16 @@ int main() try {
             Profile::MergeProfiles(generated, recorded);
             const auto info=Profile::InspectCompact(Profile::Unpack(Profile::PackCompact(recorded)),Title);
             Require(info.compute==4 && info.synthetic==1 && info.played==1, "Recipe origins after a recorded merge");
+            // Profiles of revision 1, which has no origins, are still read: their recipes are recorded ones.
+            const auto first=Profile::Unpack(Profile::PackCompact(base.Current(),19,1));
+            Require(first.substr(0,8)=="NXSHBIN1" && base.Payload().substr(0,8)=="NXSHBIN2", "Compact revisions");
+            Require(Profile::Canonical(Profile::DecodeCompact(first,Title))==Profile::Canonical(Profile::DecodeCompact(base.Payload(),Title)),
+                    "Revision 1 decodes as revision 2");
+            const auto old_info=Profile::InspectCompact(first,Title);
+            Require(old_info.compute==2 && old_info.synthetic==0, "Revision 1 inspection");
+            bool refused{};
+            try { Profile::PackCompact(generated,19,1); } catch (const std::exception&) { refused=true; }
+            Require(refused, "Revision 1 cannot hold synthetic recipes");
         }
         {
             // A synthetic recipe of a recorded recipe's very pipeline, with other environments, gives way to it.
@@ -214,7 +223,7 @@ int main() try {
             {{update.context},Version::Workgroup(z)},{{update.context},UpdateOnly}};
         Require(order==expected, "Merged recipe order");
         // X, in both versions, keeps both locators: the update's, then the base's renamed file.
-        const auto& shader=decoded["shaders"][Profile::ProgramKey(x)];
+        const auto& shader=decoded["shaders"][Profile::ProgramKey(Common::CityHash64(x.data(),x.size()),x.size())];
         Require(shader["references"].size()==2 && shader["references"][0u]["file"].asString()=="main" &&
                 Number(shader["references"][0u]["offset"])==48 &&
                 shader["references"][1u]["file"].asString()=="main~1" &&
@@ -263,6 +272,10 @@ int main() try {
                 for (const auto& r : trusted) validated+=r.requires_validation;
                 Require(synthetic==1 && from_mixed.candidates==validated, "Mixed import candidates");
             }
+            Profile::ImportReport from_first;
+            const auto first=Import(Profile::Unpack(Profile::PackCompact(merged,19,1)), root, context, from_first);
+            Require(first.size()==recipes.size() && from_first.candidates==first.size() &&
+                    std::none_of(first.begin(),first.end(),[](const auto& r){return r.synthetic;}), "Revision 1 import");
         }
         {
             // The same content dumped as an XCI loads the same programs.
@@ -317,15 +330,19 @@ int main() try {
                 Profile::PackCompact(trimmed)==Profile::PackCompact(merged), "Profile within limits trimmed");
     }
     {
-        // A previous program with the same identity but another size is a different
+        // A previous program with the same hash but another size is a different
         // program: it is dropped with its recipes, never mixed with ours.
         auto previous=Profile::DecodeCompact(base.Payload(),Title);
-        const auto key=Profile::ProgramKey(x);
-        auto& shader=previous["shaders"][key];
+        const auto key=Profile::ProgramKey(Common::CityHash64(x.data(),x.size()),x.size());
+        auto shader=previous["shaders"][key];
+        previous["shaders"].removeMember(key.c_str());
         shader["size"]=Num(24);shader["references"][0u]["size"]=Num(24);
+        previous["shaders"]["conflict"]=shader;
         for (const auto& id : previous["environments"].GetMemberNames())
-            if (previous["environments"][id.c_str()]["shader"].asString()==key)
+            if (previous["environments"][id.c_str()]["shader"].asString()==key) {
+                previous["environments"][id.c_str()]["shader"]="conflict";
                 previous["environments"][id.c_str()]["guest_read_highest"]=Num(16);
+            }
         auto current=update.Current();
         Require(Profile::MergeProfiles(previous, current)==1, "Conflicting program kept");
         Require(Profile::InspectCompact(Profile::Unpack(Profile::PackCompact(current)),Title).programs==3, "Conflict programs");
@@ -344,27 +361,8 @@ int main() try {
         Profile::MergeProfiles(Profile::DecodeCompact(Profile::Unpack(Profile::PackCompact(previous_profile)),Title), current);
         Require(current["unresolved_recipes"].size()==1, "Unresolved observation duplicated");
     }
-    {
-        // A guest state with no register form is left out alone; the rest of the file is kept.
-        const auto valid=Profile::GuestState::ToWords({});
-        Require(valid.has_value(), "Empty register set");
-        JsonValue profile(JsonValueType::Object);
-        profile["recipes"]=JsonValue(JsonValueType::Array);
-        for (const bool good : {true, false}) {
-            JsonValue recipe(JsonValueType::Object);
-            recipe["kind"]="graphics";
-            recipe["guest_words"]=JsonValue(JsonValueType::Array);
-            for (const auto word : *valid) recipe["guest_words"].Append(Num(good ? word : 0xffffffffU));
-            profile["recipes"].Append(recipe);
-        }
-        JsonValue compute(JsonValueType::Object);
-        compute["kind"]="compute";
-        profile["recipes"].Append(compute);
-        Require(Profile::DropUnrepresentable(profile)==1 && profile["recipes"].size()==2 &&
-                profile["recipes"][1u]["kind"].asString()=="compute", "Unrepresentable guest state left out");
-    }
     std::cout << "PASS: profile text, canonical writer, decode round trip, self merge, "
-                 "base/update merge with shared locators and multi-version recipes, trimming, conflicts, unresolved dedup, unrepresentable states\n";
+                 "base/update merge with shared locators and multi-version recipes, trimming, conflicts, unresolved dedup\n";
 } catch (const std::exception& e) {
     std::cerr << e.what() << '\n';
     return 1;

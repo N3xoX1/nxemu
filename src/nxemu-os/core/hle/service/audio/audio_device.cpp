@@ -5,9 +5,6 @@
 #include "yuzu_common/string_util.h"
 #include "core/hle/service/audio/audio_device.h"
 #include "core/hle/service/cmif_serialization.h"
-#include "core/core.h"
-#include "core/core_timing.h"
-#include "core/hle/kernel/k_event.h"
 
 namespace Service::Audio {
 using namespace AudioCore::Renderer;
@@ -16,11 +13,7 @@ IAudioDevice::IAudioDevice(Core::System& system_, u64 applet_resource_user_id, u
                            u32 device_num)
     : ServiceFramework{system_, "IAudioDevice"}, service_context{system_, "IAudioDevice"},
       impl{std::make_unique<AudioDevice>(system_, applet_resource_user_id, revision)},
-      event{service_context.CreateEvent(fmt::format("IAudioDeviceEvent-{}", device_num))},
-      notification_event{service_context.CreateEvent(
-          fmt::format("IAudioDeviceNotification-{}", device_num))},
-      // Switch 2 titles tag their revision 'REv' instead of 'REV'.
-      switch2_caller{(revision & 0xFFFFFF) == 0x764552} {
+      event{service_context.CreateEvent(fmt::format("IAudioDeviceEvent-{}", device_num))} {
     static const FunctionInfo functions[] = {
         {0, D<&IAudioDevice::ListAudioDeviceName>, "ListAudioDeviceName"},
         {1, D<&IAudioDevice::SetAudioDeviceOutputVolume>, "SetAudioDeviceOutputVolume"},
@@ -36,40 +29,15 @@ IAudioDevice::IAudioDevice(Core::System& system_, u64 applet_resource_user_id, u
         {12, D<&IAudioDevice::QueryAudioDeviceOutputEvent>, "QueryAudioDeviceOutputEvent"},
         {13, D<&IAudioDevice::GetActiveAudioDeviceName>, "GetActiveAudioOutputDeviceName"},
         {14, D<&IAudioDevice::ListAudioOutputDeviceName>, "ListAudioOutputDeviceName"},
-        {15, D<&IAudioDevice::AcquireDeviceNotification>, "AcquireAudioInputDeviceNotification"},
-        {16, D<&IAudioDevice::ReleaseDeviceNotification>, "ReleaseAudioInputDeviceNotification"},
-        {17, D<&IAudioDevice::AcquireDeviceNotification>, "AcquireAudioOutputDeviceNotification"},
-        {18, D<&IAudioDevice::ReleaseDeviceNotification>, "ReleaseAudioOutputDeviceNotification"},
         {19, D<&IAudioDevice::SetAudioDeviceOutputVolumeAutoTuneEnabled>, "SetAudioDeviceOutputVolumeAutoTuneEnabled"},
         {20, D<&IAudioDevice::IsAudioDeviceOutputVolumeAutoTuneEnabled>, "IsAudioDeviceOutputVolumeAutoTuneEnabled"},
-        {21, D<&IAudioDevice::IsActiveOutputDeviceEstimatedLowLatency>, "IsActiveOutputDeviceEstimatedLowLatency"},
     };
     RegisterHandlers(functions);
-
-    // Games read the active channel count again when this event fires, after the player
-    // switches between surround and stereo.
-    output_changed_event = Core::Timing::CreateEvent(
-        fmt::format("IAudioDeviceOutputChanged-{}", device_num),
-        [this](s64, std::chrono::nanoseconds) -> std::optional<std::chrono::nanoseconds> {
-            event->Signal();
-            return std::nullopt;
-        });
-    output_listeners = system.AudioCore().GetOutputListeners();
-    if (const auto listeners = output_listeners.lock()) {
-        output_listener_id = listeners->Add([this] {
-            system.CoreTiming().ScheduleEvent(std::chrono::nanoseconds{0}, output_changed_event);
-        });
-    }
 
     event->Signal();
 }
 
 IAudioDevice::~IAudioDevice() {
-    if (const auto listeners = output_listeners.lock()) {
-        listeners->Remove(output_listener_id);
-    }
-    system.CoreTiming().UnscheduleEvent(output_changed_event);
-    service_context.CloseEvent(notification_event);
     service_context.CloseEvent(event);
 }
 
@@ -170,8 +138,8 @@ Result IAudioDevice::QueryAudioDeviceOutputEvent(OutCopyHandle<Kernel::KReadable
 }
 
 Result IAudioDevice::GetActiveChannelCount(Out<u32> out_active_channel_count) {
-    *out_active_channel_count = system.AudioCore().GetOutputSink().GetGuestChannels();
-    LOG_DEBUG(Service_Audio, "called. Channels={}", *out_active_channel_count);
+    *out_active_channel_count = system.AudioCore().GetOutputSink().GetSystemChannels();
+    LOG_DEBUG(Service_Audio, "(STUBBED) called. Channels={}", *out_active_channel_count);
     R_SUCCEED();
 }
 
@@ -191,28 +159,6 @@ Result IAudioDevice::ListAudioOutputDeviceName(
     }
 
     LOG_DEBUG(Service_Audio, "called.\nNames={}", out);
-    R_SUCCEED();
-}
-
-// 15-18 (17.0.0+): device notifications. The Switch 1 only returns an error; Switch 2 titles
-// need an event, which never fires as the emulated device set does not change.
-Result IAudioDevice::AcquireDeviceNotification(OutCopyHandle<Kernel::KReadableEvent> out_event,
-                                               u64 device) {
-    LOG_DEBUG(Service_Audio, "called, device={:#x}", device);
-    R_UNLESS(switch2_caller, ResultNotSupported);
-    *out_event = &notification_event->GetReadableEvent();
-    R_SUCCEED();
-}
-
-Result IAudioDevice::ReleaseDeviceNotification(u64 device) {
-    LOG_DEBUG(Service_Audio, "called, device={:#x}", device);
-    R_UNLESS(switch2_caller, ResultNotSupported);
-    R_SUCCEED();
-}
-
-// 21.0.0+: true only for a low latency output, which the emulated devices are not.
-Result IAudioDevice::IsActiveOutputDeviceEstimatedLowLatency(Out<bool> out_low_latency) {
-    *out_low_latency = false;
     R_SUCCEED();
 }
 

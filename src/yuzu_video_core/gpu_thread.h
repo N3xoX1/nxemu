@@ -113,8 +113,6 @@ public:
     /// Decode thread, without a lock: only it adds and reads the write ranges
     void AddWrites(const WriteRanges& ranges);
     bool MayWrite(DAddr begin, DAddr end);
-    /// False when no queued work may write guest memory
-    bool MayWriteAny();
 
     /// Decode thread: waits until the GPU thread has run all queued work
     void WaitIdle();
@@ -154,7 +152,6 @@ private:
 
     void DropFinishedWrites(u64 finished);
     void ClearWrites();
-    void UpdateWriteBounds();
 
     friend class ThreadManager;
 
@@ -165,15 +162,7 @@ private:
     std::deque<Work> items;
     u64 pushed{};
     u64 done{};
-    /// In push order; the ones before first_write have finished
     std::vector<QueuedWrite> queued_writes;
-    size_t first_write{};
-    /// Push of the last queued write, the latest one
-    u64 last_write_push{};
-    /// Bounds of the queued writes, wider than needed once some finished
-    DAddr writes_begin{~DAddr{}};
-    DAddr writes_end{};
-    bool write_bounds_stale{};
     u64 anywhere_until_push{};
     bool stopping{};
     /// The GPU thread sleeps in PopWait, under `mutex`
@@ -201,11 +190,6 @@ struct SynchState final {
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
     std::atomic<bool> service_ready{};
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    std::atomic<int32_t> decode_tid{};
-    std::atomic<int64_t> decode_work_ns{};
-    std::atomic<bool> adpf_active{};
-#endif
 
     void NotifyComposite() {
         if (!composite_ready.exchange(true, std::memory_order_release)) {

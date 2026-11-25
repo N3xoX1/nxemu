@@ -117,13 +117,6 @@ public:
     GPUVAddr index_buffer_sparse_gpu_addr = 0;
     std::array<Binding, NUM_VERTEX_BUFFERS> vertex_buffers;
     std::array<std::array<Binding, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES> uniform_buffers;
-    struct UniformSource {
-        GPUVAddr address{};
-        u64 mapping_generation{};
-        u64 deleted_buffers_epoch{};
-    };
-    std::array<std::array<UniformSource, NUM_GRAPHICS_UNIFORM_BUFFERS>, NUM_STAGES>
-        uniform_sources{};
     std::array<std::array<Binding, NUM_STORAGE_BUFFERS>, NUM_STAGES> storage_buffers;
     std::array<std::array<TextureBufferBinding, NUM_TEXTURE_BUFFERS>, NUM_STAGES> texture_buffers;
     std::array<Binding, NUM_TRANSFORM_FEEDBACK_BUFFERS> transform_feedback_buffers;
@@ -406,16 +399,6 @@ public:
         return gpu_write_history.MayHaveWrites(addr, size);
     }
 
-    /// Lock-free: false proves that no compute dispatch ever wrote this memory
-    [[nodiscard]] bool MayHaveComputeWrites(DAddr addr, size_t size) const noexcept {
-        return compute_writes.MayHaveWrites(addr, size);
-    }
-
-    /// Lock-free: changes when a dispatch writes a page no dispatch wrote before
-    [[nodiscard]] u64 ComputeWriteEpoch() const noexcept {
-        return compute_writes.Epoch();
-    }
-
     /// Return true when a region is registered on the cache
     [[nodiscard]] bool IsRegionRegistered(DAddr addr, size_t size);
 
@@ -554,14 +537,6 @@ private:
     void MarkGpuWriteHistory(DAddr device_addr, u64 size) noexcept {
         gpu_write_history.Mark(device_addr, size);
         ++gpu_write_epoch;
-    }
-
-    void MarkRegionAsGpuModified(DAddr device_addr, u64 size) {
-        MarkGpuWriteHistory(device_addr, size);
-        if (binding_compute) {
-            compute_writes.Mark(device_addr, size);
-        }
-        memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     }
 
     /// Write tracking words of a written binding, or disabled ones when it cannot be tracked
@@ -738,9 +713,6 @@ private:
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
     GpuModifiedRanges<DAddr, Core::DEVICE_PAGESIZE> gpu_modified_ranges;
     GpuWriteHistory<> gpu_write_history;
-    /// Buffers compute dispatches wrote, finer than gpu_write_history
-    ComputeWriteHistory compute_writes;
-    bool binding_compute{};
 
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges;
 

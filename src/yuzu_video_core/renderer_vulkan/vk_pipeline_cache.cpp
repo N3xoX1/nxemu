@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <cstring>
 #include <fstream>
-#include <iterator>
 #include <cstdlib>
 #include <sstream>
 #include <memory>
@@ -69,7 +68,6 @@
 #include "yuzu_video_core/shader_profile_import_status.h"
 #include "yuzu_video_core/shader_profile_location.h"
 #include "yuzu_video_core/shader_profile_audit.h"
-#include "yuzu_video_core/shader_profile_synthetic_budget.h"
 #include "yuzu_video_core/renderer_vulkan/startup_pipeline_variants.h"
 #include "yuzu_video_core/shader_notify.h"
 #include "yuzu_video_core/surface.h"
@@ -601,8 +599,7 @@ struct PipelineCache::ProgressiveWarmup {
                 compute_index[std::get<Compute>(jobs[index].input).key.Hash()].push_back(index);
         }
         scheduler = std::make_unique<ProgressivePipelineWarmup>(
-            cache.runtime_builds, jobs.size(), [this](size_t index) { return Build(index); },
-            [this] { cache.shader_notify.MarkBackgroundWarmupDone(); });
+            cache.runtime_builds, jobs.size(), [this](size_t index) { return Build(index); });
     }
 
     void Stop() { scheduler->Stop(); }
@@ -1124,12 +1121,15 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     // The default retains the existing complete, blocking prewarm on every OS.
     // An import session builds everything before it stops: the game never runs.
     const bool importing = import && !import->file.empty();
+    const char* progressive_opt = std::getenv("NXEMU_NXSHADER_PROGRESSIVE");
+    const bool progressive_mode = !importing && (progressive_opt ? ProgressiveWarmupEnabled(progressive_opt) : videoSettings.nxshader_warmup_mode == 1);
+    InitialWarmupBudget initial_budget(progressive_mode,
+        InitialWarmupBudget::ParseOption(std::getenv("NXEMU_NXSHADER_INITIAL_MIN"),
+            std::clamp(videoSettings.nxshader_initial_minimum,0,8192),8192),
+        InitialWarmupBudget::ParseOption(std::getenv("NXEMU_NXSHADER_INITIAL_MS"),
+            std::clamp(videoSettings.nxshader_initial_seconds,0,600)*1000,600000));
+    const size_t initial_wave = device.HasBrokenParallelShaderCompiling() ? 1 : GetTotalPipelineWorkers();
     std::vector<ProgressiveWarmup::Job> progressive_jobs;
-    // The player can start the game before the warmup ends (loading screen): queued builds then go to the
-    // background warmup instead. An import session builds everything, so it ignores the request.
-    shader_notify.ResetBackgroundWarmup();
-    std::vector<ProgressiveWarmup::Job> background_jobs;
-    const auto continue_in_background = [&] { return !importing && shader_notify.BackgroundWarmupRequested(); };
     if (title_id == 0) {
         return;
     }
@@ -1196,6 +1196,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         std::mutex mutex;
         size_t total{};
         size_t built{};
+        size_t progress_total{};
         VideoCore::LoadCallbackStage build_stage{VideoCore::LoadCallbackStage::Build};
         std::chrono::steady_clock::time_point last_build_progress{};
         bool has_loaded{};
@@ -1257,9 +1258,10 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     const auto report_build=[&] {
         if(!state.has_loaded)return;
         const auto now=std::chrono::steady_clock::now();
-        if(state.built!=state.total && now-state.last_build_progress<std::chrono::milliseconds(50))return;
+        const size_t progress_total = state.progress_total ? state.progress_total : state.total;
+        if(state.built!=progress_total && now-state.last_build_progress<std::chrono::milliseconds(50))return;
         state.last_build_progress=now;
-        callback(state.build_stage,state.built,state.total);
+        callback(state.build_stage,state.built,progress_total);
     };
     // Drain workers before their captured progress helper and input budget leave scope.
     SCOPE_EXIT { workers.WaitForRequests(); };
@@ -1292,15 +1294,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         const auto id=warmup_id('C',key,env.CompilationIdentity());
         if (defer_warmup(id)) return;
         { std::scoped_lock lock{state.mutex}; ++state.total; }
-        workers.QueueWork([this, key, id, candidate, generated, stop_loading, record_id=std::move(record_id), stored = std::move(env), &state, &report_build, &buffered_input_bytes, &foreign_budget, &background_jobs, &continue_in_background]() mutable {
+        workers.QueueWork([this, key, id, candidate, generated, stop_loading, record_id=std::move(record_id), stored = std::move(env), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
             if(stop_loading.stop_requested()) {
                 std::scoped_lock lock{state.mutex};
-                ++state.deferred;++state.built;report_build();return;
-            }
-            if(continue_in_background()) {
-                std::scoped_lock lock{state.mutex};
-                auto& job=background_jobs.emplace_back(ProgressiveWarmup::Compute{key, std::move(stored)});
-                job.record_id=std::move(record_id);job.generated=generated;
                 ++state.deferred;++state.built;report_build();return;
             }
             size_t reservation{};
@@ -1352,15 +1348,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         const auto id=warmup_id('G',key,inputs);
         if (defer_warmup(id)) return;
         { std::scoped_lock lock{state.mutex}; ++state.total; }
-        workers.QueueWork([this, key, id, candidate, generated, stop_loading, record_id=std::move(record_id), stored = std::move(envs), &state, &report_build, &buffered_input_bytes, &foreign_budget, &background_jobs, &continue_in_background]() mutable {
+        workers.QueueWork([this, key, id, candidate, generated, stop_loading, record_id=std::move(record_id), stored = std::move(envs), &state, &report_build, &buffered_input_bytes, &foreign_budget]() mutable {
             if(stop_loading.stop_requested()) {
                 std::scoped_lock lock{state.mutex};
-                ++state.deferred;++state.built;report_build();return;
-            }
-            if(continue_in_background()) {
-                std::scoped_lock lock{state.mutex};
-                auto& job=background_jobs.emplace_back(ProgressiveWarmup::Graphics{key, std::move(stored)});
-                job.record_id=std::move(record_id);job.generated=generated;
                 ++state.deferred;++state.built;report_build();return;
             }
             size_t reservation{};
@@ -1563,7 +1553,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             dynamic_features.has_vertex_stride_workaround})flags|=u32(feature)<<bit++;
         const auto profile_bytes=read_small(std::filesystem::u8path(import_path),VideoCommon::ShaderProfile::MaxProfileFileBytes);
         // A file people chose is refused by name when it is not a shader file.
-        if(importing && !profile_bytes.starts_with(VideoCommon::ShaderProfile::ProfileMagic))throw std::runtime_error("Expected a compressed NXShader profile");
+        if(importing && !profile_bytes.starts_with("NXSHADR2"))throw std::runtime_error("Expected a compressed NXShader profile");
         const auto profile_hash=VideoCommon::ShaderProfile::ResourceSha256(profile_bytes);
         import_stamp=VideoCommon::ShaderProfile::ImportIdentity(profile_hash,content_identity,title_id,flags,CACHE_VERSION);
         integration_stamp=import_stamp.empty()?VideoCommon::ShaderProfile::ResourceSha256(
@@ -1664,7 +1654,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             std::unordered_set<const void*> indexed_programs;
             for(const auto& record:cached_records)for(const auto& env:record.environments) {
                 if(env.ProgramIdentity() && indexed_programs.insert(env.ProgramIdentity()).second)
-                    available_programs.emplace(VideoCommon::ShaderProfile::ProgramIdentity(env.ProgramBytes()),env.ProgramStorage());
+                    for(const auto hash:VideoCommon::ShaderProfile::ProgramHashCandidates(env.ProgramBytes()))
+                        if(hash)available_programs.emplace(hash,env.ProgramStorage());
             }
             const auto recipes = VideoCommon::ShaderProfile::Read(
                 std::filesystem::u8path(path), std::filesystem::u8path(root), title_id, &unresolved_count,
@@ -1714,9 +1705,6 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             // Each receipt lists every record so far, so writing one per fixed number of recipes grows with the
             // square of the import. It only saves an interrupted import from repeating work: a few seconds is fine.
             auto last_receipt=std::chrono::steady_clock::now();
-            // A base pack lists each program set's synthetic recipes most likely first: build only the
-            // first ones that give this device a new pipeline (docs/nxshader-format.md, RCPS).
-            VideoCommon::ShaderProfile::SyntheticSetBudget synthetic_budget;
             // Integrate recipes for the running game first; optional foreign
             // contexts must not exhaust the input budget ahead of local work.
             for (bool foreign_pass : {false, true}) for (const auto& recipe : recipes) {
@@ -1730,7 +1718,6 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 VideoCommon::CacheStore::Record record;
                 record.environments = recipe.environments;
                 JournalEntry entry{};
-                bool over_budget{};
                 Timing::Timer projection_timer(state.timings.get(), Timing::Phase::GuestProjection);
                 if (recipe.compute) {
                     ComputePipelineCacheKey key{};
@@ -1751,19 +1738,6 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     key.cbuf_sizes = recipe.cbuf_sizes;
                     key.texture_pool = recipe.texture_pool;
                     key.state = guest->Project(dynamic_features);
-                    if (!recipe.requires_validation && !envs.empty()) {
-                        // The whole key the cache will hold for this device (bindings included), its
-                        // state masked as load_graphics masks it.
-                        auto masked = key;
-                        masked.state.MaskUnusedState(key.unique_hashes[0] == 0 && key.unique_hashes[1] != 0
-                                                         ? VideoCommon::DeclaredInputTypeMask(envs.front().SPH())
-                                                         : ~0ULL);
-                        const std::string_view set(reinterpret_cast<const char*>(key.unique_hashes.data()),
-                                                   sizeof(key.unique_hashes));
-                        over_budget = !synthetic_budget.Admit(
-                            set, std::string_view(reinterpret_cast<const char*>(&masked), masked.Size()),
-                            recipe.synthetic && !recipe.played);
-                    }
                     record.key.assign(reinterpret_cast<const char*>(&key), sizeof(key));
                     // Feature bits, the guest words, then the key up to its projected state.
                     const auto words = guest->Words();
@@ -1773,11 +1747,6 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                                 (entry.size() - 1 - GuestPipelineState::WordCount) * sizeof(u32));
                 }
                 projection_timer.Stop();
-                if (over_budget) {
-                    ++imported;
-                    profile_progress(VideoCore::LoadCallbackStage::ImportProfile,imported,recipes.size());
-                    continue;
-                }
                 std::string id;
                 Timing::Measure(state.timings.get(), Timing::Phase::CacheAppend, [&] {
                     VideoCommon::CacheStore::Append(pipeline_cache_filename, CACHE_VERSION, record, &id,
@@ -1846,9 +1815,12 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                     for (const auto& recipe : recipes) for (const auto& env : recipe.environments) {
                         if (!env.ProgramIdentity() || !seen_programs.insert(env.ProgramIdentity()).second) continue;
                         const auto& code = env.ProgramBytes();
-                        const auto key = VideoCommon::ShaderProfile::ProgramKey(code);
-                        if (shaders.isMember(key) && !shaders[key]["references"].empty())
+                        for (const auto hash : VideoCommon::ShaderProfile::ProgramHashCandidates(code)) {
+                            const auto key = VideoCommon::ShaderProfile::ProgramKey(hash, code.size());
+                            if (!hash || !shaders.isMember(key) || shaders[key]["references"].empty()) continue;
                             references.emplace(VideoCommon::ShaderProfile::ResourceSha256(code), shaders[key]["references"][int32_t{0}]);
+                            break;
+                        }
                     }
                     for (const auto& [context, entries] : imported_entries)
                         VideoCommon::ShaderProfile::SeedDiscoveryIndex(
@@ -1863,8 +1835,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
                 if (importing) import->imported = true;
             } else if (!recipe_records.empty()) publish_integration(false);
             import_unresolved=unresolved_count;imported_records=imported;
-            LOG_INFO(Render_Vulkan, "NXShader imported {} recipes; reused={} skipped={} synthetic_over_budget={} missing_resources={} incompatible_resources={} incompatible_contexts={}",
-                imported, import_report.reused, import_report.skipped, synthetic_budget.Rejected(), import_report.missing_resources, import_report.incompatible_resources, import_report.incompatible_contexts);
+            LOG_INFO(Render_Vulkan, "NXShader imported {} recipes; reused={} skipped={} missing_resources={} incompatible_resources={} incompatible_contexts={}",
+                imported, import_report.reused, import_report.skipped, import_report.missing_resources, import_report.incompatible_resources, import_report.incompatible_contexts);
             if (unresolved_count) LOG_WARNING(Render_Vulkan,
                 "NXShader retains {} observations without serialized environments; these cannot be prewarmed", unresolved_count);
         } catch (const std::exception& error) {
@@ -1896,7 +1868,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
             if (!capture_context.empty() && cache_context != game_context && VideoCommon::ShaderProfile::ValidContext(game_context))
                 for (auto& id : VideoCommon::CacheStore::ReadContext(pipeline_cache_filename,std::string(game_context),true))
                     if (!contextual_ids.contains(id)) { synthetic_ids.insert(id); contextual_ids.insert(std::move(id)); }
-            if (!capture_context.empty()) {
+            if (!progressive_mode && !capture_context.empty()) {
                 // A second start of an update must not hide the other local
                 // versions. Keep their entries as guarded candidates on every
                 // start, without ever treating them as verified target records.
@@ -2109,6 +2081,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     std::unordered_set<GraphicsPipelineCacheKey> ready_graphics;
     for(const auto& input:compute_inputs)if(!input.candidate)ready_compute.insert(WithoutSizes(input.key));
     for(const auto& input:graphics_inputs)if(!input.candidate)ready_graphics.insert(WithoutSizes(input.key));
+    if (progressive_mode) {
+        // A stable estimate keeps the loading bar moving during timed waves.
+        // Final progress is clamped to the actual initial request count below.
+        state.progress_total = compute_inputs.size() + graphics_inputs.size();
+    }
     for (auto& input : compute_inputs) {
         if (input.candidate) { foreign_compute_inputs.push_back(std::move(input)); continue; }
         CbufSizeDependencies::Normalize(input.key.cbuf_sizes, cbuf_size_dependencies.Mask(input.key.unique_hash));
@@ -2208,8 +2185,20 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         file<<VideoCommon::ShaderProfile::Canonical(report);
         LOG_INFO(Render_Vulkan,"Startup environment audit: identical={} different={} failed={} nondeterministic={} truncated={}",same,different,failed,nondeterministic,audit_truncated);
     }
-    // Once the player started the game, what is not queued yet goes straight to the background warmup.
-    const auto defer_initial = [&] { return continue_in_background(); };
+    if (progressive_mode) {
+        std::scoped_lock lock{state.mutex};
+        callback(state.build_stage,0,state.progress_total);
+        state.has_loaded = true;
+        state.last_build_progress = std::chrono::steady_clock::now();
+    }
+    const auto defer_initial = [&] {
+        if (!progressive_mode) return false;
+        if (initial_budget.NeedsCheckpoint(initial_wave)) {
+            workers.WaitForRequests(stop_loading);
+            if (stop_loading.stop_requested()) workers.WaitForRequests();
+        }
+        return (progressive_mode && stop_loading.stop_requested()) || initial_budget.DeferNext();
+    };
     const auto schedule_compute = [&](const ComputePipelineCacheKey& key, StoredEnvironment env, bool generated = false) {
         if (defer_initial()) {
             progressive_jobs.emplace_back(ProgressiveWarmup::Compute{key, std::move(env)});
@@ -2282,6 +2271,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     LOG_INFO(Render_Vulkan, "Total Pipeline Count: {}", state.total);
 
     std::unique_lock lock{state.mutex};
+    state.progress_total = 0;
     callback(state.build_stage,state.built,state.total);
     state.last_build_progress=std::chrono::steady_clock::now();
     state.has_loaded = true;
@@ -2293,12 +2283,6 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
         // inspecting shared maps/statistics; queued jobs now skip compilation.
         if(stop_loading.stop_requested())workers.WaitForRequests();
     });
-    // The workers have drained. What they left for the background was queued first, so it comes
-    // before the jobs never queued: the game uses it first.
-    const bool continued_in_background = continue_in_background();
-    progressive_jobs.insert(progressive_jobs.begin(), std::make_move_iterator(background_jobs.begin()),
-                            std::make_move_iterator(background_jobs.end()));
-    background_jobs.clear();
 
     lock.lock();
     LOG_INFO(Render_Vulkan,"Prepared cross-version candidate keys: graphics={} compute={}",foreign_graphics.size(),foreign_compute.size());
@@ -2316,7 +2300,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     }
     lock.unlock();
 
-    if (state.warmup_failures && !stop_loading.stop_requested() && progressive_jobs.empty()) {
+    if (state.warmup_failures && !stop_loading.stop_requested() && progressive_jobs.empty() && !progressive_mode) {
         try {
             auto report=state.warmup_failures->Save();
             report["queued"]=static_cast<u32>(state.total);
@@ -2332,7 +2316,7 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
 
     // This marker means the compatible subset was imported AND all its queued
     // native creations completed. It is never written merely after queueing work.
-    if (progressive_jobs.empty() &&
+    if (progressive_jobs.empty() && !progressive_mode &&
         VideoCommon::ShaderProfile::CanPublishImport(import_records_ready,import_stamp,stop_loading.stop_requested(),
         completed_requests,state.total,failed_requests+state.deferred)) {
         JsonValue status(JsonValueType::Object);
@@ -2374,10 +2358,9 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     if(runtime_report)runtime_report->active=true;
     // All disk-loader workers have drained. The remaining jobs now own their
     // compiler inputs and use only the persistent runtime queue.
-    if (continued_in_background && !stop_loading.stop_requested() && !progressive_jobs.empty()) {
-        LOG_INFO(Render_Vulkan, "NXShader: game started from the loading screen, {} native builds left to the background",
-                 progressive_jobs.size());
-        shader_notify.StartBackgroundWarmup(static_cast<u32>(progressive_jobs.size()));
+    if (progressive_mode && !stop_loading.stop_requested() && !progressive_jobs.empty()) {
+        LOG_INFO(Render_Vulkan, "NXShader progressive: {} initial jobs, {} deferred native builds",
+                 initial_budget.Scheduled(), progressive_jobs.size());
         progressive_warmup = std::make_unique<ProgressiveWarmup>(
             *this, std::move(progressive_jobs), std::move(hle_shared_keys));
     }

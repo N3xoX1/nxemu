@@ -81,13 +81,9 @@ add_library(video_core STATIC
     shader_profile_export.h
     shader_profile_discovery.cpp
     shader_profile_discovery.h
-    shader_profile_harvest.cpp
-    shader_profile_harvest.h
     shader_profile_nx.cpp
     shader_profile_nx.h
     shader_profile_compact.cpp
-    shader_profile_guest_state.cpp
-    shader_profile_guest_state.h
     shader_profile_compact.h
     shader_profile_codec.cpp
     shader_profile_codec.h
@@ -437,10 +433,6 @@ target_include_directories(video_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(video_core PRIVATE ${CMAKE_SOURCE_DIR}/src/nxemu-video)
 if(ANDROID AND NXEMU_ENABLE_ANDROID_ADPF)
     target_compile_definitions(video_core PRIVATE NXEMU_ENABLE_ANDROID_ADPF=1)
-    option(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF "Enable GPU thread performance hints on Android" ON)
-    if(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        target_compile_definitions(video_core PRIVATE NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF=1)
-    endif()
 endif()
 target_link_libraries(video_core PUBLIC common nxemu_core yuzu_common)
 target_link_libraries(video_core PRIVATE zstd::zstd)

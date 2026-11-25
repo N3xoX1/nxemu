@@ -238,6 +238,14 @@ msgid "Shaders"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr ""
 
@@ -334,6 +342,14 @@ msgid "Where the sound of games is played."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output mode"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr ""
 
@@ -414,6 +430,26 @@ msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr ""
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -699,14 +735,6 @@ msgstr ""
 #: src/nxemu/ui/assets/advanced_dialog.rml
 #: src/nxemu/ui/assets/general_dialog.rml
 msgid "Display"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Layout"
-msgstr ""
-
-#: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Compact uses the original performance bar"
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
@@ -1408,20 +1436,6 @@ msgstr ""
 
 #: src/nxemu/ui/emulation/emulator_session.cpp
 msgid ""
-"A game content file has an invalid or unreadable NCA header or filesystem. Check the base game and update files.\n"
-"\n"
-"Game: %1"
-msgstr ""
-
-#: src/nxemu/ui/emulation/emulator_session.cpp
-msgid ""
-"This package has no usable base program. Select the base game, and keep its required update enabled.\n"
-"\n"
-"Game: %1"
-msgstr ""
-
-#: src/nxemu/ui/emulation/emulator_session.cpp
-msgid ""
 "Could not load the game:\n"
 "%1\n"
 "\n"
@@ -1917,7 +1931,11 @@ msgid "The console's applet, from the installed firmware."
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
-msgid "Compact"
+msgid "Full warmup (default)"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -1955,6 +1973,26 @@ msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Surround"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Mono"
+msgstr ""
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "One channel."
 msgstr ""
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
@@ -2552,6 +2590,10 @@ msgid "Opening the game..."
 msgstr ""
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr ""
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Shaders are not recorded while mods or cheats are active."
 msgstr ""
 
@@ -2574,26 +2616,6 @@ msgid "Finishing shader preparation..."
 msgstr ""
 
 #: src/nxemu/ui/views/loading_screen.cpp
-msgid "Play now, finish in the background"
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Starting the game..."
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 s to play now"
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 min to play now"
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Preparing the first shaders..."
-msgstr ""
-
-#: src/nxemu/ui/views/loading_screen.cpp
 #: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Reading and verifying shaders"
 msgstr ""
@@ -2609,7 +2631,6 @@ msgid "Compiling imported shaders"
 msgstr ""
 
 #: src/nxemu/ui/views/loading_screen.cpp
-#: src/nxemu/ui/views/main_window.cpp
 #: src/nxemu/ui/views/shader_import_dialog.cpp
 msgid "Preparing shaders"
 msgstr ""
@@ -2917,10 +2938,6 @@ msgid "Switch games"
 msgstr ""
 
 #: src/nxemu/ui/views/main_window.cpp
-msgid "Shaders ready"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
 msgid "Press %1 or %2 to leave fullscreen"
 msgstr ""
 
@@ -3158,10 +3175,6 @@ msgstr ""
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Some shaders were not included: the game version they belong to is unknown."
-msgstr ""
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Predicted shaders left out, imported but never used in play: %1"
 msgstr ""
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
@@ -4516,24 +4529,4 @@ msgstr ""
 
 #: src/android/app/src/main/java/org/nxemu/utils/GpuDriverFetcher.kt
 msgid "Couldn't reach GitHub"
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays 5.1 sound."
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Click to force stereo."
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Stereo is forced. Click to allow surround."
-msgstr ""
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "This game sends stereo sound."
 msgstr ""

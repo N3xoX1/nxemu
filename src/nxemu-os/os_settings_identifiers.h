@@ -23,6 +23,7 @@ namespace NXOsSetting
     constexpr const char * GameSpeedLimit = "nxos:GameSpeedLimit";
     constexpr const char * GameUseMultiCore = "nxos:GameUseMultiCore";
     constexpr const char * GameCpuHleSynchronization = "nxos:GameCpuHleSynchronization";
+    constexpr const char * GameAudioMode = "nxos:GameAudioMode";
     constexpr const char * GameVibrationEnabled = "nxos:GameVibrationEnabled";
     constexpr const char * GameEnableAccurateVibrations = "nxos:GameEnableAccurateVibrations";
     constexpr const char * CurrentUser = "nxos:CurrentUser";

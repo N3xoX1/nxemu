@@ -296,10 +296,8 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
     RescalingPushConstant rescaling;
     const VideoCommon::SamplerId* samplers_it{samplers.data()};
     const VideoCommon::ImageViewInOut* views_it{views.data()};
-    texture_cache.SetComputeBinding(true);
     PushImageDescriptors(texture_cache, guest_descriptor_queue, info, rescaling, samplers_it,
                          views_it);
-    texture_cache.SetComputeBinding(false);
     if (info.runtime_image_write_mask_words != 0) {
         const u32 mask_bytes = info.runtime_image_write_mask_words * sizeof(u32);
         runtime_image_write_mask = staging_pool.Request(mask_bytes, MemoryUsage::Download);
@@ -411,9 +409,7 @@ void ComputePipeline::FinishRuntimeImageWrites(Scheduler& scheduler, TextureCach
             if ((bits & (1U << bit)) == 0) continue;
             const auto id = runtime_image_views[word * 32U + bit];
             if (id == VideoCommon::NULL_IMAGE_VIEW_ID) continue;
-            texture_cache.SetComputeBinding(true);
             texture_cache.MarkModification(texture_cache.GetImageView(id).image_id);
-            texture_cache.SetComputeBinding(false);
         }
     }
 }

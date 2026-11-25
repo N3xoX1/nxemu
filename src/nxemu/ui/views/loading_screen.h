@@ -22,8 +22,6 @@ public:
     void Announce(const std::string & title, const std::string & iconSource);
     void SetGame(IRomInfo & info);
     void Update();
-    // The player chose to start the game now; false when the button was not offered.
-    bool RequestContinue();
 
 private:
     LoadingScreen(const LoadingScreen &) = delete;
@@ -40,7 +38,5 @@ private:
     std::string m_title;
     int m_announcedTick = 0;
     bool m_hasGame = false;
-    bool m_canContinue = false;
-    bool m_continueRequested = false;
     LoadingTimeEstimate m_timeEstimate;
 };

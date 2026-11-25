@@ -672,14 +672,6 @@ typedef struct HostProfileInfo
     char username[HOST_PROFILE_USERNAME_SIZE + 1];
 } HostProfileInfo;
 
-typedef struct AudioOutputStatus
-{
-    uint32_t outputChannels; // channels the game's sound is played with: 2 or 6, 0 when no game runs
-    uint32_t hostChannels;   // the most channels the output device plays: 2 or 6
-    uint32_t sourceChannels; // the most channels the game sends, 0 when it plays nothing
-    bool surroundAllowed;    // the output was set up with surround allowed, not forced to stereo
-} AudioOutputStatus;
-
 nxinterface IOperatingSystem
 {
     virtual bool Initialize() = 0;
@@ -703,7 +695,6 @@ nxinterface IOperatingSystem
     virtual void GameFrameEnd() = 0;
     virtual void AudioGetSyncIDs(uint32_t * ids, uint32_t maxCount, uint32_t * actualCount) = 0;
     virtual void AudioGetDeviceListForSink(uint32_t sinkId, bool capture, DeviceEnumCallback callback, void * userData) = 0;
-    virtual AudioOutputStatus AudioGetOutputStatus() const = 0;
     virtual void RegisterHostThread() = 0;
     virtual IParamPackageList * GetInputDevices() const = 0;
     virtual IEmulatedController & GetEmulatedController(NpadIdType index) = 0;

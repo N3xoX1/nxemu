@@ -26,11 +26,12 @@ namespace NXVideoSetting
     constexpr const char * SystemEnableReactiveFlushing = "nxvideo:SystemEnableReactiveFlushing";
     constexpr const char * SystemBackgroundGpuReadbacks = "nxvideo:SystemBackgroundGpuReadbacks";
     constexpr const char * SystemGpuCommandSynchronization = "nxvideo:SystemGpuCommandSynchronization";
-    constexpr const char * SystemSplitGpuThread = "nxvideo:SystemSplitGpuThread";
-    constexpr const char * SystemStrictComputeOrdering = "nxvideo:SystemStrictComputeOrdering";
     constexpr const char * SystemSkipUntrackedStoreReadback = "nxvideo:SystemSkipUntrackedStoreReadback";
     constexpr const char * SystemFastGpuReadback = "nxvideo:SystemFastGpuReadback";
     constexpr const char * SystemUseAsynchronousShaderBuilding = "nxvideo:SystemUseAsynchronousShaderBuilding";
+    constexpr const char * NXShaderWarmupMode = "nxvideo:NXShaderWarmupMode";
+    constexpr const char * NXShaderInitialMinimum = "nxvideo:NXShaderInitialMinimum";
+    constexpr const char * NXShaderInitialSeconds = "nxvideo:NXShaderInitialSeconds";
     constexpr const char * SystemFastGPUTime = "nxvideo:SystemFastGPUTime";
     constexpr const char * SystemUseVulkanPipelineCache = "nxvideo:SystemUseVulkanPipelineCache";
     constexpr const char * SystemSyncToFramerateOfVideoPlayback = "nxvideo:SystemSyncToFramerateOfVideoPlayback";
@@ -51,8 +52,6 @@ namespace NXVideoSetting
     constexpr const char * GameAnisotropicFiltering = "nxvideo:GameAnisotropicFiltering";
     constexpr const char * GameDMAAccuracy = "nxvideo:GameDMAAccuracy";
     constexpr const char * GameGpuCommandSynchronization = "nxvideo:GameGpuCommandSynchronization";
-    constexpr const char * GameSplitGpuThread = "nxvideo:GameSplitGpuThread";
-    constexpr const char * GameStrictComputeOrdering = "nxvideo:GameStrictComputeOrdering";
     constexpr const char * GameSkipUntrackedStoreReadback = "nxvideo:GameSkipUntrackedStoreReadback";
     constexpr const char * GameFastGpuReadback = "nxvideo:GameFastGpuReadback";
     constexpr const char * GameVSyncMode = "nxvideo:GameVSyncMode";

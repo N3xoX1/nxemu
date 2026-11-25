@@ -7,10 +7,7 @@ add_library(nxemu_shader_profile_test_sources STATIC
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_codec.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_export.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_discovery.cpp"
-    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_harvest.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_compact.cpp"
-    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_guest_state.cpp"
-    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/texture_cache/format_lookup_table.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/shader_profile_nx.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/renderer_vulkan/fixed_pipeline_state.cpp"
     "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/surface.cpp"
@@ -50,7 +47,6 @@ nxemu_shader_profile_test(cross_version_reuse)
 nxemu_shader_profile_test(driver_cache_probe)
 nxemu_shader_profile_test(guest_pipeline_state)
 nxemu_shader_profile_test(profile_codec_regression)
-nxemu_shader_profile_test(program_harvest)
 nxemu_shader_profile_test(profile_hash)
 nxemu_shader_profile_test(profile_merge)
 nxemu_shader_profile_test(profile_metrics)
@@ -63,7 +59,6 @@ nxemu_shader_profile_test(recorder_hash_identity "${CMAKE_CURRENT_BINARY_DIR}/re
 nxemu_shader_profile_test(recorder_input_cache)
 nxemu_shader_profile_test(recorder_replay "${CMAKE_CURRENT_BINARY_DIR}/recorder-replay-")
 nxemu_shader_profile_test(startup_variants)
-nxemu_shader_profile_test(synthetic_budget)
 nxemu_shader_profile_test(synthetic_check)
 nxemu_shader_profile_test(synthetic_robustness)
 # Builds zstd frames and dictionaries of its own.
@@ -75,7 +70,3 @@ foreach(target test_shader_profile_guest_pipeline_state test_shader_profile_alph
     add_dependencies(nxemu_linux_unit_tests ${target})
     set_property(TEST ${target} APPEND PROPERTY LABELS linux_ci)
 endforeach()
-
-# Offline export, conversion and inspection of NXShader files; not a test.
-add_executable(nxshader_tool nxshader_tool.cpp base_pack.cpp bfres_layouts.cpp)
-target_link_libraries(nxshader_tool PRIVATE nxemu_shader_profile_test_sources shader_recompiler)

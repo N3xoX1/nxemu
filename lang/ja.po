@@ -200,6 +200,14 @@ msgid "Shaders"
 msgstr "シェーダー"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr "シェーダーのウォームアップモード"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "起動前に最初のシェーダーを準備し、残りはバックグラウンドで準備します。次回のゲーム起動時に適用されます。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "シェーダーをディスクに保存"
 
@@ -284,6 +292,14 @@ msgid "Where the sound of games is played."
 msgstr "ゲームオーディオが再生される場所。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output mode"
+msgstr "出力モード"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr "サラウンド サウンドには互換性のあるスピーカーが必要です。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "音声出力エンジン"
 
@@ -357,6 +373,26 @@ msgstr "デバッグ設定"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
 msgstr "オフの間は既定値で動作します。設定した内容は、再び有効にするときのために保持されます。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr "NXShader"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr "起動時の最小パイプライン数"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "既定値: 512。すべてのパイプラインの準備が完了していない限り、両方の最小値に達する必要があります。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr "起動時の最小時間 (秒)"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "既定値: 60。この時間だけシェーダーの準備を続け、残りはバックグラウンドでコンパイルします。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -1766,6 +1802,14 @@ msgid "The console's applet, from the installed firmware."
 msgstr "インストール済みファームウェアに含まれる本体のアプレットです。"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Full warmup (default)"
+msgstr "完全ウォームアップ (既定)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
+msgstr "段階的 (実験的)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
 msgstr "なし（音なし）"
 
@@ -1801,6 +1845,26 @@ msgstr "ゲームでは、再接続するまでコンピュータのデフォル
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "ステレオ"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr "2 チャンネル: ヘッドフォンとほとんどのスピーカー。"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Surround"
+msgstr "サラウンド"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr "6 チャンネル、部屋のあちこちに配置されたスピーカー用。"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Mono"
+msgstr "モノラル"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "One channel."
+msgstr "1 チャネル。"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -2389,6 +2453,10 @@ msgid "Opening the game..."
 msgstr "ゲームを開いています..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "数分かかる場合があります。コンパイルしたシェーダーはキャッシュされ、次回以降の起動が速くなります。"
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "改造やチートが有効な間は、シェーダーは記録されません。"
 
@@ -2405,30 +2473,6 @@ msgstr "残り約 %1 分"
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Estimating time remaining..."
 msgstr "残り時間を計算しています..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Play now, finish in the background"
-msgstr "今すぐプレイ（残りはバックグラウンドで）"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Starting the game..."
-msgstr "ゲームを起動しています..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 s to play now"
-msgstr "あと %1 秒でプレイ可能"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 min to play now"
-msgstr "あと %1 分でプレイ可能"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Preparing the first shaders..."
-msgstr "最初のシェーダを準備中..."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Shaders ready"
-msgstr "シェーダの準備完了"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Finishing shader preparation..."
@@ -4309,10 +4353,6 @@ msgid "Some shaders were not included: the game version they belong to is unknow
 msgstr "一部のシェーダーは含まれませんでした。対応するゲームのバージョンが不明です。"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Predicted shaders left out, imported but never used in play: %1"
-msgstr "予測されたシェーダーのうち、インポートされたがプレイで使われなかったため除外したもの: %1"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Choose the folder for the %1 shader files"
 msgstr "%1 件のシェーダーファイルの保存先フォルダーを選択してください"
 
@@ -4467,23 +4507,3 @@ msgstr "エリア"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "最初のレイヤー"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays 5.1 sound."
-msgstr "サラウンド: 出力デバイスは 5.1 サウンドを再生しています。"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
-msgstr "サラウンド: 出力デバイスはステレオのみ再生できるため、サラウンド サウンドは 2 チャンネルにダウンミックスされます。"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Click to force stereo."
-msgstr "クリックするとステレオに固定します。"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Stereo is forced. Click to allow surround."
-msgstr "ステレオに固定されています。クリックするとサラウンドを許可します。"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "This game sends stereo sound."
-msgstr "このゲームはステレオ サウンドを出力しています。"

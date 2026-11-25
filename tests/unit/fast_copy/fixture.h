@@ -125,10 +125,8 @@ struct TestMemory : IDeviceMemory, IMemory {
     }
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override {}
     void RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) override {}
-    /// CPU reads of read-cached pages fault, as on x64 with fastmem
-    bool protects_read_cached{};
     bool ProtectsReadCachedRegions() override {
-        return protects_read_cached;
+        return false;
     }
     bool ProtectsQueryResults() override {
         return false;

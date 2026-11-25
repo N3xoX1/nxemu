@@ -61,7 +61,6 @@ bool VideoManager::ProcessShaderProfile(const ShaderProfileTask & task, IShaderP
             std::snprintf(result.revision,sizeof(result.revision),"%s",metadata.revision.c_str());
             std::snprintf(result.note,sizeof(result.note),"%s",metadata.note.c_str());
             result.full_game=metadata.full_game;
-            result.synthetic=metadata.synthetic;result.played=metadata.played;
             std::string targets;
             for(const auto& version:metadata.targets)
                 if(const auto text=VideoCommon::ShaderProfile::GameVersionText(version);!text.empty()&&targets.size()+text.size()+1<sizeof(result.targets))
@@ -87,7 +86,6 @@ bool VideoManager::ProcessShaderProfile(const ShaderProfileTask & task, IShaderP
         options.revision = text(task.revision);
         options.note = text(task.note);
         options.full_game = task.full_game;
-        options.drop_unconfirmed = !task.keep_unconfirmed;
         options.compact = task.compact;
         options.allow_partial = true;
         options.progress = [&](const char * phase, u64 done, u64 total) { return progress.ProfileProgress(phase, done, total); };
@@ -96,10 +94,6 @@ bool VideoManager::ProcessShaderProfile(const ShaderProfileTask & task, IShaderP
         result.inherited = r.inherited;
         result.dropped_recipes = r.dropped_recipes;
         result.dropped_versions = r.dropped_versions;
-        result.dropped_unconfirmed = r.dropped_unconfirmed;
-        if (r.dropped_unrepresentable)
-            LOG_WARNING(Render, "Shader export left out {} recipes whose guest state has no register form",
-                        r.dropped_unrepresentable);
         result.versions = r.versions;
         result.previous = r.previous == VideoCommon::ShaderProfile::ExportReport::Previous::Merged ? ShaderProfilePrevious::Merged
             : r.previous == VideoCommon::ShaderProfile::ExportReport::Previous::Unreadable ? ShaderProfilePrevious::Unreadable
@@ -650,9 +644,6 @@ void VideoManager::HandleRasterizerWrite(const uint8_t * pointer, uint64_t size,
     thread_local Common::ScratchBuffer<u32> scratch;
     impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
         const uint64_t subaddress = address >> page_bits;
-        // A fence may signal before a download it protects is published: a store must land
-        // after the publication, which would otherwise copy the older GPU data over it
-        impl->m_gpuCore->WaitProtectedBufferDownloads(address, size);
         impl->m_gpuCore->WaitInPlaceReads(address, size);
         bool do_collection = *last_page == subaddress;
         if (!do_collection) [[unlikely]]
@@ -728,26 +719,6 @@ uint32_t VideoManager::ShadersBuilding()
         return shader_notify.ShadersBuilding();
     }
     return 0;
-}
-
-void VideoManager::ContinueShadersInBackground()
-{
-    if (impl != nullptr && impl->m_gpuCore != nullptr)
-    {
-        impl->m_gpuCore->ShaderNotify().RequestBackgroundWarmup();
-    }
-}
-
-void VideoManager::BackgroundShaderProgress(uint32_t & done, uint32_t & total)
-{
-    done = 0;
-    total = 0;
-    if (impl != nullptr && impl->m_gpuCore != nullptr)
-    {
-        const auto & shader_notify = impl->m_gpuCore->ShaderNotify();
-        total = shader_notify.BackgroundWarmupTotal();
-        done = std::min(shader_notify.BackgroundWarmupDone(), total);
-    }
 }
 
 bool VideoManager::UseNvdec()

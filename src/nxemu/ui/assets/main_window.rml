@@ -161,8 +161,8 @@
         <div class="loading-box">
           <div id="loading-title">Loading</div>
           <div class="loading-track"><div id="loading-fill" class="indeterminate" /></div>
-          <div class="loading-status"><div id="loading-text" /><div id="loading-eta" /><div id="loading-count" /></div>
-          <div class="loading-actions"><div id="loading-continue" class="loading-continue" /></div>
+          <div class="loading-status"><div id="loading-text" /><div id="loading-count" /></div>
+          <div id="loading-eta" />
           <div id="loading-hint" />
         </div>
         <img id="loading-banner" />
@@ -199,12 +199,6 @@
       </div>
       <div id="profile-separator" class="status-separator" />
       <div id="volume" class="volume-control" />
-      <div id="audio-surround" class="surround-badge absent" translate="no" />
-      <div id="status-shaders">
-        <div class="status-shaders-track"><div id="status-shaders-fill" /></div>
-        <div id="status-shaders-text" />
-        <div class="status-separator" />
-      </div>
       <div id="status-text" />
       <div id="status-unlocked" translate="no">&#8734;</div>
     </div>

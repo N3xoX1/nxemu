@@ -187,8 +187,7 @@ private:
 
     [[nodiscard]] VkPipeline FindOrEmplaceColorPipeline(const BlitImagePipelineKey& key);
 
-    [[nodiscard]] VkPipeline FindOrEmplaceDepthStencilPipeline(const BlitImagePipelineKey& key,
-                                                               bool blit_stencil);
+    [[nodiscard]] VkPipeline FindOrEmplaceDepthStencilPipeline(const BlitImagePipelineKey& key);
 
     [[nodiscard]] VkPipeline FindOrEmplaceClearColorPipeline(const BlitImagePipelineKey& key);
     [[nodiscard]] VkPipeline FindOrEmplaceClearStencilPipeline(
@@ -239,7 +238,6 @@ private:
     vk::ShaderModule blit_color_msaa_uint_frag;
     vk::ShaderModule blit_depth_msaa_frag;
     vk::ShaderModule blit_depth_stencil_msaa_frag;
-    vk::ShaderModule blit_depth_frag;
     vk::ShaderModule blit_depth_stencil_frag;
     vk::ShaderModule clear_color_vert;
     vk::ShaderModule clear_color_frag;
@@ -266,8 +264,6 @@ private:
 
     std::vector<BlitImagePipelineKey> blit_color_keys;
     std::vector<vk::Pipeline> blit_color_pipelines;
-    std::vector<BlitImagePipelineKey> blit_depth_keys;
-    std::vector<vk::Pipeline> blit_depth_pipelines;
     std::vector<BlitImagePipelineKey> blit_depth_stencil_keys;
     std::vector<vk::Pipeline> blit_depth_stencil_pipelines;
     std::vector<BlitImagePipelineKey> clear_color_keys;

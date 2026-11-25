@@ -2,10 +2,8 @@
 
 #include "yuzu_common/android/performance_hint.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <utility>
-#include <vector>
 #if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_ADPF)
 #include <unistd.h>
 
@@ -17,10 +15,6 @@ struct APerformanceHintManager;
 struct APerformanceHintSession;
 
 namespace Common::Android {
-
-namespace {
-thread_local std::chrono::nanoseconds wait_time{};
-}
 
 struct PerformanceHintSession::Impl {
     using Clock = std::chrono::steady_clock;
@@ -70,32 +64,11 @@ struct PerformanceHintSession::Impl {
     Clock::time_point last_work_end{};
     std::chrono::nanoseconds work_duration{};
     std::chrono::nanoseconds target{};
-    std::vector<int32_t> extra_tids;
     bool failed{};
 };
 
 PerformanceHintSession::PerformanceHintSession() : impl{std::make_unique<Impl>()} {}
 PerformanceHintSession::~PerformanceHintSession() = default;
-
-bool PerformanceHintSession::IsAvailable() const {
-    return impl->manager != nullptr && !impl->failed;
-}
-
-void PerformanceHintSession::AddThread(int32_t tid) {
-    if (!impl->manager || impl->failed || tid <= 0 || tid == gettid()) {
-        return;
-    }
-    if (std::ranges::find(impl->extra_tids, tid) != impl->extra_tids.end()) {
-        return;
-    }
-    impl->extra_tids.push_back(tid);
-    // API 33 has no setThreads, so the next frame recreates the session.
-    impl->Close();
-}
-
-bool PerformanceHintSession::HasThread(int32_t tid) const {
-    return tid == gettid() || std::ranges::find(impl->extra_tids, tid) != impl->extra_tids.end();
-}
 
 void PerformanceHintSession::BeginWork() {
     if (impl->manager && !impl->failed) {
@@ -107,32 +80,21 @@ void PerformanceHintSession::BeginWork() {
             impl->work_duration = {};
         }
         impl->work_start = now;
-        PerformanceHintWait::Take();
     }
 }
 
 void PerformanceHintSession::EndWork() {
     if (impl->manager && !impl->failed && impl->work_start != Impl::Clock::time_point{}) {
         const auto now = Impl::Clock::now();
-        const std::chrono::nanoseconds elapsed =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(now - impl->work_start);
-        impl->work_duration +=
-            std::max(elapsed - PerformanceHintWait::Take(), std::chrono::nanoseconds{});
+        impl->work_duration += std::chrono::duration_cast<std::chrono::nanoseconds>(
+            now - impl->work_start);
         impl->last_work_end = now;
         impl->work_start = {};
     }
 }
 
-std::chrono::nanoseconds PerformanceHintSession::TakeWorkDuration() {
-    return std::exchange(impl->work_duration, std::chrono::nanoseconds{});
-}
-
 void PerformanceHintSession::ReportFrame(std::chrono::nanoseconds target) {
-    ReportFrameDuration(TakeWorkDuration(), target);
-}
-
-void PerformanceHintSession::ReportFrameDuration(std::chrono::nanoseconds actual,
-                                                 std::chrono::nanoseconds target) {
+    const auto actual = std::exchange(impl->work_duration, std::chrono::nanoseconds{});
     if (!impl->manager || impl->failed) {
         return;
     }
@@ -142,21 +104,8 @@ void PerformanceHintSession::ReportFrameDuration(std::chrono::nanoseconds actual
         return;
     }
     if (!impl->session) {
-        const int32_t self_tid = gettid();
-        std::vector<int32_t> tids;
-        tids.reserve(1 + impl->extra_tids.size());
-        tids.push_back(self_tid);
-        for (const int32_t extra_tid : impl->extra_tids) {
-            if (extra_tid > 0 && extra_tid != self_tid) {
-                tids.push_back(extra_tid);
-            }
-        }
-        impl->session =
-            impl->create_session(impl->manager, tids.data(), tids.size(), target.count());
-        if (!impl->session && tids.size() > 1) {
-            impl->extra_tids.clear();
-            impl->session = impl->create_session(impl->manager, &self_tid, 1, target.count());
-        }
+        const int32_t tid = gettid();
+        impl->session = impl->create_session(impl->manager, &tid, 1, target.count());
         if (!impl->session) {
             LOG_DEBUG(Common, "Android performance hint session unavailable on this device");
             impl->failed = true;
@@ -182,16 +131,6 @@ void PerformanceHintSession::ReportFrameDuration(std::chrono::nanoseconds actual
     }
 }
 
-PerformanceHintWait::PerformanceHintWait() : start{std::chrono::steady_clock::now()} {}
-
-PerformanceHintWait::~PerformanceHintWait() {
-    wait_time += std::chrono::steady_clock::now() - start;
-}
-
-std::chrono::nanoseconds PerformanceHintWait::Take() {
-    return std::exchange(wait_time, std::chrono::nanoseconds{});
-}
-
 } // namespace Common::Android
 
 #else
@@ -200,18 +139,9 @@ namespace Common::Android {
 struct PerformanceHintSession::Impl {};
 PerformanceHintSession::PerformanceHintSession() = default;
 PerformanceHintSession::~PerformanceHintSession() = default;
-bool PerformanceHintSession::IsAvailable() const { return false; }
-void PerformanceHintSession::AddThread(int32_t) {}
-bool PerformanceHintSession::HasThread(int32_t) const { return false; }
 void PerformanceHintSession::BeginWork() {}
 void PerformanceHintSession::EndWork() {}
-std::chrono::nanoseconds PerformanceHintSession::TakeWorkDuration() { return {}; }
 void PerformanceHintSession::ReportFrame(std::chrono::nanoseconds) {}
-void PerformanceHintSession::ReportFrameDuration(std::chrono::nanoseconds,
-                                                 std::chrono::nanoseconds) {}
-PerformanceHintWait::PerformanceHintWait() = default;
-PerformanceHintWait::~PerformanceHintWait() = default;
-std::chrono::nanoseconds PerformanceHintWait::Take() { return {}; }
 } // namespace Common::Android
 
 #endif

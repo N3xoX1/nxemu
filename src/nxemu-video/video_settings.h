@@ -42,8 +42,6 @@ bool IsDMALevelDefault();
 bool IsDMALevelSafe();
 bool UseSafeDMAReads();
 bool IsGpuCommandSynchronizationEnabled();
-bool IsGpuThreadSplit();
-bool IsStrictComputeOrderingEnabled();
 bool IsUntrackedStoreReadbackSkipped();
 bool IsGpuReadbackExact();
 bool IsLegacyFsrEnabled();
@@ -113,10 +111,6 @@ struct VideoSettings
     bool global_background_gpu_readbacks;
     bool gpu_command_synchronization;
     bool global_gpu_command_synchronization;
-    bool split_gpu_thread;
-    bool global_split_gpu_thread;
-    bool strict_compute_ordering;
-    bool global_strict_compute_ordering;
     bool skip_untracked_store_readback;
     bool global_skip_untracked_store_readback;
     bool fast_gpu_readback;
@@ -124,6 +118,9 @@ struct VideoSettings
 
     bool use_asynchronous_shaders;
     bool global_use_asynchronous_shaders;
+    int32_t nxshader_warmup_mode;
+    int32_t nxshader_initial_minimum;
+    int32_t nxshader_initial_seconds;
     bool use_fast_gpu_time;
     bool global_use_fast_gpu_time;
     bool use_vulkan_driver_pipeline_cache;

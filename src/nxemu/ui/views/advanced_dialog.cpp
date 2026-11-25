@@ -63,8 +63,6 @@ struct Toggle
 
 constexpr Toggle kToggles[] = {
     {"gpu-sync", NXVideoSetting::SystemGpuCommandSynchronization, Store::Module, true},
-    {"split-gpu-thread", NXVideoSetting::SystemSplitGpuThread, Store::Module, false},
-    {"strict-compute", NXVideoSetting::SystemStrictComputeOrdering, Store::Module, true},
     {"fast-readback", NXVideoSetting::SystemFastGpuReadback, Store::Module, true},
     {"untracked-writes", NXVideoSetting::SystemSkipUntrackedStoreReadback, Store::Module, false},
     {"reactive-flushing", NXVideoSetting::SystemEnableReactiveFlushing, Store::Module, false},
@@ -234,6 +232,28 @@ Choices AppletModes()
     };
 }
 
+Choices NXShaderModes()
+{
+    return {
+        Numbered(Tr("Full warmup (default)"),0,{}),
+        Numbered(Tr("Progressive (experimental)"),1,{}),
+    };
+}
+Choices NXShaderMinimums()
+{
+    Choices choices;
+    for (const int value : {0,64,128,256,512,1024,2048,4096,8192})
+        choices.push_back(Numbered(std::to_string(value),value,{}));
+    return choices;
+}
+Choices NXShaderDurations()
+{
+    Choices choices;
+    for (const int value : {0,5,15,30,60,90,120,180,300,600})
+        choices.push_back(Numbered(std::to_string(value),value,{}));
+    return choices;
+}
+
 Choices OverlayStyles()
 {
     return {Numbered(Tr("Compact"), 0, {}), Numbered(Tr("Normal"), 1, {})};
@@ -262,6 +282,9 @@ Choices OverlayLengths()
 }
 
 constexpr List kLists[] = {
+    {"nxshader-mode", NXVideoSetting::NXShaderWarmupMode, false, NXShaderModes},
+    {"nxshader-minimum", NXVideoSetting::NXShaderInitialMinimum, false, NXShaderMinimums},
+    {"nxshader-seconds", NXVideoSetting::NXShaderInitialSeconds, false, NXShaderDurations},
     {"antialiasing", NXVideoSetting::SystemAntiAliasing, true, AntiAliasings},
     {"anisotropy", NXVideoSetting::SystemAnisotropicFiltering, false, Anisotropies},
     {"accuracy", NXVideoSetting::SystemAccuracyLevel, true, Accuracies},
@@ -642,6 +665,16 @@ void AdvancedDialog::FillLists()
         choices.push_back({Tr("%1 (not connected)", {output}), output, Tr("Games play on the default of the computer until it is back.")});
     }
     Fill(Select(Document(), "audio-device"), choices, output.empty() ? kDefaultAudioDevice : output);
+
+    const int audioMode = settings.GetInt(NXOsSetting::SystemAudioMode);
+    choices.clear();
+    choices.push_back(Numbered(Tr("Stereo"), static_cast<int>(AudioMode::Stereo), Tr("Two channels: headphones and most speakers.")));
+    choices.push_back(Numbered(Tr("Surround"), static_cast<int>(AudioMode::Surround), Tr("Six channels, for speakers set around the room.")));
+    if (audioMode == static_cast<int>(AudioMode::Mono))
+    {
+        choices.push_back(Numbered(Tr("Mono"), audioMode, Tr("One channel.")));
+    }
+    Fill(Select(Document(), "audio-mode"), choices, std::to_string(audioMode));
 }
 
 bool AdvancedDialog::HandleKey(const SDL_KeyboardEvent & event)
@@ -851,6 +884,15 @@ void AdvancedDialog::ApplyChange(const std::string & id)
     const int value = std::atoi(text.c_str());
 
     const char * setting = nullptr;
+    if (id == "audio-mode")
+    {
+        if (value != settings.GetInt(NXOsSetting::SystemAudioMode))
+        {
+            settings.SetInt(NXOsSetting::SystemAudioMode, value);
+            m_unsaved = true;
+        }
+        return;
+    }
     if (id == "audio-device")
     {
         if (!m_running && text != settings.GetString(NXOsSetting::AudioOutputDeviceId))
@@ -957,7 +999,7 @@ bool AdvancedDialog::CanChange(const char * setting) const
             return list.live;
         }
     }
-    return key == NXOsSetting::SystemSpeedLimit;
+    return key == NXOsSetting::SystemSpeedLimit || key == NXOsSetting::SystemAudioMode;
 }
 
 void AdvancedDialog::ApplyLogFilter()
@@ -1009,6 +1051,7 @@ void AdvancedDialog::RestoreDefaults()
     }
     SaveUISetting();
     settings.SetInt(NXOsSetting::SystemSpeedLimit, settings.GetDefaultInt(NXOsSetting::SystemSpeedLimit));
+    settings.SetInt(NXOsSetting::SystemAudioMode, settings.GetDefaultInt(NXOsSetting::SystemAudioMode));
     if (!IsDisabledDebugSetting(NXCoreSetting::LogFilter))
     {
         settings.SetString(NXCoreSetting::LogFilter, settings.GetDefaultString(NXCoreSetting::LogFilter));

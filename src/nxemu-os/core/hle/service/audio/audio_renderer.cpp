@@ -7,14 +7,14 @@
 namespace Service::Audio {
 using namespace AudioCore::Renderer;
 
-IAudioRenderer::IAudioRenderer(Core::System& system_, std::shared_ptr<Manager> manager_,
+IAudioRenderer::IAudioRenderer(Core::System& system_, Manager& manager_,
                                AudioCore::AudioRendererParameterInternal& params,
                                Kernel::KTransferMemory* transfer_memory, u64 transfer_memory_size,
                                Kernel::KProcess* process_handle_, u64 applet_resource_user_id,
                                s32 session_id)
     : ServiceFramework{system_, "IAudioRenderer"}, service_context{system_, "IAudioRenderer"},
-      rendered_event{service_context.CreateEvent("IAudioRendererEvent")}, manager{std::move(manager_)},
-      impl{std::make_unique<Renderer>(system_, *manager, rendered_event)}, process_handle{
+      rendered_event{service_context.CreateEvent("IAudioRendererEvent")}, manager{manager_},
+      impl{std::make_unique<Renderer>(system_, manager, rendered_event)}, process_handle{
                                                                               process_handle_} {
     // clang-format off
     static const FunctionInfo functions[] = {
@@ -32,7 +32,6 @@ IAudioRenderer::IAudioRenderer(Core::System& system_, std::shared_ptr<Manager> m
         {11, nullptr, "ExecuteAudioRendererRendering"},
         {12, D<&IAudioRenderer::SetVoiceDropParameter>, "SetVoiceDropParameter"},
         {13, D<&IAudioRenderer::GetVoiceDropParameter>, "GetVoiceDropParameter"},
-        {14, D<&IAudioRenderer::SetAsyncMemoryPoolControlEnabled>, "SetAsyncMemoryPoolControlEnabled"},
     };
     // clang-format on
     RegisterHandlers(functions);
@@ -128,12 +127,6 @@ Result IAudioRenderer::GetRenderingTimeLimit(Out<u32> out_rendering_time_limit) 
 Result IAudioRenderer::SetVoiceDropParameter(f32 voice_drop_parameter) {
     LOG_DEBUG(Service_Audio, "called");
     impl->GetSystem().SetVoiceDropParameter(voice_drop_parameter);
-    R_SUCCEED();
-}
-
-// 23.0.0+. The console accepts it and does nothing with it.
-Result IAudioRenderer::SetAsyncMemoryPoolControlEnabled(bool enabled) {
-    LOG_DEBUG(Service_Audio, "called, enabled={}", enabled);
     R_SUCCEED();
 }
 

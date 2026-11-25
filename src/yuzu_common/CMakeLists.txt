@@ -143,7 +143,7 @@ if (NOT WIN32)
 endif()
 
 if(ANDROID)
-    option(NXEMU_ENABLE_ANDROID_ADPF "Enable Android GPU and Vulkan worker performance hints" ON)
+    option(NXEMU_ENABLE_ANDROID_ADPF "Enable Android Vulkan worker performance hints" ON)
     if(NXEMU_ENABLE_ANDROID_ADPF)
         target_compile_definitions(yuzu_common PRIVATE NXEMU_ENABLE_ANDROID_ADPF=1)
     endif()

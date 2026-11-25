@@ -362,7 +362,7 @@ void Maxwell3D::ProcessMacro(u32 method, const u32 * base_start, u32 amount, boo
 }
 
 void Maxwell3D::RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>> & segments,
-                                      std::vector<u32> & params, bool flush)
+                                      std::vector<u32> & params)
 {
     size_t current_index = 0;
     for (const std::pair<GPUVAddr, size_t> & segment : segments)
@@ -372,16 +372,8 @@ void Maxwell3D::RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size
             current_index += segment.second;
             continue;
         }
-        if (flush)
-        {
-            memory_manager.ReadBlock(segment.first, &params[current_index],
-                                     sizeof(u32) * segment.second);
-        }
-        else
-        {
-            memory_manager.ReadBlockUnsafe(segment.first, &params[current_index],
-                                           sizeof(u32) * segment.second);
-        }
+        memory_manager.ReadBlock(segment.first, &params[current_index],
+                                 sizeof(u32) * segment.second);
         current_index += segment.second;
     }
 }
@@ -1020,10 +1012,17 @@ void Maxwell3D::Publish(bool verify)
     if (back_queue->IsThreaded())
     {
         // Remaps wait for the queue to drain, so these device ranges hold until the writes run
-        ConvertWriteRanges();
+        for (const auto & [begin, end] : stream_write_ranges)
+        {
+            for (const auto & [address, size] : memory_manager.GetSubmappedDeviceRange(begin, end - begin))
+            {
+                device_write_ranges.emplace_back(address, address + size);
+            }
+        }
         back_queue->AddWrites(device_write_ranges);
+        device_write_ranges.clear();
     }
-    ClearWriteRanges();
+    stream_write_ranges.clear();
     const auto writes = std::exchange(stream_writes_anywhere, false)
                             ? VideoCommon::GPUThread::BackQueue::Writes::Anywhere
                             : VideoCommon::GPUThread::BackQueue::Writes::AddedRanges;
@@ -1042,63 +1041,9 @@ void Maxwell3D::Publish(bool verify)
     back_queue->Push([this, block]() { RunBlock(block); }, writes);
 }
 
-bool Maxwell3D::UnpublishedMayWrite(std::span<const std::pair<DAddr, std::size_t>> ranges)
-{
-    if (!stream_writes_memory)
-    {
-        return false;
-    }
-    if (stream_writes_anywhere)
-    {
-        return true;
-    }
-    ConvertWriteRanges();
-    for (const auto & [address, size] : ranges)
-    {
-        const DAddr end = address + size;
-        if (end <= device_writes_begin || device_writes_end <= address)
-        {
-            continue;
-        }
-        for (const auto & [write_begin, write_end] : device_write_ranges)
-        {
-            if (address < write_end && write_begin < end)
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-void Maxwell3D::ConvertWriteRanges()
-{
-    for (; converted_write_ranges < stream_write_ranges.size(); ++converted_write_ranges)
-    {
-        const auto & [begin, end] = stream_write_ranges[converted_write_ranges];
-        for (const auto & [address, size] : memory_manager.GetSubmappedDeviceRange(begin, end - begin))
-        {
-            device_write_ranges.emplace_back(address, address + size);
-            device_writes_begin = std::min(device_writes_begin, address);
-            device_writes_end = std::max<DAddr>(device_writes_end, address + size);
-        }
-    }
-}
-
-void Maxwell3D::ClearWriteRanges()
-{
-    stream_write_ranges.clear();
-    device_write_ranges.clear();
-    converted_write_ranges = 0;
-    device_writes_begin = ~DAddr{};
-    device_writes_end = 0;
-}
-
 void Maxwell3D::FrontMemoryWrite(GPUVAddr address, u64 size)
 {
-    // A range already converted to device ranges stays as it is
-    if (stream_write_ranges.size() > converted_write_ranges &&
-        address == stream_write_ranges.back().second)
+    if (!stream_write_ranges.empty() && address == stream_write_ranges.back().second)
     {
         stream_write_ranges.back().second += size;
         return;
@@ -1150,7 +1095,7 @@ void Maxwell3D::DrainStream(bool verify)
     stream.clear();
     hle_count = 0;
     stream_writes_memory = false;
-    ClearWriteRanges();
+    stream_write_ranges.clear();
     stream_writes_anywhere = false;
     stream_draining = false;
     ++stream_drains;
@@ -1206,12 +1151,13 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             HLECall & call = calls[count];
             if (call.recheck)
             {
-                // The decode thread fetched the parameters before the queued work ran, so read
-                // them again. GPU written ones are read without a flush, as DmaPusher does
-                // without the thread: a flush would wait for the host GPU even when the draw is
-                // indirect. The macro flushes them itself when it needs them (RefreshParameters).
+                // The decode thread fetched the parameters before the queued work ran. GPU written
+                // ones are read by RefreshParameters, only when Execute needs them.
                 call.dirty = call.dirty || AnySegmentDirty(call.segments);
-                RefreshParametersImpl(call.segments, call.params, !call.dirty);
+                if (!call.dirty)
+                {
+                    RefreshParametersImpl(call.segments, call.params);
+                }
             }
             // Execute writes registers directly, before and after its draws
             const GenerationKind kind = call.program->ChangesDrawState() ? GEN_STATE : GEN_NONE;
@@ -1231,9 +1177,6 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             break;
         case StreamPrefetch:
         {
-            // The prefetch changes the bound uniform buffer, a reused draw must bind it again
-            ++generations[GEN_BUFFERS];
-            buffer_changes.rebound_slots[count & 7] |= 1U << (count >> 3);
             const VideoCommon::UniformPrefetch prefetch{
                 .device_addr =
                     static_cast<DAddr>(words[pos]) | (static_cast<DAddr>(words[pos + 1]) << 32),
@@ -1245,8 +1188,6 @@ void Maxwell3D::RunWords(const u32 * words, size_t size, std::vector<HLECall> & 
             break;
         }
         case StreamPrefetchReset:
-            // Every prefetched binding goes back to the guest buffer
-            ++generations[GEN_STATE];
             rasterizer->ResetUniformPrefetch(static_cast<u64>(words[pos]) |
                                              (static_cast<u64>(words[pos + 1]) << 32));
             pos += 2;
@@ -1530,10 +1471,10 @@ void Maxwell3D::ProcessCBMultiData(const u32 * start_base, u32 amount)
 
     const GPUVAddr address{buffer_address + regs.const_buffer.offset};
     const size_t copy_size = amount * sizeof(u32);
-    const std::optional<DAddr> device_addr =
-        memory_manager.WriteConstBufferCached(address, start_base, copy_size);
+    memory_manager.WriteConstBufferCached(address, start_base, copy_size);
     ++generations[GEN_BUFFERS];
-    if (device_addr)
+    const auto device_addr = memory_manager.GpuToCpuAddress(address);
+    if (device_addr && memory_manager.IsContinuousRange(address, copy_size))
     {
         buffer_changes.AddWrite(*device_addr, copy_size);
     }
@@ -1587,32 +1528,18 @@ bool Maxwell3D::BufferChanges::IsWritten(DAddr address, u64 size) const noexcept
 u32 Maxwell3D::ChangedConstBuffers(size_t stage, u32 slots) const noexcept
 {
     u32 changed = buffer_changes.rebound_slots[stage] & slots;
-    if (buffer_changes.untracked_writes)
-    {
-        return slots;
-    }
-    if (buffer_changes.num_writes == 0)
+    if (buffer_changes.num_writes == 0 && !buffer_changes.untracked_writes)
     {
         return changed;
     }
-    const u64 mapping_generation = memory_manager.MappingGeneration();
     const auto & buffers = state.shader_stages[stage].const_buffers;
     for (u32 unchanged = slots & ~changed; unchanged != 0; unchanged &= unchanged - 1)
     {
         const u32 slot = static_cast<u32>(std::countr_zero(unchanged));
         const ConstBufferInfo & buffer = buffers[slot];
-        ConstBufferRange & range = const_buffer_ranges[stage][slot];
-        if (range.gpu_address != buffer.address || range.size != buffer.size ||
-            range.mapping_generation != mapping_generation)
-        {
-            std::optional<DAddr> device_address = memory_manager.GpuToCpuAddress(buffer.address);
-            if (device_address && !memory_manager.IsContinuousRange(buffer.address, buffer.size))
-            {
-                device_address.reset();
-            }
-            range = {buffer.address, mapping_generation, buffer.size, device_address};
-        }
-        if (!range.device_address || buffer_changes.IsWritten(*range.device_address, buffer.size))
+        const auto device_addr = memory_manager.GpuToCpuAddress(buffer.address);
+        if (!device_addr || !memory_manager.IsContinuousRange(buffer.address, buffer.size) ||
+            buffer_changes.IsWritten(*device_addr, buffer.size))
         {
             changed |= 1U << slot;
         }

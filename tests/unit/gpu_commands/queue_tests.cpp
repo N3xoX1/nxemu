@@ -86,25 +86,6 @@ void QueueTests() {
     release.store(false);
     release.notify_one();
     queue.WaitIdle();
-    Check(!queue.MayWriteAny(), "idle queue may still write");
-
-    // Writes leave in push order while later ones stay
-    queue.AddWrites({{0x1000, 0x1100}});
-    queue.Push([] {}, BackQueue::Writes::AddedRanges);
-    queue.Push([&] { release.wait(false); }, BackQueue::Writes::Nothing);
-    queue.AddWrites({{0x4000, 0x4100}});
-    queue.Push([] {}, BackQueue::Writes::AddedRanges);
-    while (queue.run_spin.load() + 2 < queue.pushed_spin.load()) {
-        std::this_thread::yield();
-    }
-    Check(queue.MayWriteAny(), "pending write was lost");
-    Check(!queue.MayWrite(0x1000, 0x1100), "finished write still made decode wait");
-    Check(!queue.MayWrite(0x2000, 0x3000), "range between writes made decode wait");
-    Check(queue.MayWrite(0x40F0, 0x4200), "pending write after a finished one was missed");
-    release.store(true);
-    release.notify_one();
-    queue.WaitIdle();
-    Check(!queue.MayWriteAny(), "finished writes still made decode wait");
 
     std::atomic<bool> decoder_ready{}, stopping{}, fence_ready{};
     manager.decode_thread = std::jthread([&](std::stop_token stop) {

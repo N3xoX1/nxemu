@@ -33,9 +33,6 @@ resuming in the hot code and a call to shared marking code. Run it as both varia
 the low write tracking map.
 Bit 32768 makes scalar FRINTA call the FP code (the code generation before) instead of the inline
 rounding.
-Bit 131072 makes RET, BR and BLR jump to the shared return stack buffer and fast dispatch lookups
-(the code generation before) instead of a copy of the lookup in each block. The random sequences
-have no indirect branches: test it with stress.
 On an ARM64 host the JIT is the ARM64 backend, where only bits 64 and 65536 apply. Bit 65536
 makes every condition load NZCV from the guest state (the code generation before) instead of using
 the host flags that the flag-setting instruction right before left. Off Windows, use FASTMEM 0.
@@ -62,8 +59,7 @@ shrink turns instructions of one failing sequence into NOPs while it still fails
 stress runs CORES threads on JITs that share one code cache, each round a random program of
 nested calls and forward branches, while the main thread invalidates its functions, clears the
 cache (CLEAR_PERMILLE of the time, 20 is a good value) and halts cores. Each core must end with
-the registers of a JIT of its own run alone without the return stack buffer and fast dispatch.
-Odd rounds count cycles. Bit 128 is not safe with
+the registers of a JIT of its own run alone. Odd rounds count cycles. Bit 128 is not safe with
 several cores (it rewrites jumps another core may be running). The exit code is the number of
 failures."""
 import ctypes, os, sys

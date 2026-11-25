@@ -8,8 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: android-${{ github.workflow }}-${{ github.ref }}
-  # Let master runs finish so they save the shared caches.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -47,26 +46,15 @@ jobs:
             command -v ccache >/dev/null || brew install ccache
             command -v glslangValidator >/dev/null || brew install glslang
           else
-            missing=()
-            command -v ccache >/dev/null || missing+=(ccache)
-            command -v glslangValidator >/dev/null || missing+=(glslang-tools)
-            if [ "${#missing[@]}" -gt 0 ]; then
-              sudo apt-get update
-              sudo apt-get install -y "${missing[@]}"
-            fi
+            sudo apt-get update
+            sudo apt-get install -y ccache glslang-tools
           fi
-          : "${ANDROID_HOME:?ANDROID_HOME is not set}"
-          packages=()
-          [ -s "$ANDROID_HOME/platforms/android-36/android.jar" ] || packages+=('platforms;android-36')
-          [ -x "$ANDROID_HOME/build-tools/36.0.0/aapt2" ] || packages+=('build-tools;36.0.0')
-          [ -s "$ANDROID_HOME/ndk/30.0.16248370/source.properties" ] && [ -f "$ANDROID_HOME/ndk/30.0.16248370/build/cmake/android.toolchain.cmake" ] || packages+=('ndk;30.0.16248370')
-          [ -x "$ANDROID_HOME/cmake/3.22.1/bin/cmake" ] || packages+=('cmake;3.22.1')
-          if [ "${#packages[@]}" -eq 0 ]; then
-            echo 'Using the installed Android toolchain'
+          if [ "${ACT:-}" = true ] && [ -d "$ANDROID_HOME/ndk/30.0.16248370" ] && [ -d "$ANDROID_HOME/cmake/3.22.1" ] && [ -d "$ANDROID_HOME/platforms/android-36" ]; then
+            echo 'Using the installed local Android toolchain'
           elif command -v sdkmanager >/dev/null; then
-            sdkmanager "${packages[@]}"
-          else
-            echo 'sdkmanager is required to install missing Android toolchain packages' >&2
+            sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;30.0.16248370' 'cmake;3.22.1'
+          elif [ "${ACT:-}" != true ]; then
+            echo 'sdkmanager is required to install the Android toolchain' >&2
             exit 1
           fi
       - name: Prepare build cache paths
@@ -89,7 +77,6 @@ jobs:
         run: |
           fingerprint=$( { cat "$ANDROID_HOME/ndk/30.0.16248370/source.properties"; ccache --version; uname -s; } | shasum -a 256 | cut -d ' ' -f 1)
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
-          echo "cache_epoch=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
       - name: Restore native build caches
         id: build-cache
         uses: actions/cache/restore@v4
@@ -97,10 +84,8 @@ jobs:
           path: |
             ${{ env.CCACHE_DIR }}
             ${{ env.NXEMU_THINLTO_CACHE_DIR }}
-          # Immutable daily snapshots, written only on master.
-          key: android-arm64-release-v1-${{ runner.os }}-${{ steps.toolchain.outputs.fingerprint }}-daily-${{ steps.toolchain.outputs.cache_epoch }}
+          key: android-arm64-release-v1-${{ runner.os }}-${{ steps.toolchain.outputs.fingerprint }}-${{ github.sha }}
           restore-keys: |
-            android-arm64-release-v1-${{ runner.os }}-${{ steps.toolchain.outputs.fingerprint }}-daily-
             android-arm64-release-v1-${{ runner.os }}-${{ steps.toolchain.outputs.fingerprint }}-
       - name: Reset compiler cache statistics
         run: ccache --zero-stats
@@ -115,11 +100,9 @@ jobs:
         run: python3 src/script/check_android_apk.py "${NXEMU_BUILD_DIRECTORY:-build/android}"/app/outputs/apk/release/*.apk
       - name: Compiler cache statistics
         if: ${{ always() && steps.build-tools.outcome == 'success' }}
-        run: |
-          ccache --show-stats --verbose
-          du -sh "$CCACHE_DIR" "$NXEMU_THINLTO_CACHE_DIR" 2>/dev/null || true
+        run: ccache --show-stats --verbose
       - name: Save compiler cache
-        if: ${{ github.ref == 'refs/heads/master' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |

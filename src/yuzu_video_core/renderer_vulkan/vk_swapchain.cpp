@@ -17,9 +17,6 @@
 #include "yuzu_video_core/renderer_vulkan/swapchain_present_mode.h"
 #include "nxemu-os/os_settings_identifiers.h"
 #include <nxemu-module-spec/base.h>
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-#include "yuzu_common/android/performance_hint.h"
-#endif
 
 extern IModuleSettings * g_settings;
 
@@ -107,9 +104,6 @@ void Swapchain::Create(VkSurfaceKHR surface_, u32 width_, u32 height_) {
 }
 
 Swapchain::AcquireResult Swapchain::AcquireNextImage(u64 timeout_ns) {
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    const Common::Android::PerformanceHintWait hint_wait;
-#endif
     const VkResult result = device.GetLogical().AcquireNextImageKHR(
         *swapchain, timeout_ns, *present_semaphores[frame_index],
         VK_NULL_HANDLE, &image_index);

@@ -52,14 +52,4 @@ if(ANDROID)
     target_link_libraries(yuzu_audio_core PRIVATE log)
 endif()
 
-# Speaker layout of the host output (sink/speaker_layout.cpp).
-if(APPLE)
-    target_link_libraries(yuzu_audio_core PRIVATE
-        "-framework AudioToolbox" "-framework CoreAudio" "-framework CoreFoundation")
-elseif(WIN32)
-    target_link_libraries(yuzu_audio_core PRIVATE ole32)
-elseif(UNIX AND NOT ANDROID)
-    target_link_libraries(yuzu_audio_core PRIVATE ${CMAKE_DL_LIBS})
-endif()
-
 set_property(TARGET yuzu_audio_core PROPERTY POSITION_INDEPENDENT_CODE ON)

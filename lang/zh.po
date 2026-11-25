@@ -200,6 +200,14 @@ msgid "Shaders"
 msgstr "着色器"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr "着色器预热模式"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "在启动前准备首批着色器，其余在后台准备。下次启动游戏时生效。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "将着色器保存到磁盘"
 
@@ -284,6 +292,14 @@ msgid "Where the sound of games is played."
 msgstr "播放游戏音频的地方。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output mode"
+msgstr "输出模式"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr "环绕声需要兼容的扬声器。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "音频输出引擎"
 
@@ -357,6 +373,26 @@ msgstr "调试设置"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
 msgstr "关闭时使用默认值；你的设置会保留，以便再次启用时使用。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr "NXShader"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr "初始最少管线数"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "默认值：512。除非所有管线均已就绪，否则必须同时达到两个最小值。"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr "初始最短时间（秒）"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "默认值：60。在此时长内持续准备着色器，然后在后台编译其余部分。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -1766,6 +1802,14 @@ msgid "The console's applet, from the installed firmware."
 msgstr "已安装固件中的主机小程序。"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Full warmup (default)"
+msgstr "完整预热（默认）"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
+msgstr "渐进（实验性）"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
 msgstr "无（没有声音）"
 
@@ -1801,6 +1845,26 @@ msgstr "游戏使用计算机的默认输出，直到重新连接。"
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "立体声"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr "两个通道：耳机和大多数扬声器。"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Surround"
+msgstr "环绕声"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr "六个通道，用于放置在房间周围的扬声器。"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Mono"
+msgstr "单声道"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "One channel."
+msgstr "一个通道。"
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -2389,6 +2453,10 @@ msgid "Opening the game..."
 msgstr "正在打开游戏..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "这可能需要几分钟。编译后的着色器会被缓存，以加快之后的启动速度。"
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "启用 Mod 或作弊码时不会记录着色器。"
 
@@ -2405,30 +2473,6 @@ msgstr "大约还剩 %1 分钟"
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Estimating time remaining..."
 msgstr "正在估算剩余时间..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Play now, finish in the background"
-msgstr "立即开始，其余在后台完成"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Starting the game..."
-msgstr "正在启动游戏..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 s to play now"
-msgstr "等待 %1 秒即可开始"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 min to play now"
-msgstr "等待 %1 分钟即可开始"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Preparing the first shaders..."
-msgstr "正在准备首批着色器..."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Shaders ready"
-msgstr "着色器已就绪"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Finishing shader preparation..."
@@ -4309,10 +4353,6 @@ msgid "Some shaders were not included: the game version they belong to is unknow
 msgstr "部分着色器未包含在内：无法确定它们所属的游戏版本。"
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Predicted shaders left out, imported but never used in play: %1"
-msgstr "已省略的预测着色器（已导入但游戏中从未使用）：%1"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Choose the folder for the %1 shader files"
 msgstr "选择用于保存这 %1 个着色器文件的文件夹"
 
@@ -4467,23 +4507,3 @@ msgstr "区域"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "第一图层"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays 5.1 sound."
-msgstr "环绕声：输出设备正在播放 5.1 声音。"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
-msgstr "环绕声：输出设备仅支持立体声，因此环绕声被缩混为两个声道。"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Click to force stereo."
-msgstr "点击强制使用立体声。"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Stereo is forced. Click to allow surround."
-msgstr "已强制使用立体声。点击允许环绕声。"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "This game sends stereo sound."
-msgstr "此游戏输出立体声。"

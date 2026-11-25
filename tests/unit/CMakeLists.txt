@@ -455,7 +455,6 @@ add_custom_command(
     OUTPUT "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
         "${_gpu_commands_generated}/baseline.inc" "${_gpu_commands_generated}/stream.inc"
         "${_gpu_commands_generated}/queue.inc" "${_gpu_commands_generated}/stop.inc"
-        "${_gpu_commands_generated}/writes.inc" "${_gpu_commands_generated}/probe.inc"
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/gpu_commands/extract.py"
         "${CMAKE_SOURCE_DIR}" "${_gpu_commands_generated}"
     DEPENDS gpu_commands/extract.py gpu_commands/baseline.inc
@@ -468,8 +467,7 @@ add_custom_command(
 add_executable(test_gpu_commands gpu_commands/commands.cpp gpu_commands/queue_tests.cpp
     "${_gpu_commands_generated}/engine.inc" "${_gpu_commands_generated}/dma.inc"
     "${_gpu_commands_generated}/baseline.inc" "${_gpu_commands_generated}/stream.inc"
-        "${_gpu_commands_generated}/queue.inc" "${_gpu_commands_generated}/stop.inc"
-        "${_gpu_commands_generated}/writes.inc")
+        "${_gpu_commands_generated}/queue.inc" "${_gpu_commands_generated}/stop.inc")
 target_include_directories(test_gpu_commands PRIVATE "${_gpu_commands_generated}"
     "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
     "${CMAKE_SOURCE_DIR}/external/fmt/include")
@@ -550,16 +548,6 @@ target_link_libraries(test_in_place_reads PRIVATE nxemu_test_support
     $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
     fmt bc_decoder stb_dxt)
 nxemu_unit_test(test_in_place_reads)
-
-add_executable(test_constant_uploads constant_uploads/upload.cpp)
-target_include_directories(test_constant_uploads PRIVATE "${CMAKE_SOURCE_DIR}/src"
-    "${CMAKE_SOURCE_DIR}/src/yuzu_video_core" "${CMAKE_SOURCE_DIR}/external/fmt/include"
-    "${CMAKE_SOURCE_DIR}/external/boost")
-add_dependencies(test_constant_uploads video_core yuzu_common common)
-target_link_libraries(test_constant_uploads PRIVATE nxemu_test_support
-    $<TARGET_FILE:video_core> $<TARGET_FILE:yuzu_common> $<TARGET_FILE:common>
-    fmt bc_decoder stb_dxt)
-nxemu_unit_test(test_constant_uploads)
 
 # Each test suite owns its build and CTest registration.
 file(GLOB unit_suites RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS

@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <algorithm>
-#include <mutex>
 #include <span>
 #include <vector>
 
@@ -28,123 +26,42 @@ public:
      * Create a new sink stream.
      *
      * @param ctx_             - Cubeb context to create this stream with.
-     * @param device_channels_ - Number of channels to open the hardware stream with.
+     * @param device_channels_ - Number of channels supported by the hardware.
      * @param system_channels_ - Number of channels the audio systems expect.
-     * @param output_device_   - Cubeb output device id.
-     * @param input_device_    - Cubeb input device id.
+     * @param output_device    - Cubeb output device id.
+     * @param input_device     - Cubeb input device id.
      * @param name_            - Name of this stream.
      * @param type_            - Type of this stream.
      * @param system_          - Core system.
+     * @param event            - Event used only for audio renderer, signalled on buffer consume.
      */
     CubebSinkStream(cubeb* ctx_, u32 device_channels_, u32 system_channels_,
-                    cubeb_devid output_device_, cubeb_devid input_device_,
-                    const std::string& name_, StreamType type_, Core::System& system_)
-        : SinkStream(system_, type_), ctx{ctx_}, output_device{output_device_},
-          input_device{input_device_} {
+                    cubeb_devid output_device, cubeb_devid input_device, const std::string& name_,
+                    StreamType type_, Core::System& system_)
+        : SinkStream(system_, type_), ctx{ctx_} {
 #ifdef _WIN32
         CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 #endif
         name = name_;
-        // Recording is stereo; only playback follows the output layout.
-        device_channels = type == StreamType::In ? 2 : device_channels_;
+        device_channels = device_channels_;
         system_channels = system_channels_;
-        std::scoped_lock lock{backend_mutex};
-        OpenBackend();
-    }
 
-    /**
-     * Destroy the sink stream.
-     */
-    ~CubebSinkStream() override {
-        LOG_DEBUG(Service_Audio, "Destructing cubeb stream {}", name);
-        Finalize();
-#ifdef _WIN32
-        CoUninitialize();
-#endif
-    }
-
-    /**
-     * Finalize the sink stream.
-     */
-    void Finalize() override {
-        Stop();
-        std::scoped_lock lock{backend_mutex};
-        CloseBackend();
-    }
-
-    /**
-     * Start the sink stream.
-     *
-     * @param resume - Set to true if this is resuming the stream a previously-active stream.
-     *                 Default false.
-     */
-    void Start(bool resume = false) override {
-        std::scoped_lock lock{backend_mutex};
-        if (!stream_backend || !paused) {
-            return;
-        }
-
-        paused = false;
-        if (cubeb_stream_start(stream_backend) != CUBEB_OK) {
-            LOG_CRITICAL(Audio_Sink, "Error starting cubeb stream");
-        }
-    }
-
-    /**
-     * Stop the sink stream.
-     */
-    void Stop() override {
-        std::scoped_lock lock{backend_mutex};
-        if (!stream_backend || paused) {
-            return;
-        }
-
-        SignalPause();
-        if (cubeb_stream_stop(stream_backend) != CUBEB_OK) {
-            LOG_CRITICAL(Audio_Sink, "Error stopping cubeb stream");
-        }
-    }
-
-    u32 SetDeviceChannels(u32 channels) override {
-        if (type == StreamType::In) {
-            return channels;
-        }
-        std::scoped_lock lock{backend_mutex};
-        if (channels == GetDeviceChannels() && stream_backend) {
-            return channels;
-        }
-        // Queued audio stays in the game's layout, so it plays on in the new one.
-        CloseBackend();
-        ResetDeviceChannels(channels);
-        OpenBackend();
-        if (stream_backend && !paused && cubeb_stream_start(stream_backend) != CUBEB_OK) {
-            LOG_CRITICAL(Audio_Sink, "Error restarting cubeb stream");
-        }
-        return stream_backend ? GetDeviceChannels() : 0;
-    }
-
-private:
-    /// Opens the hardware stream with device_channels, or in stereo when the device refuses
-    /// them. Needs backend_mutex.
-    void OpenBackend() {
-        if (!ctx || TryOpenBackend() || GetDeviceChannels() == 2) {
-            return;
-        }
-        LOG_WARNING(Audio_Sink, "Cubeb stream {} refused {} channels, playing stereo", name,
-                    GetDeviceChannels());
-        ResetDeviceChannels(2);
-        TryOpenBackend();
-    }
-
-    /// Opens the hardware stream with device_channels. Needs backend_mutex.
-    bool TryOpenBackend() {
         cubeb_stream_params params{};
         params.rate = TargetSampleRate;
-        params.channels = GetDeviceChannels();
+        params.channels = device_channels;
         params.format = CUBEB_SAMPLE_S16LE;
         params.prefs = CUBEB_STREAM_PREF_NONE;
-        // The Switch's 5.1 order: front left, front right, center, LFE, surround left, right.
-        params.layout = params.channels == 6 ? CUBEB_LAYOUT_3F2_LFE : CUBEB_LAYOUT_STEREO;
+        switch (params.channels) {
+        case 1:
+            params.layout = CUBEB_LAYOUT_MONO;
+            break;
+        case 2:
+            params.layout = CUBEB_LAYOUT_STEREO;
+            break;
+        case 6:
+            params.layout = CUBEB_LAYOUT_3F2_LFE;
+            break;
+        }
 
         u32 minimum_latency{0};
         const auto latency_error = cubeb_get_min_latency(ctx, &params, &minimum_latency);
@@ -158,39 +75,84 @@ private:
         LOG_INFO(Service_Audio,
                  "Opening cubeb stream {} type {} with: rate {} channels {} (system channels {}) "
                  "latency {}",
-                 name, type, params.rate, params.channels, GetSystemChannels(), minimum_latency);
+                 name, type, params.rate, params.channels, system_channels, minimum_latency);
 
         auto init_error{0};
         if (type == StreamType::In) {
             init_error = cubeb_stream_init(ctx, &stream_backend, name.c_str(), input_device,
-                                           &params, nullptr, nullptr, minimum_latency,
+                                           &params, output_device, nullptr, minimum_latency,
                                            &CubebSinkStream::DataCallback,
                                            &CubebSinkStream::StateCallback, this);
         } else {
-            init_error = cubeb_stream_init(ctx, &stream_backend, name.c_str(), nullptr, nullptr,
-                                           output_device, &params, minimum_latency,
+            init_error = cubeb_stream_init(ctx, &stream_backend, name.c_str(), input_device,
+                                           nullptr, output_device, &params, minimum_latency,
                                            &CubebSinkStream::DataCallback,
                                            &CubebSinkStream::StateCallback, this);
         }
 
         if (init_error != CUBEB_OK) {
             LOG_CRITICAL(Audio_Sink, "Error initializing cubeb stream, error: {}", init_error);
-            stream_backend = nullptr;
-            return false;
-        }
-        return true;
-    }
-
-    /// Destroys the hardware stream; its callback has returned once this does. Needs backend_mutex.
-    void CloseBackend() {
-        if (!stream_backend) {
             return;
         }
-        cubeb_stream_stop(stream_backend);
-        cubeb_stream_destroy(stream_backend);
-        stream_backend = nullptr;
     }
 
+    /**
+     * Destroy the sink stream.
+     */
+    ~CubebSinkStream() override {
+        LOG_DEBUG(Service_Audio, "Destructing cubeb stream {}", name);
+
+        if (!ctx) {
+            return;
+        }
+
+        Finalize();
+
+#ifdef _WIN32
+        CoUninitialize();
+#endif
+    }
+
+    /**
+     * Finalize the sink stream.
+     */
+    void Finalize() override {
+        Stop();
+        cubeb_stream_destroy(stream_backend);
+    }
+
+    /**
+     * Start the sink stream.
+     *
+     * @param resume - Set to true if this is resuming the stream a previously-active stream.
+     *                 Default false.
+     */
+    void Start(bool resume = false) override {
+        if (!ctx || !paused) {
+            return;
+        }
+
+        paused = false;
+        if (cubeb_stream_start(stream_backend) != CUBEB_OK) {
+            LOG_CRITICAL(Audio_Sink, "Error starting cubeb stream");
+        }
+    }
+
+    /**
+     * Stop the sink stream.
+     */
+    void Stop() override {
+        if (!ctx || paused) {
+            return;
+        }
+
+        SignalPause();
+        if (cubeb_stream_stop(stream_backend) != CUBEB_OK) {
+            LOG_CRITICAL(Audio_Sink, "Error stopping cubeb stream");
+        }
+    }
+
+private:
     /**
      * Main callback from Cubeb. Either expects samples from us (audio render/audio out), or will
      * provide samples to be copied (audio in).
@@ -236,14 +198,8 @@ private:
 
     /// Main Cubeb context
     cubeb* ctx{};
-    /// Cubeb id of the output device, null for the system default
-    cubeb_devid output_device{};
-    /// Cubeb id of the input device, null for the system default
-    cubeb_devid input_device{};
     /// Cubeb stream backend
     cubeb_stream* stream_backend{};
-    /// Guards stream_backend against a reopen from the output monitor
-    std::mutex backend_mutex;
 };
 
 CubebSink::CubebSink(std::string_view target_device_name) {
@@ -270,12 +226,13 @@ CubebSink::CubebSink(std::string_view target_device_name) {
                 })};
             if (device != collection_end) {
                 output_device = device->devid;
-                chosen_device = target_device_name;
-                chosen_device_channels = device->max_channels;
             }
             cubeb_device_collection_destroy(ctx, &collection);
         }
     }
+
+    cubeb_get_max_channel_count(ctx, &device_channels);
+    device_channels = device_channels >= 6U ? 6U : 2U;
 }
 
 CubebSink::~CubebSink() {
@@ -298,95 +255,45 @@ CubebSink::~CubebSink() {
 
 SinkStream* CubebSink::AcquireSinkStream(Core::System& system, u32 system_channels_,
                                          const std::string& name, StreamType type) {
-    std::scoped_lock lock{streams_mutex};
-    SinkStreamPtr& stream = sink_streams.emplace_back(
-        std::make_unique<CubebSinkStream>(ctx, GetDeviceChannels(), system_channels_,
-                                          output_device, input_device, name, type, system));
-    stream->SetDeviceVolume(device_volume);
+    system_channels = system_channels_;
+    SinkStreamPtr& stream = sink_streams.emplace_back(std::make_unique<CubebSinkStream>(
+        ctx, device_channels, system_channels, output_device, input_device, name, type, system));
 
     return stream.get();
 }
 
 void CubebSink::CloseStream(SinkStream* stream) {
-    SinkStreamPtr closed;
-    {
-        std::scoped_lock lock{streams_mutex};
-        const auto it = std::find_if(sink_streams.begin(), sink_streams.end(),
-                                     [stream](const SinkStreamPtr& s) { return s.get() == stream; });
-        if (it == sink_streams.end()) {
-            return;
+    for (size_t i = 0; i < sink_streams.size(); i++) {
+        if (sink_streams[i].get() == stream) {
+            sink_streams[i].reset();
+            sink_streams.erase(sink_streams.begin() + i);
+            break;
         }
-        closed = std::move(*it);
-        sink_streams.erase(it);
     }
-    // Destroyed outside the lock: it waits for its audio callback.
 }
 
 void CubebSink::CloseStreams() {
-    std::vector<SinkStreamPtr> closed;
-    std::scoped_lock lock{streams_mutex};
-    closed.swap(sink_streams);
+    sink_streams.clear();
 }
 
 f32 CubebSink::GetDeviceVolume() const {
-    std::scoped_lock lock{streams_mutex};
-    return device_volume;
+    if (sink_streams.empty()) {
+        return 1.0f;
+    }
+
+    return sink_streams[0]->GetDeviceVolume();
 }
 
 void CubebSink::SetDeviceVolume(f32 volume) {
-    std::scoped_lock lock{streams_mutex};
-    device_volume = volume;
     for (auto& stream : sink_streams) {
         stream->SetDeviceVolume(volume);
     }
 }
 
 void CubebSink::SetSystemVolume(f32 volume) {
-    std::scoped_lock lock{streams_mutex};
     for (auto& stream : sink_streams) {
         stream->SetSystemVolume(volume);
     }
-}
-
-Sink::PlayingChannels CubebSink::GetPlayingChannels() const {
-    std::scoped_lock lock{streams_mutex};
-    return PlayingChannelsOf(sink_streams);
-}
-
-u32 CubebSink::QueryHostChannels() {
-    if (!ctx) {
-        return 2;
-    }
-    if (!chosen_device.empty()) {
-        // Read again each time, as the device's layout can be set up anew in the system.
-        cubeb_device_collection collection;
-        if (cubeb_enumerate_devices(ctx, CUBEB_DEVICE_TYPE_OUTPUT, &collection) == CUBEB_OK) {
-            const auto end{collection.device + collection.count};
-            const auto device{std::find_if(collection.device, end, [&](const cubeb_device_info& info) {
-                return info.friendly_name != nullptr && chosen_device == info.friendly_name;
-            })};
-            if (device != end) {
-                chosen_device_channels = device->max_channels;
-            }
-            cubeb_device_collection_destroy(ctx, &collection);
-        }
-        return chosen_device_channels;
-    }
-    // The layout of the current default output, as set up in the system's sound settings.
-    u32 channels{2};
-    if (cubeb_get_max_channel_count(ctx, &channels) != CUBEB_OK) {
-        return 2;
-    }
-    return channels;
-}
-
-std::string CubebSink::OutputDeviceName() const {
-    return chosen_device;
-}
-
-u32 CubebSink::ReopenPlayback(u32 channels) {
-    std::scoped_lock lock{streams_mutex};
-    return ReopenStreams(sink_streams, channels);
 }
 
 std::vector<std::string> ListCubebSinkDevices(bool capture) {

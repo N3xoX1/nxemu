@@ -200,6 +200,14 @@ msgid "Shaders"
 msgstr "Shaders"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Shader warmup mode"
+msgstr "Opwarmmodus voor shaders"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Prepare the first shaders before starting, then the rest in the background. Applies on the next game start."
+msgstr "Bereidt de eerste shaders voor het starten voor en de rest op de achtergrond. Geldt vanaf de volgende keer dat de game start."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Keep shaders on the disk"
 msgstr "Shaders op schijf bewaren"
 
@@ -284,6 +292,14 @@ msgid "Where the sound of games is played."
 msgstr "Waar game-audio wordt afgespeeld."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Output mode"
+msgstr "Uitgangsmodus"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Surround needs speakers that play it."
+msgstr "Voor surroundgeluid zijn compatibele luidsprekers vereist."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Output engine"
 msgstr "Audio-uitvoerbackend"
 
@@ -357,6 +373,26 @@ msgstr "Debug-instellingen"
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Off, they act as their defaults; what you set is kept for when they are enabled again."
 msgstr "Als ze uit staan, gelden hun standaardwaarden; wat je hebt ingesteld blijft bewaard voor wanneer ze weer worden ingeschakeld."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "NXShader"
+msgstr "NXShader"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial pipelines"
+msgstr "Minimumaantal pipelines bij het starten"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 512. Both minimums must be reached unless every pipeline is ready."
+msgstr "Standaard: 512. Beide minimumwaarden moeten worden bereikt, tenzij alle pipelines gereed zijn."
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Minimum initial time (seconds)"
+msgstr "Minimale tijd bij het starten (seconden)"
+
+#: src/nxemu/ui/assets/advanced_dialog.rml
+msgid "Default: 60. Continue preparing shaders for this long, then compile the remainder in the background."
+msgstr "Standaard: 60. Bereidt shaders gedurende deze tijd voor en compileert de rest daarna op de achtergrond."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Processor engine"
@@ -1773,6 +1809,14 @@ msgid "The console's applet, from the installed firmware."
 msgstr "De applet van de console, uit de geïnstalleerde firmware."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Full warmup (default)"
+msgstr "Volledig opwarmen (standaard)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Progressive (experimental)"
+msgstr "Geleidelijk (experimenteel)"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "None (no sound)"
 msgstr "Geen (geen geluid)"
 
@@ -1808,6 +1852,26 @@ msgstr "Games gebruiken de standaarduitvoer van de computer totdat ze opnieuw wo
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "Stereo"
 msgstr "Stereo"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Two channels: headphones and most speakers."
+msgstr "Twee kanalen: hoofdtelefoon en de meeste luidsprekers."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Surround"
+msgstr "Surround"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Six channels, for speakers set around the room."
+msgstr "Zes kanalen, voor luidsprekers die in de kamer zijn geplaatst."
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "Mono"
+msgstr "Mono"
+
+#: src/nxemu/ui/views/advanced_dialog.cpp
+msgid "One channel."
+msgstr "Eén kanaal."
 
 #: src/nxemu/ui/views/advanced_dialog.cpp
 msgid "A shortcut is a function key, or a key with %1 or Alt."
@@ -2397,6 +2461,10 @@ msgid "Opening the game..."
 msgstr "Het spel openen..."
 
 #: src/nxemu/ui/views/loading_screen.cpp
+msgid "This may take a few minutes. Compiled shaders are cached to speed up future launches."
+msgstr "Dit kan enkele minuten duren. Gecompileerde shaders worden in de cache bewaard, zodat de game daarna sneller start."
+
+#: src/nxemu/ui/views/loading_screen.cpp
 msgid "Shaders are not recorded while mods or cheats are active."
 msgstr "Shaders worden niet opgenomen terwijl mods of cheats actief zijn."
 
@@ -2413,30 +2481,6 @@ msgstr "Nog ongeveer %1 min"
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Estimating time remaining..."
 msgstr "Resterende tijd schatten..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Play now, finish in the background"
-msgstr "Nu spelen, op de achtergrond afmaken"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Starting the game..."
-msgstr "Spel wordt gestart..."
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 s to play now"
-msgstr "Wacht %1 s om nu te spelen"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Wait %1 min to play now"
-msgstr "Wacht %1 min om nu te spelen"
-
-#: src/nxemu/ui/views/loading_screen.cpp
-msgid "Preparing the first shaders..."
-msgstr "De eerste shaders voorbereiden..."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Shaders ready"
-msgstr "Shaders klaar"
 
 #: src/nxemu/ui/views/loading_screen.cpp
 msgid "Finishing shader preparation..."
@@ -4326,10 +4370,6 @@ msgid "Some shaders were not included: the game version they belong to is unknow
 msgstr "Sommige shaders zijn niet opgenomen: de gameversie waar ze bij horen is onbekend."
 
 #: src/nxemu/ui/views/shader_profile_dialog.cpp
-msgid "Predicted shaders left out, imported but never used in play: %1"
-msgstr "Voorspelde shaders weggelaten, geïmporteerd maar nooit gebruikt tijdens het spelen: %1"
-
-#: src/nxemu/ui/views/shader_profile_dialog.cpp
 msgid "Choose the folder for the %1 shader files"
 msgstr "Kies de map voor de %1 shaderbestanden"
 
@@ -4484,23 +4524,3 @@ msgstr "Oppervlak"
 #: src/nxemu/ui/views/main_window.cpp
 msgid "First layer"
 msgstr "Eerste laag"
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays 5.1 sound."
-msgstr "Surround: het uitvoerapparaat speelt 5.1-geluid af."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Surround: the output device plays stereo only, so surround sound is mixed down to two channels."
-msgstr "Surround: het uitvoerapparaat speelt alleen stereo af, dus surroundgeluid wordt naar twee kanalen gemixt."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Click to force stereo."
-msgstr "Klik om stereo af te dwingen."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "Stereo is forced. Click to allow surround."
-msgstr "Stereo is afgedwongen. Klik om surround toe te staan."
-
-#: src/nxemu/ui/views/main_window.cpp
-msgid "This game sends stereo sound."
-msgstr "Deze game stuurt stereogeluid."

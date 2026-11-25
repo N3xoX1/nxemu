@@ -11,9 +11,6 @@
 #include "yuzu_video_core/renderer_vulkan/vk_stall_profile.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
 #include "yuzu_video_core/vulkan_common/vulkan_wrapper.h"
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-#include "yuzu_common/android/performance_hint.h"
-#endif
 
 namespace Vulkan {
 
@@ -91,9 +88,6 @@ void MasterSemaphore::Wait(u64 tick) {
     const StallProfile profile{"gpu_wait", tick};
     if (!semaphore) {
         // If we don't support timeline semaphores, wait for the value normally
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        const Common::Android::PerformanceHintWait hint_wait;
-#endif
         std::unique_lock lk{free_mutex};
         free_cv.wait(lk, [&] { return gpu_tick.load(std::memory_order_relaxed) >= tick; });
         return;
@@ -112,9 +106,6 @@ void MasterSemaphore::Wait(u64 tick) {
     }
 
     // If none of the above is hit, fallback to a regular wait
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    const Common::Android::PerformanceHintWait hint_wait;
-#endif
     try {
         while (!semaphore.Wait(tick)) {
         }

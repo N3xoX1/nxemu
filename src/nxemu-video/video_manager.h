@@ -55,8 +55,6 @@ public:
     uint32_t HostSyncpointRegisterAction(uint32_t fence_id, uint32_t target_value, HostActionCallback operation, uint32_t slot, void * userData) override;
     bool WaitHost(uint32_t syncpoint_id, uint32_t expected_value, std::stop_token stop) override;
     uint32_t ShadersBuilding() override;
-    void ContinueShadersInBackground() override;
-    void BackgroundShaderProgress(uint32_t & done, uint32_t & total) override;
     VideoPresentationState GetPresentationState() override;
     void MeasureGpuTime(bool measure) override;
     uint64_t GpuTimeNs() override;

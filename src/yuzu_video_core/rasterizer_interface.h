@@ -139,12 +139,6 @@ public:
     /// behind data the guest reads.
     virtual bool MayFlushSharedPage(DAddr addr, u64 size) { return true; }
 
-    /// Lock-free: false proves that no compute dispatch ever wrote this memory
-    virtual bool MayHaveComputeWrites(DAddr addr, u64 size) { return true; }
-
-    /// Lock-free: changes when MayHaveComputeWrites may answer true for more memory
-    virtual u64 ComputeWriteEpoch() { return 0; }
-
     /// Check if guest memory sharing a host page with a CPU access is behind data the guest
     /// reads, and let later asynchronous publications keep it current.
     virtual SharedPageAccess ObserveSharedPage(DAddr addr, u64 size) {

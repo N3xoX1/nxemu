@@ -157,10 +157,6 @@ inline bool OutOfLineRoundTiesAway() {
     return (jit_test_variant & 32768) != 0;
 }
 
-inline bool SharedTerminalHandlers() {
-    return (jit_test_variant & 131072) != 0;
-}
-
 /// True when the value is known to have every bit above `kept_bits` clear, wherever it lives:
 /// the loads below and the zero extensions clear them in an XMM, and a GPR value moved to an
 /// XMM later goes through movd/movq, which clears them too.

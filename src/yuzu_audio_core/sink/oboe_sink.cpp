@@ -192,7 +192,6 @@ SinkStream* OboeSink::AcquireSinkStream(Core::System& system, u32 system_channel
                                         const std::string& name, StreamType type) {
     SinkStreamPtr& stream = sink_streams.emplace_back(
         std::make_unique<OboeSinkStream>(system, type, name, system_channels));
-    stream->SetDeviceVolume(device_volume);
 
     return stream.get();
 }
@@ -206,11 +205,14 @@ void OboeSink::CloseStreams() {
 }
 
 f32 OboeSink::GetDeviceVolume() const {
-    return device_volume;
+    if (sink_streams.empty()) {
+        return 1.0f;
+    }
+
+    return sink_streams.front()->GetDeviceVolume();
 }
 
 void OboeSink::SetDeviceVolume(f32 volume) {
-    device_volume = volume;
     for (auto& stream : sink_streams) {
         stream->SetDeviceVolume(volume);
     }

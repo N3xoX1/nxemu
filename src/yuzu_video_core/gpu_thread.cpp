@@ -2,12 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-#include <chrono>
-#include <unistd.h>
-#include <vector>
-#include "yuzu_common/android/performance_hint.h"
-#endif
 
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/scope_exit.h"
@@ -25,120 +19,6 @@ namespace VideoCommon::GPUThread {
 
 namespace {
 constexpr size_t MaxWriteRanges = 1024;
-
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-class GpuAdpfTracker final {
-public:
-    class ScopedWork final {
-    public:
-        explicit ScopedWork(GpuAdpfTracker& tracker_) : tracker{tracker_} {
-            tracker.performance_hint.BeginWork();
-        }
-        ~ScopedWork() {
-            tracker.performance_hint.EndWork();
-        }
-        ScopedWork(const ScopedWork&) = delete;
-        ScopedWork& operator=(const ScopedWork&) = delete;
-
-    private:
-        GpuAdpfTracker& tracker;
-    };
-
-    GpuAdpfTracker(Tegra::GPU& gpu_, SynchState& state_) : gpu{gpu_}, state{state_} {
-        state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
-        gpu.SetFrameCompleteHook(
-            [this](std::chrono::nanoseconds budget) { FrameComplete(budget); });
-    }
-
-    ~GpuAdpfTracker() {
-        gpu.SetFrameCompleteHook({});
-        state.adpf_active.store(false, std::memory_order_relaxed);
-    }
-
-    // Outside execution_mutex and after waking waiters: the hint call is a Binder IPC
-    void ReportCompletedFrames() {
-        for (const CompletedFrame& frame : completed_frames) {
-            Report(frame);
-        }
-        completed_frames.clear();
-    }
-
-private:
-    struct CompletedFrame {
-        std::chrono::nanoseconds budget;
-        std::chrono::nanoseconds draw_work;
-        std::chrono::nanoseconds decode_work;
-    };
-
-    // A composite can run in the middle of a batch, so the frame's work ends here
-    void FrameComplete(std::chrono::nanoseconds budget) {
-        performance_hint.EndWork();
-        completed_frames.push_back(
-            {budget, performance_hint.TakeWorkDuration(),
-             std::chrono::nanoseconds{state.decode_work_ns.exchange(0, std::memory_order_relaxed)}});
-        performance_hint.BeginWork();
-    }
-
-    void Report(const CompletedFrame& frame) {
-        if (frame.budget <= std::chrono::nanoseconds{}) {
-            performance_hint.ReportFrameDuration({}, {});
-            state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
-            return;
-        }
-        if (decode_tid == 0) {
-            decode_tid = state.decode_tid.load(std::memory_order_acquire);
-            if (decode_tid > 0) {
-                performance_hint.AddThread(decode_tid);
-            }
-        }
-        std::chrono::nanoseconds actual = frame.draw_work;
-        if (decode_tid > 0 && performance_hint.HasThread(decode_tid)) {
-            actual = std::max(frame.draw_work, frame.decode_work);
-        }
-        if (actual <= std::chrono::nanoseconds{} ||
-            (actual > std::chrono::milliseconds{250} && actual > frame.budget * 4)) {
-            performance_hint.ReportFrameDuration({}, frame.budget);
-        } else {
-            performance_hint.ReportFrameDuration(actual, frame.budget);
-        }
-        state.adpf_active.store(performance_hint.IsAvailable(), std::memory_order_relaxed);
-    }
-
-    Tegra::GPU& gpu;
-    SynchState& state;
-    Common::Android::PerformanceHintSession performance_hint;
-    std::vector<CompletedFrame> completed_frames;
-    int32_t decode_tid{};
-};
-
-class DecodeWorkTimer final {
-public:
-    explicit DecodeWorkTimer(SynchState& state_)
-        : state{state_}, active{state.adpf_active.load(std::memory_order_relaxed)} {
-        if (active) {
-            start = std::chrono::steady_clock::now();
-            Common::Android::PerformanceHintWait::Take();
-        }
-    }
-    ~DecodeWorkTimer() {
-        if (!active) {
-            return;
-        }
-        const std::chrono::nanoseconds elapsed =
-            std::chrono::steady_clock::now() - start - Common::Android::PerformanceHintWait::Take();
-        if (elapsed > std::chrono::nanoseconds{}) {
-            state.decode_work_ns.fetch_add(elapsed.count(), std::memory_order_relaxed);
-        }
-    }
-    DecodeWorkTimer(const DecodeWorkTimer&) = delete;
-    DecodeWorkTimer& operator=(const DecodeWorkTimer&) = delete;
-
-private:
-    SynchState& state;
-    const bool active;
-    std::chrono::steady_clock::time_point start;
-};
-#endif
 } // namespace
 
 void BackQueue::Push(Work&& work, Writes writes) {
@@ -171,9 +51,6 @@ void BackQueue::WaitIdle() {
     const u64 target = pushed_spin.load(std::memory_order_relaxed);
     auto idle = [this, target] { return done_spin.load(std::memory_order_acquire) >= target; };
     if (!idle()) {
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        const Common::Android::PerformanceHintWait hint_wait;
-#endif
         std::unique_lock lock{mutex};
         idle_cv.wait(lock, [this] { return done == pushed || stopping; });
     }
@@ -187,8 +64,7 @@ void BackQueue::AddWrites(const WriteRanges& ranges) {
     // The ranges belong to the next push, which callers make right after adding them
     const u64 push = pushed_spin.load(std::memory_order_relaxed) + 1;
     for (const auto& [begin, end] : ranges) {
-        // Merging into the last write keeps the push order, as it gets the latest push
-        if (queued_writes.size() > first_write && begin <= queued_writes.back().end &&
+        if (!queued_writes.empty() && begin <= queued_writes.back().end &&
             end >= queued_writes.back().begin) {
             QueuedWrite& last = queued_writes.back();
             last.begin = std::min(last.begin, begin);
@@ -197,19 +73,14 @@ void BackQueue::AddWrites(const WriteRanges& ranges) {
         } else {
             queued_writes.push_back({begin, end, push});
         }
-        writes_begin = std::min(writes_begin, begin);
-        writes_end = std::max(writes_end, end);
-        last_write_push = push;
     }
-    if (queued_writes.size() - first_write <= MaxWriteRanges) {
+    if (queued_writes.size() <= MaxWriteRanges) {
         return;
     }
     DropFinishedWrites(run_spin.load(std::memory_order_acquire));
-    if (queued_writes.size() - first_write <= MaxWriteRanges * 3 / 4) {
+    if (queued_writes.size() <= MaxWriteRanges * 3 / 4) {
         return;
     }
-    queued_writes.erase(queued_writes.begin(), queued_writes.begin() + first_write);
-    first_write = 0;
     std::ranges::sort(queued_writes, {}, &QueuedWrite::begin);
     size_t last = 0;
     for (size_t i = 1; i < queued_writes.size(); ++i) {
@@ -222,13 +93,9 @@ void BackQueue::AddWrites(const WriteRanges& ranges) {
     }
     queued_writes.resize(last + 1);
     if (queued_writes.size() > MaxWriteRanges * 3 / 4) {
-        ClearWrites();
+        queued_writes.clear();
         anywhere_until_push = push;
-        return;
     }
-    // Back in push order, so finished writes leave from the front
-    std::ranges::stable_sort(queued_writes, {}, &QueuedWrite::push);
-    write_bounds_stale = true;
 }
 
 bool BackQueue::MayWrite(DAddr begin, DAddr end) {
@@ -237,72 +104,18 @@ bool BackQueue::MayWrite(DAddr begin, DAddr end) {
         return true;
     }
     DropFinishedWrites(finished);
-    if (first_write == queued_writes.size() || end <= writes_begin || writes_end <= begin) {
-        return false;
-    }
-    if (write_bounds_stale) {
-        UpdateWriteBounds();
-        if (end <= writes_begin || writes_end <= begin) {
-            return false;
-        }
-    }
-    return std::any_of(queued_writes.begin() + first_write, queued_writes.end(),
-                       [begin, end](const QueuedWrite& write) {
-                           return begin < write.end && end > write.begin;
-                       });
-}
-
-bool BackQueue::MayWriteAny() {
-    const u64 finished = run_spin.load(std::memory_order_acquire);
-    if (finished < anywhere_until_push) {
-        return true;
-    }
-    DropFinishedWrites(finished);
-    return first_write != queued_writes.size();
+    return std::ranges::any_of(queued_writes, [begin, end](const QueuedWrite& write) {
+        return begin < write.end && end > write.begin;
+    });
 }
 
 void BackQueue::DropFinishedWrites(u64 finished) {
-    if (finished >= last_write_push) {
-        if (!queued_writes.empty()) {
-            const u64 anywhere = anywhere_until_push;
-            ClearWrites();
-            anywhere_until_push = anywhere;
-        }
-        return;
-    }
-    // The last write has not finished, so this stops before the end
-    const size_t first = first_write;
-    while (queued_writes[first_write].push <= finished) {
-        ++first_write;
-    }
-    if (first_write == first) {
-        return;
-    }
-    write_bounds_stale = true;
-    if (first_write >= 256 && first_write * 2 >= queued_writes.size()) {
-        queued_writes.erase(queued_writes.begin(), queued_writes.begin() + first_write);
-        first_write = 0;
-    }
+    std::erase_if(queued_writes, [finished](const QueuedWrite& write) { return write.push <= finished; });
 }
 
 void BackQueue::ClearWrites() {
     queued_writes.clear();
-    first_write = 0;
-    last_write_push = 0;
-    writes_begin = ~DAddr{};
-    writes_end = 0;
-    write_bounds_stale = false;
     anywhere_until_push = 0;
-}
-
-void BackQueue::UpdateWriteBounds() {
-    writes_begin = ~DAddr{};
-    writes_end = 0;
-    for (size_t i = first_write; i < queued_writes.size(); ++i) {
-        writes_begin = std::min(writes_begin, queued_writes[i].begin);
-        writes_end = std::max(writes_end, queued_writes[i].end);
-    }
-    write_bounds_stale = false;
 }
 
 bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,
@@ -385,31 +198,19 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
 
     Core::Frontend::GraphicsContext::Scoped current_context = context.Acquire();
     VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    GpuAdpfTracker adpf{gpu, state};
-#endif
     std::deque<BackQueue::Work> batch;
     while (!stop_token.stop_requested()) {
         {
             std::scoped_lock execution_lock{state.execution_mutex};
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-            const GpuAdpfTracker::ScopedWork tracked_work{adpf};
-#endif
             ServiceWaits(state, rasterizer);
             gpu.ProcessPendingComposite();
         }
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        adpf.ReportCompletedFrames();
-#endif
         if (!state.back.PopWait(batch, stop_token, state.composite_ready, state.service_ready)) {
             continue;
         }
         const u64 count = batch.size();
         {
             std::scoped_lock execution_lock{state.execution_mutex};
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-            const GpuAdpfTracker::ScopedWork tracked_work{adpf};
-#endif
             for (BackQueue::Work& work : batch) {
                 // On exit the guest memory is unmapped before the GPU stops
                 if (stop_token.stop_requested()) {
@@ -424,9 +225,6 @@ static void RunDrawThread(std::stop_token stop_token, Tegra::GPU& gpu,
             gpu.ProcessPendingComposite();
         }
         state.back.FinishMany(count);
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        adpf.ReportCompletedFrames();
-#endif
     }
 }
 
@@ -438,9 +236,6 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
     Common::SetCurrentThreadPriority(Common::ThreadPriority::Critical);
     gpu.RegisterHostThread();
     VideoCore::gpu_thread_role = VideoCore::GpuThreadRole::Decode;
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    state.decode_tid.store(static_cast<int32_t>(gettid()), std::memory_order_release);
-#endif
 
     CommandDataContainer next;
     while (!stop_token.stop_requested()) {
@@ -451,9 +246,6 @@ static void RunDecodeThread(std::stop_token stop_token, Tegra::GPU& gpu,
             break;
         }
         std::scoped_lock decode_lock{state.decode_mutex};
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        DecodeWorkTimer work_timer{state};
-#endif
         if (SubmitListCommand* submit_list = std::get_if<SubmitListCommand>(&next.data)) {
             scheduler.Push(submit_list->channel, std::move(submit_list->entries));
         } else if (std::holds_alternative<GPUTickCommand>(next.data)) {
@@ -486,9 +278,6 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
 
     auto current_context = context.Acquire();
     VideoCore::RasterizerInterface* const rasterizer = renderer.ReadRasterizer();
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    GpuAdpfTracker adpf{gpu, state};
-#endif
 
     CommandDataContainer next;
 
@@ -496,30 +285,16 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
     {
         {
             std::scoped_lock execution_lock{state.execution_mutex};
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-            const GpuAdpfTracker::ScopedWork tracked_work{adpf};
-#endif
             ServiceWaits(state, rasterizer);
             gpu.ProcessPendingComposite();
         }
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        adpf.ReportCompletedFrames();
-#endif
         const bool has_command = state.queue.PopWait(next, stop_token, [&] {
             return state.composite_ready.load(std::memory_order_acquire) ||
                    state.service_ready.load(std::memory_order_acquire);
         });
         if (!has_command && !stop_token.stop_requested()) {
-            {
-                std::scoped_lock execution_lock{state.execution_mutex};
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-                const GpuAdpfTracker::ScopedWork tracked_work{adpf};
-#endif
-                gpu.ProcessPendingComposite();
-            }
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-            adpf.ReportCompletedFrames();
-#endif
+            std::scoped_lock execution_lock{state.execution_mutex};
+            gpu.ProcessPendingComposite();
             continue;
         }
         if (stop_token.stop_requested())
@@ -528,9 +303,6 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
         }
         {
             std::scoped_lock execution_lock{state.execution_mutex};
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-            const GpuAdpfTracker::ScopedWork tracked_work{adpf};
-#endif
             if (auto * submit_list = std::get_if<SubmitListCommand>(&next.data))
             {
                 scheduler.Push(submit_list->channel, std::move(submit_list->entries));
@@ -562,9 +334,6 @@ static void RunThread(std::stop_token stop_token, Tegra::GPU & gpu, VideoCore::R
             std::scoped_lock lk{state.write_lock};
             state.cv.notify_all();
         }
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-        adpf.ReportCompletedFrames();
-#endif
     }
 }
 
@@ -583,13 +352,8 @@ void ThreadManager::StartThread(VideoCore::RendererBase & renderer, Core::Fronte
         state->stopping = false;
     }
     state->queue.ResetClosed();
-#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
-    state->decode_tid.store(0, std::memory_order_relaxed);
-    state->decode_work_ns.store(0, std::memory_order_relaxed);
-    state->adpf_active.store(false, std::memory_order_relaxed);
-#endif
     rasterizer = renderer.ReadRasterizer();
-    if (is_async && Settings::IsGpuThreadSplit())
+    if (is_async)
     {
         state->back.threaded = true;
         thread = std::jthread(RunDrawThread, std::ref(gpu), std::ref(renderer), std::ref(context), std::ref(*state));

@@ -23,13 +23,10 @@
 #include "yuzu_video_core/vulkan_common/vulkan_instance.h"
 #include "yuzu_video_core/vulkan_common/vulkan_memory_allocator.h"
 #include <algorithm>
-#include <atomic>
 #include <bit>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <memory>
-#include <thread>
 #include <vector>
 
 IModuleSettings* g_settings{};
@@ -97,9 +94,7 @@ int main(int argc, char** argv) {
     Vulkan::RenderPassCache render_passes{device};
     Vulkan::TextureCacheRuntime runtime{device,  scheduler,     allocator,   staging,
                                         blitter, render_passes, descriptors, descriptor_queue};
-    // Too large for the stack
-    const auto cache_storage = std::make_unique<Vulkan::TextureCache>(runtime, memory.device);
-    Vulkan::TextureCache& cache = *cache_storage;
+    Vulkan::TextureCache cache{runtime, memory.device};
     cache.CreateChannel(channel);
     cache.BindToChannel(0);
     using Tegra::RenderTargetFormat;
@@ -171,40 +166,9 @@ int main(int argc, char** argv) {
             Require(cache.DmaImageToImage(copy, src, dst), "CPU-dirty source/destination DMA");
             Require(cache.HasUncommittedFlushes(),
                     "DMA queues observed destination for preemptive download");
-            // Once, with CPU accesses of committed downloads faulting until publication
-            const bool protect = bpp == 4 && width == 64;
-            memory.physical.protects_read_cached = protect;
             cache.CommitAsyncFlushes();
-            if (protect) {
-                const DAddr stored_at = destination.Address() + 0x40;
-                Require(cache.AwaitsProtectedDownload(stored_at, 4),
-                        "a committed image download protects its pages");
-                // The fence signalled early: a guest store waits, as the CPU write path does,
-                // until the download is published, and the publication doesn't overwrite it
-                constexpr u32 marker = 0x5A17C0DE;
-                std::atomic<bool> stored{};
-                std::thread store{[&] {
-                    while (cache.AwaitsProtectedDownload(stored_at, 4)) {
-                        std::this_thread::yield();
-                    }
-                    memory.gpu.WriteBlockUnsafe(stored_at, &marker, sizeof(marker));
-                    stored.store(true);
-                }};
-                std::this_thread::sleep_for(std::chrono::milliseconds{20});
-                Require(!stored.load(), "a store waits for the protected download");
-                scheduler.Finish();
-                cache.PopAsyncFlushes();
-                store.join();
-                Require(!cache.AwaitsProtectedDownload(destination.Address(), size),
-                        "a published image download releases its pages");
-                cache.WriteMemory(stored_at, sizeof(marker));
-                std::memcpy(expected.data() + 0x40, &marker, sizeof(marker));
-                ++checks;
-            } else {
-                scheduler.Finish();
-                cache.PopAsyncFlushes();
-            }
-            memory.physical.protects_read_cached = false;
+            scheduler.Finish();
+            cache.PopAsyncFlushes();
             cache.DownloadMemory(destination.Address(), size);
             memory.gpu.ReadBlockUnsafe(destination.Address(), actual.data(), size);
             Require(actual == expected, "CPU-dirty transitions preserve all bytes");

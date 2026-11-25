@@ -739,15 +739,12 @@ StressProgram MakeStressProgram(std::mt19937_64& rng) {
     return program;
 }
 
-enum class IndirectBranches { Hinted, ThroughDispatcher };
-
 struct StressCore {
     Env env;
     u64 tpidr = 0, tpidrro = 0;
     std::unique_ptr<A64::Jit> jit;
 
-    StressCore(const StressProgram& program, const void* share_key, u32 variant, bool cycle_counting, size_t processor_id,
-               IndirectBranches indirect_branches = IndirectBranches::Hinted) {
+    StressCore(const StressProgram& program, const void* share_key, u32 variant, bool cycle_counting, size_t processor_id) {
         env.code = program.code;
         A64::UserConfig conf;
         conf.callbacks = &env;
@@ -759,10 +756,6 @@ struct StressCore {
         conf.test_variant = variant;
         conf.share_code_cache_key = share_key;
         conf.processor_id = processor_id;
-        if (indirect_branches == IndirectBranches::ThroughDispatcher) {
-            conf.optimizations &= ~OptimizationFlag::ReturnStackBuffer;
-            conf.optimizations &= ~OptimizationFlag::FastDispatch;
-        }
         jit = std::make_unique<A64::Jit>(conf);
         env.jit = jit.get();
     }
@@ -791,8 +784,7 @@ struct StressCore {
 }  // namespace
 
 // Cores sharing one code cache run the same program while this thread invalidates its functions,
-// clears the cache and halts cores; each core must end like a JIT of its own left alone, whose
-// indirect branches all go through the dispatcher.
+// clears the cache and halts cores; each core must end like a JIT of its own left alone.
 extern "C"
 #ifdef _WIN32
     __declspec(dllexport)
@@ -845,7 +837,7 @@ extern "C"
             thread.join();
         }
         for (int c = 0; c < core_count; c++) {
-            StressCore reference(program, nullptr, variant, cycle_counting, 0, IndirectBranches::ThroughDispatcher);
+            StressCore reference(program, nullptr, variant, cycle_counting, 0);
             reference.Start(seed + round * 16 + c, loops);
             reference.RunToEnd();
             const std::string want = reference.Result(), got = cores[c]->Result();

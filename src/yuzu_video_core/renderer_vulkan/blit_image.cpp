@@ -31,7 +31,6 @@
 #include "yuzu_video_core/host_shaders/convert_packed_depth_stencil_to_msaa_frag_spv.h"
 #include "yuzu_video_core/host_shaders/convert_s8d24_to_abgr8_frag_spv.h"
 #include "yuzu_video_core/host_shaders/full_screen_triangle_vert_spv.h"
-#include "yuzu_video_core/host_shaders/vulkan_blit_depth_frag_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_blit_depth_stencil_frag_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_color_clear_frag_spv.h"
 #include "yuzu_video_core/host_shaders/vulkan_color_clear_sint_frag_spv.h"
@@ -583,7 +582,6 @@ BlitImageHelper::BlitImageHelper(const Device& device_, Scheduler& scheduler_,
       blit_depth_stencil_msaa_frag(device.IsExtShaderStencilExportSupported()
                                        ? BuildShader(device, BLIT_DEPTH_STENCIL_MSAA_FRAG_SPV)
                                        : vk::ShaderModule{}),
-      blit_depth_frag(BuildShader(device, VULKAN_BLIT_DEPTH_FRAG_SPV)),
       blit_depth_stencil_frag(device.IsExtShaderStencilExportSupported()
                                  ? BuildShader(device, VULKAN_BLIT_DEPTH_STENCIL_FRAG_SPV)
                                  : vk::ShaderModule{}),
@@ -725,31 +723,25 @@ void BlitImageHelper::BlitDepthStencil(const Framebuffer* dst_framebuffer,
                                        const Region2D& dst_region, const Region2D& src_region,
                                        Tegra::Engines::Fermi2D::Filter filter,
                                        Tegra::Engines::Fermi2D::Operation operation) {
+    if (!device.IsExtShaderStencilExportSupported()) {
+        return;
+    }
     ASSERT(filter == Tegra::Engines::Fermi2D::Filter::Point);
     ASSERT(operation == Tegra::Engines::Fermi2D::Operation::SrcCopy);
-    const bool blit_stencil =
-        dst_framebuffer->HasAspectStencilBit() && device.IsExtShaderStencilExportSupported();
     const BlitImagePipelineKey key{
         .renderpass = dst_framebuffer->RenderPass(),
         .operation = operation,
     };
-    const VkPipelineLayout layout =
-        blit_stencil ? *two_textures_pipeline_layout : *one_texture_pipeline_layout;
+    const VkPipelineLayout layout = *two_textures_pipeline_layout;
     const VkSampler sampler = *nearest_sampler;
-    const VkPipeline pipeline = FindOrEmplaceDepthStencilPipeline(key, blit_stencil);
+    const VkPipeline pipeline = FindOrEmplaceDepthStencilPipeline(key);
     scheduler.RequestRenderpass(dst_framebuffer);
     scheduler.Record([dst_region, src_region, pipeline, layout, sampler, src_depth_view,
-                      src_stencil_view, blit_stencil, this](vk::CommandBuffer cmdbuf) {
+                      src_stencil_view, this](vk::CommandBuffer cmdbuf) {
         // TODO: Barriers
-        VkDescriptorSet descriptor_set{};
-        if (blit_stencil) {
-            descriptor_set = two_textures_descriptor_allocator.Commit();
-            UpdateTwoTexturesDescriptorSet(device, descriptor_set, sampler, src_depth_view,
-                                           src_stencil_view);
-        } else {
-            descriptor_set = one_texture_descriptor_allocator.Commit();
-            UpdateOneTextureDescriptorSet(device, descriptor_set, sampler, src_depth_view);
-        }
+        const VkDescriptorSet descriptor_set = two_textures_descriptor_allocator.Commit();
+        UpdateTwoTexturesDescriptorSet(device, descriptor_set, sampler, src_depth_view,
+                                       src_stencil_view);
         cmdbuf.BindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         cmdbuf.BindDescriptorSets(VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, descriptor_set,
                                   nullptr);
@@ -1668,18 +1660,14 @@ VkPipeline BlitImageHelper::FindOrEmplaceColorPipeline(const BlitImagePipelineKe
     return *blit_color_pipelines.back();
 }
 
-VkPipeline BlitImageHelper::FindOrEmplaceDepthStencilPipeline(const BlitImagePipelineKey& key,
-                                                              bool blit_stencil) {
-    auto& keys = blit_stencil ? blit_depth_stencil_keys : blit_depth_keys;
-    auto& pipelines = blit_stencil ? blit_depth_stencil_pipelines : blit_depth_pipelines;
-    const auto it = std::ranges::find(keys, key);
-    if (it != keys.end()) {
-        return *pipelines[std::distance(keys.begin(), it)];
+VkPipeline BlitImageHelper::FindOrEmplaceDepthStencilPipeline(const BlitImagePipelineKey& key) {
+    const auto it = std::ranges::find(blit_depth_stencil_keys, key);
+    if (it != blit_depth_stencil_keys.end()) {
+        return *blit_depth_stencil_pipelines[std::distance(blit_depth_stencil_keys.begin(), it)];
     }
-    keys.push_back(key);
-    const std::array stages =
-        MakeStages(*full_screen_vert, blit_stencil ? *blit_depth_stencil_frag : *blit_depth_frag);
-    pipelines.push_back(device.GetLogical().CreateGraphicsPipeline({
+    blit_depth_stencil_keys.push_back(key);
+    const std::array stages = MakeStages(*full_screen_vert, *blit_depth_stencil_frag);
+    blit_depth_stencil_pipelines.push_back(device.GetLogical().CreateGraphicsPipeline({
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
@@ -1691,17 +1679,16 @@ VkPipeline BlitImageHelper::FindOrEmplaceDepthStencilPipeline(const BlitImagePip
         .pViewportState = &PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .pRasterizationState = &PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .pMultisampleState = &PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .pDepthStencilState = blit_stencil ? &PIPELINE_DEPTH_STENCIL_EXPORT_STATE_CREATE_INFO
-                                           : &PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .pDepthStencilState = &PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         .pColorBlendState = &PIPELINE_COLOR_BLEND_STATE_GENERIC_CREATE_INFO,
         .pDynamicState = &PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .layout = blit_stencil ? *two_textures_pipeline_layout : *one_texture_pipeline_layout,
+        .layout = *two_textures_pipeline_layout,
         .renderPass = key.renderpass,
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = 0,
     }));
-    return *pipelines.back();
+    return *blit_depth_stencil_pipelines.back();
 }
 
 VkPipeline BlitImageHelper::FindOrEmplaceClearColorPipeline(const BlitImagePipelineKey& key) {

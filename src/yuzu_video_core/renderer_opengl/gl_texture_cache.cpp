@@ -1011,10 +1011,11 @@ void Image::Scale(bool up_scale) {
     const u32 original_width = info.size.width;
     const u32 original_height = info.size.height;
 
-    const s32 num_levels = ScaledLevels();
     if (!upscaled_backup.handle) {
-        upscaled_backup = MakeImage(VideoCommon::ScaledImageInfo(info, resolution),
-                                    gl_internal_format, num_levels);
+        auto dst_info = info;
+        dst_info.size.width = scaled_width;
+        dst_info.size.height = scaled_height;
+        upscaled_backup = MakeImage(dst_info, gl_internal_format, gl_num_levels);
     }
     const u32 src_width = up_scale ? original_width : scaled_width;
     const u32 src_height = up_scale ? original_height : scaled_height;
@@ -1031,7 +1032,7 @@ void Image::Scale(bool up_scale) {
     const GLuint read_fbo = runtime->rescale_read_fbos[fbo_index].handle;
     const GLuint draw_fbo = runtime->rescale_draw_fbos[fbo_index].handle;
     for (s32 layer = 0; layer < info.resources.layers; ++layer) {
-        for (s32 level = 0; level < num_levels; ++level) {
+        for (s32 level = 0; level < info.resources.levels; ++level) {
             const u32 src_level_width = std::max(1u, src_width >> level);
             const u32 src_level_height = std::max(1u, src_height >> level);
             const u32 dst_level_width = std::max(1u, dst_width >> level);
@@ -1052,15 +1053,6 @@ void Image::Scale(bool up_scale) {
 
 bool Image::IsRescaled() const {
     return True(flags & ImageFlagBits::Rescaled);
-}
-
-s32 Image::ScaledLevels() const {
-    return std::min(gl_num_levels,
-                    VideoCommon::ScaledImageInfo(info, runtime->resolution).resources.levels);
-}
-
-s32 Image::CurrentLevels() const {
-    return IsRescaled() ? ScaledLevels() : gl_num_levels;
 }
 
 bool Image::ScaleUp(bool ignore) {
@@ -1121,8 +1113,8 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
     } else {
         internal_format = MaxwellToGL::GetFormatTuple(format).internal_format;
     }
-    full_range = VideoCommon::ClampLevels(range, image.CurrentLevels());
-    flat_range = full_range;
+    full_range = info.range;
+    flat_range = info.range;
     set_object_label = device.HasDebuggingToolAttached();
     is_render_target = info.IsRenderTarget();
     original_texture = image.Handle();

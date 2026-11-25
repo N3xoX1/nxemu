@@ -284,7 +284,6 @@ private:
     Common::ScratchBuffer<u8> intermediate_buffer;
     Common::ScratchBuffer<u8> remap_buffer;
 
-public:
     static constexpr std::size_t NUM_REGS = 0x800;
     struct Regs {
         union {

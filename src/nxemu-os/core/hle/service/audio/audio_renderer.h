@@ -16,7 +16,7 @@ namespace Service::Audio {
 
 class IAudioRenderer final : public ServiceFramework<IAudioRenderer> {
 public:
-    explicit IAudioRenderer(Core::System& system_, std::shared_ptr<AudioCore::Renderer::Manager> manager_,
+    explicit IAudioRenderer(Core::System& system_, AudioCore::Renderer::Manager& manager_,
                             AudioCore::AudioRendererParameterInternal& params,
                             Kernel::KTransferMemory* transfer_memory, u64 transfer_memory_size,
                             Kernel::KProcess* process_handle_, u64 applet_resource_user_id,
@@ -41,12 +41,10 @@ private:
     Result GetRenderingTimeLimit(Out<u32> out_rendering_time_limit);
     Result SetVoiceDropParameter(f32 voice_drop_parameter);
     Result GetVoiceDropParameter(Out<f32> out_voice_drop_parameter);
-    Result SetAsyncMemoryPoolControlEnabled(bool enabled);
 
     KernelHelpers::ServiceContext service_context;
     Kernel::KEvent* rendered_event;
-    // Shared so the manager outlives every renderer it handed out, whatever the closing order.
-    std::shared_ptr<AudioCore::Renderer::Manager> manager;
+    AudioCore::Renderer::Manager& manager;
     std::unique_ptr<AudioCore::Renderer::Renderer> impl;
     Kernel::KProcess* process_handle;
     Common::ScratchBuffer<u8> output_buffer;

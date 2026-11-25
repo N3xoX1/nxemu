@@ -156,6 +156,13 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Shader warmup mode</div>
+                      <div class="row-text">Prepare the first shaders before starting, then the rest in the background. Applies on the next game start.</div>
+                    </div>
+                    <select id="nxshader-mode" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Keep shaders on the disk</div>
                       <div class="row-text">Games stutter less from their second start.</div>
                     </div>
@@ -254,6 +261,13 @@
                       <div class="row-text">Where the sound of games is played.</div>
                     </div>
                     <select id="audio-device" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Output mode</div>
+                      <div class="row-text">Surround needs speakers that play it.</div>
+                    </div>
+                    <select id="audio-mode" />
                   </div>
                   <div class="row global-only">
                     <div class="row-texts">
@@ -354,6 +368,25 @@
             <div class="cards-page">
               <div class="cards-column">
                 <div class="card">
+                  <div class="card-title" data-upper=""><img src="images/layers.png" />
+                    <div>NXShader</div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Minimum initial pipelines</div>
+                      <div class="row-text">Default: 512. Both minimums must be reached unless every pipeline is ready.</div>
+                    </div>
+                    <select id="nxshader-minimum" />
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Minimum initial time (seconds)</div>
+                      <div class="row-text">Default: 60. Continue preparing shaders for this long, then compile the remainder in the background.</div>
+                    </div>
+                    <select id="nxshader-seconds" />
+                  </div>
+                </div>
+                <div class="card">
                   <div class="card-title" data-upper=""><img src="images/view-grid.png" />
                     <div>Textures and video</div>
                   </div>
@@ -393,24 +426,6 @@
                       <div class="row-text">Keeps the order games give their commands in.</div>
                     </div>
                     <div id="gpu-sync" class="switch" data-command="toggle:gpu-sync" title="Slower, and steadier. Off, some games show faults, hang or crash.">
-                      <div class="switch-knob" />
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Split GPU thread</div>
-                      <div class="row-text">Reads the game commands on one thread and draws on another.</div>
-                    </div>
-                    <div id="split-gpu-thread" class="switch" data-command="toggle:split-gpu-thread" title="Faster. Off, one thread does both, as older versions did. Takes effect when a game starts.">
-                      <div class="switch-knob" />
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Strict compute ordering</div>
-                      <div class="row-text">Waits for every compute shader before reading the next commands.</div>
-                    </div>
-                    <div id="strict-compute" class="switch" data-command="toggle:strict-compute" title="Slower. Off, NXEmu waits only for the shaders that may write the commands, and turns this on by itself when a game needs it.">
                       <div class="switch-knob" />
                     </div>
                   </div>
