@@ -86,16 +86,11 @@ void KMemoryManager::ReleaseFreeBacking() {
     // Clear before scanning so a concurrent Close() always arms another pass.
     m_has_dirty_free_granules.store(false, std::memory_order_release);
 
-#ifdef __linux__
-    // Hole punching does not memset in userspace; coalesced ranges release quickly.
-    constexpr size_t MaxReleasesPerPass = 1024; // 64 MiB
-    constexpr size_t MaxRunGranules = 32;       // 2 MiB per syscall
-#else
-    // Each release zeroes 64 KiB on this thread: bound the pass well under a ms,
-    // and cap each Windows VirtualUnlock / macOS madvise run at 1 MiB.
+    // Bound each pass to a small slice under the pool lock on the calling thread:
+    // on Windows/macOS this limits userspace zeroing (<1 ms), and on Linux/Android
+    // it caps MADV_REMOVE / fallocate TLB shootdowns across cores (~1-2 ms).
     constexpr size_t MaxReleasesPerPass = 128; // 8 MiB
     constexpr size_t MaxRunGranules = 16;      // 1 MiB per run
-#endif
     size_t releases = 0;
     size_t free_dirty = 0;
     bool skipped_optimized_free = false;
