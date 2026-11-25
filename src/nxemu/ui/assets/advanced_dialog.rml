@@ -416,28 +416,10 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
-                      <div class="row-label">Untracked shader writes</div>
-                      <div class="row-text">Skips reading back buffers a shader only might write.</div>
-                    </div>
-                    <div id="untracked-writes" class="switch" data-command="toggle:untracked-writes" title="Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value.">
-                      <div class="switch-knob" />
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
                       <div class="row-label">Reactive flushing</div>
                       <div class="row-text">Brings memory up to date when it is read.</div>
                     </div>
                     <div id="reactive-flushing" class="switch" data-command="toggle:reactive-flushing" title="More exact than guessing ahead when it will be read.">
-                      <div class="switch-knob" />
-                    </div>
-                  </div>
-                  <div class="row">
-                    <div class="row-texts">
-                      <div class="row-label">Barrier feedback loops</div>
-                      <div class="row-text">Draws transparent things right in some games.</div>
-                    </div>
-                    <div id="feedback-loops" class="switch" data-command="toggle:feedback-loops">
                       <div class="switch-knob" />
                     </div>
                   </div>
@@ -531,6 +513,33 @@
                       <div class="row-text">Can gain FPS, but can cause halos or corruption in some games.</div>
                     </div>
                     <div id="background-readbacks" class="switch" data-command="toggle:background-readbacks" title="Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Fast shader math</div>
+                      <div class="row-text">Allows faster floating-point math in Vulkan fragment and compute shaders.</div>
+                    </div>
+                    <div id="fast-shader-math" class="switch" data-command="toggle:fast-shader-math" title="Needs Vulkan. On, relaxes strict IEEE float controls and allows FMA contraction in fragment and compute shaders while keeping vertex depth invariant. Can speed up mobile, integrated, and Apple GPUs. Takes effect when a game starts.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Untracked shader writes</div>
+                      <div class="row-text">Skips reading back buffers a shader only might write.</div>
+                    </div>
+                    <div id="untracked-writes" class="switch" data-command="toggle:untracked-writes" title="Fixes games that fill such buffers while the chip uses them. A game that reads one back can see an old value. Takes effect when a game starts.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Skip feedback loop barriers</div>
+                      <div class="row-text">Can gain FPS on mobile and Apple GPUs, but can break transparent effects in some games.</div>
+                    </div>
+                    <div id="feedback-loops" class="switch" data-command="toggle:feedback-loops" title="Off by default for accurate blending. On skips self-dependency barriers that can stall tiled GPUs. Takes effect when a game starts.">
                       <div class="switch-knob" />
                     </div>
                   </div>

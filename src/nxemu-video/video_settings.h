@@ -133,6 +133,8 @@ struct VideoSettings
     bool global_use_video_framerate;
     bool barrier_feedback_loops;
     bool global_barrier_feedback_loops;
+    bool fast_shader_math;
+    bool global_fast_shader_math;
 
     bool renderer_debug;
     bool renderer_shader_feedback;

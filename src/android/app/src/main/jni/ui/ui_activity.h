@@ -168,7 +168,7 @@ private:
     void AppendCheck(const std::string & label, const std::string & detail, bool on, std::function<void()> action);
     void AppendEmptyState(const std::string & title, const std::string & copy, const std::string & button, std::function<void()> action);
     void AppendEmptyHint(const std::string & text);
-    void AppendBoolSetting(const std::string & label, const char * key, const std::string & detail, bool intBool = false, bool save = true);
+    void AppendBoolSetting(const std::string & label, const char * key, const std::string & detail, bool intBool = false, bool save = true, bool invert = false);
     void AppendIntSetting(const std::string & label, const char * key, int min, int max, const char * suffix);
     void AppendSelectSetting(const Select & select);
     void BuildSelects();

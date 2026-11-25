@@ -59,6 +59,7 @@ constexpr GameSetting kGameSettings[] = {
     {NXVideoSetting::SystemUseVulkanPipelineCache, NXVideoSetting::GameUseVulkanPipelineCache, "driver-cache", true},
     {NXVideoSetting::SystemSyncToFramerateOfVideoPlayback, NXVideoSetting::GameSyncToFramerateOfVideoPlayback, "video-framerate", true},
     {NXVideoSetting::SystemBarrierFeedbackLoops, NXVideoSetting::GameBarrierFeedbackLoops, "feedback-loops", true},
+    {NXVideoSetting::SystemFastShaderMath, NXVideoSetting::GameFastShaderMath, "fast-shader-math", true},
     {NXVideoSetting::SystemASTCRecompressionMethod, NXVideoSetting::GameASTCRecompressionMethod, "astc-recompression", false},
     {NXVideoSetting::SystemVRAMUsageMode, NXVideoSetting::GameVRAMUsageMode, "vram", false},
     {NXCpuSetting::SystemCpuBackend, NXCpuSetting::GameCpuBackend, "cpu-backend", false},

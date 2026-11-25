@@ -35,6 +35,9 @@ namespace
         {NXVideoSetting::SystemFSPSharpness, NXVideoSetting::GameFSPSharpness, false},
         {NXVideoSetting::SystemForceMaximumClocks, NXVideoSetting::GameForceMaximumClocks, true},
         {NXVideoSetting::SystemUseAsynchronousShaderBuilding, NXVideoSetting::GameUseAsynchronousShaderBuilding, true},
+        {NXVideoSetting::SystemFastShaderMath, NXVideoSetting::GameFastShaderMath, true},
+        {NXVideoSetting::SystemSkipUntrackedStoreReadback, NXVideoSetting::GameSkipUntrackedStoreReadback, true},
+        {NXVideoSetting::SystemBarrierFeedbackLoops, NXVideoSetting::GameBarrierFeedbackLoops, true},
     };
 
     uint64_t s_programId = 0;

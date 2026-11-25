@@ -807,6 +807,7 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
     }
     const auto& float_control{device.FloatControlProperties()};
     const VkDriverId driver_id{device.GetDriverID()};
+    const bool fast_shader_math = videoSettings.fast_shader_math;
     // MoltenVK walks every resource of a descriptor set each time it is bound
     large_texture_arrays_in_table = driver_id == VK_DRIVER_ID_MOLTENVK;
     profile = Shader::Profile{
@@ -835,11 +836,11 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .support_fp16_denorm_flush = float_control.shaderDenormFlushToZeroFloat16 != VK_FALSE,
         .support_fp32_denorm_flush = float_control.shaderDenormFlushToZeroFloat32 != VK_FALSE,
         .support_fp16_signed_zero_nan_preserve =
-            float_control.shaderSignedZeroInfNanPreserveFloat16 != VK_FALSE,
+            !fast_shader_math && float_control.shaderSignedZeroInfNanPreserveFloat16 != VK_FALSE,
         .support_fp32_signed_zero_nan_preserve =
-            float_control.shaderSignedZeroInfNanPreserveFloat32 != VK_FALSE,
+            !fast_shader_math && float_control.shaderSignedZeroInfNanPreserveFloat32 != VK_FALSE,
         .support_fp64_signed_zero_nan_preserve =
-            float_control.shaderSignedZeroInfNanPreserveFloat64 != VK_FALSE,
+            !fast_shader_math && float_control.shaderSignedZeroInfNanPreserveFloat64 != VK_FALSE,
         .support_explicit_workgroup_layout = device.IsKhrWorkgroupMemoryExplicitLayoutSupported(),
         .support_vote = device.IsSubgroupFeatureSupported(VK_SUBGROUP_FEATURE_VOTE_BIT),
         .support_subgroup_in_vertex_stages =
@@ -881,7 +882,8 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
         .has_broken_unsigned_image_offsets = false,
         .has_broken_signed_operations = false,
         .has_broken_fp16_float_controls = driver_id == VK_DRIVER_ID_NVIDIA_PROPRIETARY,
-        .has_slow_fragment_no_contraction = driver_id == VK_DRIVER_ID_MOLTENVK,
+        .has_slow_fragment_no_contraction =
+            driver_id == VK_DRIVER_ID_MOLTENVK || fast_shader_math,
         .avoid_global_memory_helper_inlining = driver_id == VK_DRIVER_ID_MOLTENVK,
         .ignore_nan_fp_comparisons = false,
         .has_broken_spirv_subgroup_mask_vector_extract_dynamic =
@@ -909,6 +911,10 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
     vtg_profile.avoid_global_memory_helper_inlining = false;
     // Their pipelines bind the buffers of a draw, without the bitmap of written pages
     vtg_profile.track_storage_writes = false;
+    // Emulated vertex/geometry compute shaders still write positions; keep NoContraction exact
+    if (fast_shader_math) {
+        vtg_profile.has_slow_fragment_no_contraction = false;
+    }
 
     host_info = Shader::HostTranslateInfo{
         .support_float64 = device.IsFloat64Supported(),

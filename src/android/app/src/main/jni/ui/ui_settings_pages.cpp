@@ -271,9 +271,10 @@ void UiActivity::AppendEmptyHint(const std::string & text)
     m_body += "<div class=\"empty-hint\">" + UiUtil::Escape(text) + "</div>";
 }
 
-void UiActivity::AppendBoolSetting(const std::string & label, const char * key, const std::string & detail, bool intBool, bool save)
+void UiActivity::AppendBoolSetting(const std::string & label, const char * key, const std::string & detail, bool intBool, bool save, bool invert)
 {
-    const bool on = intBool ? UiGameSettings::ReadInt(key) == 1 : UiGameSettings::ReadBool(key);
+    const bool stored = intBool ? UiGameSettings::ReadInt(key) == 1 : UiGameSettings::ReadBool(key);
+    const bool on = invert ? !stored : stored;
     AppendBool(label, WithOverrideNote(detail, key), on, [this, key, intBool, save] {
         if (intBool)
         {
@@ -956,6 +957,9 @@ void UiActivity::RenderGraphicsSettings()
         AppendBoolSetting(Tr("Force maximum clocks"), NXVideoSetting::SystemForceMaximumClocks, Tr("Adreno GPUs. Can overheat the device"));
         AppendBoolSetting(Tr("Asynchronous shaders"), NXVideoSetting::SystemUseAsynchronousShaderBuilding, Tr("Reduces stutter, but can glitch"));
         AppendBoolSetting(Tr("Reactive flushing"), NXVideoSetting::SystemEnableReactiveFlushing, Tr("More accurate, costs performance"));
+        AppendBoolSetting(Tr("Fast shader math"), NXVideoSetting::SystemFastShaderMath, Tr("Faster Vulkan shader math; can cause glitches"));
+        AppendBoolSetting(Tr("Untracked shader writes"), NXVideoSetting::SystemSkipUntrackedStoreReadback, Tr("Skips reading back buffers a shader only might write."));
+        AppendBoolSetting(Tr("Skip feedback loop barriers"), NXVideoSetting::SystemBarrierFeedbackLoops, Tr("Can gain FPS on mobile GPUs, but can break transparency"), false, true, true);
         AppendBoolSetting(Tr("Disk shader cache"), NXVideoSetting::SystemUseDiskPipelineCache, Tr("Games load faster after the first run"));
         if (!editingGame)
         {

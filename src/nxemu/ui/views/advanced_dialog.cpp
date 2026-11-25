@@ -59,6 +59,7 @@ struct Toggle
     const char * setting;
     Store store;
     bool live; // a running game takes the change; otherwise it reads the setting when it starts
+    bool invert = false; // visual switch is ON when the stored setting is false
 };
 
 constexpr Toggle kToggles[] = {
@@ -69,7 +70,8 @@ constexpr Toggle kToggles[] = {
     {"untracked-writes", NXVideoSetting::SystemSkipUntrackedStoreReadback, Store::Module, false},
     {"reactive-flushing", NXVideoSetting::SystemEnableReactiveFlushing, Store::Module, false},
     {"background-readbacks", NXVideoSetting::SystemBackgroundGpuReadbacks, Store::Module, true},
-    {"feedback-loops", NXVideoSetting::SystemBarrierFeedbackLoops, Store::Module, false},
+    {"feedback-loops", NXVideoSetting::SystemBarrierFeedbackLoops, Store::Module, false, true},
+    {"fast-shader-math", NXVideoSetting::SystemFastShaderMath, Store::Module, false},
     {"fast-gpu-time", NXVideoSetting::SystemFastGPUTime, Store::Module, true},
     {"video-framerate", NXVideoSetting::SystemSyncToFramerateOfVideoPlayback, Store::Module, false},
     {"disk-cache", NXVideoSetting::SystemUseDiskPipelineCache, Store::Module, false},
@@ -324,6 +326,10 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     if (id == "fast-readback")
     {
         return settings.GetInt(NXVideoSetting::SystemAccuracyLevel) != static_cast<int>(GpuAccuracy::High);
+    }
+    if (id == "fast-shader-math")
+    {
+        return settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
     }
     return false;
 }
@@ -799,7 +805,8 @@ void AdvancedDialog::ShowValues()
     for (const Toggle & toggle : kToggles)
     {
         const bool inapplicable = Inapplicable(toggle, m_settings);
-        SetClass(Document(), toggle.id, "on", Get(toggle, m_settings) && !inapplicable);
+        const bool on = toggle.invert ? !Get(toggle, m_settings) : Get(toggle, m_settings);
+        SetClass(Document(), toggle.id, "on", on && !inapplicable);
         SetClass(Document(), toggle.id, "locked", (m_running && !toggle.live) || inapplicable);
     }
     for (const List & list : kLists)

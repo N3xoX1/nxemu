@@ -35,6 +35,7 @@ namespace NXVideoSetting
     constexpr const char * SystemUseVulkanPipelineCache = "nxvideo:SystemUseVulkanPipelineCache";
     constexpr const char * SystemSyncToFramerateOfVideoPlayback = "nxvideo:SystemSyncToFramerateOfVideoPlayback";
     constexpr const char * SystemBarrierFeedbackLoops = "nxvideo:SystemBarrierFeedbackLoops";
+    constexpr const char * SystemFastShaderMath = "nxvideo:SystemFastShaderMath";
     constexpr const char * SystemAccuracyLevel = "nxvideo:SystemAccuracyLevel";
     constexpr const char * SystemDMAAccuracy = "nxvideo:SystemDMAAccuracy";
     constexpr const char * SystemAnisotropicFiltering = "nxvideo:SystemAnisotropicFiltering";
@@ -68,6 +69,7 @@ namespace NXVideoSetting
     constexpr const char * GameUseVulkanPipelineCache = "nxvideo:GameUseVulkanPipelineCache";
     constexpr const char * GameSyncToFramerateOfVideoPlayback = "nxvideo:GameSyncToFramerateOfVideoPlayback";
     constexpr const char * GameBarrierFeedbackLoops = "nxvideo:GameBarrierFeedbackLoops";
+    constexpr const char * GameFastShaderMath = "nxvideo:GameFastShaderMath";
     constexpr const char * GameASTCRecompressionMethod = "nxvideo:GameASTCRecompressionMethod";
     constexpr const char * GameVRAMUsageMode = "nxvideo:GameVRAMUsageMode";
 
