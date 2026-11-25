@@ -792,6 +792,16 @@ private:
     u64 critical_memory = 0;
     BufferId inline_buffer_id;
 
+    struct FindMemo {
+        u64 page{~u64{0}};
+        u64 deletions{};
+        DAddr begin{};
+        DAddr end{};
+        BufferId buffer_id{};
+    };
+    std::array<FindMemo, 256> find_memos{};
+    u64 buffer_deletions = 0;
+
     std::array<BufferId, ((1ULL << 34) >> CACHING_PAGEBITS)> page_table;
     Common::ScratchBuffer<u8> tmp_buffer;
 };

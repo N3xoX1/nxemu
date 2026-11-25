@@ -99,6 +99,16 @@ struct BufferCache
 {
     using Buffer = typename P::Buffer;
     static constexpr u32 CACHING_PAGEBITS = 16;
+    struct FindMemo
+    {
+        u64 page{~u64{0}};
+        u64 deletions{};
+        DAddr begin{};
+        DAddr end{};
+        BufferId buffer_id{};
+    };
+    std::array<FindMemo, 256> find_memos{};
+    u64 buffer_deletions{0};
     std::array<BufferId, 4> page_table{};
     std::array<Buffer, 2> slot_buffers{};
     Notifications memory_tracker, device_memory, runtime, untracked_gpu_writes,
