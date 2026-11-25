@@ -1738,8 +1738,10 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
 
         // cvttsd2si truncates during operation so rounding (and thus SSE4.1) not required
         const bool truncating = rounding_mode == FP::RoundingMode::TowardsZero;
+        const bool ties_away = rounding_mode == FP::RoundingMode::ToNearest_TieAwayFromZero &&
+                               code.HasHostFeature(HostFeature::SSE42) && !ctx.FPCR().FZ() && !OutOfLineRoundTiesAway();
 
-        if (round_imm && (truncating || code.HasHostFeature(HostFeature::SSE41))) {
+        if ((round_imm && (truncating || code.HasHostFeature(HostFeature::SSE41))) || ties_away) {
             // The fast path takes only inputs whose result is in range in every rounding mode,
             // lo <= x <= hi (the integer limits scaled by 2^-fbits and rounded inwards to
             // representable values). There the host conversion is exact and raises only inexact,
@@ -1758,6 +1760,9 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
 
             const Xbyak::Xmm src = ctx.reg_alloc.UseScratchXmm(args[0]);
             const Xbyak::Xmm original = ctx.reg_alloc.ScratchXmm();
+            const Xbyak::Xmm truncated = ties_away ? ctx.reg_alloc.ScratchXmm() : Xbyak::Xmm{};
+            const Xbyak::Xmm integral = ties_away ? ctx.reg_alloc.ScratchXmm() : Xbyak::Xmm{};
+            const Xbyak::Xmm mask = ties_away ? ctx.reg_alloc.ScratchXmm() : Xbyak::Xmm{};
             const Xbyak::Reg64 result = ctx.reg_alloc.ScratchGpr().cvt64();
             const u32 fpcr_value = ctx.FPCR().Value();
             SharedLabel slow = GenSharedLabel(), end = GenSharedLabel();
@@ -1774,7 +1779,31 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
                     code.mulsd(src, code.Const(xword, scale_factor));
                 }
 
-                if (!truncating) {
+                if (ties_away) {
+                    constexpr u8 truncate_with_inexact = 0b0011;
+                    constexpr u64 abs_mask = 0x7FFF'FFFF'FFFF'FFFF;
+                    constexpr u64 sign_mask = 0x8000'0000'0000'0000;
+                    constexpr u64 largest_with_fraction = 0x432F'FFFF'FFFF'FFFF;
+                    constexpr u64 half = 0x3FE0'0000'0000'0000;
+                    constexpr u64 one = 0x3FF0'0000'0000'0000;
+                    code.xorps(truncated, truncated);
+                    code.roundsd(truncated, src, truncate_with_inexact);
+                    code.movaps(integral, src);
+                    code.andpd(integral, code.Const(xword, abs_mask, 0));
+                    code.pcmpgtq(integral, code.Const(xword, largest_with_fraction, 0));
+                    code.movaps(mask, integral);
+                    code.andnpd(mask, src);
+                    code.andnpd(integral, truncated);
+                    code.subsd(mask, integral);
+                    code.andpd(mask, code.Const(xword, abs_mask, 0));
+                    code.cmpnltsd(mask, code.Const(xword, half, 0));
+                    code.andpd(src, code.Const(xword, sign_mask, 0));
+                    code.orpd(src, code.Const(xword, one, 0));
+                    code.addsd(src, integral);
+                    code.andpd(src, mask);
+                    code.andnpd(mask, truncated);
+                    code.orpd(src, mask);
+                } else if (!truncating) {
                     code.roundsd(src, src, *round_imm);
                 }
             } else {
@@ -1783,7 +1812,31 @@ static void EmitFPToFixed(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
                     code.mulss(src, code.Const(xword, scale_factor));
                 }
 
-                if (!truncating) {
+                if (ties_away) {
+                    constexpr u8 truncate_with_inexact = 0b0011;
+                    constexpr u64 abs_mask = 0x7FFF'FFFF;
+                    constexpr u64 sign_mask = 0x8000'0000;
+                    constexpr u64 largest_with_fraction = 0x4AFF'FFFF;
+                    constexpr u64 half = 0x3F00'0000;
+                    constexpr u64 one = 0x3F80'0000;
+                    code.xorps(truncated, truncated);
+                    code.roundss(truncated, src, truncate_with_inexact);
+                    code.movaps(integral, src);
+                    code.andps(integral, code.Const(xword, abs_mask, 0));
+                    code.pcmpgtd(integral, code.Const(xword, largest_with_fraction, 0));
+                    code.movaps(mask, integral);
+                    code.andnps(mask, src);
+                    code.andnps(integral, truncated);
+                    code.subss(mask, integral);
+                    code.andps(mask, code.Const(xword, abs_mask, 0));
+                    code.cmpnltss(mask, code.Const(xword, half, 0));
+                    code.andps(src, code.Const(xword, sign_mask, 0));
+                    code.orps(src, code.Const(xword, one, 0));
+                    code.addss(src, integral);
+                    code.andps(src, mask);
+                    code.andnps(mask, truncated);
+                    code.orps(src, mask);
+                } else if (!truncating) {
                     code.roundss(src, src, *round_imm);
                 }
 

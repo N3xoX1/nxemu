@@ -1777,8 +1777,67 @@ template<size_t fsize>
 void EmitFPVectorRoundInt(BlockOfCode& code, EmitContext& ctx, IR::Inst* inst) {
     const auto rounding = static_cast<FP::RoundingMode>(inst->GetArg(1).GetU8());
     const bool exact = inst->GetArg(2).GetU1();
+    const bool fpcr_controlled = inst->GetArg(3).GetU1();
 
     if constexpr (fsize != 16) {
+        if (code.HasHostFeature(HostFeature::SSE42) && rounding == FP::RoundingMode::ToNearest_TieAwayFromZero && !exact && !ctx.FPCR(fpcr_controlled).FZ() && !OutOfLineRoundTiesAway()) {
+            constexpr u8 truncate_without_inexact = 0b1011;
+            const Xbyak::Xmm truncated = ctx.reg_alloc.ScratchXmm();
+            const Xbyak::Xmm integral = ctx.reg_alloc.ScratchXmm();
+            const Xbyak::Xmm mask = ctx.reg_alloc.ScratchXmm();
+            if constexpr (fsize == 64) {
+                constexpr u64 abs_mask = 0x7FFF'FFFF'FFFF'FFFF;
+                constexpr u64 sign_mask = 0x8000'0000'0000'0000;
+                constexpr u64 largest_with_fraction = 0x432F'FFFF'FFFF'FFFF;
+                constexpr u64 half = 0x3FE0'0000'0000'0000;
+                constexpr u64 one = 0x3FF0'0000'0000'0000;
+                EmitTwoOpVectorOperation<64, DefaultIndexer, 3>(code, ctx, inst, [&](const Xbyak::Xmm& result, const Xbyak::Xmm& xmm_a) {
+                    code.roundpd(truncated, xmm_a, truncate_without_inexact);
+                    code.movaps(integral, xmm_a);
+                    code.andpd(integral, code.Const(xword, abs_mask, abs_mask));
+                    code.pcmpgtq(integral, code.Const(xword, largest_with_fraction, largest_with_fraction));
+                    code.movaps(mask, integral);
+                    code.andnpd(mask, xmm_a);
+                    code.andnpd(integral, truncated);
+                    code.subpd(mask, integral);
+                    code.andpd(mask, code.Const(xword, abs_mask, abs_mask));
+                    code.cmpnltpd(mask, code.Const(xword, half, half));
+                    code.movaps(result, xmm_a);
+                    code.andpd(result, code.Const(xword, sign_mask, sign_mask));
+                    code.orpd(result, code.Const(xword, one, one));
+                    code.addpd(result, integral);
+                    code.andpd(result, mask);
+                    code.andnpd(mask, truncated);
+                    code.orpd(result, mask);
+                });
+            } else {
+                constexpr u64 abs_mask = 0x7FFF'FFFF'7FFF'FFFFULL;
+                constexpr u64 sign_mask = 0x8000'0000'8000'0000ULL;
+                constexpr u64 largest_with_fraction = 0x4AFF'FFFF'4AFF'FFFFULL;
+                constexpr u64 half = 0x3F00'0000'3F00'0000ULL;
+                constexpr u64 one = 0x3F80'0000'3F80'0000ULL;
+                EmitTwoOpVectorOperation<32, DefaultIndexer, 3>(code, ctx, inst, [&](const Xbyak::Xmm& result, const Xbyak::Xmm& xmm_a) {
+                    code.roundps(truncated, xmm_a, truncate_without_inexact);
+                    code.movaps(integral, xmm_a);
+                    code.andps(integral, code.Const(xword, abs_mask, abs_mask));
+                    code.pcmpgtd(integral, code.Const(xword, largest_with_fraction, largest_with_fraction));
+                    code.movaps(mask, integral);
+                    code.andnps(mask, xmm_a);
+                    code.andnps(integral, truncated);
+                    code.subps(mask, integral);
+                    code.andps(mask, code.Const(xword, abs_mask, abs_mask));
+                    code.cmpnltps(mask, code.Const(xword, half, half));
+                    code.movaps(result, xmm_a);
+                    code.andps(result, code.Const(xword, sign_mask, sign_mask));
+                    code.orps(result, code.Const(xword, one, one));
+                    code.addps(result, integral);
+                    code.andps(result, mask);
+                    code.andnps(mask, truncated);
+                    code.orps(result, mask);
+                });
+            }
+            return;
+        }
         if (code.HasHostFeature(HostFeature::SSE41) && rounding != FP::RoundingMode::ToNearest_TieAwayFromZero && !exact) {
             const u8 round_imm = [&]() -> u8 {
                 switch (rounding) {

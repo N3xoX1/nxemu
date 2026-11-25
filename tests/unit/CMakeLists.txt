@@ -59,6 +59,12 @@ if(ARCHITECTURE_x86_64)
     target_include_directories(test_dynarmic_regalloc PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-cpu")
     target_link_libraries(test_dynarmic_regalloc PRIVATE common yuzu_common fmt merry::mcl Zydis)
     nxemu_unit_test(test_dynarmic_regalloc LINUX)
+
+    add_executable(test_dynarmic_ties_away dynarmic_ties_away/jit.cpp
+        $<TARGET_OBJECTS:nxemu-cpu>)
+    target_include_directories(test_dynarmic_ties_away PRIVATE "${CMAKE_SOURCE_DIR}/src/nxemu-cpu")
+    target_link_libraries(test_dynarmic_ties_away PRIVATE common yuzu_common fmt merry::mcl Zydis)
+    nxemu_unit_test(test_dynarmic_ties_away LINUX)
 endif()
 
 if(ARCHITECTURE_x86_64 OR ARCHITECTURE_arm64)
