@@ -14,6 +14,7 @@
 #include <thread>
 #include <list>
 #include <memory>
+#include <utility>
 
 #include "frontend/emu_window.h"
 #include "frontend/graphics_context.h"
@@ -366,6 +367,9 @@ struct GPU::Impl :
     void RendererFrameEndNotify()
     {
         m_modules.OperatingSystem().GameFrameEnd();
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+        frame_notified = true;
+#endif
     }
 
     /// Performs any additional setup necessary in order to begin GPU emulation.
@@ -654,9 +658,27 @@ struct GPU::Impl :
             return;
         }
         composite_requests.Composite([this](const auto& layers) {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+            frame_notified = false;
+#endif
             renderer->Composite(layers);
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+            if (frame_complete_hook)
+            {
+                frame_complete_hook(frame_notified && !layers.empty()
+                    ? std::chrono::nanoseconds{layers.front().frame_interval_ns}
+                    : std::chrono::nanoseconds{});
+            }
+#endif
         });
     }
+
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    void SetFrameCompleteHook(std::function<void(std::chrono::nanoseconds)> hook)
+    {
+        frame_complete_hook = std::move(hook);
+    }
+#endif
 
     std::vector<u8> GetAppletCaptureBuffer()
     {
@@ -730,6 +752,11 @@ struct GPU::Impl :
     VideoCore::RasterizerInterface * rasterizer = nullptr;
 
     VideoCommon::CompositeRequestQueue composite_requests;
+
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    bool frame_notified{};
+    std::function<void(std::chrono::nanoseconds)> frame_complete_hook;
+#endif
 
     // Join the worker before destroying its scheduler, context, or pending requests.
     VideoCommon::GPUThread::ThreadManager gpu_thread;
@@ -901,6 +928,13 @@ void GPU::ProcessPendingComposite()
 {
     impl->ProcessPendingComposite();
 }
+
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+void GPU::SetFrameCompleteHook(std::function<void(std::chrono::nanoseconds)> hook)
+{
+    impl->SetFrameCompleteHook(std::move(hook));
+}
+#endif
 
 std::vector<u8> GPU::GetAppletCaptureBuffer()
 {

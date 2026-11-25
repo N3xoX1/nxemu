@@ -190,6 +190,11 @@ struct SynchState final {
     std::condition_variable_any cv;
     std::atomic<bool> composite_ready{};
     std::atomic<bool> service_ready{};
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    std::atomic<int32_t> decode_tid{};
+    std::atomic<int64_t> decode_work_ns{};
+    std::atomic<bool> adpf_active{};
+#endif
 
     void NotifyComposite() {
         if (!composite_ready.exchange(true, std::memory_order_release)) {

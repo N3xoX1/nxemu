@@ -15,6 +15,9 @@
 #include "yuzu_video_core/renderer_vulkan/vk_scheduler.h"
 #include "yuzu_video_core/renderer_vulkan/vk_swapchain.h"
 #include "yuzu_video_core/vulkan_common/vulkan_device.h"
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+#include "yuzu_common/android/performance_hint.h"
+#endif
 
 namespace Vulkan {
 
@@ -81,6 +84,9 @@ PresentManager::~PresentManager() {
 }
 
 Frame* PresentManager::GetRenderFrame() {
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    const Common::Android::PerformanceHintWait hint_wait;
+#endif
     RethrowPresentError();
     Frame* frame;
     {

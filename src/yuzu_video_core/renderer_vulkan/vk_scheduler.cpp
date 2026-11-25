@@ -73,6 +73,9 @@ void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore)
 void Scheduler::WaitWorker() {
     const StallProfile profile{"worker_wait", CurrentTick()};
     DispatchWork();
+#if defined(__ANDROID__) && defined(NXEMU_ENABLE_ANDROID_GPU_THREAD_ADPF)
+    const Common::Android::PerformanceHintWait hint_wait;
+#endif
 
     // Ensure the queue is drained.
     {

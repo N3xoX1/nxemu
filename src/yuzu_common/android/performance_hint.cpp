@@ -18,6 +18,10 @@ struct APerformanceHintSession;
 
 namespace Common::Android {
 
+namespace {
+thread_local std::chrono::nanoseconds wait_time{};
+}
+
 struct PerformanceHintSession::Impl {
     using Clock = std::chrono::steady_clock;
     using GetManager = APerformanceHintManager* (*)();
@@ -103,14 +107,17 @@ void PerformanceHintSession::BeginWork() {
             impl->work_duration = {};
         }
         impl->work_start = now;
+        PerformanceHintWait::Take();
     }
 }
 
 void PerformanceHintSession::EndWork() {
     if (impl->manager && !impl->failed && impl->work_start != Impl::Clock::time_point{}) {
         const auto now = Impl::Clock::now();
-        impl->work_duration += std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now - impl->work_start);
+        const std::chrono::nanoseconds elapsed =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(now - impl->work_start);
+        impl->work_duration +=
+            std::max(elapsed - PerformanceHintWait::Take(), std::chrono::nanoseconds{});
         impl->last_work_end = now;
         impl->work_start = {};
     }
@@ -175,6 +182,16 @@ void PerformanceHintSession::ReportFrameDuration(std::chrono::nanoseconds actual
     }
 }
 
+PerformanceHintWait::PerformanceHintWait() : start{std::chrono::steady_clock::now()} {}
+
+PerformanceHintWait::~PerformanceHintWait() {
+    wait_time += std::chrono::steady_clock::now() - start;
+}
+
+std::chrono::nanoseconds PerformanceHintWait::Take() {
+    return std::exchange(wait_time, std::chrono::nanoseconds{});
+}
+
 } // namespace Common::Android
 
 #else
@@ -192,6 +209,9 @@ std::chrono::nanoseconds PerformanceHintSession::TakeWorkDuration() { return {};
 void PerformanceHintSession::ReportFrame(std::chrono::nanoseconds) {}
 void PerformanceHintSession::ReportFrameDuration(std::chrono::nanoseconds,
                                                  std::chrono::nanoseconds) {}
+PerformanceHintWait::PerformanceHintWait() = default;
+PerformanceHintWait::~PerformanceHintWait() = default;
+std::chrono::nanoseconds PerformanceHintWait::Take() { return {}; }
 } // namespace Common::Android
 
 #endif
