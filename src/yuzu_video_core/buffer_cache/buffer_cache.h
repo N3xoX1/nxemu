@@ -633,8 +633,10 @@ std::tuple<typename P::Buffer*, u32, u32> BufferCache<P>::IndexBufferBinding() {
 template <class P>
 void BufferCache<P>::BindHostComputeBuffers() {
     BindHostComputeUniformBuffers();
+    binding_compute = true;
     BindHostComputeStorageBuffers();
     BindHostComputeTextureBuffers();
+    binding_compute = false;
 }
 
 template <class P>

@@ -3,11 +3,18 @@
 
 #include "yuzu_video_core/dma_pusher.h"
 
+#include <algorithm>
+#include <cstring>
+
 #include "video_settings.h"
 #include "yuzu_common/cityhash.h"
 #include "yuzu_common/settings.h"
 #include "yuzu_common/yuzu_assert.h"
+#include "yuzu_common/alignment.h"
+#include "yuzu_video_core/engines/engine_upload.h"
+#include "yuzu_video_core/engines/fermi_2d.h"
 #include "yuzu_video_core/engines/maxwell_3d.h"
+#include "yuzu_video_core/engines/maxwell_dma.h"
 #include "yuzu_video_core/gpu.h"
 #include "yuzu_video_core/gpu_thread.h"
 #include "yuzu_video_core/guest_memory.h"
@@ -22,6 +29,14 @@ namespace Tegra
 {
 constexpr u32 MacroRegistersStart = 0xE00;
 constexpr u32 ComputeInline = 0x6D;
+// KeplerCompute and KeplerMemory share the inline to memory register layout
+constexpr u32 UploadRegisters = 0x60;
+constexpr u32 UploadExec = 0x6C;
+constexpr u32 UploadData = 0x6D;
+constexpr u32 ComputeLaunch = 0xAF;
+static_assert(sizeof(Engines::Upload::Registers) == (UploadExec - UploadRegisters) * sizeof(u32));
+// A copy or blit declares its destination only below this size
+constexpr u64 MaxDeclaredWrite = u64{1} << 30;
 
 DmaPusher::DmaPusher(GPU & gpu_, MemoryManager & memory_manager_, Control::ChannelState & channel_state_) :
     gpu{gpu_},
@@ -59,10 +74,11 @@ void DmaPusher::DispatchCalls()
         memory_operation_sync_state = MemoryOperationSyncState::None;
     }
 
+    // The fences it releases write what their own push declared, as in a Maxwell3D push
     PostBack([this]() {
         gpu.FlushCommands();
         gpu.OnCommandListEnd();
-    });
+    }, {BackWrites::Kind::Nothing});
 }
 
 bool DmaPusher::IsThreaded() const
@@ -72,8 +88,44 @@ bool DmaPusher::IsThreaded() const
 
 void DmaPusher::PostBack(std::function<void()> && work) const
 {
+    // Not a default argument: BackWrites is not complete inside DmaPusher
+    PostBack(std::move(work), BackWrites{});
+}
+
+void DmaPusher::PostBack(std::function<void()> && work, BackWrites writes) const
+{
+    using Writes = VideoCommon::GPUThread::BackQueue::Writes;
     DrainMaxwell3D();
-    gpu.BackQueue().Push(std::move(work));
+    VideoCommon::GPUThread::BackQueue & back_queue = gpu.BackQueue();
+    switch (writes.kind)
+    {
+    case BackWrites::Kind::Nothing:
+        back_queue.Push(std::move(work), Writes::Nothing);
+        return;
+    case BackWrites::Kind::Range:
+        if (back_queue.IsThreaded())
+        {
+            VideoCommon::GPUThread::BackQueue::WriteRanges ranges;
+            for (const auto & [address, size] : memory_manager.GetSubmappedDeviceRange(writes.address, writes.size))
+            {
+                ranges.emplace_back(address, address + size);
+            }
+            if (writes.extra_size != 0)
+            {
+                for (const auto & [address, size] :
+                     memory_manager.GetSubmappedDeviceRange(writes.extra_address, writes.extra_size))
+                {
+                    ranges.emplace_back(address, address + size);
+                }
+            }
+            back_queue.AddWrites(ranges);
+        }
+        back_queue.Push(std::move(work), Writes::AddedRanges);
+        return;
+    case BackWrites::Kind::Anywhere:
+        break;
+    }
+    back_queue.Push(std::move(work), Writes::Anywhere);
 }
 
 std::vector<std::pair<u32, u32>> & DmaPusher::SinkFor(u32 subchannel_id) const
@@ -95,10 +147,11 @@ void DmaPusher::FlushFrontSink(u32 subchannel_id) const
         return;
     }
     // The writes belong to the engine bound before
+    ApplyFrontSink(subchannel_id);
     PostBack([engine = subchannels[subchannel_id], writes = std::move(sink)]() {
         engine->method_sink.insert(engine->method_sink.end(), writes.begin(), writes.end());
         engine->ConsumeSink();
-    });
+    }, {BackWrites::Kind::Nothing});
     sink.clear();
 }
 
@@ -187,7 +240,7 @@ bool DmaPusher::Step()
                 PostBack([this, subchannel, address = dma_state.dma_get, words]() {
                     subchannel->current_dirty =
                         memory_manager.IsMemoryDirty(address, words * sizeof(u32));
-                });
+                }, {BackWrites::Kind::Nothing});
             }
             else
             {
@@ -294,7 +347,7 @@ void DmaPusher::ArmMemoryOperationSync()
             memory_operation_sync_ready.store(true, std::memory_order_release);
             memory_operation_sync_ready.notify_one();
         });
-    });
+    }, {BackWrites::Kind::Nothing});
 }
 
 void DmaPusher::WaitForArmedMemoryOperationSync()
@@ -461,14 +514,115 @@ void DmaPusher::DrainMaxwell3D() const
     }
 }
 
+bool DmaPusher::FetchesNewPages(DAddr address, u64 size) const
+{
+    constexpr u64 Limit = u64{1} << FetchedAddressBits;
+    if (size == 0)
+    {
+        return false;
+    }
+    if (address >= Limit || size > Limit - address)
+    {
+        return true;
+    }
+    bool new_pages = false;
+    const u64 last = (address + size - 1) >> FetchedPageBits;
+    for (u64 page = address >> FetchedPageBits; page <= last; ++page)
+    {
+        u64 & word = fetched_pages[page >> 6];
+        const u64 bit = u64{1} << (page & 63);
+        new_pages |= (word & bit) == 0;
+        word |= bit;
+    }
+    return new_pages;
+}
+
+bool DmaPusher::IsKnownPushbuffer(GPUVAddr address, size_t size) const
+{
+    if (size == 0)
+    {
+        return true;
+    }
+    const u64 generation = memory_manager.MappingGeneration();
+    const u64 epoch = rasterizer != nullptr ? rasterizer->ComputeWriteEpoch() : 0;
+    const u64 last = (address + size - 1) >> FetchedPageBits;
+    for (u64 page = address >> FetchedPageBits; page <= last; ++page)
+    {
+        const KnownPage & known = known_pages[page % KnownPageCount];
+        if (known.page != page || known.mapping_generation != generation ||
+            known.compute_write_epoch != epoch)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool DmaPusher::DispatchMayWrite(GPUVAddr address, size_t size,
+                                 std::span<const std::pair<DAddr, std::size_t>> ranges) const
+{
+    // A queued dispatch marks its shader writes only when it runs. Pushbuffers it generates
+    // are the ones an earlier dispatch wrote, or fetched for the first time. The epoch is read
+    // before the history, so a page it misses is not kept as known.
+    const u64 generation = memory_manager.MappingGeneration();
+    const u64 epoch = rasterizer != nullptr ? rasterizer->ComputeWriteEpoch() : 0;
+    bool new_pages = false;
+    bool written = rasterizer == nullptr;
+    for (const auto & [device_address, device_size] : ranges)
+    {
+        new_pages |= FetchesNewPages(device_address, device_size);
+        written = written || rasterizer->MayHaveComputeWrites(device_address, device_size);
+    }
+    if (!written && size != 0 && generation == memory_manager.MappingGeneration())
+    {
+        // Both page sets are 4 KiB, like the GPU small pages
+        const u64 last = (address + size - 1) >> FetchedPageBits;
+        for (u64 page = address >> FetchedPageBits; page <= last; ++page)
+        {
+            known_pages[page % KnownPageCount] = {page, generation, epoch};
+        }
+    }
+    return queued_dispatch && (new_pages || written);
+}
+
 void DmaPusher::DrainMaxwell3DMemoryWrites(GPUVAddr address, size_t size) const
 {
     if (IsThreaded())
     {
         // Inline uploads don't show in the GPU dirty ranges, so queued work that may write this
-        // entry must run before its commands are fetched or its parameters classified.
-        DrainMaxwell3D();
-        for (const auto & [device_address, device_size] : memory_manager.GetSubmappedDeviceRange(address, size))
+        // entry must run before its commands are fetched or its parameters classified. The
+        // Maxwell3D methods not handed over yet stay on this side unless they may write it.
+        auto * const maxwell3d = static_cast<Engines::Maxwell3D *>(maxwell3d_engine);
+        if (queued_dispatch && gpu.BackQueue().IsIdle())
+        {
+            queued_dispatch = false;
+        }
+        decltype(memory_manager.GetSubmappedDeviceRange(address, size)) ranges;
+        bool have_ranges = false;
+        if (!IsKnownPushbuffer(address, size))
+        {
+            ranges = memory_manager.GetSubmappedDeviceRange(address, size);
+            have_ranges = true;
+            if (DispatchMayWrite(address, size, {ranges.data(), ranges.size()}))
+            {
+                gpu.BackQueue().WaitIdle();
+                queued_dispatch = false;
+            }
+        }
+        const bool unpublished = maxwell3d != nullptr && maxwell3d->HasPendingMemoryWrites();
+        if (!unpublished && !gpu.BackQueue().MayWriteAny())
+        {
+            return;
+        }
+        if (!have_ranges)
+        {
+            ranges = memory_manager.GetSubmappedDeviceRange(address, size);
+        }
+        if (unpublished && maxwell3d->UnpublishedMayWrite(ranges))
+        {
+            DrainMaxwell3D();
+        }
+        for (const auto & [device_address, device_size] : ranges)
         {
             if (gpu.BackQueue().MayWrite(device_address, device_address + device_size))
             {
@@ -576,6 +730,259 @@ bool DmaPusher::IsAcquireMet(u32 method, u32 argument) const
     }
 }
 
+DmaPusher::BackWrites DmaPusher::PullerWrites(u32 method, std::span<const u32> arguments) const
+{
+    // The producer that releases an acquire may have written the entries after it: decode
+    // fetches nothing more before the GPU thread ran the acquire
+    if (std::ranges::any_of(arguments, [method](u32 argument) { return IsPullerAcquire(method, argument); }))
+    {
+        return {};
+    }
+    const GPUVAddr semaphore =
+        (GPUVAddr{front_puller_regs[static_cast<u32>(BufferMethods::SemaphoreAddressHigh)]} << 32) |
+        front_puller_regs[static_cast<u32>(BufferMethods::SemaphoreAddressLow)];
+    switch (static_cast<BufferMethods>(method))
+    {
+    case BufferMethods::SemaphoreOperation:
+    {
+        // Without acquires, a long release that reports the payload and a timestamp
+        return {BackWrites::Kind::Range, semaphore, 16};
+    }
+    case BufferMethods::SemaphoreRelease:
+        return {BackWrites::Kind::Range, semaphore, sizeof(u32)};
+    case BufferMethods::Nop:
+    case BufferMethods::SemaphoreAddressHigh:
+    case BufferMethods::SemaphoreAddressLow:
+    case BufferMethods::SemaphoreSequencePayload:
+    case BufferMethods::SyncpointPayload:
+    case BufferMethods::WrcacheFlush:
+    case BufferMethods::RefCnt:
+    case BufferMethods::SyncpointOperation:
+    case BufferMethods::WaitForIdle:
+    case BufferMethods::NonStallInterrupt:
+    case BufferMethods::MemOpA:
+    case BufferMethods::MemOpB:
+    case BufferMethods::MemOpC:
+    case BufferMethods::MemOpD:
+    case BufferMethods::Yield:
+        // They signal, increment syncpoints, invalidate or release fences. Released fences
+        // write what their own push declared
+        return {BackWrites::Kind::Nothing};
+    default:
+        return {};
+    }
+}
+
+DmaPusher::BackWrites DmaPusher::EngineWrites(u32 subchannel_id, u32 method) const
+{
+    if (!subchannels[subchannel_id]->execution_mask[method])
+    {
+        // Only sets a register
+        return {BackWrites::Kind::Nothing};
+    }
+    switch (subchannel_type[subchannel_id])
+    {
+    case Engines::EngineTypes::KeplerCompute:
+        if (method == ComputeLaunch)
+        {
+            // The dispatch marks its shader writes GPU modified only when it runs, see
+            // DrainMaxwell3DMemoryWrites
+            queued_dispatch = true;
+            return {BackWrites::Kind::Nothing};
+        }
+        [[fallthrough]];
+    case Engines::EngineTypes::KeplerMemory:
+        if (method == UploadExec)
+        {
+            return {BackWrites::Kind::Nothing};
+        }
+        if (method == UploadData)
+        {
+            return UploadWrites(subchannel_id);
+        }
+        return {};
+    case Engines::EngineTypes::MaxwellDMA:
+        return CopyWrites();
+    case Engines::EngineTypes::Fermi2D:
+        return BlitWrites();
+    default:
+        return {};
+    }
+}
+
+DmaPusher::BackWrites DmaPusher::CopyWrites() const
+{
+    using Regs = Engines::MaxwellDMA::Regs;
+    using LaunchDMA = Engines::MaxwellDMA::LaunchDMA;
+    static_assert(sizeof(Regs) == sizeof(front_copy));
+    Regs regs;
+    std::memcpy(&regs, front_copy.data(), sizeof(regs));
+    const LaunchDMA & launch = regs.launch_dma;
+    // A remap writes up to 4 components of up to 4 bytes per element
+    const u32 bytes_per_element = launch.remap_enable != 0
+        ? (regs.remap_const.num_dst_components_minus_one + 1) * (regs.remap_const.component_size_minus_one + 1)
+        : 1;
+    const u64 line_bytes = u64{regs.line_length_in} * bytes_per_element;
+    const GPUVAddr destination = regs.offset_out;
+    BackWrites writes{BackWrites::Kind::Range, destination, 0};
+    if (line_bytes == 0 || (launch.multi_line_enable && regs.line_count == 0))
+    {
+        writes.kind = BackWrites::Kind::Nothing;
+    }
+    else if (!launch.multi_line_enable)
+    {
+        // A block linear destination moves the bytes inside their 512 byte GOB
+        constexpr u64 GobSize = 512;
+        writes.address = destination & ~(GobSize - 1);
+        writes.size = Common::AlignUp(destination + line_bytes, GobSize) - writes.address;
+    }
+    else if (launch.dst_memory_layout == LaunchDMA::MemoryLayout::PITCH)
+    {
+        if (regs.pitch_out < 0)
+        {
+            return {};
+        }
+        // A block linear source writes whole lines back
+        const u64 pitch = static_cast<u32>(regs.pitch_out);
+        writes.size = std::max(u64{regs.line_count - 1} * pitch + line_bytes, u64{regs.line_count} * pitch);
+    }
+    else
+    {
+        const Tegra::DMA::Parameters & dst = regs.dst_params;
+        if (dst.layer != 0 || dst.block_size.width != 0)
+        {
+            return {};
+        }
+        const u64 width_bytes = std::max<u64>(u64{dst.width} * bytes_per_element,
+                                              u64{dst.origin.x} * bytes_per_element + line_bytes);
+        const u32 height = std::max<u32>(dst.height, dst.origin.y + regs.line_count);
+        writes.size = BlockLinearSize(width_bytes, height, dst.depth, dst.block_size.height,
+                                      dst.block_size.depth);
+    }
+    if (launch.semaphore_type.Value() != LaunchDMA::SemaphoreType::NONE)
+    {
+        writes.extra_address = regs.semaphore.address;
+        writes.extra_size = 16;
+        if (writes.kind == BackWrites::Kind::Nothing)
+        {
+            writes = {BackWrites::Kind::Range, regs.semaphore.address, 16};
+        }
+    }
+    if (writes.kind == BackWrites::Kind::Range && writes.size > MaxDeclaredWrite)
+    {
+        return {};
+    }
+    return writes;
+}
+
+DmaPusher::BackWrites DmaPusher::BlitWrites() const
+{
+    using Regs = Engines::Fermi2D::Regs;
+    static_assert(sizeof(Regs) == sizeof(front_blit));
+    Regs regs;
+    std::memcpy(&regs, front_blit.data(), sizeof(regs));
+    const Engines::Fermi2D::Surface & dst = regs.dst;
+    if (dst.layer != 0 || dst.block_width != 0)
+    {
+        return {};
+    }
+    // Cover the rectangle too when it leaves the surface
+    const auto & args = regs.pixels_from_memory;
+    const u64 width = std::max<s64>(s64{dst.width}, s64{args.dst_x0} + args.dst_width);
+    const u64 height = std::max<s64>(s64{dst.height}, s64{args.dst_y0} + args.dst_height);
+    u64 size;
+    if (dst.linear == Engines::Fermi2D::MemoryLayout::Pitch)
+    {
+        size = u64{dst.pitch} * height * std::max<u32>(dst.depth, 1) + width * 16;
+    }
+    else if (height > 0xFFFFFFFF)
+    {
+        return {};
+    }
+    else
+    {
+        // Formats have at most 16 bytes per pixel
+        size = BlockLinearSize(width * 16, static_cast<u32>(height), dst.depth, dst.block_height,
+                               dst.block_depth);
+    }
+    if (size > MaxDeclaredWrite)
+    {
+        return {};
+    }
+    return {BackWrites::Kind::Range, dst.Address(), size};
+}
+
+u64 DmaPusher::BlockLinearSize(u64 line_bytes, u32 height, u32 depth, u32 block_height,
+                               u32 block_depth)
+{
+    // GOBs are 64 bytes by 8 lines, blocks stack up to 32 GOBs in height and depth. Sizes past
+    // MaxDeclaredWrite stop there, without overflow.
+    const u64 gob_lines = u64{8} << std::min<u32>(block_height, 5);
+    const u64 block_depth_size = u64{1} << std::min<u32>(block_depth, 5);
+    const u64 plane = Common::AlignUp(std::min(line_bytes, MaxDeclaredWrite + 1), u64{64}) *
+                      Common::AlignUp(u64{std::max<u32>(height, 1)}, gob_lines);
+    return std::min(plane, MaxDeclaredWrite + 1) * Common::AlignUp(u64{std::max<u32>(depth, 1)}, block_depth_size);
+}
+
+DmaPusher::BackWrites DmaPusher::UploadWrites(u32 subchannel_id) const
+{
+    const bool compute = subchannel_type[subchannel_id] == Engines::EngineTypes::KeplerCompute;
+    const std::array<u32, 13> & regs = front_upload[compute ? 0 : 1];
+    const u32 line_length = regs[0];
+    const u32 line_count = regs[1];
+    if (line_length == 0 || line_count == 0)
+    {
+        return {BackWrites::Kind::Nothing};
+    }
+    if ((regs[UploadExec - UploadRegisters] & 1) == 0)
+    {
+        // The block linear size depends on the surface layout
+        return {};
+    }
+    const GPUVAddr address = (GPUVAddr{regs[2]} << 32) | regs[3];
+    const u64 pitch = regs[4];
+    return {BackWrites::Kind::Range, address, u64{line_count - 1} * pitch + line_length};
+}
+
+void DmaPusher::TrackFrontRegister(u32 subchannel_id, u32 method, u32 argument) const
+{
+    switch (subchannel_type[subchannel_id])
+    {
+    case Engines::EngineTypes::KeplerCompute:
+    case Engines::EngineTypes::KeplerMemory:
+        if (method >= UploadRegisters && method <= UploadExec)
+        {
+            front_upload[subchannel_type[subchannel_id] == Engines::EngineTypes::KeplerCompute ? 0 : 1]
+                        [method - UploadRegisters] = argument;
+        }
+        break;
+    case Engines::EngineTypes::MaxwellDMA:
+        if (method < front_copy.size())
+        {
+            front_copy[method] = argument;
+        }
+        break;
+    case Engines::EngineTypes::Fermi2D:
+        if (method < front_blit.size())
+        {
+            front_blit[method] = argument;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+void DmaPusher::ApplyFrontSink(u32 subchannel_id) const
+{
+    // Each subchannel keeps its register writes until its engine runs a method, which applies
+    // them to the engine: two subchannels may share one engine
+    for (const auto & [method, argument] : front_sinks[subchannel_id])
+    {
+        TrackFrontRegister(subchannel_id, method, argument);
+    }
+}
+
 void DmaPusher::UpdateUniformPrefetchAtAcquire(u32 method, u32 argument) const
 {
     if (maxwell3d_engine == nullptr || !IsPullerAcquire(method, argument))
@@ -644,7 +1051,7 @@ void DmaPusher::CallMethod(u32 argument) const
                 puller.CallPullerMethod(call);
             }
             puller.CallPullerMethod(method_call);
-        });
+        }, PullerWrites(dma_state.method, std::span{&argument, 1}));
         pending_puller.clear();
     }
     else
@@ -667,6 +1074,9 @@ void DmaPusher::CallMethod(u32 argument) const
         {
             if (IsThreaded())
             {
+                ApplyFrontSink(dma_state.subchannel);
+                TrackFrontRegister(dma_state.subchannel, dma_state.method, argument);
+                const BackWrites writes = EngineWrites(dma_state.subchannel, dma_state.method);
                 PostBack([subchannel, sink = std::move(front_sinks[dma_state.subchannel]), segment,
                           method = dma_state.method, argument,
                           is_last_call = dma_state.is_last_call]() mutable {
@@ -677,7 +1087,7 @@ void DmaPusher::CallMethod(u32 argument) const
                     }
                     subchannel->current_dma_segment = segment;
                     subchannel->CallMethod(method, argument, is_last_call);
-                });
+                }, writes);
                 front_sinks[dma_state.subchannel].clear();
                 return;
             }
@@ -716,7 +1126,7 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
             }
             puller.CallMultiMethod(method, subchannel_id, payload.data(),
                                    static_cast<u32>(payload.size()), pending);
-        });
+        }, PullerWrites(dma_state.method, std::span{base_start, num_methods}));
         pending_puller.clear();
     }
     else
@@ -726,6 +1136,12 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
         {
             if (IsThreaded())
             {
+                ApplyFrontSink(dma_state.subchannel);
+                if (num_methods != 0)
+                {
+                    TrackFrontRegister(dma_state.subchannel, dma_state.method, base_start[num_methods - 1]);
+                }
+                const BackWrites writes = EngineWrites(dma_state.subchannel, dma_state.method);
                 PostBack([subchannel, sink = std::move(front_sinks[dma_state.subchannel]),
                           segment = dma_state.dma_get + dma_state.dma_word_offset,
                           payload = std::vector<u32>(base_start, base_start + num_methods),
@@ -738,7 +1154,7 @@ void DmaPusher::CallMultiMethod(const u32 * base_start, u32 num_methods) const
                     subchannel->current_dma_segment = segment;
                     subchannel->CallMultiMethod(method, payload.data(),
                                                 static_cast<u32>(payload.size()), pending);
-                });
+                }, writes);
                 front_sinks[dma_state.subchannel].clear();
                 return;
             }

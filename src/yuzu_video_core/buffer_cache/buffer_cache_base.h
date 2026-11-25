@@ -406,6 +406,16 @@ public:
         return gpu_write_history.MayHaveWrites(addr, size);
     }
 
+    /// Lock-free: false proves that no compute dispatch ever wrote this memory
+    [[nodiscard]] bool MayHaveComputeWrites(DAddr addr, size_t size) const noexcept {
+        return compute_writes.MayHaveWrites(addr, size);
+    }
+
+    /// Lock-free: changes when a dispatch writes a page no dispatch wrote before
+    [[nodiscard]] u64 ComputeWriteEpoch() const noexcept {
+        return compute_writes.Epoch();
+    }
+
     /// Return true when a region is registered on the cache
     [[nodiscard]] bool IsRegionRegistered(DAddr addr, size_t size);
 
@@ -548,6 +558,9 @@ private:
 
     void MarkRegionAsGpuModified(DAddr device_addr, u64 size) {
         MarkGpuWriteHistory(device_addr, size);
+        if (binding_compute) {
+            compute_writes.Mark(device_addr, size);
+        }
         memory_tracker.MarkRegionAsGpuModified(device_addr, size);
     }
 
@@ -725,6 +738,9 @@ private:
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
     GpuModifiedRanges<DAddr, Core::DEVICE_PAGESIZE> gpu_modified_ranges;
     GpuWriteHistory<> gpu_write_history;
+    /// Buffers compute dispatches wrote, finer than gpu_write_history
+    ComputeWriteHistory compute_writes;
+    bool binding_compute{};
 
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges;
 

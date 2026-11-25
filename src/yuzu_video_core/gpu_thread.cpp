@@ -187,7 +187,8 @@ void BackQueue::AddWrites(const WriteRanges& ranges) {
     // The ranges belong to the next push, which callers make right after adding them
     const u64 push = pushed_spin.load(std::memory_order_relaxed) + 1;
     for (const auto& [begin, end] : ranges) {
-        if (!queued_writes.empty() && begin <= queued_writes.back().end &&
+        // Merging into the last write keeps the push order, as it gets the latest push
+        if (queued_writes.size() > first_write && begin <= queued_writes.back().end &&
             end >= queued_writes.back().begin) {
             QueuedWrite& last = queued_writes.back();
             last.begin = std::min(last.begin, begin);
@@ -196,14 +197,19 @@ void BackQueue::AddWrites(const WriteRanges& ranges) {
         } else {
             queued_writes.push_back({begin, end, push});
         }
+        writes_begin = std::min(writes_begin, begin);
+        writes_end = std::max(writes_end, end);
+        last_write_push = push;
     }
-    if (queued_writes.size() <= MaxWriteRanges) {
+    if (queued_writes.size() - first_write <= MaxWriteRanges) {
         return;
     }
     DropFinishedWrites(run_spin.load(std::memory_order_acquire));
-    if (queued_writes.size() <= MaxWriteRanges * 3 / 4) {
+    if (queued_writes.size() - first_write <= MaxWriteRanges * 3 / 4) {
         return;
     }
+    queued_writes.erase(queued_writes.begin(), queued_writes.begin() + first_write);
+    first_write = 0;
     std::ranges::sort(queued_writes, {}, &QueuedWrite::begin);
     size_t last = 0;
     for (size_t i = 1; i < queued_writes.size(); ++i) {
@@ -216,9 +222,13 @@ void BackQueue::AddWrites(const WriteRanges& ranges) {
     }
     queued_writes.resize(last + 1);
     if (queued_writes.size() > MaxWriteRanges * 3 / 4) {
-        queued_writes.clear();
+        ClearWrites();
         anywhere_until_push = push;
+        return;
     }
+    // Back in push order, so finished writes leave from the front
+    std::ranges::stable_sort(queued_writes, {}, &QueuedWrite::push);
+    write_bounds_stale = true;
 }
 
 bool BackQueue::MayWrite(DAddr begin, DAddr end) {
@@ -227,18 +237,72 @@ bool BackQueue::MayWrite(DAddr begin, DAddr end) {
         return true;
     }
     DropFinishedWrites(finished);
-    return std::ranges::any_of(queued_writes, [begin, end](const QueuedWrite& write) {
-        return begin < write.end && end > write.begin;
-    });
+    if (first_write == queued_writes.size() || end <= writes_begin || writes_end <= begin) {
+        return false;
+    }
+    if (write_bounds_stale) {
+        UpdateWriteBounds();
+        if (end <= writes_begin || writes_end <= begin) {
+            return false;
+        }
+    }
+    return std::any_of(queued_writes.begin() + first_write, queued_writes.end(),
+                       [begin, end](const QueuedWrite& write) {
+                           return begin < write.end && end > write.begin;
+                       });
+}
+
+bool BackQueue::MayWriteAny() {
+    const u64 finished = run_spin.load(std::memory_order_acquire);
+    if (finished < anywhere_until_push) {
+        return true;
+    }
+    DropFinishedWrites(finished);
+    return first_write != queued_writes.size();
 }
 
 void BackQueue::DropFinishedWrites(u64 finished) {
-    std::erase_if(queued_writes, [finished](const QueuedWrite& write) { return write.push <= finished; });
+    if (finished >= last_write_push) {
+        if (!queued_writes.empty()) {
+            const u64 anywhere = anywhere_until_push;
+            ClearWrites();
+            anywhere_until_push = anywhere;
+        }
+        return;
+    }
+    // The last write has not finished, so this stops before the end
+    const size_t first = first_write;
+    while (queued_writes[first_write].push <= finished) {
+        ++first_write;
+    }
+    if (first_write == first) {
+        return;
+    }
+    write_bounds_stale = true;
+    if (first_write >= 256 && first_write * 2 >= queued_writes.size()) {
+        queued_writes.erase(queued_writes.begin(), queued_writes.begin() + first_write);
+        first_write = 0;
+    }
 }
 
 void BackQueue::ClearWrites() {
     queued_writes.clear();
+    first_write = 0;
+    last_write_push = 0;
+    writes_begin = ~DAddr{};
+    writes_end = 0;
+    write_bounds_stale = false;
     anywhere_until_push = 0;
+}
+
+void BackQueue::UpdateWriteBounds() {
+    writes_begin = ~DAddr{};
+    writes_end = 0;
+    for (size_t i = first_write; i < queued_writes.size(); ++i) {
+        writes_begin = std::min(writes_begin, queued_writes[i].begin);
+        writes_end = std::max(writes_end, queued_writes[i].end);
+    }
+    write_bounds_stale = false;
 }
 
 bool BackQueue::PopWait(std::deque<Work>& out, std::stop_token stop_token,

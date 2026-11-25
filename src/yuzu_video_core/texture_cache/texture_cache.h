@@ -3831,6 +3831,9 @@ void TextureCache<P>::MarkModification(ImageBase& image, ImageId image_id) noexc
     if (!image.aliased_images.empty()) {
         BumpDescriptorEpoch();
     }
+    if (binding_compute) {
+        compute_writes.Mark(image.cpu_addr, image.guest_size_bytes);
+    }
     image.flags |= ImageFlagBits::GpuModified;
     image.modification_tick = ++modification_tick;
     image.gpu_write_tick = modification_tick;
