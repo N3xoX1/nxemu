@@ -85,7 +85,7 @@ public:
         return IdentifyType(file);
     }
 
-    static std::optional<VAddr> LoadModule(Systemloader & loader, ISystemModules& systemModules, const FileSys::VfsFile& nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm = {}, IPatchCollection * patch_collection = nullptr, int32_t patch_index = -1);
+    static std::optional<VAddr> LoadModule(Systemloader & loader, ISystemModules& systemModules, const FileSys::VfsFile& nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm = {}, IPatchCollection * patch_collection = nullptr, int32_t patch_index = -1, bool is_application = false);
     LoadResult Load(Systemloader & loader, ISystemModules & systemModules) override;
     LoaderResultStatus ReadNSOModules(Modules& out_modules) override;
 

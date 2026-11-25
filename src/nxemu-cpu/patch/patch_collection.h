@@ -12,7 +12,7 @@ class PatchCollection final :
 public:
     PatchCollection(ISystemModules & modules, bool is_application);
 
-    void PatchText(int32_t patch_index, const uint8_t * program_image, uint32_t image_size, uint32_t code_offset, uint32_t code_size) override;
+    void PatchText(int32_t patch_index, const uint8_t * program_image, uint32_t image_size, uint32_t code_offset, uint32_t code_size, uint32_t cave_offset, uint32_t cave_size) override;
     void Relocate(int32_t patch_index, uint64_t load_base, uint8_t * program_image, uint32_t * image_size, uint32_t code_offset, uint32_t code_size, uint64_t * segment_addr, uint32_t * segment_size) override;
     uint32_t GetTotalPatchSize() const override;
     uint32_t GetPreTextSize(int32_t patch_index) const override;

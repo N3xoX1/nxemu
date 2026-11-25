@@ -3,6 +3,7 @@
 #include <nxemu-core/settings/identifiers.h>
 #include <nxemu-module-spec/base.h>
 #include <nxemu-module-spec/operating_system.h>
+#include <yuzu_common/yuzu_assert.h>
 #include <algorithm>
 #include <cstdlib>
 #include <cstdio>
@@ -20,7 +21,7 @@ PatchCollection::PatchCollection(ISystemModules & modules, bool is_application) 
 #endif
 }
 
-void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_image, uint32_t image_size, uint32_t code_offset, uint32_t code_size)
+void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_image, uint32_t image_size, uint32_t code_offset, uint32_t code_size, uint32_t cave_offset, uint32_t cave_size)
 {
 #if defined(NXEMU_HAS_NCE)
     if (!m_is_application || !g_settings->GetBool(NXCpuSetting::NceEnabled))
@@ -46,12 +47,21 @@ void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_ima
     {
         patch = &m_patchers.emplace_back();
     }
+    // A cave svc the patcher skips would run as a host system call
+    const bool caves_in_image = uint64_t{cave_offset} + cave_size <= image_size;
+    ASSERT_MSG(caves_in_image, "Patch set caves end past the module image");
+    if (cave_size != 0 && caves_in_image)
+    {
+        patch->PatchCaves(program_image, code_offset, cave_offset, cave_size);
+    }
 #else
     (void)patch_index;
     (void)program_image;
     (void)image_size;
     (void)code_offset;
     (void)code_size;
+    (void)cave_offset;
+    (void)cave_size;
 #endif
 }
 

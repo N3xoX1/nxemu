@@ -295,6 +295,15 @@ void NativeCode()
         Check(!Make(std::string("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 200 d503201f 91000400 ") + word + "\n", true, true).Empty(),
               std::string("cave word ") + word + " runs from a cave with native code execution");
     }
+    // When the patcher rewrites the caves' svc words, Horizon's svc runs from a cave; other exceptions still do not
+    const auto with_rewritten_svc = [](const char * word) {
+        return PatchSets({File(std::string("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 200 d503201f 91000400 ") + word + "\n")},
+                         "AB12", "main", {.page_written = true, .native_code = true, .native_svc = true, .cave_alignment = 0x4000U});
+    };
+    Check(!with_rewritten_svc("d4000161").Empty(), "cave svc 0xB runs from a cave when the patcher rewrites it");
+    Check(!with_rewritten_svc("d4000fe1").Empty(), "cave svc 0x7F runs from a cave when the patcher rewrites it");
+    Check(with_rewritten_svc("d4001001").Empty(), "cave svc 0x80 is not Horizon's and leaves its set out");
+    Check(with_rewritten_svc("d4200000").Empty(), "cave brk leaves its set out when the patcher rewrites svc");
     std::puts("PASS: native code execution");
 }
 

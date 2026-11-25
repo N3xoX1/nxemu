@@ -256,7 +256,7 @@ static bool LoadNroImpl(Systemloader & loader, ISystemModules & modules, const s
     if (patch_ctx)
     {
         patch_index = patch_ctx->GetLastIndex();
-        patch_ctx->PatchText(patch_index, program_image.data(), image_size, (uint32_t)code.offset, code.size);
+        patch_ctx->PatchText(patch_index, program_image.data(), image_size, (uint32_t)code.offset, code.size, 0, 0);
         patch_index = patch_ctx->GetLastIndex();
         image_size += patch_ctx->GetTotalPatchSize();
     }
