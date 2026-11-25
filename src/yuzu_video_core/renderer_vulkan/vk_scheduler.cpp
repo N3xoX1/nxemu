@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <bit>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -9,6 +11,7 @@
 
 #include "yuzu_video_core/renderer_vulkan/vk_query_cache.h"
 
+#include "yuzu_common/spin_lock.h"
 #include "yuzu_common/thread.h"
 #include "yuzu_video_core/renderer_vulkan/vk_command_pool.h"
 #include "yuzu_video_core/renderer_vulkan/vk_gpu_timer.h"
@@ -25,6 +28,15 @@
 #endif
 
 namespace Vulkan {
+
+namespace {
+/// A worker that ran out of chunks spins this long before sleeping, but only while most recent
+/// chunks came within it: then the spin costs less than the wake the GPU thread would pay.
+constexpr auto WorkerSpinWindow = std::chrono::microseconds{50};
+/// Chunks dispatched without urgency wake a sleeping worker once this many wait
+constexpr u32 LazyWakeChunks = 2;
+} // Anonymous namespace
+
 void Scheduler::CommandChunk::ExecuteAll(vk::CommandBuffer cmdbuf,
                                          vk::CommandBuffer upload_cmdbuf) {
     auto command = first;
@@ -80,23 +92,37 @@ void Scheduler::WaitWorker() {
     // Ensure the queue is drained.
     {
         std::unique_lock ql{queue_mutex};
+        ++queue_waiters;
         event_cv.wait(ql, [this] { return work_queue.empty(); });
+        --queue_waiters;
     }
 
     // Now wait for execution to finish.
     std::scoped_lock el{execution_mutex};
 }
 
-void Scheduler::DispatchWork() {
+void Scheduler::DispatchWork(bool urgent) {
+    u32 queued;
     if (chunk->Empty()) {
-        return;
-    }
-    {
+        if (!urgent) {
+            return;
+        }
+        // Chunks dispatched without urgency may still wait for a sleeping worker
+        queued = pending_chunks.load(std::memory_order_seq_cst);
+    } else {
         std::scoped_lock ql{queue_mutex};
         work_queue.push(std::move(chunk));
+        queued = pending_chunks.fetch_add(1, std::memory_order_seq_cst) + 1;
     }
-    event_cv.notify_all();
-    AcquireNewChunk();
+    // A busy or spinning worker sees the count. Waking a sleeping one costs this thread a
+    // system call, so it is woken only when needed.
+    if (queued != 0 && (urgent || queued >= LazyWakeChunks) &&
+        worker_sleeping.load(std::memory_order_seq_cst)) {
+        pending_chunks.notify_one();
+    }
+    if (!chunk) {
+        AcquireNewChunk();
+    }
 }
 
 void Scheduler::RequestRenderpass(const Framebuffer* framebuffer, u32 color_scratch_mask) {
@@ -169,16 +195,12 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
     Common::Android::PerformanceHintSession performance_hint;
 #endif
 
-    const auto TryPopQueue{[this](auto& work) -> bool {
-        if (work_queue.empty()) {
-            return false;
-        }
-
-        work = std::move(work_queue.front());
-        work_queue.pop();
-        event_cv.notify_all();
-        return true;
+    // The worker sleeps on pending_chunks: stopping must wake it
+    const std::stop_callback wake_on_stop{stop_token, [this] {
+        pending_chunks.fetch_add(1, std::memory_order_seq_cst);
+        pending_chunks.notify_all();
     }};
+    u32 quick_idles = 0;
 
     while (!stop_token.stop_requested()) {
         std::unique_ptr<CommandChunk> work;
@@ -186,15 +208,25 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
         std::optional<std::chrono::nanoseconds> frame_budget;
 #endif
 
+        if (pending_chunks.load(std::memory_order_acquire) == 0) {
+            WaitForChunks(stop_token, quick_idles);
+        }
+
         {
             std::unique_lock lk{queue_mutex};
-
-            // Wait for work.
-            Common::CondvarWait(event_cv, lk, stop_token, [&] { return TryPopQueue(work); });
 
             // If we've been asked to stop, we're done.
             if (stop_token.stop_requested()) {
                 return;
+            }
+            if (work_queue.empty()) {
+                continue;
+            }
+            work = std::move(work_queue.front());
+            work_queue.pop();
+            pending_chunks.fetch_sub(1, std::memory_order_relaxed);
+            if (work_queue.empty() && queue_waiters != 0) {
+                event_cv.notify_all();
             }
 
             // Exchange lock ownership so that we take the execution lock before
@@ -235,6 +267,38 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
             // Recycle the chunk back to the reserve.
             chunk_reserve.emplace_back(std::move(work));
         }
+    }
+}
+
+void Scheduler::WaitForChunks(std::stop_token stop_token, u32& quick_idles) {
+    const auto idle_start = std::chrono::steady_clock::now();
+    bool found = false;
+    // Spin when at least half of the last 8 idle periods were shorter than the window
+    if (WorkerSpinWindow.count() != 0 && std::popcount(quick_idles & 0xFF) >= 4) {
+        const auto spin_end = idle_start + WorkerSpinWindow;
+        u32 iterations = 0;
+        while (!(found = pending_chunks.load(std::memory_order_acquire) != 0) &&
+               !stop_token.stop_requested()) {
+            // pause on x86, yield on ARM64: no system call, the worker keeps its priority
+            Common::ThreadPause();
+            if ((++iterations & 63) == 0 && std::chrono::steady_clock::now() >= spin_end) {
+                break;
+            }
+        }
+    }
+    if (!found) {
+        // DispatchWork reads the flag after counting its chunk, this reads the count after
+        // setting the flag: one of the two sees the other
+        worker_sleeping.store(true, std::memory_order_seq_cst);
+        while (pending_chunks.load(std::memory_order_seq_cst) == 0 &&
+               !stop_token.stop_requested()) {
+            pending_chunks.wait(0, std::memory_order_seq_cst);
+        }
+        worker_sleeping.store(false, std::memory_order_relaxed);
+    }
+    if (WorkerSpinWindow.count() != 0) {
+        const bool quick = std::chrono::steady_clock::now() - idle_start <= WorkerSpinWindow;
+        quick_idles = (quick_idles << 1) | (quick ? 1U : 0U);
     }
 }
 

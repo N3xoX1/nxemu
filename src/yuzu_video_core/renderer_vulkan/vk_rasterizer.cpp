@@ -1605,8 +1605,10 @@ void RasterizerVulkan::FlushWork() {
     if (draw_counter < DRAWS_TO_DISPATCH) {
         // Batch opportunistic worker handoffs. Explicit guest flushes/waits
         // and the periodic driver submission below retain their original cadence.
+        // Not urgent: a busy or spinning worker takes each chunk at once, a sleeping one is
+        // woken only once two wait.
         if ((draw_counter & 31) == 31) {
-            scheduler.DispatchWork();
+            scheduler.DispatchWork(false);
         }
         return;
     }
