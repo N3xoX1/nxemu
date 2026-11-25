@@ -230,6 +230,10 @@ public:
 
     void WriteMemory(DAddr device_addr, u64 size);
 
+    /// The CPU will likely write the range but has not yet: marks it CPU-modified from its
+    /// start up to the first page holding GPU-written data, and returns the bytes marked
+    [[nodiscard]] u64 WriteMemoryAhead(DAddr device_addr, u64 size);
+
     /// The CPU wrote somewhere in the range: keeps what the GPU wrote there
     void CoarseWriteMemory(DAddr device_addr, u64 size);
 

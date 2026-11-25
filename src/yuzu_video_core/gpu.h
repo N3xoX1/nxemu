@@ -297,6 +297,9 @@ public:
 
     /// Notify rasterizer that any caches of the specified region should be invalidated
     void InvalidateRegion(DAddr addr, u64 size);
+    /// The CPU will likely write the region next: invalidates its buffer cache copy from the
+    /// start up to the first page the GPU wrote. Returns the bytes invalidated
+    u64 InvalidateRegionAhead(DAddr addr, u64 size);
 
     /// Notify rasterizer that CPU is trying to write this area. It returns true if the area is
     /// sensible, false otherwise

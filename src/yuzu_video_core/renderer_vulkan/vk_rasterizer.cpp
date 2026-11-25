@@ -1298,6 +1298,23 @@ void RasterizerVulkan::OnCacheInvalidation(DAddr addr, u64 size) {
     ChangeMemoryEpoch();
 }
 
+u64 RasterizerVulkan::OnCacheInvalidationAhead(DAddr addr, u64 size) {
+    if (addr == 0 || size == 0) {
+        return 0;
+    }
+    u64 invalidated = 0;
+    {
+        // Checks GPU writes and invalidates under one lock: a draw can not mark the range
+        // GPU-modified in between
+        std::scoped_lock lock{buffer_cache.mutex};
+        invalidated = buffer_cache.WriteMemoryAhead(addr, size);
+    }
+    if (invalidated != 0) {
+        ChangeMemoryEpoch();
+    }
+    return invalidated;
+}
+
 void RasterizerVulkan::OnCoarseCacheInvalidation(DAddr addr, u64 size) {
     if (addr == 0 || size == 0) {
         return;

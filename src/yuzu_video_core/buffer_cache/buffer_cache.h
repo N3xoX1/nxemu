@@ -140,6 +140,31 @@ void BufferCache<P>::WriteMemory(DAddr device_addr, u64 size) {
 }
 
 template <class P>
+u64 BufferCache<P>::WriteMemoryAhead(DAddr device_addr, u64 size) {
+    const auto holds_gpu_data = [&](DAddr addr, u64 length) {
+        return memory_tracker.IsRegionGpuModified(addr, length) ||
+               AwaitsProtectedDownload(addr, length) ||
+               (!gpu_modified_ranges.Empty() && gpu_write_history.MayHaveWrites(addr, length) &&
+                IsRegionGpuModified(addr, length));
+    };
+    u64 clean = size;
+    if (holds_gpu_data(device_addr, size)) {
+        clean = 0;
+        while (clean < size) {
+            const u64 length = std::min<u64>(Core::DEVICE_PAGESIZE, size - clean);
+            if (holds_gpu_data(device_addr + clean, length)) {
+                break;
+            }
+            clean += length;
+        }
+    }
+    if (clean != 0) {
+        WriteMemory(device_addr, clean);
+    }
+    return clean;
+}
+
+template <class P>
 void BufferCache<P>::CoarseWriteMemory(DAddr device_addr, u64 size) {
     gpu_modified_ranges.ForEachNotInRange(device_addr, size, [&](DAddr start, DAddr end) {
         WriteMemory(start, end - start);

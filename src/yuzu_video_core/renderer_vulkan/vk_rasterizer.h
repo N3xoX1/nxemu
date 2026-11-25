@@ -145,6 +145,7 @@ public:
         std::span<const std::pair<DAddr, std::size_t>> sequences) override;
     void OnCacheInvalidation(DAddr addr, u64 size) override;
     void OnCoarseCacheInvalidation(DAddr addr, u64 size) override;
+    u64 OnCacheInvalidationAhead(DAddr addr, u64 size) override;
     bool OnCPUWrite(DAddr addr, u64 size) override;
     void WaitInPlaceReads(DAddr addr, u64 size) override;
     void ServiceInPlaceWaits() override;

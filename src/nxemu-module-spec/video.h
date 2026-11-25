@@ -308,6 +308,10 @@ nxinterface IVideo
     virtual void ClearCdmaInstance(uint32_t id) = 0;
     virtual uint32_t GetAppletCaptureBuffer(uint8_t * out, uint32_t out_size) = 0;
     virtual void InvalidateMemory(const uint8_t * pointer, uint64_t size) = 0;
+    // A native write faulted on [pointer, pointer + size). The pages after it, up to
+    // max_coalesce_size, may also be dropped from the buffer cache ahead of the next writes.
+    // Returns the bytes invalidated from pointer.
+    virtual uint64_t InvalidateNceMemory(const uint8_t * pointer, uint64_t size, uint64_t max_coalesce_size) = 0;
     virtual void NotifyWindowChanged() = 0;
     virtual uint32_t GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height) = 0;
     virtual void WaitForComposite() = 0;

@@ -805,3 +805,50 @@ void VideoManager::InvalidateMemory(const uint8_t * pointer, uint64_t size)
         impl->m_gpuCore->InvalidateRegion(address, size);
     });
 }
+
+uint64_t VideoManager::InvalidateNceMemory(const uint8_t * pointer, uint64_t size, uint64_t max_coalesce_size)
+{
+    if (impl == nullptr || impl->m_gpuCore == nullptr || impl->m_host1x == nullptr || pointer == nullptr || size == 0)
+    {
+        return size;
+    }
+    if (max_coalesce_size <= size)
+    {
+        InvalidateMemory(pointer, size);
+        return size;
+    }
+    constexpr uint64_t page_size = Core::DEVICE_PAGESIZE;
+    constexpr DAddr device_limit = DAddr{1} << Tegra::MaxwellDeviceMemoryManager::AS_BITS;
+    uint64_t min_invalidated = max_coalesce_size;
+    bool any = false;
+    thread_local Common::ScratchBuffer<u32> scratch;
+    auto & device_memory = impl->m_host1x->MemoryManager();
+    device_memory.ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
+        any = true;
+        // The faulting page takes the full path, as every CPU write does
+        impl->m_gpuCore->InvalidateRegion(address, size);
+
+        // Pages after it are only guessed to be written next: drop only the buffer cache
+        // copy, never GPU-written data or another cache's pages. Stop before any page with
+        // a second device mapping (alias), because dropping only this mapping's count would
+        // make the guest page writable and skip the fault for the aliased mapping.
+        uint64_t ahead = 0;
+        while (size + ahead + page_size <= max_coalesce_size)
+        {
+            const DAddr next_addr = address + size + ahead;
+            const uint8_t * const next_ptr = pointer + size + ahead;
+            if (next_addr >= device_limit || device_memory.GetPointer<u8>(next_addr) != next_ptr ||
+                !device_memory.HasSingleDeviceMapping(next_ptr, next_addr))
+            {
+                break;
+            }
+            ahead += page_size;
+        }
+        if (ahead != 0)
+        {
+            ahead = impl->m_gpuCore->InvalidateRegionAhead(address + size, ahead);
+        }
+        min_invalidated = std::min(min_invalidated, size + ahead);
+    });
+    return any ? min_invalidated : size;
+}
