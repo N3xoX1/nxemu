@@ -78,6 +78,10 @@ struct Fixture : Engines::EngineInterface {
   using GenerationKind = Maxwell3D::GenerationKind;
   static constexpr GenerationKind GEN_STATE = Maxwell3D::GEN_STATE;
   static constexpr GenerationKind GEN_NONE = Maxwell3D::GEN_NONE;
+  static constexpr GenerationKind GEN_BUFFERS = Maxwell3D::GEN_BUFFERS;
+  struct {
+    std::array<u32, Regs::MaxShaderStage> rebound_slots{};
+  } buffer_changes;
   std::array<u64, 3> generations{};
   std::vector<std::array<u32, 4>> effects;
   std::vector<std::array<u32, Regs::NUM_REGS>> observed;
@@ -116,7 +120,7 @@ struct Fixture : Engines::EngineInterface {
   std::vector<std::pair<GPUVAddr, size_t>> macro_segments;
   std::vector<GPUVAddr> macro_addresses;
   bool current_macro_dirty{}, current_macro_payload{};
-  unsigned refreshes{};
+  unsigned refreshes{}, unflushed_refreshes{};
   struct Back {
     template <typename F> void RunExclusive(F&& f) { f(); }
   } back;
@@ -162,7 +166,9 @@ struct Fixture : Engines::EngineInterface {
     return false;
   }
   void RefreshParametersImpl(const std::vector<std::pair<GPUVAddr, size_t>> &,
-                             std::vector<u32> &) { ++refreshes; }
+                             std::vector<u32> &, bool flush = true) {
+    ++(flush ? refreshes : unflushed_refreshes);
+  }
   void FrontWrite(u32, u32);
   void StreamHeader(StreamKind, u32);
   void FrontMethodCall(u32, u32, u32);
@@ -337,7 +343,8 @@ void MacroStreamTests() {
   f.DrainStream();
   Check(f.regs.reg_array[0x700] == 0, "write after fallback was incorrectly elided");
 
-  // Dirty indirect arguments stay on the GPU unless Execute needs a fallback.
+  // Dirty indirect arguments stay on the GPU unless Execute needs a fallback, the guest copy is
+  // read again without a flush
   f.hle_calls.resize(1);
   auto& call = f.hle_calls[0];
   call.program = &fallback;
@@ -346,9 +353,25 @@ void MacroStreamTests() {
   const std::array<u32, 1> words{StreamHLE};
   f.RunWords(words.data(), words.size(), f.hle_calls);
   Check(f.refreshes == 0, "indirect execution forced a GPU argument readback");
+  Check(f.unflushed_refreshes == 1, "GPU-written parameters kept the decode thread copy");
   call.dirty = false;
   f.RunWords(words.data(), words.size(), f.hle_calls);
   Check(f.refreshes == 1, "CPU-written parameters were not refreshed");
+
+  // A uniform prefetch rebinds its slot, a prefetch reset rebinds everything
+  {
+    const u32 stage = 2, index = 5;
+    const std::array<u32, 8> prefetch{StreamPrefetch | ((stage | (index << 3)) << 8), 0x1000, 0, 0x100,
+                                      0, StreamPrefetchReset, 0, 0};
+    const auto before = f.generations;
+    f.RunWords(prefetch.data(), 5, f.hle_calls);
+    Check(f.generations[Fixture::GEN_BUFFERS] == before[Fixture::GEN_BUFFERS] + 1 &&
+              (f.buffer_changes.rebound_slots[stage] & (1U << index)) != 0,
+          "a uniform prefetch kept the reused binding");
+    f.RunWords(prefetch.data() + 5, 3, f.hle_calls);
+    Check(f.generations[Fixture::GEN_STATE] == before[Fixture::GEN_STATE] + 1,
+          "a prefetch reset kept the reused bindings");
+  }
 
   // Macros lowered to register writes keep the call when the GPU may write the parameters
   struct Lowered : CachedMacro {
