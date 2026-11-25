@@ -911,11 +911,7 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
     size_t attachment_read_slot{};
     const auto config_stage{[&](size_t stage) LAMBDA_FORCEINLINE {
         const Shader::Info& info{stage_infos[stage]};
-        if constexpr (Spec::has_storage_buffers) {
-            BindStorageBuffers(stage);
-        } else {
-            buffer_cache.UnbindGraphicsStorageBuffers(stage);
-        }
+        BindStorageBuffers(stage);
         StageHandleReader handles{*gpu_memory, maxwell3d->state.shader_stages[stage].const_buffers,
                                   via_header_index};
         const auto add_image{[&](const auto& desc, bool blacklist) LAMBDA_FORCEINLINE {
@@ -1036,27 +1032,20 @@ void GraphicsPipeline::ConfigureImpl(bool is_indexed) {
                            : SelectAttachmentReads(std::span(views.data(), views.size()));
 
     const VideoCommon::ImageViewInOut* texture_buffer_it{views.data()};
-    const auto bind_stage_buffers = [&](size_t stage) LAMBDA_FORCEINLINE {
-        if constexpr (Spec::has_texture_buffers || Spec::has_image_buffers) {
-            BindTextureBuffers(stage, texture_buffer_it);
-        } else {
-            buffer_cache.UnbindGraphicsTextureBuffers(stage);
-        }
-    };
     if constexpr (Spec::enabled_stages[0]) {
-        bind_stage_buffers(0);
+        BindTextureBuffers(0, texture_buffer_it);
     }
     if constexpr (Spec::enabled_stages[1]) {
-        bind_stage_buffers(1);
+        BindTextureBuffers(1, texture_buffer_it);
     }
     if constexpr (Spec::enabled_stages[2]) {
-        bind_stage_buffers(2);
+        BindTextureBuffers(2, texture_buffer_it);
     }
     if constexpr (Spec::enabled_stages[3]) {
-        bind_stage_buffers(3);
+        BindTextureBuffers(3, texture_buffer_it);
     }
     if constexpr (Spec::enabled_stages[4]) {
-        bind_stage_buffers(4);
+        BindTextureBuffers(4, texture_buffer_it);
     }
 
     buffer_cache.UpdateGraphicsBuffers(is_indexed);

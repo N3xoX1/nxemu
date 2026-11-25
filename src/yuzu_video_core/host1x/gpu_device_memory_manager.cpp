@@ -404,21 +404,6 @@ void DeviceMemoryManager<Traits>::Unmap(DAddr address, size_t size)
 template <typename Traits>
 void DeviceMemoryManager<Traits>::PrepareEngineWrite(DAddr addr, uint64_t size)
 {
-    const bool within_one_page =
-        size != 0 && addr < device_as_size && size <= page_size - (addr & page_mask);
-    if (within_one_page) {
-        const uint64_t page = addr >> page_bits;
-        const bool in_place_prepared =
-            !InPlaceReadsEnabled() ||
-            (TestPageBit(excluded_pages, page) && !TestPageBit(in_place_pages, page));
-        const u32 physical = compressed_physical_ptr[page];
-        const bool has_aliases =
-            physical != 0 && (compressed_device_addr[physical - 1U] >> MULTI_FLAG_BITS) != 0;
-        if (in_place_prepared && !has_aliases) {
-            SetPageBit(engine_pages, page);
-            return;
-        }
-    }
     const auto prepare = [this](DAddr range_addr, uint64_t range_size) {
         MarkEngineWritten(range_addr, range_size);
         if (!InPlaceReadsEnabled())
