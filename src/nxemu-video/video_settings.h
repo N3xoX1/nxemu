@@ -46,6 +46,7 @@ bool IsGpuThreadSplit();
 bool IsStrictComputeOrderingEnabled();
 bool IsUntrackedStoreReadbackSkipped();
 bool IsGpuReadbackExact();
+bool IsReadbackWaitSkipped();
 bool IsLegacyFsrEnabled();
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info);
 void UpdateRescalingInfo();
@@ -111,6 +112,8 @@ struct VideoSettings
     bool global_use_reactive_flushing;
     bool background_gpu_readbacks;
     bool global_background_gpu_readbacks;
+    bool skip_readback_wait;
+    bool global_skip_readback_wait;
     bool gpu_command_synchronization;
     bool global_gpu_command_synchronization;
     bool split_gpu_thread;

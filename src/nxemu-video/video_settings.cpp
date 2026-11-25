@@ -26,6 +26,10 @@ std::atomic<bool> runtime_gpu_command_synchronization{false};
 std::atomic<bool> runtime_split_gpu_thread{true};
 std::atomic<bool> runtime_strict_compute_ordering{false};
 std::atomic<bool> runtime_skip_untracked_store_readback{false};
+std::atomic<bool> runtime_use_reactive_flushing{false};
+std::atomic<bool> runtime_background_gpu_readbacks{true};
+std::atomic<bool> runtime_skip_readback_wait{false};
+std::atomic<RendererBackend> runtime_renderer_backend{RendererBackend::Vulkan};
 std::atomic<bool> runtime_fast_gpu_readback{true};
 std::atomic<bool> runtime_fsr_legacy{false};
 }
@@ -94,6 +98,19 @@ bool IsGpuReadbackExact()
 {
     return IsGPULevelExtreme() ||
            (IsGPULevelHigh() && !runtime_fast_gpu_readback.load(std::memory_order_relaxed));
+}
+
+bool IsReadbackWaitSkipped()
+{
+#if defined(_M_X64) || defined(__x86_64__)
+    return runtime_skip_readback_wait.load(std::memory_order_relaxed) &&
+           runtime_background_gpu_readbacks.load(std::memory_order_relaxed) &&
+           runtime_use_reactive_flushing.load(std::memory_order_relaxed) &&
+           runtime_renderer_backend.load(std::memory_order_relaxed) == RendererBackend::Vulkan &&
+           !IsGpuReadbackExact();
+#else
+    return false;
+#endif
 }
 
 void TranslateResolutionInfo(ResolutionSetup setup, ResolutionScalingInfo & info)
@@ -304,6 +321,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::SystemStrictComputeOrdering, "video", "strict_compute_ordering", &videoSettings.global_strict_compute_ordering, false, true},
     {NXVideoSetting::SystemSkipUntrackedStoreReadback, "video", "skip_untracked_store_readback", &videoSettings.global_skip_untracked_store_readback, false},
     {NXVideoSetting::SystemBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.global_background_gpu_readbacks, true},
+    {NXVideoSetting::SystemSkipReadbackWait, "video", "skip_readback_wait", &videoSettings.global_skip_readback_wait, false},
     {NXVideoSetting::SystemFastGpuReadback, "video", "fast_gpu_readback", &videoSettings.global_fast_gpu_readback, true},
     {NXVideoSetting::SystemVSyncMode, "video", "vsync_mode", &videoSettings.global_vsync_mode, VSyncMode::Fifo},
     {NXVideoSetting::SystemNvdecEmulation, "video", "nvdec_emulation", &videoSettings.global_nvdec_emulation, NvdecEmulation::Gpu, true},
@@ -342,6 +360,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::GameStrictComputeOrdering, "video", "strict_compute_ordering", &videoSettings.strict_compute_ordering, NXVideoSetting::SystemStrictComputeOrdering},
     {NXVideoSetting::GameSkipUntrackedStoreReadback, "video", "skip_untracked_store_readback", &videoSettings.skip_untracked_store_readback, NXVideoSetting::SystemSkipUntrackedStoreReadback},
     {NXVideoSetting::GameBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.background_gpu_readbacks, NXVideoSetting::SystemBackgroundGpuReadbacks},
+    {NXVideoSetting::GameSkipReadbackWait, "video", "skip_readback_wait", &videoSettings.skip_readback_wait, NXVideoSetting::SystemSkipReadbackWait},
     {NXVideoSetting::GameFastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, NXVideoSetting::SystemFastGpuReadback},
     {NXVideoSetting::GameVSyncMode, "video", "vsync_mode", &videoSettings.vsync_mode, NXVideoSetting::SystemVSyncMode},
     {NXVideoSetting::GameNvdecEmulation, "video", "nvdec_emulation", &videoSettings.nvdec_emulation, NXVideoSetting::SystemNvdecEmulation},
@@ -496,6 +515,26 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
     if (strcmp(setting, NXVideoSetting::GameSkipUntrackedStoreReadback) == 0)
     {
         runtime_skip_untracked_store_readback.store(videoSettings.skip_untracked_store_readback, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::GameEnableReactiveFlushing) == 0)
+    {
+        runtime_use_reactive_flushing.store(videoSettings.use_reactive_flushing, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::GraphicsAPI) == 0)
+    {
+        runtime_renderer_backend.store(videoSettings.renderer_backend, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::GameBackgroundGpuReadbacks) == 0)
+    {
+        runtime_background_gpu_readbacks.store(videoSettings.background_gpu_readbacks, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::GameSkipReadbackWait) == 0)
+    {
+        runtime_skip_readback_wait.store(videoSettings.skip_readback_wait, std::memory_order_relaxed);
         return;
     }
     if (strcmp(setting, NXVideoSetting::GameFastGpuReadback) == 0)
@@ -902,6 +941,10 @@ void SetupVideoSetting(void)
     runtime_split_gpu_thread.store(videoSettings.split_gpu_thread, std::memory_order_relaxed);
     runtime_strict_compute_ordering.store(videoSettings.strict_compute_ordering, std::memory_order_relaxed);
     runtime_skip_untracked_store_readback.store(videoSettings.skip_untracked_store_readback, std::memory_order_relaxed);
+    runtime_use_reactive_flushing.store(videoSettings.use_reactive_flushing, std::memory_order_relaxed);
+    runtime_background_gpu_readbacks.store(videoSettings.background_gpu_readbacks, std::memory_order_relaxed);
+    runtime_skip_readback_wait.store(videoSettings.skip_readback_wait, std::memory_order_relaxed);
+    runtime_renderer_backend.store(videoSettings.renderer_backend, std::memory_order_relaxed);
     runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
     Settings::UpdateRescalingInfo();
     Settings::UpdateGPUAccuracy();

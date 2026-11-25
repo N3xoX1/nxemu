@@ -774,8 +774,10 @@ private:
     std::deque<std::vector<Common::ReadbackCpuCopy>> pending_readback_cpu_copies;
     /// Ranges of each pending download that guest memory did not get newer data for since
     std::deque<Common::RangeSet<DAddr>> pending_download_ranges;
-    // Pages kept unreadable by the CPU until their asynchronous download is published.
+    // Pages kept unreadable by the CPU (or tracked for store ordering) until their
+    // asynchronous download is published.
     std::deque<boost::container::small_vector<std::pair<DAddr, u64>, 4>> pending_protected_ranges;
+    std::deque<bool> pending_read_cached_protected;
     std::deque<bool> pending_unprotected_downloads;
     size_t unprotected_downloads = 0;
     bool pending_downloads_protected = true;

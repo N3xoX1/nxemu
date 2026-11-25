@@ -39,6 +39,11 @@ constexpr bool kPlatformProtectsReadbacks = true;
 #else
 constexpr bool kPlatformProtectsReadbacks = false;
 #endif
+#if defined(_M_X64) || defined(__x86_64__)
+constexpr bool kPlatformSupportsSkipReadbackWait = true;
+#else
+constexpr bool kPlatformSupportsSkipReadbackWait = false;
+#endif
 constexpr const char * kTabPrefix = "tab:";
 constexpr const char * kDefaultAudioDevice = "auto";
 constexpr int kSpeedMin = 25; // of the limit, in percent of the console's speed
@@ -70,6 +75,7 @@ constexpr Toggle kToggles[] = {
     {"untracked-writes", NXVideoSetting::SystemSkipUntrackedStoreReadback, Store::Module, false},
     {"reactive-flushing", NXVideoSetting::SystemEnableReactiveFlushing, Store::Module, false},
     {"background-readbacks", NXVideoSetting::SystemBackgroundGpuReadbacks, Store::Module, true},
+    {"skip-readback-wait", NXVideoSetting::SystemSkipReadbackWait, Store::Module, true},
     {"feedback-loops", NXVideoSetting::SystemBarrierFeedbackLoops, Store::Module, false, true},
     {"fast-shader-math", NXVideoSetting::SystemFastShaderMath, Store::Module, false},
     {"fast-gpu-time", NXVideoSetting::SystemFastGPUTime, Store::Module, true},
@@ -322,6 +328,12 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     if (id == "background-readbacks")
     {
         return !kPlatformProtectsReadbacks || !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing) ||
+               settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
+    }
+    if (id == "skip-readback-wait")
+    {
+        return !kPlatformSupportsSkipReadbackWait || !settings.GetBool(NXVideoSetting::SystemBackgroundGpuReadbacks) ||
+               !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing) ||
                settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
     }
     if (id == "fast-readback")

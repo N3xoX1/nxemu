@@ -998,10 +998,16 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
     {
         // A CPU access before publication faults and waits for this copy, so the fence need not.
         // Above the limit, those faults cost more than the fence wait they save.
+        // When readback waits are skipped, keep the byte ranges registered so CPU stores still
+        // wait for publication and cannot be overwritten by an older GPU snapshot.
         auto& protected_ranges = pending_protected_ranges.emplace_back();
+        const bool protects_read_cached = device_memory.ProtectsReadCachedPages();
+        const bool skip_wait = Settings::IsReadbackWaitSkipped() && protects_read_cached;
         pending_downloads_protected =
-            total_size_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES &&
-            device_memory.ProtectsReadCachedPages();
+            skip_wait || (total_size_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES &&
+                          protects_read_cached);
+        const bool mark_read_cached = pending_downloads_protected && !skip_wait;
+        pending_read_cached_protected.push_back(mark_read_cached);
         if (pending_downloads_protected) {
             {
                 std::scoped_lock lk{protected_downloads_mutex};
@@ -1012,8 +1018,10 @@ void BufferCache<P>::CommitAsyncFlushesHigh() {
                     protected_ranges.emplace_back(addr, copy.size);
                 }
             }
-            for (const auto& [addr, size] : protected_ranges) {
-                device_memory.UpdatePagesReadCachedCount(addr, size, 1);
+            if (mark_read_cached) {
+                for (const auto& [addr, size] : protected_ranges) {
+                    device_memory.UpdatePagesReadCachedCount(addr, size, 1);
+                }
             }
         }
         pending_unprotected_downloads.push_back(!pending_downloads_protected);
@@ -1145,9 +1153,13 @@ void BufferCache<P>::PopAsyncBuffers() {
     pending_download_ranges.pop_front();
     unprotected_downloads -= pending_unprotected_downloads.front() ? 1 : 0;
     pending_unprotected_downloads.pop_front();
+    const bool release_read_cached = pending_read_cached_protected.front();
+    pending_read_cached_protected.pop_front();
     const auto& released_ranges = pending_protected_ranges.front();
-    for (const auto& [addr, size] : released_ranges) {
-        device_memory.UpdatePagesReadCachedCount(addr, size, -1);
+    if (release_read_cached) {
+        for (const auto& [addr, size] : released_ranges) {
+            device_memory.UpdatePagesReadCachedCount(addr, size, -1);
+        }
     }
     if (!released_ranges.empty()) {
         {
@@ -1155,15 +1167,19 @@ void BufferCache<P>::PopAsyncBuffers() {
             using PageBits = decltype(protected_download_pages);
             for (const auto& [addr, size] : released_ranges) {
                 protected_downloads.Subtract(addr, size);
+                // Clear the pages between the downloads still in flight, which keep theirs.
                 const DAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
-                for (DAddr page = Common::AlignDown(addr, PageBits::PAGE_SIZE); page < end;
-                     page += PageBits::PAGE_SIZE) {
-                    bool protected_page = false;
-                    protected_downloads.ForEachInRange(page, PageBits::PAGE_SIZE,
-                                                       [&](DAddr, DAddr, s32) { protected_page = true; });
-                    if (!protected_page) {
-                        protected_download_pages.Clear(page, PageBits::PAGE_SIZE);
+                DAddr cursor = Common::AlignDown(addr, PageBits::PAGE_SIZE);
+                protected_downloads.ForEachInRange(cursor, end - cursor,
+                                                   [&](DAddr begin, DAddr last, s32) {
+                    const DAddr kept = Common::AlignDown(begin, PageBits::PAGE_SIZE);
+                    if (kept > cursor) {
+                        protected_download_pages.Clear(cursor, kept - cursor);
                     }
+                    cursor = std::max(cursor, Common::AlignUp(last, PageBits::PAGE_SIZE));
+                });
+                if (cursor < end) {
+                    protected_download_pages.Clear(cursor, end - cursor);
                 }
             }
         }

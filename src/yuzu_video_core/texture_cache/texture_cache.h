@@ -1497,16 +1497,19 @@ bool TextureCache<P>::DownloadsProtected(std::span<const PendingDownload> downlo
     if (!device_memory.ProtectsReadCachedPages()) {
         return false;
     }
-    // Above the limit, protecting and releasing the pages costs more than the fence wait saves
+    // Above the limit, protecting and releasing the pages costs more than the fence wait saves.
+    // When readback waits are skipped, read protection is omitted so larger copies stay eligible
+    // while still tracking their byte ranges for CPU store ordering.
+    const bool skip_wait = Settings::IsReadbackWaitSkipped();
     u64 total_bytes = 0;
-    return std::ranges::all_of(downloads, [this, &total_bytes](const PendingDownload& download) {
+    return std::ranges::all_of(downloads, [this, &total_bytes, skip_wait](const PendingDownload& download) {
         if (!download.is_swizzle) {
             return false;
         }
         const ImageBase& image = slot_images[download.object_id];
         total_bytes += image.guest_size_bytes;
         return False(image.flags & ImageFlagBits::Sparse) && image.cpu_addr < (1ULL << 40) &&
-               total_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES;
+               (skip_wait || total_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES);
     });
 #endif
 }
@@ -1518,6 +1521,8 @@ void TextureCache<P>::ProtectCommittedDownloads() {
     pending_unprotected_downloads.push_back(!is_protected);
     unprotected_downloads += is_protected ? 0 : 1;
 #if !defined(__APPLE__)
+    const bool mark_read_cached = is_protected && !Settings::IsReadbackWaitSkipped();
+    pending_read_cached_protected.push_back(mark_read_cached);
     if (!is_protected) {
         return;
     }
@@ -1532,8 +1537,10 @@ void TextureCache<P>::ProtectCommittedDownloads() {
             protected_ranges.emplace_back(addr, size);
         }
     }
-    for (const auto& [addr, size] : protected_ranges) {
-        device_memory.UpdatePagesReadCachedCount(addr, size, 1);
+    if (mark_read_cached) {
+        for (const auto& [addr, size] : protected_ranges) {
+            device_memory.UpdatePagesReadCachedCount(addr, size, 1);
+        }
     }
 #endif
 }
@@ -1543,9 +1550,19 @@ void TextureCache<P>::ReleaseDownloadProtection() {
     unprotected_downloads -= pending_unprotected_downloads.front() ? 1 : 0;
     pending_unprotected_downloads.pop_front();
     const auto& released_ranges = pending_protected_ranges.front();
+#if !defined(__APPLE__)
+    const bool release_read_cached = pending_read_cached_protected.front();
+    pending_read_cached_protected.pop_front();
+    if (release_read_cached) {
+        for (const auto& [addr, size] : released_ranges) {
+            device_memory.UpdatePagesReadCachedCount(addr, size, -1);
+        }
+    }
+#else
     for (const auto& [addr, size] : released_ranges) {
         device_memory.UpdatePagesReadCachedCount(addr, size, -1);
     }
+#endif
     if (!released_ranges.empty()) {
         {
             std::scoped_lock lk{protected_downloads_mutex};

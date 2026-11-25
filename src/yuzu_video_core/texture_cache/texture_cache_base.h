@@ -688,9 +688,10 @@ private:
 
     std::vector<PendingDownload> uncommitted_downloads;
     std::deque<std::vector<PendingDownload>> committed_downloads;
-    // Per committed download list: the pages kept unreadable until publication, or whether
-    // the CPU may read them before it
+    // Per committed download list: the pages kept unreadable (or tracked for store ordering)
+    // until publication, or whether the CPU may read them before it
     std::deque<boost::container::small_vector<std::pair<DAddr, u64>, 4>> pending_protected_ranges;
+    std::deque<bool> pending_read_cached_protected;
     std::deque<bool> pending_unprotected_downloads;
     size_t unprotected_downloads = 0;
     /// Committed downloads above this size keep the fence waiting, as the buffer cache does
