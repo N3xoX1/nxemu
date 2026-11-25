@@ -228,6 +228,8 @@ public:
     }
 
 private:
+    [[nodiscard]] static Value PhiOperand(const Value& value);
+
     struct NonTriviallyDummy {
         NonTriviallyDummy() noexcept {}
     };
