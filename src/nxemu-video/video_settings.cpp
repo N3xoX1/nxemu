@@ -24,6 +24,7 @@ namespace
 std::atomic<int32_t> runtime_dma_accuracy{0};
 std::atomic<bool> runtime_gpu_command_synchronization{false};
 std::atomic<bool> runtime_split_gpu_thread{true};
+std::atomic<bool> runtime_strict_compute_ordering{false};
 std::atomic<bool> runtime_skip_untracked_store_readback{false};
 std::atomic<bool> runtime_fast_gpu_readback{true};
 std::atomic<bool> runtime_fsr_legacy{false};
@@ -77,6 +78,11 @@ bool IsGpuCommandSynchronizationEnabled()
 bool IsGpuThreadSplit()
 {
     return runtime_split_gpu_thread.load(std::memory_order_relaxed);
+}
+
+bool IsStrictComputeOrderingEnabled()
+{
+    return runtime_strict_compute_ordering.load(std::memory_order_relaxed);
 }
 
 bool IsUntrackedStoreReadbackSkipped()
@@ -293,6 +299,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::SystemDMAAccuracy, "video", "dma_accuracy", &videoSettings.global_dma_accuracy, 0, 0, 2, true},
     {NXVideoSetting::SystemGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.global_gpu_command_synchronization, false, true},
     {NXVideoSetting::SystemSplitGpuThread, "video", "split_gpu_thread", &videoSettings.global_split_gpu_thread, true, true},
+    {NXVideoSetting::SystemStrictComputeOrdering, "video", "strict_compute_ordering", &videoSettings.global_strict_compute_ordering, false, true},
     {NXVideoSetting::SystemSkipUntrackedStoreReadback, "video", "skip_untracked_store_readback", &videoSettings.global_skip_untracked_store_readback, false, true},
     {NXVideoSetting::SystemBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.global_background_gpu_readbacks, true},
     {NXVideoSetting::SystemFastGpuReadback, "video", "fast_gpu_readback", &videoSettings.global_fast_gpu_readback, true},
@@ -330,6 +337,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::GameDMAAccuracy, "video", "dma_accuracy", &videoSettings.dma_accuracy, NXVideoSetting::SystemDMAAccuracy},
     {NXVideoSetting::GameGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.gpu_command_synchronization, NXVideoSetting::SystemGpuCommandSynchronization},
     {NXVideoSetting::GameSplitGpuThread, "video", "split_gpu_thread", &videoSettings.split_gpu_thread, NXVideoSetting::SystemSplitGpuThread},
+    {NXVideoSetting::GameStrictComputeOrdering, "video", "strict_compute_ordering", &videoSettings.strict_compute_ordering, NXVideoSetting::SystemStrictComputeOrdering},
     {NXVideoSetting::GameSkipUntrackedStoreReadback, "video", "skip_untracked_store_readback", &videoSettings.skip_untracked_store_readback, NXVideoSetting::SystemSkipUntrackedStoreReadback},
     {NXVideoSetting::GameBackgroundGpuReadbacks, "video", "background_gpu_readbacks", &videoSettings.background_gpu_readbacks, NXVideoSetting::SystemBackgroundGpuReadbacks},
     {NXVideoSetting::GameFastGpuReadback, "video", "fast_gpu_readback", &videoSettings.fast_gpu_readback, NXVideoSetting::SystemFastGpuReadback},
@@ -475,6 +483,11 @@ void VideoSettingChanged(const char * setting, void * /*userData*/)
     if (strcmp(setting, NXVideoSetting::GameSplitGpuThread) == 0)
     {
         runtime_split_gpu_thread.store(videoSettings.split_gpu_thread, std::memory_order_relaxed);
+        return;
+    }
+    if (strcmp(setting, NXVideoSetting::GameStrictComputeOrdering) == 0)
+    {
+        runtime_strict_compute_ordering.store(videoSettings.strict_compute_ordering, std::memory_order_relaxed);
         return;
     }
     if (strcmp(setting, NXVideoSetting::GameSkipUntrackedStoreReadback) == 0)
@@ -884,6 +897,7 @@ void SetupVideoSetting(void)
     runtime_dma_accuracy.store(videoSettings.dma_accuracy, std::memory_order_relaxed);
     runtime_gpu_command_synchronization.store(videoSettings.gpu_command_synchronization, std::memory_order_relaxed);
     runtime_split_gpu_thread.store(videoSettings.split_gpu_thread, std::memory_order_relaxed);
+    runtime_strict_compute_ordering.store(videoSettings.strict_compute_ordering, std::memory_order_relaxed);
     runtime_skip_untracked_store_readback.store(videoSettings.skip_untracked_store_readback, std::memory_order_relaxed);
     runtime_fast_gpu_readback.store(videoSettings.fast_gpu_readback, std::memory_order_relaxed);
     Settings::UpdateRescalingInfo();

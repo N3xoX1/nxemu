@@ -38,7 +38,8 @@ dma += [method(s, 'DmaPusher::'+n).replace('DmaPusher::','Dma::') for n in names
 (output / 'dma.inc').write_text('\n\n'.join(dma))
 (output / 'probe.inc').write_text('\n\n'.join(
     method(s, 'DmaPusher::' + n).replace('DmaPusher::', 'Probe::') for n in
-    ['FetchesNewPages', 'IsKnownPushbuffer', 'DispatchMayWrite']))
+    ['FetchesNewPages', 'IsKnownPushbuffer', 'DispatchMayWrite', 'RecordUnwaitedEntry',
+     'UnwaitedEntryWritten']))
 (output / 'baseline.inc').write_text((root / 'tests/unit/gpu_commands/baseline.inc').read_text())
 
 h = (root / 'src/yuzu_video_core/gpu_thread.h').read_text()

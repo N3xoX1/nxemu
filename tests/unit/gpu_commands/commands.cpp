@@ -190,6 +190,11 @@ struct Fixture : Engines::EngineInterface {
 using Tegra::BufferMethods;
 using Tegra::CommandHeader;
 using Tegra::SubmissionMode;
+namespace Settings {
+bool strict_compute_ordering{};
+bool IsStrictComputeOrderingEnabled() { return strict_compute_ordering; }
+} // namespace Settings
+
 struct Dma {
   struct State {
     u32 method{}, subchannel{}, method_count{};
@@ -217,6 +222,11 @@ struct Dma {
   }
   mutable bool unmet_acquire_seen{};
   mutable bool queued_dispatch{};
+  mutable std::atomic<bool> strict_dispatch_wait{};
+  mutable u64 launched_dispatches{};
+  mutable u64 posted_dispatch{};
+  mutable std::vector<u64> ran_dispatches;
+  void DispatchRan(u64 id) const { ran_dispatches.push_back(id); }
   Engines::EngineInterface *maxwell3d_engine{};
   struct Gpu {
     struct Queue {
@@ -582,6 +592,23 @@ void QueuedWritesTests() {
       e.ProcessCommands(c);
       Check(e.posted.size() == 1 && is(e.posted[0], Kind::Nothing) && e.queued_dispatch,
             "a compute launch waited, or a SYNC_WAIT entry would not wait for it");
+      // After a dispatch wrote commands read before it ran, or with the setting, every
+      // launch is waited for
+      for (int strict = 0; strict < 2; ++strict) {
+        c.clear();
+        e.posted.clear();
+        e.queued_dispatch = false;
+        e.strict_dispatch_wait = strict == 0;
+        e.posted_dispatch = 0;
+        Settings::strict_compute_ordering = strict == 1;
+        on_engine(0xAF, {1});
+        e.ProcessCommands(c);
+        Check(e.posted.size() == 1 && is(e.posted[0], Kind::Anywhere) && !e.queued_dispatch &&
+                  e.posted_dispatch == 0,
+              "a strict compute launch did not wait");
+      }
+      e.strict_dispatch_wait = false;
+      Settings::strict_compute_ordering = false;
     }
   }
 
@@ -743,9 +770,21 @@ struct Probe {
   static constexpr size_t KnownPageCount = 1024;
   mutable std::vector<KnownPage> known_pages = std::vector<KnownPage>(KnownPageCount);
   mutable bool queued_dispatch{};
+  mutable u64 launched_dispatches{};
+  mutable std::atomic<u64> completed_dispatches{};
+  struct UnwaitedEntry {
+    std::atomic<u64> address{}, size{}, first{}, last{};
+  };
+  static constexpr size_t UnwaitedEntryCount = 2048;
+  mutable std::array<UnwaitedEntry, UnwaitedEntryCount> unwaited_entries{};
+  mutable std::atomic<u64> unwaited_count{};
   struct Memory {
     u64 generation{};
     u64 MappingGeneration() const { return generation; }
+    // GPU 0x10000 is device 0x200000
+    std::vector<std::pair<DAddr, std::size_t>> GetSubmappedDeviceRange(GPUVAddr a, size_t s) const {
+      return {{a + 0x1F0000, s}};
+    }
   } memory_manager;
   struct Raster {
     std::vector<std::pair<DAddr, DAddr>> written;
@@ -759,6 +798,8 @@ struct Probe {
   bool FetchesNewPages(DAddr, u64) const;
   bool IsKnownPushbuffer(GPUVAddr, size_t) const;
   bool DispatchMayWrite(GPUVAddr, size_t, std::span<const std::pair<DAddr, std::size_t>>) const;
+  void RecordUnwaitedEntry(GPUVAddr, size_t) const;
+  bool UnwaitedEntryWritten(u64) const;
 };
 #include "probe.inc"
 
@@ -797,6 +838,50 @@ void QueuedDispatchTests() {
   Check(!p.IsKnownPushbuffer(0x30F80, 0x100) && p.DispatchMayWrite(0x30F80, 0x100, two),
         "an entry reaching a page fetched for the first time did not wait");
   Check(p.IsKnownPushbuffer(0x30F80, 0x100), "an entry over two known pages was not known");
+
+  // Entry E at GPU 0x10000 (device 0x200000) is read while dispatch 1 is queued
+  {
+    // Dispatch 1 writes E: E was read too early
+    Probe u;
+    u.launched_dispatches = 1;
+    u.RecordUnwaitedEntry(0x10000, 0x100);
+    u.RecordUnwaitedEntry(0x50000, 0x100);
+    Check(!u.UnwaitedEntryWritten(1), "entries no dispatch wrote were detected");
+    u.raster.written.push_back({0x200000, 0x201000});
+    Check(u.UnwaitedEntryWritten(1), "an earlier dispatch writing an entry read before it ran was missed");
+  }
+  {
+    // E launches dispatch 2, which writes E's page for later: E was read in order
+    Probe u;
+    u.launched_dispatches = 1;
+    u.RecordUnwaitedEntry(0x10000, 0x100);
+    u.launched_dispatches = 2;
+    Check(!u.UnwaitedEntryWritten(1), "a dispatch that wrote nothing was blamed");
+    u.completed_dispatches = 1;
+    u.raster.written.push_back({0x200000, 0x201000});
+    Check(!u.UnwaitedEntryWritten(2), "a dispatch launched by the entry it writes was blamed");
+  }
+  {
+    // Safe DMA: the queue ran before the read, nothing is recorded
+    Probe u;
+    u.launched_dispatches = 1;
+    u.completed_dispatches = 1;
+    u.RecordUnwaitedEntry(0x10000, 0x100);
+    u.raster.written.push_back({0x200000, 0x201000});
+    Check(u.unwaited_count == 0 && !u.UnwaitedEntryWritten(1),
+          "an entry read after the queued dispatches ran was recorded");
+  }
+  {
+    // Old entries leave the ring
+    Probe w;
+    w.launched_dispatches = 1;
+    w.RecordUnwaitedEntry(0x10000, 0x100);
+    for (int i = 0; i < 2100; ++i) {
+      w.RecordUnwaitedEntry(0x60000 + i * 0x100, 0x100);
+    }
+    w.raster.written.push_back({0x200000, 0x201000});
+    Check(!w.UnwaitedEntryWritten(1), "an entry overwritten in the ring was still checked");
+  }
 
   // The buffer and image caches mark what a dispatch writes
   VideoCommon::ComputeWriteHistory history;
