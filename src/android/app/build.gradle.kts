@@ -31,7 +31,7 @@ val copyCatalogues = tasks.register<CopyCatalogues>("copyCatalogues") {
 }
 
 // The mods that ship with NxEmu: the game folders of external/nxemu-switch-mods ("<Game name> [<title id>]"), with
-// their licenses. The app copies them out of its assets (org.nxemu.utils.BundledMods), as the loader reads files.
+// their licenses. The app copies them out of its assets (org.nxemu.utils.BundledFiles), as the loader reads files.
 abstract class CopyBundledMods : DefaultTask() {
     @get:InputFiles
     abstract val mods: ConfigurableFileCollection
@@ -56,6 +56,24 @@ val copyBundledMods = tasks.register<CopyBundledMods>("copyBundledMods") {
     val root = file("../../../external/nxemu-switch-mods")
     modsRoot.set(root)
     mods.from(fileTree(root) { include("*]/**") })
+}
+
+// The per-game setting defaults; the app copies them out of its assets with the bundled mods.
+abstract class CopyGameDefaults : DefaultTask() {
+    @get:InputFile
+    abstract val gameDefaults: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        gameDefaults.get().asFile.copyTo(outputDir.get().file("game_defaults.json").asFile, overwrite = true)
+    }
+}
+
+val copyGameDefaults = tasks.register<CopyGameDefaults>("copyGameDefaults") {
+    gameDefaults.set(file("../../../config/game_defaults.json"))
 }
 
 android {
@@ -137,6 +155,7 @@ androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(copyCatalogues, CopyCatalogues::outputDir)
         variant.sources.assets?.addGeneratedSourceDirectory(copyBundledMods, CopyBundledMods::outputDir)
+        variant.sources.assets?.addGeneratedSourceDirectory(copyGameDefaults, CopyGameDefaults::outputDir)
     }
 }
 

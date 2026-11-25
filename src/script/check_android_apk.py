@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Check packaged native modules, ELF architecture/alignment and dependencies."""
+"""Check packaged native modules, ELF architecture/alignment and dependencies, and the bundled assets."""
 import argparse
 import struct
 import zipfile
 from pathlib import Path
 
 EXPECTED = {f"libnxemu-{name}.so" for name in ("android", "cpu", "loader", "os", "video")}
+EXPECTED_ASSETS = {"assets/game_defaults.json"}
 SYSTEM = {
     "libc.so", "libm.so", "libdl.so", "liblog.so", "libandroid.so", "libz.so",
     "libvulkan.so", "libmediandk.so", "libOpenSLES.so", "libEGL.so",
@@ -20,6 +21,10 @@ def check(apk: Path) -> None:
             for name in archive.namelist()
             if name.startswith("lib/arm64-v8a/") and name.endswith(".so")
         }
+        names = set(archive.namelist())
+        missing_assets = {name for name in EXPECTED_ASSETS if name not in names or archive.getinfo(name).file_size == 0}
+    if missing_assets:
+        raise ValueError(f"Missing or empty assets: {sorted(missing_assets)}")
     missing = EXPECTED - libraries.keys()
     if missing:
         raise ValueError(f"Missing native modules: {sorted(missing)}")
