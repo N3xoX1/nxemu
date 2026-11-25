@@ -12,6 +12,13 @@
 
 namespace AudioCore::Renderer {
 
+namespace {
+/// Whether size bytes at offset lie inside the section.
+bool Fits(std::span<const u8> input, u64 offset, u64 size) {
+    return offset <= input.size() && size <= input.size() - offset;
+}
+} // namespace
+
 SplitterDestinationData* SplitterContext::GetDestinationData(const s32 splitter_id,
                                                              const s32 destination_id) {
     return splitter_infos[splitter_id].GetData(destination_id);
@@ -93,16 +100,17 @@ bool SplitterContext::Initialize(const BehaviorInfo& behavior,
     return true;
 }
 
-bool SplitterContext::Update(const u8* input, u32& consumed_size) {
-    auto in_params{reinterpret_cast<const InParameterHeader*>(input)};
-
+bool SplitterContext::Update(std::span<const u8> input) {
     if (destinations_count == 0 || info_count == 0) {
-        consumed_size = 0;
         return true;
     }
 
+    if (!Fits(input, 0, sizeof(InParameterHeader))) {
+        return false;
+    }
+    auto in_params{reinterpret_cast<const InParameterHeader*>(input.data())};
+
     if (in_params->magic != GetSplitterInParamHeaderMagic()) {
-        consumed_size = 0;
         return false;
     }
 
@@ -112,21 +120,30 @@ bool SplitterContext::Update(const u8* input, u32& consumed_size) {
 
     u32 offset{sizeof(InParameterHeader)};
     offset = UpdateInfo(input, offset, in_params->info_count);
-    offset = UpdateData(input, offset, in_params->destination_count);
-
-    consumed_size = Common::AlignUp(offset, 0x10);
+    UpdateData(input, offset, in_params->destination_count);
     return true;
 }
 
-u32 SplitterContext::UpdateInfo(const u8* input, u32 offset, const u32 splitter_count) {
+u32 SplitterContext::UpdateInfo(std::span<const u8> input, u32 offset, const u32 splitter_count) {
     for (u32 i = 0; i < splitter_count; i++) {
-        auto info_header{reinterpret_cast<const SplitterInfo::InParameter*>(input + offset)};
+        if (!Fits(input, offset, sizeof(SplitterInfo::InParameter))) {
+            break;
+        }
+        auto info_header{
+            reinterpret_cast<const SplitterInfo::InParameter*>(input.data() + offset)};
 
         if (info_header->magic != GetSplitterInfoMagic()) {
             break;
         }
 
         if (info_header->id < 0 || info_header->id >= info_count) {
+            break;
+        }
+
+        // The entry is the header, then the destination ids and three more words, the size
+        // SplitterInfo::Update consumes.
+        const u64 ids_size{3 * sizeof(s32) + u64{info_header->destination_count} * sizeof(u32)};
+        if (!Fits(input, offset + sizeof(SplitterInfo::InParameter), ids_size)) {
             break;
         }
 
@@ -139,15 +156,24 @@ u32 SplitterContext::UpdateInfo(const u8* input, u32 offset, const u32 splitter_
     return offset;
 }
 
-u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
+u32 SplitterContext::UpdateData(std::span<const u8> input, u32 offset, const u32 count) {
+    const size_t entry_size{!splitter_biquad_param_supported
+                                ? sizeof(SplitterDestinationData::InParameter)
+                            : !splitter_float_coeff_supported
+                                ? sizeof(SplitterDestinationData::InParameterVersion2a)
+                                : sizeof(SplitterDestinationData::InParameterVersion2b)};
     for (u32 i = 0; i < count; i++) {
+        if (!Fits(input, offset, entry_size)) {
+            break;
+        }
         // Version selection based on feature flags:
         // - REV12: integer biquad params (Version2a)
         // - REV15: float coeff/biquad v2b
         // - older: no biquad fields
         if (!splitter_biquad_param_supported) {
             const auto* data_header =
-                reinterpret_cast<const SplitterDestinationData::InParameter*>(input + offset);
+                reinterpret_cast<const SplitterDestinationData::InParameter*>(input.data() +
+                                                                             offset);
 
             if (data_header->magic != GetSplitterSendDataMagic()) {
                 break;
@@ -167,8 +193,8 @@ u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
         } else if (!splitter_float_coeff_supported) {
             // Version 2a: struct contains legacy fixed-point biquad filter fields (REV12+)
             const auto* data_header_v2a =
-                reinterpret_cast<const SplitterDestinationData::InParameterVersion2a*>(input +
-                                                                                       offset);
+                reinterpret_cast<const SplitterDestinationData::InParameterVersion2a*>(
+                    input.data() + offset);
 
             if (data_header_v2a->magic != GetSplitterSendDataMagic()) {
                 break;
@@ -210,8 +236,8 @@ u32 SplitterContext::UpdateData(const u8* input, u32 offset, const u32 count) {
         } else {
             // Version 2b: struct contains extra biquad filter fields with float coeffs
             const auto* data_header_v2b =
-                reinterpret_cast<const SplitterDestinationData::InParameterVersion2b*>(input +
-                                                                                       offset);
+                reinterpret_cast<const SplitterDestinationData::InParameterVersion2b*>(
+                    input.data() + offset);
 
             if (data_header_v2b->magic != GetSplitterSendDataMagic()) {
                 break;
@@ -274,6 +300,11 @@ void SplitterContext::RecomposeDestination(SplitterInfo& out_info,
     }
 
     std::span<const u32> destination_ids{reinterpret_cast<const u32*>(&info_header[1]), dest_count};
+    for (const u32 destination_id : destination_ids) {
+        if (destination_id >= static_cast<u32>(destinations_count)) {
+            return;
+        }
+    }
 
     auto head{&splitter_destinations[destination_ids[0]]};
     auto current_destination{head};

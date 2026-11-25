@@ -204,9 +204,10 @@ public:
     virtual std::vector<s16> ReleaseBuffer(u64 num_samples);
 
     /**
-     * Empty out the buffer queue.
+     * Empty out the buffer queue. A stream whose buffers are consumed by its own thread
+     * waits for it here.
      */
-    void ClearQueue();
+    virtual void ClearQueue();
 
     /**
      * Callback for AudioIn.

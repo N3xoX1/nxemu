@@ -108,6 +108,10 @@ Result System::Initialize(const AudioRendererParameterInternal& params,
     if (!CheckValidRevision(params.revision)) {
         return Service::Audio::ResultInvalidRevision;
     }
+    if (GetRevisionNum(params.revision) > CurrentRevision) {
+        LOG_WARNING(Service_Audio, "Audio renderer revision {} runs with revision {} features",
+                    GetRevisionNum(params.revision), CurrentRevision);
+    }
 
     if (GetWorkBufferSize(params) > transfer_memory_size) {
         return Service::Audio::ResultInsufficientBuffer;

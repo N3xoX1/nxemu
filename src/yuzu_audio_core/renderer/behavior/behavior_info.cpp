@@ -25,12 +25,18 @@ u32 BehaviorInfo::GetUserRevisionNum() const {
 }
 
 u32 BehaviorInfo::GetUserRevision() const {
-    return Common::MakeMagic('R', 'E', 'V',
-                             static_cast<char>(static_cast<u8>('0') + user_revision));
+    return user_revision_tag;
 }
 
 void BehaviorInfo::SetUserLibRevision(const u32 user_revision_) {
     user_revision = GetRevisionNum(user_revision_);
+    // Keep the tag the caller opened with, as its updates must carry the same one: Switch 2
+    // callers use REv rather than REV.
+    user_revision_tag = user_revision_ >= 0x100
+                            ? user_revision_
+                            : Common::MakeMagic('R', 'E', 'V',
+                                                static_cast<char>(static_cast<u8>('0') +
+                                                                  user_revision));
 }
 
 void BehaviorInfo::ClearError() {
