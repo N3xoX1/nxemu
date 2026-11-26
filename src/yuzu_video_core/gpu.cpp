@@ -1066,6 +1066,11 @@ void GPU::InvalidateRegion(DAddr addr, uint64_t size)
     impl->InvalidateRegion(addr, size);
 }
 
+uint64_t GPU::InvalidateRegionAhead(DAddr addr, uint64_t size)
+{
+    return impl->rasterizer != nullptr ? impl->rasterizer->OnCacheInvalidationAhead(addr, size) : 0;
+}
+
 bool GPU::OnCPUWrite(DAddr addr, uint64_t size)
 {
     return impl->OnCPUWrite(addr, size);

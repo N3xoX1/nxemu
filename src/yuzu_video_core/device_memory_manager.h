@@ -86,6 +86,18 @@ public:
         ApplyOpOnPAddr(address, buffer, operation);
     }
 
+    // Returns true iff host pointer `p` maps to a single device address equal to `expected_daddr`
+    // (no second aliased device mapping on the same guest page).
+    [[nodiscard]] bool HasSingleDeviceMapping(const u8* p, DAddr expected_daddr) const {
+        const PAddr address = GetRawPhysicalAddr<u8>(p);
+        const DAddr subbits = static_cast<DAddr>(address & page_mask);
+        const u32 base = compressed_device_addr[(address >> page_bits)];
+        if ((base >> MULTI_FLAG_BITS) != 0) {
+            return false;
+        }
+        return ((static_cast<DAddr>(base) << page_bits) + subbits) == expected_daddr;
+    }
+
     PAddr GetPhysicalRawAddressFromDAddr(DAddr address) const {
         PAddr subbits = static_cast<PAddr>(address & page_mask);
         auto paddr = compressed_physical_ptr[(address >> page_bits)];

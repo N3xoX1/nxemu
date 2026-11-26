@@ -419,6 +419,27 @@ foreach(_part engine runtime)
     nxemu_unit_test(test_conditional_${_part})
 endforeach()
 
+# NCE write fault coalescing: production write streams and BufferCache::WriteMemoryAhead
+# against a page model
+set(_nce_write_streams_generated "${CMAKE_CURRENT_BINARY_DIR}/nce_write_streams")
+add_custom_command(
+    OUTPUT "${_nce_write_streams_generated}/write_memory_ahead.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/nce_write_streams/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_nce_write_streams_generated}"
+    DEPENDS nce_write_streams/extract.py
+        "${CMAKE_SOURCE_DIR}/src/yuzu_video_core/buffer_cache/buffer_cache.h"
+    VERBATIM)
+add_executable(test_nce_write_streams nce_write_streams/streams.cpp
+    "${_nce_write_streams_generated}/write_memory_ahead.inc")
+target_include_directories(test_nce_write_streams PRIVATE "${_nce_write_streams_generated}"
+    "${CMAKE_SOURCE_DIR}/src")
+if(NOT MSVC)
+    target_compile_options(test_nce_write_streams PRIVATE
+        -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(test_nce_write_streams PRIVATE -fsanitize=address,undefined)
+endif()
+nxemu_unit_test(test_nce_write_streams LINUX)
+
 option(NXEMU_BUILD_VTG_GPU_TESTS "Build the manual headless Vulkan test of indirect draws running as compute" OFF)
 if(NXEMU_BUILD_VTG_GPU_TESTS)
     add_executable(test_vtg_indirect_gpu vtg_indirect/vtg_indirect_gpu.cpp

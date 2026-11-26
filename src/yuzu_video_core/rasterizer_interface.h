@@ -197,6 +197,13 @@ public:
         OnCacheInvalidation(addr, size);
     }
 
+    /// The CPU will likely write the range next, but has not yet. Only the buffer cache drops
+    /// its copy, from the start of the range up to the first page the GPU wrote: other caches
+    /// keep their pages protected and see the real write. Returns the bytes invalidated.
+    virtual u64 OnCacheInvalidationAhead(PAddr addr, u64 size) {
+        return 0;
+    }
+
     virtual bool OnCPUWrite(PAddr addr, u64 size) = 0;
 
     /// The guest may have written memory it ordered before this point, without reporting it

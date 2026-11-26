@@ -39,6 +39,7 @@
 #include "core/hle/kernel/k_page_table.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/memory.h"
+#include "core/nce_write_streams.h"
 #include "core/nce_written_ranges.h"
 #include <nxemu-module-spec/video.h>
 
@@ -1819,6 +1820,26 @@ struct Memory::Impl {
         system.GetVideo().InvalidateMemory(p, size);
     }
 
+    uint64_t InvalidateNceGPUMemory(u8 * p, size_t size, size_t max_coalesce_size)
+    {
+        constexpr size_t sys_core = Hardware::NUM_CPU_CORES - 1;
+        const size_t core = std::min(system.GetCurrentHostThreadID(), sys_core);
+
+        if (core == sys_core) [[unlikely]]
+        {
+            sys_core_guard.lock();
+        }
+        SCOPE_EXIT
+        {
+            if (core == sys_core) [[unlikely]]
+            {
+                sys_core_guard.unlock();
+            }
+        };
+
+        return system.GetVideo().InvalidateNceMemory(p, size, max_coalesce_size);
+    }
+
     Core::System& system;
     Common::PageTable* current_page_table = nullptr;
     std::array<RasterizerDownloadArea, Hardware::NUM_CPU_CORES> rasterizer_read_areas{};
@@ -2141,7 +2162,52 @@ bool Memory::InvalidateNCE(Common::ProcessAddress vaddr, size_t size) {
         },
         [&] { rasterizer = true; });
     if (rasterizer) {
+#if defined(__linux__)
+        // On Linux/Android NCE, sequential CPU writes to dynamic GPU-cached buffers fault
+        // page-by-page via SIGSEGV. Escalate the unprotect window (16 KiB -> 64 KiB) across
+        // contiguous RasterizerCachedMemory pages to cut SIGSEGV/mprotect churn. Only the buffer
+        // cache drops these pages: other caches keep them protected.
+        constinit thread_local Core::NceWriteStreams<> nce_streams{};
+        const u64 page_addr = vaddr.GetValue();
+        const auto fault = nce_streams.Begin(page_addr);
+        // A read-cached page faults on reads too: that says nothing about the next writes
+        const bool write_fault_only = !impl->IsReadCachedPage(page_addr >> YUZU_PAGEBITS);
+        const u64 window_pages =
+            size == YUZU_PAGESIZE && write_fault_only ? fault.window_pages : 1;
+        size_t max_coalesce = size;
+        for (u64 p = 1; p < window_pages; ++p) {
+            const u64 next_vaddr = page_addr + p * YUZU_PAGESIZE;
+            if (!AddressSpaceContains(*impl->current_page_table, next_vaddr, YUZU_PAGESIZE)) {
+                break;
+            }
+            const u64 next_idx = next_vaddr >> YUZU_PAGEBITS;
+            if (impl->current_page_table->pointers[next_idx].Type() != Common::PageType::RasterizerCachedMemory ||
+                impl->IsReadCachedPage(next_idx)) {
+                break;
+            }
+            bool next_mapped = true;
+            u8* const next_ptr = impl->GetPointerImpl(next_vaddr, [&] { next_mapped = false; }, [] {});
+            if (!next_mapped || next_ptr != ptr + p * YUZU_PAGESIZE) {
+                break;
+            }
+            max_coalesce += YUZU_PAGESIZE;
+        }
+        const uint64_t invalidated = impl->InvalidateNceGPUMemory(ptr, size, max_coalesce);
+        // A page another cache holds stays protected among the invalidated ones, and pages
+        // already writable after them do not fault: expect the next fault at the first page
+        // still protected, so neither case restarts the stream
+        const u64 scan_end =
+            page_addr + invalidated + Core::NceWriteStreams<>::MaxWritablePages * YUZU_PAGESIZE;
+        const u64 next_page =
+            Core::NextProtectedPage(page_addr + size, scan_end, YUZU_PAGESIZE, [&](u64 page) {
+                return !AddressSpaceContains(*impl->current_page_table, page, YUZU_PAGESIZE) ||
+                       impl->current_page_table->pointers[page >> YUZU_PAGEBITS].Type() ==
+                           Common::PageType::RasterizerCachedMemory;
+            });
+        nce_streams.End(fault, next_page);
+#else
         impl->InvalidateGPUMemory(ptr, size);
+#endif
     }
 
 #ifdef __linux__
