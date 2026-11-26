@@ -105,6 +105,7 @@ struct OSSettings
     u8 mouse_panning_min_decay;
     bool emulate_analog_keyboard;
     bool keyboard_enabled;
+    bool global_keyboard_enabled;
     bool debug_pad_enabled;
     ButtonsRaw debug_pad_buttons;
     AnalogsRaw debug_pad_analogs;

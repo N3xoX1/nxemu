@@ -491,6 +491,7 @@ static OsSetting settings[] = {
 
         {NXOsSetting::SystemVibrationEnabled, "controller\\vibration_enabled", &osSettings.global_vibration_enabled, true},
         {NXOsSetting::SystemEnableAccurateVibrations, "controller\\enable_accurate_vibrations", &osSettings.global_enable_accurate_vibrations, false},
+        {NXOsSetting::SystemKeyboardEnabled, "controller\\keyboard_enabled", &osSettings.global_keyboard_enabled, false},
         {NXOsSetting::AudioSinkId, "audio\\sink_id", &osSettings.sink_id, AudioCore::Sink::AudioEngine::Auto},
         {NXOsSetting::AudioOutputDeviceId, "audio\\output_device_id", &osSettings.audio_output_device_id, "auto"},
         {NXOsSetting::AudioInputDeviceId, "audio\\input_device_id", &osSettings.audio_input_device_id, "auto"},
@@ -538,6 +539,7 @@ static OsSetting settings[] = {
         {NXOsSetting::GameCpuHleSynchronization, "system\\cpu_hle_synchronization", &osSettings.cpu_hle_synchronization, NXOsSetting::SystemCpuHleSynchronization},
         {NXOsSetting::GameVibrationEnabled, "controller\\vibration_enabled", &osSettings.vibration_enabled, NXOsSetting::SystemVibrationEnabled},
         {NXOsSetting::GameEnableAccurateVibrations, "controller\\enable_accurate_vibrations", &osSettings.enable_accurate_vibrations, NXOsSetting::SystemEnableAccurateVibrations},
+        {NXOsSetting::GameKeyboardEnabled, "controller\\keyboard_enabled", &osSettings.keyboard_enabled, NXOsSetting::SystemKeyboardEnabled},
     };
 
 void ApplyRangedInt(OsSetting & osSetting, int32_t value)

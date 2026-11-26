@@ -25,6 +25,7 @@ namespace NXOsSetting
     constexpr const char * GameCpuHleSynchronization = "nxos:GameCpuHleSynchronization";
     constexpr const char * GameVibrationEnabled = "nxos:GameVibrationEnabled";
     constexpr const char * GameEnableAccurateVibrations = "nxos:GameEnableAccurateVibrations";
+    constexpr const char * GameKeyboardEnabled = "nxos:GameKeyboardEnabled";
     constexpr const char * CurrentUser = "nxos:CurrentUser";
     constexpr const char * RngSeedEnabled = "nxos:RngSeedEnabled";
     constexpr const char * RngSeed = "nxos:RngSeed";
@@ -32,6 +33,7 @@ namespace NXOsSetting
     constexpr const char * CustomRtcOffset = "nxos:CustomRtcOffset";
     constexpr const char * SystemVibrationEnabled = "nxos:SystemVibrationEnabled";
     constexpr const char * SystemEnableAccurateVibrations = "nxos:SystemEnableAccurateVibrations";
+    constexpr const char * SystemKeyboardEnabled = "nxos:SystemKeyboardEnabled";
     constexpr const char * Player0VibrationEnabled = "nxos:Player0VibrationEnabled";
     constexpr const char * Player0VibrationStrength = "nxos:Player0VibrationStrength";
     constexpr const char * Player1VibrationEnabled = "nxos:Player1VibrationEnabled";

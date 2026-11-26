@@ -229,6 +229,11 @@ void EmulatedDevices::UpdateKey(std::size_t key_index, bool status) {
     }
 }
 
+static bool EitherPressed(const KeyboardModifierValues& values, ::KeyboardModifier left,
+                          ::KeyboardModifier right) {
+    return values[(std::size_t)left].value || values[(std::size_t)right].value;
+}
+
 void EmulatedDevices::SetKeyboardModifier(const Common::Input::CallbackStatus& callback,
                                           std::size_t index) {
     if (index >= device_status.keyboard_moddifier_values.size()) {
@@ -274,11 +279,15 @@ void EmulatedDevices::SetKeyboardModifier(const Common::Input::CallbackStatus& c
     switch ((::KeyboardModifier)index) {
     case ::KeyboardModifier::LeftControl:
     case ::KeyboardModifier::RightControl:
-        device_status.keyboard_moddifier_state.control.Assign(current_status.value);
+        device_status.keyboard_moddifier_state.control.Assign(
+            EitherPressed(device_status.keyboard_moddifier_values, ::KeyboardModifier::LeftControl,
+                          ::KeyboardModifier::RightControl));
         break;
     case ::KeyboardModifier::LeftShift:
     case ::KeyboardModifier::RightShift:
-        device_status.keyboard_moddifier_state.shift.Assign(current_status.value);
+        device_status.keyboard_moddifier_state.shift.Assign(
+            EitherPressed(device_status.keyboard_moddifier_values, ::KeyboardModifier::LeftShift,
+                          ::KeyboardModifier::RightShift));
         break;
     case ::KeyboardModifier::LeftAlt:
         device_status.keyboard_moddifier_state.left_alt.Assign(current_status.value);
@@ -288,7 +297,9 @@ void EmulatedDevices::SetKeyboardModifier(const Common::Input::CallbackStatus& c
         break;
     case ::KeyboardModifier::LeftMeta:
     case ::KeyboardModifier::RightMeta:
-        device_status.keyboard_moddifier_state.gui.Assign(current_status.value);
+        device_status.keyboard_moddifier_state.gui.Assign(
+            EitherPressed(device_status.keyboard_moddifier_values, ::KeyboardModifier::LeftMeta,
+                          ::KeyboardModifier::RightMeta));
         break;
     case ::KeyboardModifier::CapsLock:
         device_status.keyboard_moddifier_state.caps_lock.Assign(current_status.value);

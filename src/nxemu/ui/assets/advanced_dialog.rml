@@ -292,6 +292,15 @@
                       <div class="switch-knob" />
                     </div>
                   </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Direct keyboard access</div>
+                      <div class="row-text">Games and mods that read a keyboard see your keys.</div>
+                    </div>
+                    <div id="direct-keyboard" class="switch" data-command="toggle:direct-keyboard">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

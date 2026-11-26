@@ -86,6 +86,7 @@ constexpr Toggle kToggles[] = {
     {"cpu-hle", NXOsSetting::SystemCpuHleSynchronization, Store::Module, false},
     {"vibration", NXOsSetting::SystemVibrationEnabled, Store::Module, true},
     {"accurate-vibration", NXOsSetting::SystemEnableAccurateVibrations, Store::Module, true},
+    {"direct-keyboard", NXOsSetting::SystemKeyboardEnabled, Store::Module, true},
     {"start-fullscreen", NXUISetting::StartGamesInFullscreen, Store::Interface, true},
     {"start-ui-hidden", NXUISetting::StartGamesWithUiHidden, Store::Interface, true},
     {"confirm-stop", NXUISetting::ConfirmBeforeStopping, Store::Interface, true},
