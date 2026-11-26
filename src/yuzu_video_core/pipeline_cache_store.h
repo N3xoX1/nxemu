@@ -11,7 +11,7 @@
 namespace VideoCommon::CacheStore {
 // The shader ABI of the Vulkan renderer's local store: the renderer writes it and profile export reads it.
 // Global-memory helper changes require a new one.
-inline constexpr u32 VulkanShaderAbi = 29;
+inline constexpr u32 VulkanShaderAbi = 30;
 // Local cache only: code, environments and pipeline combinations have separate identities.
 // All lengths are explicit little endian; shader ABI is independent of the storage revision.
 struct Record {

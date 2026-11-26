@@ -55,9 +55,9 @@ static std::map<std::string, u32> Layout(bool molten, u32 used_size, bool global
 // Ace Combat's indirect parameter reads target a tracked descriptor at c0[0x290],
 // outside the compute NVN table (0x310). These helpers used to return only zero.
 static void GlobalMemoryLoads(bool aliasing, bool molten,
-                              Shader::Stage stage = Shader::Stage::Compute) {
+                              Shader::Stage stage = Shader::Stage::Compute, bool int64 = true) {
     Shader::Profile profile{};
-    profile.support_int64 = true;
+    profile.support_int64 = int64;
     profile.support_descriptor_aliasing = aliasing;
     profile.disable_uniform_buffer_descriptor_aliasing = molten;
     profile.avoid_global_memory_helper_inlining = molten;
@@ -80,6 +80,8 @@ static void GlobalMemoryLoads(bool aliasing, bool molten,
     const auto words = context.Assemble();
     std::map<u32, unsigned> loads;
     std::map<u32, u32> function_controls;
+    std::map<u32, u32> address_types;
+    bool declares_int64 = false;
     u32 function = 0;
     for (size_t i = 5; i < words.size();) {
         const auto count = words[i] >> 16;
@@ -89,6 +91,13 @@ static void GlobalMemoryLoads(bool aliasing, bool molten,
             function = words[i + 2];
             function_controls[function] = words[i + 3];
         }
+        if (op == spv::Op::OpFunctionParameter && !address_types.contains(function)) {
+            address_types[function] = words[i + 1];
+        }
+        if (op == spv::Op::OpCapability && words[i + 1] == u32(spv::Capability::Int64)) {
+            declares_int64 = true;
+        }
+        if (op == spv::Op::OpTypeInt && words[i + 2] == 64) declares_int64 = true;
         if (op == spv::Op::OpLoad) ++loads[function];
         if (op == spv::Op::OpFunctionEnd) function = 0;
         i += count;
@@ -97,6 +106,13 @@ static void GlobalMemoryLoads(bool aliasing, bool molten,
     assert(loads[context.load_global_func_u32.value] >= 3);
     assert(loads[context.load_global_func_u32x2.value] >= 3);
     assert(loads[context.load_global_func_u32x4.value] >= 3);
+    if (!int64) {
+        assert(!declares_int64);
+        for (const auto function : {context.load_global_func_u32, context.load_global_func_u32x2,
+                                    context.load_global_func_u32x4}) {
+            assert(address_types.at(function.value) == context.U32[2].value);
+        }
+    }
     // Graphics shaders keep inlined helpers: DontInline there made TOTK's Link flicker.
     const bool dont_inline = molten && stage == Shader::Stage::Compute;
     for (const auto function : {context.load_global_func_u32, context.load_global_func_u32x2,
@@ -223,5 +239,7 @@ int main() {
     GlobalMemoryLoads(false, false);
     GlobalMemoryLoads(true, true);
     GlobalMemoryLoads(true, true, Shader::Stage::Fragment);
+    GlobalMemoryLoads(true, false, Shader::Stage::Compute, false);
+    GlobalMemoryLoads(false, false, Shader::Stage::Fragment, false);
     std::puts("PASS: SPIR-V constant-buffer layouts and non-NVN global-memory loads");
 }

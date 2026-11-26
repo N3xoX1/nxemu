@@ -53,11 +53,7 @@ std::pair<Id, Id> AtomicArgs(EmitContext& ctx) {
 }
 
 Id GlobalAtomicU32(EmitContext& ctx, Id func, Id address, Id value) {
-    if (ctx.profile.support_int64) {
-        return ctx.OpFunctionCall(ctx.U32[1], func, address, value);
-    }
-    LOG_WARNING(Shader_SPIRV, "Int64 not supported, ignoring memory operation");
-    return ctx.u32_zero_value;
+    return ctx.OpFunctionCall(ctx.U32[1], func, address, value);
 }
 
 Id SharedAtomicU32(EmitContext& ctx, Id offset, Id value,
