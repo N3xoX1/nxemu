@@ -130,7 +130,7 @@ uint32_t InvertToSkipNext(uint32_t w)
 }
 
 // Why the host cannot run this word from a cave with native code execution, or nullptr. The native code patcher
-// rewrites these in .text (nxemu-cpu nce/patcher.cpp), and in a cave only svc, when svc_rewritten.
+// rewrites these in .text (nxemu-cpu nce/patcher.cpp); a cave is not in .text.
 const char * NativeCodeProblem(uint32_t w, bool svc_rewritten)
 {
     constexpr uint32_t MaxSvcId = 0x7F;

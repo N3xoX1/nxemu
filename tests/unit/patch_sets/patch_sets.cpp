@@ -295,7 +295,6 @@ void NativeCode()
         Check(!Make(std::string("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 200 d503201f 91000400 ") + word + "\n", true, true).Empty(),
               std::string("cave word ") + word + " runs from a cave with native code execution");
     }
-    // When the patcher rewrites the caves' svc words, Horizon's svc runs from a cave; other exceptions still do not
     const auto with_rewritten_svc = [](const char * word) {
         return PatchSets({File(std::string("@nsobid-ab12\nset s ENV_UNUSED 1\nsite s main 200 d503201f 91000400 ") + word + "\n")},
                          "AB12", "main", {.page_written = true, .native_code = true, .native_svc = true, .cave_alignment = 0x4000U});

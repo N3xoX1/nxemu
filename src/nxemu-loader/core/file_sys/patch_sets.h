@@ -35,10 +35,9 @@ namespace FileSys {
 // Without a writer (page_written) the loader leaves out sets that read it. The cave pages follow it in the
 // same read-write region: Horizon's rtld takes every executable region for a module. With native code execution the
 // host runs the caves, so they start on a host page (cave_alignment) after that region, unmapped for the guest and
-// executable for the host, as the native code patcher's section is. The patcher rewrites only a cave's svc words
-// (native_svc), so a set is left out when a cave word is another exception, a system instruction or register other
-// than a hint, a barrier, NZCV, FPCR or FPSR, or an exclusive: wider than what the patcher rewrites in .text, to stay
-// on the safe side.
+// executable for the host, as the native code patcher's section is. The patcher rewrites only a cave's svc words,
+// so a set is left out when a cave word is another exception, a system instruction or register other than a hint,
+// a barrier, NZCV, FPCR or FPSR, or an exclusive: wider than what the patcher rewrites, to stay on the safe side.
 //
 // A set is applied whole or not at all: it is left out when a site does not hold its original instruction (another
 // game version, an IPS or IPSwitch patch changed it), when an earlier set already patched one of its sites, or when
@@ -61,7 +60,7 @@ public:
         bool page_written{};
         // The host runs the caves (native code execution): leave out sets with a cave word it cannot run there
         bool native_code{};
-        // The native code patcher rewrites the caves' svc words (Horizon's, 0 to 0x7F) as it does those of .text
+        // The native code patcher rewrites the caves' svc words
         bool native_svc{};
         // The caves start, and end, on this boundary after the patch page: the host page with native code execution
         uint32_t cave_alignment{PageSize};

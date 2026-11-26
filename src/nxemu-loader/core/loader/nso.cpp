@@ -204,8 +204,7 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
     if (pm)
     {
         const std::string build_id_raw = Common::HexToString(nso_header.build_id);
-        // The native code patcher rewrites the caves' svc words when its section follows the module. Past its 128 MiB
-        // branch range the section goes before the module, out of the caves' reach (nxemu-cpu nce/patcher.cpp).
+        // Past its branch range the native code patcher puts its section before the module, out of the caves' reach
         constexpr u32 NativeCodeBranchRange = 128 * 1024 * 1024;
         const bool caves_reach_patch_section = static_cast<u64>(image_size - module_start) + FileSys::PatchSets::MaxCaveBytes +
                                                    2 * NativeCodePageSize <= NativeCodeBranchRange;

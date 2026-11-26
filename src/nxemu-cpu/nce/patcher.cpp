@@ -320,8 +320,7 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
                  skipped_svcs, skipped_exclusives);
     }
 
-    // Determine patching mode for the final relocation step. nxemu-loader nso.cpp lets patch set caves hold svc
-    // only while this rule puts the section after the module, in branch range of them.
+    // The loader allows svc in patch set caves only while this puts the section after the module
     total_program_size += image_size;
     this->mode = image_size > MaxRelativeBranch ? PatchMode::PreText : PatchMode::PostData;
     return true;
