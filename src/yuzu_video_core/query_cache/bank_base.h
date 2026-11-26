@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <deque>
 #include <utility>
@@ -80,16 +81,20 @@ public:
     template <typename Func>
     size_t ReserveBank(Func&& builder) {
         if (!bank_indices.empty() && bank_pool[bank_indices.front()].IsDead()) {
-            size_t new_index = bank_indices.front();
-            bank_indices.pop_front();
-            bank_pool[new_index].Reset();
-            bank_indices.push_back(new_index);
-            return new_index;
+            return Recycle(bank_indices.begin());
         }
-        size_t new_index = bank_pool.size();
-        builder(bank_pool, new_index);
-        bank_indices.push_back(new_index);
-        return new_index;
+        return Build(builder);
+    }
+
+    // Only for single slot queries: sample queries span banks in reservation order
+    template <typename Func>
+    size_t ReserveAnyDeadBank(Func&& builder) {
+        const auto dead = std::ranges::find_if(
+            bank_indices, [this](size_t index) { return bank_pool[index].IsDead(); });
+        if (dead != bank_indices.end()) {
+            return Recycle(dead);
+        }
+        return Build(builder);
     }
 
     // Get a reference to a bank using its index
@@ -100,6 +105,23 @@ public:
     // Get the total number of banks in the pool
     size_t BankCount() const {
         return bank_pool.size();
+    }
+
+private:
+    size_t Recycle(std::deque<size_t>::iterator dead) {
+        const size_t index = *dead;
+        bank_indices.erase(dead);
+        bank_pool[index].Reset();
+        bank_indices.push_back(index);
+        return index;
+    }
+
+    template <typename Func>
+    size_t Build(Func&& builder) {
+        const size_t index = bank_pool.size();
+        builder(bank_pool, index);
+        bank_indices.push_back(index);
+        return index;
     }
 };
 

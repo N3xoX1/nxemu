@@ -674,7 +674,8 @@ public:
             .pNext = nullptr,
             .flags = 0,
             .size = QUERY_SIZE * BANK_SIZE,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                     VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT,
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
             .queueFamilyIndexCount = 0,
             .pQueueFamilyIndices = nullptr,
@@ -719,6 +720,8 @@ private:
 class PrimitivesSucceededStreamer;
 
 class TFBCounterStreamer : public BaseStreamer {
+    static constexpr size_t NUM_STREAMS = 4;
+
 public:
     explicit TFBCounterStreamer(size_t id_, QueryCacheRuntime& runtime_, const Device& device_,
                                 Scheduler& scheduler_, const MemoryAllocator& memory_allocator_,
@@ -839,8 +842,15 @@ public:
             new_query->flags |= VideoCommon::QueryFlagBits::IsFinalValueSynced;
             return index;
         }
-        CloseCounter();
-        auto [bank_slot, data_slot] = ProduceCounterBuffer(subreport);
+        std::pair<size_t, size_t> counter;
+        if (has_flushed_end_pending && subreport < buffers_count) {
+            counter = EndCaptureIntoSlot(subreport);
+        } else {
+            CloseCounter();
+            counter = resume_banks[subreport] != NO_BANK ? ShareResumeSlot(subreport)
+                                                         : ProduceCounterBuffer(subreport);
+        }
+        const auto [bank_slot, data_slot] = counter;
         new_query->start_bank_id = static_cast<u32>(bank_slot);
         new_query->size_banks = 1;
         new_query->start_slot = static_cast<u32>(data_slot);
@@ -870,6 +880,11 @@ public:
         CloseCounter();
         auto staging_ref = staging_pool.Request(
             pending_flush_queries.size() * TFBQueryBank::QUERY_SIZE, MemoryUsage::Download, true);
+        scheduler.RequestOutsideRenderPassOperationContext();
+        scheduler.Record([](vk::CommandBuffer cmdbuf) {
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT,
+                                   VK_PIPELINE_STAGE_TRANSFER_BIT, 0, COUNTER_READ_BARRIER);
+        });
         size_t offset_base = staging_ref.offset;
         for (auto q : pending_flush_queries) {
             auto* query = GetQuery(q);
@@ -939,13 +954,30 @@ private:
             UpdateBuffers();
             return;
         }
-        scheduler.Record([this, total = static_cast<u32>(buffers_count)](vk::CommandBuffer cmdbuf) {
-            cmdbuf.BeginTransformFeedbackEXT(0, total, counter_buffers.data(), offsets.data());
+        auto buffers = counter_buffers;
+        auto buffer_offsets = offsets;
+        for (size_t stream = 0; stream < NUM_STREAMS; ++stream) {
+            if (resume_banks[stream] != NO_BANK) {
+                buffers[stream] = bank_pool.GetBank(resume_banks[stream]).GetBuffer();
+                buffer_offsets[stream] = resume_slots[stream] * TFBQueryBank::QUERY_SIZE;
+            }
+        }
+        scheduler.Record([buffers, buffer_offsets,
+                          total = static_cast<u32>(buffers_count)](vk::CommandBuffer cmdbuf) {
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT,
+                                   VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT, 0,
+                                   RESUME_BARRIER);
+            cmdbuf.BeginTransformFeedbackEXT(0, total, buffers.data(), buffer_offsets.data());
         });
         UpdateBuffers();
     }
 
     void FlushEndTFB() {
+        FlushEndTFB(counter_buffers, offsets);
+    }
+
+    void FlushEndTFB(const std::array<VkBuffer, NUM_STREAMS>& buffers,
+                     const std::array<VkDeviceSize, NUM_STREAMS>& buffer_offsets) {
         if (!has_flushed_end_pending) [[unlikely]] {
             UNREACHABLE();
             return;
@@ -957,11 +989,44 @@ private:
                 cmdbuf.EndTransformFeedbackEXT(0, 0, nullptr, nullptr);
             });
         } else {
-            scheduler.Record([this,
+            scheduler.Record([buffers, buffer_offsets,
                               total = static_cast<u32>(buffers_count)](vk::CommandBuffer cmdbuf) {
-                cmdbuf.EndTransformFeedbackEXT(0, total, counter_buffers.data(), offsets.data());
+                cmdbuf.EndTransformFeedbackEXT(0, total, buffers.data(), buffer_offsets.data());
             });
+            scheduler.MarkTransformFeedbackCountersWritten();
         }
+        for (size_t stream = 0; stream < buffers_count; ++stream) {
+            ForgetResumeSlot(stream);
+        }
+    }
+
+    // Not a copy: Vulkan copies only outside a render pass
+    std::pair<size_t, size_t> EndCaptureIntoSlot(size_t stream) {
+        const auto [bank_id, slot] = ReserveSlot();
+        auto& bank = bank_pool.GetBank(bank_id);
+        auto buffers = counter_buffers;
+        auto buffer_offsets = offsets;
+        buffers[stream] = bank.GetBuffer();
+        buffer_offsets[stream] = slot * TFBQueryBank::QUERY_SIZE;
+        FlushEndTFB(buffers, buffer_offsets);
+        CloseCounter();
+        bank.AddReference();
+        resume_banks[stream] = bank_id;
+        resume_slots[stream] = slot;
+        return {bank_id, slot};
+    }
+
+    std::pair<size_t, size_t> ShareResumeSlot(size_t stream) {
+        bank_pool.GetBank(resume_banks[stream]).AddReference();
+        return {resume_banks[stream], resume_slots[stream]};
+    }
+
+    void ForgetResumeSlot(size_t stream) {
+        if (resume_banks[stream] == NO_BANK) {
+            return;
+        }
+        bank_pool.GetBank(resume_banks[stream]).CloseReference();
+        resume_banks[stream] = NO_BANK;
     }
 
     void UpdateBuffers() {
@@ -983,24 +1048,22 @@ private:
         });
     }
 
-    std::pair<size_t, size_t> ProduceCounterBuffer(size_t stream) {
+    std::pair<size_t, size_t> ReserveSlot() {
         if (current_bank == nullptr || current_bank->IsClosed()) {
             current_bank_id =
-                bank_pool.ReserveBank([this](std::deque<TFBQueryBank>& queue, size_t index) {
+                bank_pool.ReserveAnyDeadBank([this](std::deque<TFBQueryBank>& queue, size_t index) {
                     queue.emplace_back(scheduler, memory_allocator, index);
                 });
             current_bank = &bank_pool.GetBank(current_bank_id);
         }
-        auto [dont_care, other] = current_bank->Reserve();
-        const size_t slot = other; // workaround to compile bug.
+        const size_t slot = current_bank->Reserve().second;
         current_bank->AddReference();
+        return {current_bank_id, slot};
+    }
 
-        static constexpr VkMemoryBarrier READ_BARRIER{
-            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-            .pNext = nullptr,
-            .srcAccessMask = VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT,
-            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-        };
+    std::pair<size_t, size_t> ProduceCounterBuffer(size_t stream) {
+        const auto [bank_id, slot] = ReserveSlot();
+
         static constexpr VkMemoryBarrier WRITE_BARRIER{
             .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
             .pNext = nullptr,
@@ -1008,11 +1071,11 @@ private:
             .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
         };
         scheduler.RequestOutsideRenderPassOperationContext();
-        scheduler.Record([dst_buffer = current_bank->GetBuffer(),
+        scheduler.Record([dst_buffer = bank_pool.GetBank(bank_id).GetBuffer(),
                           src_buffer = counter_buffers[stream], src_offset = offsets[stream],
                           slot](vk::CommandBuffer cmdbuf) {
             cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT,
-                                   VK_PIPELINE_STAGE_TRANSFER_BIT, 0, READ_BARRIER);
+                                   VK_PIPELINE_STAGE_TRANSFER_BIT, 0, COUNTER_READ_BARRIER);
             std::array<VkBufferCopy, 1> copy{VkBufferCopy{
                 .srcOffset = src_offset,
                 .dstOffset = slot * TFBQueryBank::QUERY_SIZE,
@@ -1022,12 +1085,24 @@ private:
             cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                    0, WRITE_BARRIER);
         });
-        return {current_bank_id, slot};
+        return {bank_id, slot};
     }
 
     friend class PrimitivesSucceededStreamer;
 
-    static constexpr size_t NUM_STREAMS = 4;
+    static constexpr size_t NO_BANK = std::numeric_limits<size_t>::max();
+    static constexpr VkMemoryBarrier COUNTER_READ_BARRIER{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT,
+        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+    };
+    static constexpr VkMemoryBarrier RESUME_BARRIER{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT,
+        .dstAccessMask = VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT,
+    };
 
     QueryCacheRuntime& runtime;
     const Device& device;
@@ -1056,6 +1131,8 @@ private:
     size_t buffers_count{};
     std::array<VkBuffer, NUM_STREAMS> counter_buffers{};
     std::array<VkDeviceSize, NUM_STREAMS> offsets{};
+    std::array<size_t, NUM_STREAMS> resume_banks{NO_BANK, NO_BANK, NO_BANK, NO_BANK};
+    std::array<size_t, NUM_STREAMS> resume_slots{};
     std::array<DAddr, NUM_STREAMS> last_queries;
     std::array<size_t, NUM_STREAMS> last_queries_stride;
     Maxwell3D::Regs::PrimitiveTopology out_topology;
