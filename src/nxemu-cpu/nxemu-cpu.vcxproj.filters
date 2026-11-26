@@ -279,6 +279,9 @@
     <ClInclude Include="dynarmic\backend\x64\emit_x64_memory.h">
       <Filter>Header Files\dynamic\backend\x64</Filter>
     </ClInclude>
+    <ClInclude Include="dynarmic\backend\x64\fastmem_patch_table.h">
+      <Filter>Header Files\dynamic\backend\x64</Filter>
+    </ClInclude>
     <ClInclude Include="dynarmic\backend\x64\exclusive_monitor_friend.h">
       <Filter>Header Files\dynamic\backend\x64</Filter>
     </ClInclude>

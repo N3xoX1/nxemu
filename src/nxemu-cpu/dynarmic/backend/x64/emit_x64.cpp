@@ -6,6 +6,7 @@
 #include "dynarmic/backend/x64/emit_x64.h"
 
 #include <iterator>
+#include <limits>
 
 #include <mcl/assert.hpp>
 #include <mcl/bit/bit_field.hpp>
@@ -42,6 +43,8 @@ void EmitContext::EraseInstruction(IR::Inst* inst) {
 
 EmitX64::EmitX64(BlockOfCode& code)
         : code(code) {
+    block_descriptors.max_load_factor(0.85f);
+    patch_information.max_load_factor(0.85f);
     exception_handler.Register(code);
 }
 
@@ -88,7 +91,7 @@ void EmitX64::PushRSBHelper(Xbyak::Reg64 loc_desc_reg, Xbyak::Reg64 index_reg, I
 
     code.mov(loc_desc_reg, target.Value());
 
-    patch_information[target].mov_rcx.push_back(code.getCurr());
+    AddPatchSite(target, PatchKind::MovRcx, code.getCurr());
     EmitPatchMovRcx(target_code_ptr);
 
     code.mov(qword[r15 + index_reg * 8 + code.GetJitStateInfo().offsetof_rsb_location_descriptors], loc_desc_reg);
@@ -381,28 +384,44 @@ void EmitX64::EmitTerminal(IR::Terminal terminal, IR::LocationDescriptor initial
     });
 }
 
+void EmitX64::AddPatchSite(const IR::LocationDescriptor& target, PatchKind kind, CodePtr location) {
+    const uintptr_t base = reinterpret_cast<uintptr_t>(code.getCode());
+    const uintptr_t addr = reinterpret_cast<uintptr_t>(location);
+    ASSERT(addr >= base);
+    const uintptr_t offset = addr - base;
+    ASSERT(offset <= std::numeric_limits<u32>::max());
+    patch_information[target].entries.push_back(PatchEntry{static_cast<u32>(offset), kind});
+}
+
+CodePtr EmitX64::PatchEntryPtr(const PatchEntry& entry) const {
+    return static_cast<const u8*>(code.getCode()) + entry.code_offset;
+}
+
 void EmitX64::Patch(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr) {
+    const auto iter = patch_information.find(target_desc);
+    if (iter == patch_information.end()) {
+        return;
+    }
+
     const CodePtr save_code_ptr = code.getCurr();
-    const PatchInformation& patch_info = patch_information[target_desc];
+    const PatchInformation& patch_info = iter->second;
 
-    for (CodePtr location : patch_info.jg) {
-        code.SetCodePtr(location);
-        EmitPatchJg(target_desc, target_code_ptr);
-    }
-
-    for (CodePtr location : patch_info.jz) {
-        code.SetCodePtr(location);
-        EmitPatchJz(target_desc, target_code_ptr);
-    }
-
-    for (CodePtr location : patch_info.jmp) {
-        code.SetCodePtr(location);
-        EmitPatchJmp(target_desc, target_code_ptr);
-    }
-
-    for (CodePtr location : patch_info.mov_rcx) {
-        code.SetCodePtr(location);
-        EmitPatchMovRcx(target_code_ptr);
+    for (const PatchEntry& entry : patch_info.entries) {
+        code.SetCodePtr(PatchEntryPtr(entry));
+        switch (entry.kind) {
+        case PatchKind::Jg:
+            EmitPatchJg(target_desc, target_code_ptr);
+            break;
+        case PatchKind::Jz:
+            EmitPatchJz(target_desc, target_code_ptr);
+            break;
+        case PatchKind::Jmp:
+            EmitPatchJmp(target_desc, target_code_ptr);
+            break;
+        case PatchKind::MovRcx:
+            EmitPatchMovRcx(target_code_ptr);
+            break;
+        }
     }
 
     code.SetCodePtr(save_code_ptr);
@@ -415,8 +434,10 @@ void EmitX64::Unpatch(const IR::LocationDescriptor& target_desc) {
 }
 
 void EmitX64::ClearCache() {
-    block_descriptors.clear();
-    patch_information.clear();
+    tsl::robin_map<IR::LocationDescriptor, BlockDescriptor>{}.swap(block_descriptors);
+    tsl::robin_map<IR::LocationDescriptor, PatchInformation>{}.swap(patch_information);
+    block_descriptors.max_load_factor(0.85f);
+    patch_information.max_load_factor(0.85f);
 
     PerfMapClear();
 }

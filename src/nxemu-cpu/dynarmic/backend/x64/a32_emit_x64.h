@@ -16,6 +16,7 @@
 #include "dynarmic/backend/x64/a32_jitstate.h"
 #include "dynarmic/backend/x64/devirtualize.h"
 #include "dynarmic/backend/x64/emit_x64.h"
+#include "dynarmic/backend/x64/fastmem_patch_table.h"
 #include "dynarmic/frontend/A32/a32_location_descriptor.h"
 #include "dynarmic/interface/A32/a32.h"
 #include "dynarmic/interface/A32/config.h"
@@ -114,7 +115,7 @@ protected:
         DoNotFastmemMarker marker;
         bool recompile;
     };
-    tsl::robin_map<u64, FastmemPatchInfo> fastmem_patch_info;
+    FastmemPatchTable<FastmemPatchInfo, DoNotFastmemMarker> fastmem_patch_info;
     std::set<DoNotFastmemMarker> do_not_fastmem;
     std::optional<DoNotFastmemMarker> ShouldFastmem(A32EmitContext& ctx, IR::Inst* inst) const;
     FakeCall FastmemCallback(u64 rip);

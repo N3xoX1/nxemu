@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: 0BSD
  */
 
+#include <algorithm>
+
 #include "dynarmic/backend/arm64/a64_address_space.h"
 #include "dynarmic/backend/arm64/a64_jitstate.h"
 #include "dynarmic/backend/arm64/abi.h"
@@ -103,10 +105,10 @@ void AddressSpace::InvalidateBasicBlocks(const tsl::robin_set<IR::LocationDescri
 
 void AddressSpace::ClearCache() {
     cache_generation++;
-    block_entries.clear();
+    block_entries = {};
     reverse_block_entries.clear();
-    block_infos.clear();
-    block_references.clear();
+    block_infos = {};
+    block_references = {};
     code.set_offset(prelude_info.end_of_prelude);
 }
 
@@ -122,6 +124,7 @@ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
     UnprotectCodeMemory();
 
     EmittedBlockInfo block_info = EmitArm64(code, std::move(block), GetEmitConfig(), fastmem_manager);
+    block_info.fastmem_patch_info.shrink_to_fit();
 
     ASSERT(block_entries.insert({block.Location(), block_info.entry_point}).second);
     ASSERT(reverse_block_entries.insert({block_info.entry_point, block.Location()}).second);
@@ -335,15 +338,18 @@ FakeCall AddressSpace::FastmemCallback(u64 host_pc) {
             goto fail;
         }
 
-        const auto patch_entry = block_info->second.fastmem_patch_info.find(host_ptr - entry_point);
-        if (patch_entry == block_info->second.fastmem_patch_info.end()) {
+        const std::ptrdiff_t offset = host_ptr - entry_point;
+        const auto& patches = block_info->second.fastmem_patch_info;
+        const auto patch_entry = std::find_if(patches.begin(), patches.end(),
+            [offset](const FastmemPatchEntry& entry) { return entry.offset == offset; });
+        if (patch_entry == patches.end()) {
             goto fail;
         }
 
-        const auto fc = patch_entry->second.fc;
+        const auto fc = patch_entry->info.fc;
 
-        if (patch_entry->second.recompile) {
-            const auto marker = patch_entry->second.marker;
+        if (patch_entry->info.recompile) {
+            const auto marker = patch_entry->info.marker;
             fastmem_manager.MarkDoNotFastmem(marker);
             InvalidateBasicBlocks({std::get<0>(marker)});
         }

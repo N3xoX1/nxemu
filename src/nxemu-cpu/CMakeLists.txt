@@ -361,6 +361,7 @@ if(ARCHITECTURE_x86_64)
         dynarmic/backend/x64/emit_x64_floating_point.cpp
         dynarmic/backend/x64/emit_x64_memory.cpp.inc
         dynarmic/backend/x64/emit_x64_memory.h
+        dynarmic/backend/x64/fastmem_patch_table.h
         dynarmic/backend/x64/emit_x64_packed.cpp
         dynarmic/backend/x64/emit_x64_saturation.cpp
         dynarmic/backend/x64/emit_x64_sha.cpp
