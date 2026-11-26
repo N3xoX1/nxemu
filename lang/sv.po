@@ -865,10 +865,12 @@ msgid "Firmware file"
 msgstr "Fil med fast programvara"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
-msgid "A .zip archive, or a .dxci game card image that carries an update"
+msgid ""
+"A .zip archive, a firmware .dnsp, or a .dxci game card image that carries an "
+"update"
 msgstr ""
-"Ett .zip-arkiv eller en .dxci-spelkortsavbildning som innehåller en "
-"uppdatering"
+"Ett .zip-arkiv, en .dnsp-fil med fast programvara eller en "
+".dxci-spelkortsavbildning som innehåller en uppdatering"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
 msgid "Browse"
@@ -2157,11 +2159,12 @@ msgstr "Ingen fast programvara hittades där"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 msgid ""
-"Choose a firmware .zip archive, a .dxci game card image that carries an "
-"update, or a folder of the firmware's .nca files."
+"Choose a firmware .zip archive, a firmware .dnsp, a .dxci game card image "
+"that carries an update, or a folder of the firmware's .nca files."
 msgstr ""
-"Välj ett .zip-arkiv med fast programvara, en .dxci-spelkortsavbildning med "
-"en uppdatering eller en mapp med den fasta programvarans .nca-filer."
+"Välj ett .zip-arkiv med fast programvara, en .dnsp-fil med fast programvara, "
+"en .dxci-spelkortsavbildning med en uppdatering eller en mapp med den fasta "
+"programvarans .nca-filer."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
@@ -4346,11 +4349,12 @@ msgstr "Kontrollera att filen fortfarande finns och att NXEmu får läsa den."
 
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid ""
-"Choose a firmware .zip archive or a .dxci game card image that carries an "
-"update."
+"Choose a firmware .zip archive, a firmware .dnsp, or a .dxci game card image "
+"that carries an update."
 msgstr ""
-"Välj ett .zip-arkiv med systemprogramvara eller en .dxci-spelkortsavbildning "
-"som innehåller en uppdatering."
+"Välj ett .zip-arkiv med systemprogramvara, en .dnsp-fil med "
+"systemprogramvara eller en .dxci-spelkortsavbildning som innehåller en "
+"uppdatering."
 
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Check the free space on this device, then try again."

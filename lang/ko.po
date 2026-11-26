@@ -812,8 +812,8 @@ msgid "Firmware file"
 msgstr "펌웨어 파일"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
-msgid "A .zip archive, or a .dxci game card image that carries an update"
-msgstr "업데이트가 포함된 .zip 아카이브 또는 .dxci 게임 카드 이미지"
+msgid "A .zip archive, a firmware .dnsp, or a .dxci game card image that carries an update"
+msgstr ".zip 아카이브, 펌웨어 .dnsp 또는 업데이트가 포함된 .dxci 게임 카드 이미지"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
 msgid "Browse"
@@ -2018,8 +2018,8 @@ msgid "No firmware found there"
 msgstr "이 위치에는 펌웨어가 없습니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
-msgid "Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
-msgstr ".zip 펌웨어 아카이브, 업데이트가 포함된 .dxci 게임 카드 이미지 또는 .nca 펌웨어 파일이 포함된 폴더를 선택합니다."
+msgid "Choose a firmware .zip archive, a firmware .dnsp, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
+msgstr ".zip 펌웨어 아카이브, 펌웨어 .dnsp, 업데이트가 포함된 .dxci 게임 카드 이미지 또는 .nca 펌웨어 파일이 포함된 폴더를 선택합니다."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
@@ -4097,8 +4097,8 @@ msgid "Check that the file is still there and that NXEmu may read it."
 msgstr "파일이 아직 있는지, NXEmu가 읽을 수 있는지 확인하세요."
 
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
-msgid "Choose a firmware .zip archive or a .dxci game card image that carries an update."
-msgstr "펌웨어 .zip 압축 파일이나 업데이트가 포함된 .dxci 게임 카드 이미지를 선택하세요."
+msgid "Choose a firmware .zip archive, a firmware .dnsp, or a .dxci game card image that carries an update."
+msgstr "펌웨어 .zip 압축 파일, 펌웨어 .dnsp 또는 업데이트가 포함된 .dxci 게임 카드 이미지를 선택하세요."
 
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Check the free space on this device, then try again."

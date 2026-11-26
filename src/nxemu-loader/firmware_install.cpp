@@ -27,6 +27,7 @@ using FirmwareInstall::Version;
 constexpr uint64_t SystemUpdateTitleId = 0x0100000000000816ULL;
 constexpr uint64_t FirmwareVersionSystemDataId = 0x0100000000000809ULL;
 constexpr size_t kCopyBufferSize = 1024 * 1024;
+constexpr uint64_t kMaxEntryNameSize = 256;
 
 constexpr const char * kInstalled = "registered";
 constexpr const char * kStaging = "registered.installing";
@@ -61,7 +62,13 @@ std::string RegisteredName(std::string_view packagePath)
     {
         return {};
     }
-    return std::string(name.substr(0, dot)) + ".nca";
+    // NCA names are hex ids. On Windows a different drive prefix (D:x.nca) makes the join drop the staging folder.
+    const std::string_view stem = name.substr(0, dot);
+    if (!std::all_of(stem.begin(), stem.end(), [](unsigned char c) { return std::isalnum(c) || c == '.'; }))
+    {
+        return {};
+    }
+    return std::string(stem) + ".nca";
 }
 
 bool ReadVersionFile(const FileSys::NCA & nca, Version & version)
@@ -97,20 +104,22 @@ struct Inspection
     bool IsFirmware() const { return describesSystemUpdate && hasVersion; }
 };
 
-// Bound and validate source-resource tables before the legacy HFS parser
-// allocates or follows names/offsets. Payload bytes remain streamed on demand.
-FileSys::VirtualDir OpenSourceHfs(const FileSys::VirtualFile & source)
+// The legacy partition parser trusts its tables, so bound them here before it follows names and offsets.
+FileSys::VirtualDir OpenSourcePartition(const FileSys::VirtualFile & source)
 {
     if (source == nullptr || source->GetSize() < 16) return nullptr;
     const auto header = source->ReadBytes(16);
-    if (header.size() != 16 || !std::equal(header.begin(), header.begin() + 4, "HFS0")) return nullptr;
+    if (header.size() != 16) return nullptr;
+    const bool hfs = std::equal(header.begin(), header.begin() + 4, "HFS0");
+    if (!hfs && !std::equal(header.begin(), header.begin() + 4, "PFS0")) return nullptr;
     const auto u32 = [](const uint8_t * p) {
         return uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
     };
     const auto u64 = [&u32](const uint8_t * p) { return uint64_t(u32(p)) | (uint64_t(u32(p + 4)) << 32); };
     const uint32_t count = u32(header.data() + 4), strings = u32(header.data() + 8);
     if (count > 4096 || strings > 1024 * 1024) return nullptr;
-    const uint64_t names = 16 + uint64_t(count) * 64, data = names + strings;
+    const uint64_t entry_size = hfs ? 64 : 24;
+    const uint64_t names = 16 + uint64_t(count) * entry_size, data = names + strings;
     if (data > source->GetSize()) return nullptr;
     const auto metadata = source->ReadBytes(static_cast<size_t>(data));
     if (metadata.size() != data) return nullptr;
@@ -118,13 +127,14 @@ FileSys::VirtualDir OpenSourceHfs(const FileSys::VirtualFile & source)
     std::vector<std::pair<uint64_t, uint64_t>> ranges;
     for (uint32_t i = 0; i < count; ++i)
     {
-        const auto * entry = metadata.data() + 16 + uint64_t(i) * 64;
+        const auto * entry = metadata.data() + 16 + uint64_t(i) * entry_size;
         const uint64_t offset = u64(entry), size = u64(entry + 8);
         const uint32_t name_offset = u32(entry + 16);
-        if (name_offset >= strings || offset > source->GetSize() - data || size > source->GetSize() - data - offset || u32(entry + 20) > size) return nullptr;
+        if (name_offset >= strings || offset > source->GetSize() - data || size > source->GetSize() - data - offset || (hfs && u32(entry + 20) > size)) return nullptr;
         const auto first = metadata.begin() + static_cast<size_t>(names + name_offset);
-        const auto last = std::find(first, metadata.end(), uint8_t(0));
-        if (last == metadata.end()) return nullptr;
+        const auto limit = first + static_cast<std::ptrdiff_t>(std::min<uint64_t>(strings - name_offset, kMaxEntryNameSize));
+        const auto last = std::find(first, limit, uint8_t(0));
+        if (last == limit) return nullptr;
         const std::string name(first, last);
         if (name.empty() || name == "." || name == ".." || name.find_first_of("/\\") != std::string::npos || !seen.insert(name).second) return nullptr;
         ranges.emplace_back(offset, offset + size);
@@ -135,8 +145,18 @@ FileSys::VirtualDir OpenSourceHfs(const FileSys::VirtualFile & source)
     return partition->GetStatus() == LoaderResultStatus::Success ? partition : nullptr;
 }
 
-// Both container kinds expose the same immutable native HFS0 view. The NX
-// resource contains the original partition, not a synthesized firmware set.
+// Kept out of SourceFirmwarePartition: the launch probe would inspect every NCA of each game .dnsp.
+FileSys::VirtualDir DnspFirmwarePartition(const FileSys::VirtualFile & file)
+{
+    std::array<uint8_t, 4> magic{};
+    if (file->Read(magic.data(), magic.size(), 0) != magic.size() || magic != std::array<uint8_t, 4>{'P', 'F', 'S', '0'}) return nullptr;
+    const auto partition = OpenSourcePartition(file);
+    if (partition == nullptr) return nullptr;
+    Inspection inspection;
+    for (const auto & entry : partition->GetFiles()) inspection.Add(entry);
+    return inspection.IsFirmware() ? partition : nullptr;
+}
+
 FileSys::VirtualDir SourceFirmwarePartition(const FileSys::VirtualFile & file, std::string_view host_path,
                                           Version * version = nullptr)
 {
@@ -169,7 +189,7 @@ FileSys::VirtualDir SourceFirmwarePartition(const FileSys::VirtualFile & file, s
         const auto & resource = resources[i];
         if (resource.kind != 1 || session->archive().applications()[resource.application_index].platform != 1) continue;
         const auto source = FileSys::NxSourceResourceFile(session, i, "partition.hfs0");
-        const auto partition = OpenSourceHfs(source);
+        const auto partition = OpenSourcePartition(source);
         if (partition == nullptr) continue;
         Inspection inspection;
         for (const auto & entry : partition->GetFiles()) inspection.Add(entry);
@@ -224,7 +244,8 @@ public:
         {
             return FirmwareInstallStatus::SourceUnreadable;
         }
-        const auto update = SourceFirmwarePartition(file, Common::FS::PathToUTF8String(source));
+        FileSys::VirtualDir update = DnspFirmwarePartition(file);
+        if (update == nullptr) update = SourceFirmwarePartition(file, Common::FS::PathToUTF8String(source));
         if (update != nullptr) return FillFromPartition(update);
         switch (ExtractFirmwareZip(file, m_directory, RegisteredName, [this](uint64_t done, uint64_t total) { return Report(FirmwareInstallStage::Copying, done, total); }))
         {

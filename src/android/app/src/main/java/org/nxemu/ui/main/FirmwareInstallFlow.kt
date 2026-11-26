@@ -156,7 +156,7 @@ class FirmwareInstallFlow(
         )
         STATUS_NOT_FIRMWARE -> Pair(
             tr("No firmware found there"),
-            tr("Choose a firmware .zip archive or a .dxci game card image that carries an update."),
+            tr("Choose a firmware .zip archive, a firmware .dnsp, or a .dxci game card image that carries an update."),
         )
         STATUS_STORAGE_UNAVAILABLE -> Pair(
             tr("The console's storage cannot be written"),

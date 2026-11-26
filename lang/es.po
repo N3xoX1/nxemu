@@ -812,8 +812,8 @@ msgid "Firmware file"
 msgstr "Archivo de firmware"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
-msgid "A .zip archive, or a .dxci game card image that carries an update"
-msgstr "Un archivo .zip o una imagen de tarjeta de juego .dxci que incluya una actualización"
+msgid "A .zip archive, a firmware .dnsp, or a .dxci game card image that carries an update"
+msgstr "Un archivo .zip, un .dnsp de firmware o una imagen de tarjeta de juego .dxci que incluya una actualización"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
 msgid "Browse"
@@ -2025,8 +2025,8 @@ msgid "No firmware found there"
 msgstr "No se encontró firmware en ese lugar"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
-msgid "Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
-msgstr "Elige un archivo .zip de firmware, una imagen de tarjeta de juego .dxci que incluya una actualización o una carpeta con los archivos .nca del firmware."
+msgid "Choose a firmware .zip archive, a firmware .dnsp, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
+msgstr "Elige un archivo .zip de firmware, un .dnsp de firmware, una imagen de tarjeta de juego .dxci que incluya una actualización o una carpeta con los archivos .nca del firmware."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
@@ -4114,8 +4114,8 @@ msgid "Check that the file is still there and that NXEmu may read it."
 msgstr "Comprueba que el archivo sigue ahí y que NXEmu puede leerlo."
 
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
-msgid "Choose a firmware .zip archive or a .dxci game card image that carries an update."
-msgstr "Elige un archivo .zip de firmware o una imagen de tarjeta de juego .dxci que incluya una actualización."
+msgid "Choose a firmware .zip archive, a firmware .dnsp, or a .dxci game card image that carries an update."
+msgstr "Elige un archivo .zip de firmware, un .dnsp de firmware o una imagen de tarjeta de juego .dxci que incluya una actualización."
 
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Check the free space on this device, then try again."
