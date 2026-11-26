@@ -1497,16 +1497,19 @@ bool TextureCache<P>::DownloadsProtected(std::span<const PendingDownload> downlo
     if (!device_memory.ProtectsReadCachedPages()) {
         return false;
     }
-    // Above the limit, protecting and releasing the pages costs more than the fence wait saves
+    // Above the limit, protecting and releasing the pages costs more than the fence wait saves.
+    // When readback waits are skipped, read protection is omitted so larger copies stay eligible
+    // while still tracking their byte ranges for CPU store ordering.
+    const bool skip_wait = Settings::IsReadbackWaitSkipped();
     u64 total_bytes = 0;
-    return std::ranges::all_of(downloads, [this, &total_bytes](const PendingDownload& download) {
+    return std::ranges::all_of(downloads, [this, &total_bytes, skip_wait](const PendingDownload& download) {
         if (!download.is_swizzle) {
             return false;
         }
         const ImageBase& image = slot_images[download.object_id];
         total_bytes += image.guest_size_bytes;
         return False(image.flags & ImageFlagBits::Sparse) && image.cpu_addr < (1ULL << 40) &&
-               total_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES;
+               (skip_wait || total_bytes <= MAX_PROTECTED_DOWNLOAD_BYTES);
     });
 #endif
 }
@@ -1518,17 +1521,26 @@ void TextureCache<P>::ProtectCommittedDownloads() {
     pending_unprotected_downloads.push_back(!is_protected);
     unprotected_downloads += is_protected ? 0 : 1;
 #if !defined(__APPLE__)
+    const bool mark_read_cached = is_protected && !Settings::IsReadbackWaitSkipped();
+    pending_read_cached_protected.push_back(mark_read_cached);
     if (!is_protected) {
         return;
     }
-    for (const PendingDownload& download : uncommitted_downloads) {
-        const ImageBase& image = slot_images[download.object_id];
-        const DAddr addr = image.cpu_addr;
-        const u64 size = image.guest_size_bytes;
-        protected_download_pages.Set(addr, size);
-        device_memory.UpdatePagesReadCachedCount(addr, size, 1);
-        protected_downloads.Add(addr, size);
-        protected_ranges.emplace_back(addr, size);
+    {
+        std::scoped_lock lk{protected_downloads_mutex};
+        for (const PendingDownload& download : uncommitted_downloads) {
+            const ImageBase& image = slot_images[download.object_id];
+            const DAddr addr = image.cpu_addr;
+            const u64 size = image.guest_size_bytes;
+            protected_downloads.Add(addr, size);
+            protected_download_pages.Set(addr, size);
+            protected_ranges.emplace_back(addr, size);
+        }
+    }
+    if (mark_read_cached) {
+        for (const auto& [addr, size] : protected_ranges) {
+            device_memory.UpdatePagesReadCachedCount(addr, size, 1);
+        }
     }
 #endif
 }
@@ -1537,24 +1549,45 @@ template <class P>
 void TextureCache<P>::ReleaseDownloadProtection() {
     unprotected_downloads -= pending_unprotected_downloads.front() ? 1 : 0;
     pending_unprotected_downloads.pop_front();
-    using PageBits = decltype(protected_download_pages);
-    for (const auto& [addr, size] : pending_protected_ranges.front()) {
-        device_memory.UpdatePagesReadCachedCount(addr, size, -1);
-        protected_downloads.Subtract(addr, size);
-        // Clear the pages between the downloads still in flight, which keep theirs. Readers
-        // test the pages without a lock, so a kept page is never cleared, even briefly.
-        const DAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
-        DAddr cursor = Common::AlignDown(addr, PageBits::PAGE_SIZE);
-        protected_downloads.ForEachInRange(cursor, end - cursor, [&](DAddr begin, DAddr last, s32) {
-            const DAddr kept = Common::AlignDown(begin, PageBits::PAGE_SIZE);
-            if (kept > cursor) {
-                protected_download_pages.Clear(cursor, kept - cursor);
-            }
-            cursor = std::max(cursor, Common::AlignUp(last, PageBits::PAGE_SIZE));
-        });
-        if (cursor < end) {
-            protected_download_pages.Clear(cursor, end - cursor);
+    const auto& released_ranges = pending_protected_ranges.front();
+#if !defined(__APPLE__)
+    const bool release_read_cached = pending_read_cached_protected.front();
+    pending_read_cached_protected.pop_front();
+    if (release_read_cached) {
+        for (const auto& [addr, size] : released_ranges) {
+            device_memory.UpdatePagesReadCachedCount(addr, size, -1);
         }
+    }
+#else
+    for (const auto& [addr, size] : released_ranges) {
+        device_memory.UpdatePagesReadCachedCount(addr, size, -1);
+    }
+#endif
+    if (!released_ranges.empty()) {
+        {
+            std::scoped_lock lk{protected_downloads_mutex};
+            using PageBits = decltype(protected_download_pages);
+            for (const auto& [addr, size] : released_ranges) {
+                protected_downloads.Subtract(addr, size);
+                // Clear the pages between the downloads still in flight, which keep theirs. Readers
+                // test the pages without a lock, so a kept page is never cleared, even briefly.
+                const DAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
+                DAddr cursor = Common::AlignDown(addr, PageBits::PAGE_SIZE);
+                protected_downloads.ForEachInRange(cursor, end - cursor,
+                                                   [&](DAddr begin, DAddr last, s32) {
+                    const DAddr kept = Common::AlignDown(begin, PageBits::PAGE_SIZE);
+                    if (kept > cursor) {
+                        protected_download_pages.Clear(cursor, kept - cursor);
+                    }
+                    cursor = std::max(cursor, Common::AlignUp(last, PageBits::PAGE_SIZE));
+                });
+                if (cursor < end) {
+                    protected_download_pages.Clear(cursor, end - cursor);
+                }
+            }
+        }
+        protected_download_epoch.fetch_add(1, std::memory_order_release);
+        protected_download_epoch.notify_all();
     }
     pending_protected_ranges.pop_front();
 }

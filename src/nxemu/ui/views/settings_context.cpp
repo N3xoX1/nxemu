@@ -39,6 +39,7 @@ constexpr GameSetting kGameSettings[] = {
     {NXVideoSetting::SystemEnableAsynchronousPresentation, NXVideoSetting::GameEnableAsynchronousPresentation, "async-present", true},
     {NXVideoSetting::SystemEnableReactiveFlushing, NXVideoSetting::GameEnableReactiveFlushing, "reactive-flushing", true},
     {NXVideoSetting::SystemBackgroundGpuReadbacks, NXVideoSetting::GameBackgroundGpuReadbacks, "background-readbacks", true},
+    {NXVideoSetting::SystemSkipReadbackWait, NXVideoSetting::GameSkipReadbackWait, "skip-readback-wait", true},
     {NXVideoSetting::SystemAccuracyLevel, NXVideoSetting::GameAccuracyLevel, "accuracy", false},
     {NXVideoSetting::SystemAnisotropicFiltering, NXVideoSetting::GameAnisotropicFiltering, "anisotropy", false},
     {NXVideoSetting::SystemDMAAccuracy, NXVideoSetting::GameDMAAccuracy, "dma", false},

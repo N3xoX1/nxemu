@@ -527,6 +527,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Skip pending readback waits</div>
+                      <div class="row-text">Can gain FPS when games read GPU buffers every frame, but may read 1-frame-old data.</div>
+                    </div>
+                    <div id="skip-readback-wait" class="switch" data-command="toggle:skip-readback-wait" title="Needs Vulkan, reactive flushing, and background readbacks on x64. On, skips CPU read-fault waits on pending buffer and image downloads without delaying fences, while keeping store ordering, query results, and exact GPU readback synchronized.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Fast shader math</div>
                       <div class="row-text">Allows faster floating-point math in Vulkan fragment and compute shaders.</div>
                     </div>

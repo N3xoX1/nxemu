@@ -996,6 +996,11 @@ bool RasterizerVulkan::AwaitsProtectedBufferDownload(DAddr addr, u64 size) {
            texture_cache.AwaitsProtectedDownload(addr, size);
 }
 
+void RasterizerVulkan::WaitProtectedBufferDownloads(DAddr addr, u64 size) {
+    buffer_cache.WaitProtectedDownload(addr, size);
+    texture_cache.WaitProtectedDownload(addr, size);
+}
+
 bool RasterizerVulkan::HasPendingResult(DAddr addr, u64 size) {
     return query_cache.AwaitsProtectedResult(addr, size) && query_cache.HasPendingResult(addr, size);
 }

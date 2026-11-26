@@ -25,6 +25,7 @@ namespace NXVideoSetting
     constexpr const char * SystemForceMaximumClocks = "nxvideo:SystemForceMaximumClocks";
     constexpr const char * SystemEnableReactiveFlushing = "nxvideo:SystemEnableReactiveFlushing";
     constexpr const char * SystemBackgroundGpuReadbacks = "nxvideo:SystemBackgroundGpuReadbacks";
+    constexpr const char * SystemSkipReadbackWait = "nxvideo:SystemSkipReadbackWait";
     constexpr const char * SystemGpuCommandSynchronization = "nxvideo:SystemGpuCommandSynchronization";
     constexpr const char * SystemSplitGpuThread = "nxvideo:SystemSplitGpuThread";
     constexpr const char * SystemStrictComputeOrdering = "nxvideo:SystemStrictComputeOrdering";
@@ -48,6 +49,7 @@ namespace NXVideoSetting
     constexpr const char * GameEnableAsynchronousPresentation = "nxvideo:GameEnableAsynchronousPresentation";
     constexpr const char * GameEnableReactiveFlushing = "nxvideo:GameEnableReactiveFlushing";
     constexpr const char * GameBackgroundGpuReadbacks = "nxvideo:GameBackgroundGpuReadbacks";
+    constexpr const char * GameSkipReadbackWait = "nxvideo:GameSkipReadbackWait";
     constexpr const char * GameAccuracyLevel = "nxvideo:GameAccuracyLevel";
     constexpr const char * GameAnisotropicFiltering = "nxvideo:GameAnisotropicFiltering";
     constexpr const char * GameDMAAccuracy = "nxvideo:GameDMAAccuracy";
