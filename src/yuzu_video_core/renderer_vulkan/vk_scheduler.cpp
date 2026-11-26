@@ -441,7 +441,9 @@ void Scheduler::EndRenderPass() {
         query_cache->NotifyRenderPass(false);
     }
     Record([num_images = num_renderpass_images, images = renderpass_images,
-            ranges = renderpass_image_ranges](vk::CommandBuffer cmdbuf) {
+            ranges = renderpass_image_ranges,
+            counters_written = std::exchange(transform_feedback_counters_written, false)](
+               vk::CommandBuffer cmdbuf) {
         std::array<VkImageMemoryBarrier, 9> barriers;
         for (size_t i = 0; i < num_images; ++i) {
             barriers[i] = VkImageMemoryBarrier{
@@ -468,6 +470,18 @@ void Scheduler::EndRenderPass() {
                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, nullptr, nullptr,
                                vk::Span(barriers.data(), num_images));
+        // A barrier recorded in a render pass orders only commands of that pass
+        if (counters_written) {
+            static constexpr VkMemoryBarrier COUNTER_BARRIER{
+                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                .pNext = nullptr,
+                .srcAccessMask = VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT,
+                .dstAccessMask = VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT,
+            };
+            cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT,
+                                   VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT, 0,
+                                   COUNTER_BARRIER);
+        }
     });
     state.renderpass = nullptr;
     num_renderpass_images = 0;

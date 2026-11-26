@@ -93,6 +93,10 @@ public:
     /// the upload buffer run before these writes and would read the previous contents.
     [[nodiscard]] bool IsBufferWritten(VkBuffer buffer) const noexcept;
 
+    void MarkTransformFeedbackCountersWritten() noexcept {
+        transform_feedback_counters_written = true;
+    }
+
     /// Assigns the query cache.
     void SetQueryCache(VideoCommon::QueryCacheBase<QueryCacheParams>& query_cache_) {
         query_cache = &query_cache_;
@@ -293,6 +297,7 @@ private:
     bool all_buffers_written = false;
 
     u32 num_renderpass_images = 0;
+    bool transform_feedback_counters_written = false;
     u64 render_pass_end_tick = 0;
     u64 record_epoch = 0;
     std::array<VkImage, 9> renderpass_images{};
