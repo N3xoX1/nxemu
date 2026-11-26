@@ -746,6 +746,9 @@ nxinterface IOperatingSystem
     {
         GatherGPUDirtyMemory(invalidator);
     }
+    virtual void FlushNceWrittenPages()
+    {
+    }
 };
 
 EXPORT IOperatingSystem * CALL CreateOperatingSystem(ISystemModules & modules);

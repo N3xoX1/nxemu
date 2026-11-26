@@ -1313,6 +1313,7 @@ void RasterizerVulkan::OnCoarseCacheInvalidation(DAddr addr, u64 size) {
         buffer_cache.CoarseWriteMemory(addr, size);
     }
     pipeline_cache.InvalidateRegion(addr, size);
+    ChangeMemoryEpoch();
 }
 
 void RasterizerVulkan::InvalidateGPUCache() {

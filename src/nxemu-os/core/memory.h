@@ -155,6 +155,8 @@ public:
     /// Reports to the GPU the native code writes to the pages NceTrackWrites opened, and
     /// write-protects them again.
     void FlushNceWrites(bool rearm_native_reads = true);
+    /// Call before GPU work can read guest memory that native code stored to.
+    void FlushNceWrittenPages();
     /// Reports the cached pages the JIT marked in the write map since the last call.
     void HarvestCpuWrites();
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override;

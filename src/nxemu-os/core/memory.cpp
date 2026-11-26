@@ -15,6 +15,7 @@
 #include <span>
 #include <map>
 #include <memory>
+#include <optional>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -93,6 +94,11 @@ struct Memory::Impl {
             if (UseWriteTrackMap()) {
                 current_page_table->EnableWriteTracking();
             }
+#if !defined(__APPLE__)
+            // OpenGL's coarse invalidation is exact, which would drop the GPU-written buffer data in reported ranges
+            opens_nce_written_pages = g_settings->GetBool(NXCpuSetting::NceEnabled) &&
+                                      g_settings->GetInt(NXVideoSetting::GraphicsAPI) == static_cast<int32_t>(RendererBackend::Vulkan);
+#endif
         } else {
             current_page_table->fastmem_arena = nullptr;
         }
@@ -708,6 +714,9 @@ struct Memory::Impl {
                 case Common::PageType::Memory:
                     current_page_table->pointers[vaddr >> YUZU_PAGEBITS].Store(
                         0, Common::PageType::RasterizerCachedMemory);
+#if !defined(__APPLE__)
+                    RefreshNceWrittenCopy(vaddr & ~YUZU_PAGEMASK);
+#endif
                     break;
                 case Common::PageType::RasterizerCachedMemory:
                     // There can be more than one GPU region mapped per CPU region, so it's common
@@ -764,6 +773,10 @@ struct Memory::Impl {
             // After the pages are cached, so that a harvest keeps the marks of later writes. A write
             // in between loses its mark, but the caller uploads the region after this.
             ClearWriteMarks(region_vaddr, size);
+        }
+        if (cached)
+        {
+            ReopenNceWrittenPages(region_vaddr, size);
         }
 #endif
     }
@@ -1166,13 +1179,18 @@ struct Memory::Impl {
     }
 
     // Caller holds read_cached_mutex
+    Common::MemoryPermission CachedPagePermission(u64 index) const
+    {
+        const bool deny_reads = ProtectOnlyReadCachedPages() ? IsReadCachedPage(index) : osSettings.use_reactive_flushing;
+        return deny_reads ? Common::MemoryPermission{} : Common::MemoryPermission::Read;
+    }
+
+    // Caller holds read_cached_mutex
     void ProtectCachedRegion(u64 vaddr, u64 size)
     {
         const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
         u64 begin = Common::AlignDown(vaddr, YUZU_PAGESIZE);
-        const auto permission = [&](u64 page) {
-            return IsReadCachedPage(page >> YUZU_PAGEBITS) ? Common::MemoryPermission{} : Common::MemoryPermission::Read;
-        };
+        const auto permission = [&](u64 page) { return CachedPagePermission(page >> YUZU_PAGEBITS); };
         Common::MemoryPermission current = permission(begin);
         for (u64 page = begin + YUZU_PAGESIZE; page < end; page += YUZU_PAGESIZE)
         {
@@ -1282,11 +1300,12 @@ struct Memory::Impl {
         flush();
     }
 
-    // A harvested page doesn't tell which of its bytes the CPU wrote, so pages holding
+    // A harvested or diffed page doesn't tell which of its bytes the CPU wrote, so pages holding
     // GPU-written buffer data deny writes: a write faults and is reported exactly.
     void RasterizerMarkRegionWriteProtected(u64 vaddr, u64 size, s32 delta)
     {
-        if (size == 0 || delta == 0 || !WriteTracking() || !AddressSpaceContains(*current_page_table, vaddr, size))
+        if (size == 0 || delta == 0 || !(WriteTracking() || opens_nce_written_pages) ||
+            !AddressSpaceContains(*current_page_table, vaddr, size))
         {
             return;
         }
@@ -1331,7 +1350,9 @@ struct Memory::Impl {
                 }
             }
             // Read-cached pages deny every access already. Uncached pages are protected when they become cached.
-            if (was_protected == now_protected || IsReadCachedPage(index) ||
+            // Without the write map, only pages opened for native stores allow writes.
+            const bool closes_open_page = now_protected && nce_written.contains(page);
+            if (was_protected == now_protected || (!WriteTracking() && !closes_open_page) || IsReadCachedPage(index) ||
                 current_page_table->pointers[index].Type() != Common::PageType::RasterizerCachedMemory)
             {
                 flush();
@@ -1350,6 +1371,170 @@ struct Memory::Impl {
             run_end = page + YUZU_PAGESIZE;
         }
         flush();
+    }
+
+    // Caller holds read_cached_mutex
+    bool CanOpenNceWrittenPage(u64 index) const
+    {
+        const bool traps_reads = CachedPagePermission(index) != Common::MemoryPermission::Read;
+        return current_page_table->pointers[index].Type() == Common::PageType::RasterizerCachedMemory && !traps_reads &&
+               !write_protected_counts.contains(index);
+    }
+
+    // Left writable rather than invalidated on each store, which made the GPU caches reload it every time:
+    // FlushNceWrittenPages reports its stores when the guest hands work to the GPU
+    bool OpenNceWrittenPage(u64 vaddr)
+    {
+        const u64 page = vaddr & ~YUZU_PAGEMASK;
+        std::scoped_lock lk{read_cached_mutex};
+        if (!opens_nce_written_pages || !CanOpenNceWrittenPage(page >> YUZU_PAGEBITS))
+        {
+            return false;
+        }
+        const u8 * const pointer = GetPointerFromRasterizerCachedMemory(page);
+        if (pointer == nullptr)
+        {
+            return false;
+        }
+        auto [it, inserted] = nce_written.try_emplace(page);
+        if (inserted)
+        {
+            it->second = Common::make_unique_for_overwrite<NceWrittenPage>();
+            std::memcpy(it->second->copy.data(), pointer, YUZU_PAGESIZE);
+        }
+        it->second->unchanged_flushes = 0;
+        buffer->Protect(page, YUZU_PAGESIZE, Common::MemoryPermission::ReadWrite);
+        return true;
+    }
+
+    // Caller holds read_cached_mutex, just cached the page and uploads it next, so the copy matches the GPU caches.
+    // Only on that transition: a page that was cached already keeps its copy, which holds unreported stores.
+    void RefreshNceWrittenCopy(u64 page)
+    {
+        const auto it = nce_written.find(page);
+        if (it == nce_written.end())
+        {
+            return;
+        }
+        if (const u8 * const pointer = GetPointerFromRasterizerCachedMemory(page))
+        {
+            std::memcpy(it->second->copy.data(), pointer, YUZU_PAGESIZE);
+        }
+    }
+
+    // Caller holds read_cached_mutex. Each report uncaches the page and the next draw recaches it, so reopening
+    // saves a fault per report. A page that can't open stays listed, so that the next flush reports its stores.
+    void ReopenNceWrittenPages(u64 vaddr, u64 size)
+    {
+        const u64 end = Common::AlignUp(vaddr + size, YUZU_PAGESIZE);
+        for (auto it = nce_written.lower_bound(Common::AlignDown(vaddr, YUZU_PAGESIZE)); it != nce_written.end() && it->first < end; ++it)
+        {
+            if (GetPointerFromRasterizerCachedMemory(it->first) != nullptr && CanOpenNceWrittenPage(it->first >> YUZU_PAGEBITS))
+            {
+                buffer->Protect(it->first, YUZU_PAGESIZE, Common::MemoryPermission::ReadWrite);
+            }
+        }
+    }
+
+    struct WrittenSpan
+    {
+        u8 * backing;
+        u64 size;
+    };
+
+    // Reads each word once, so that a store racing the update is either reported or left for the next flush.
+    // Only changed words are reported: the texture caches discard the GPU writes of any image a report overlaps.
+    static void UpdateNceWrittenCopy(u8 * pointer, u8 * copy, std::vector<WrittenSpan> & written)
+    {
+        std::optional<WrittenSpan> run;
+        for (size_t offset = 0; offset < YUZU_PAGESIZE; offset += sizeof(u64))
+        {
+            u64 now;
+            u64 before;
+            std::memcpy(&now, pointer + offset, sizeof(u64));
+            std::memcpy(&before, copy + offset, sizeof(u64));
+            if (now == before)
+            {
+                continue;
+            }
+            std::memcpy(copy + offset, &now, sizeof(u64));
+            if (run && pointer + offset == run->backing + run->size)
+            {
+                run->size += sizeof(u64);
+                continue;
+            }
+            if (run)
+            {
+                written.push_back(*run);
+            }
+            run = WrittenSpan{pointer + offset, sizeof(u64)};
+        }
+        if (run)
+        {
+            written.push_back(*run);
+        }
+    }
+
+    void FlushNceWrittenPages()
+    {
+        // Held through the reports, so a concurrent flush that finds the copies updated can't return before them.
+        // Only flushes erase entries, so the listed entries stay valid while it is held.
+        std::scoped_lock flush_lock{nce_flush_mutex};
+        nce_flushed_pages.clear();
+        {
+            std::scoped_lock lk{read_cached_mutex};
+            for (const auto & [page, entry] : nce_written)
+            {
+                nce_flushed_pages.push_back({page, entry.get()});
+            }
+        }
+        std::vector<WrittenSpan> written;
+        for (const FlushedPage & flushed : nce_flushed_pages)
+        {
+            // Locked per page: draws and native stores would wait on the whole scan
+            std::scoped_lock lk{read_cached_mutex};
+            const u64 page = flushed.page;
+            NceWrittenPage & entry = *flushed.entry;
+            u8 * const pointer = GetPointerFromRasterizerCachedMemory(page);
+            if (pointer == nullptr)
+            {
+                nce_written.erase(page);
+                continue;
+            }
+            if (current_page_table->pointers[page >> YUZU_PAGEBITS].Type() != Common::PageType::RasterizerCachedMemory)
+            {
+                // Uncached pages are writable and the GPU caches reload them when they cache them again
+                if (++entry.unchanged_flushes >= NceUnchangedFlushesBeforeClose)
+                {
+                    nce_written.erase(page);
+                }
+                continue;
+            }
+            const auto changed = [&] { return std::memcmp(pointer, entry.copy.data(), YUZU_PAGESIZE) != 0; };
+            const auto report = [&] { UpdateNceWrittenCopy(pointer, entry.copy.data(), written); };
+            const bool can_stay_open = CanOpenNceWrittenPage(page >> YUZU_PAGEBITS);
+            if (can_stay_open && changed())
+            {
+                // The page stays writable: a store after the copy changes it again for the next flush
+                report();
+                entry.unchanged_flushes = 0;
+                continue;
+            }
+            // Games store the same values again every frame: closing such a page at once makes it fault again
+            if (can_stay_open && ++entry.unchanged_flushes < NceUnchangedFlushesBeforeClose)
+            {
+                continue;
+            }
+            // Protect before comparing, so that later stores fault again
+            buffer->Protect(page, YUZU_PAGESIZE, CachedPagePermission(page >> YUZU_PAGEBITS));
+            report();
+            nce_written.erase(page);
+        }
+        // Coarse keeps GPU-written buffer data: a GPU write closes the page, so that data is newer than these stores
+        for (const WrittenSpan & span : written)
+        {
+            InvalidateGPUMemory(span.backing, span.size, WriteReport::Coarse);
+        }
     }
 #endif
 
@@ -1799,7 +1984,7 @@ struct Memory::Impl {
         uint64_t last_address;
     };
 
-    void InvalidateGPUMemory(u8 * p, size_t size)
+    void InvalidateGPUMemory(u8 * p, size_t size, WriteReport report = WriteReport::Exact)
     {
         constexpr size_t sys_core = Hardware::NUM_CPU_CORES - 1;
         const size_t core = std::min(system.GetCurrentHostThreadID(), sys_core);
@@ -1816,6 +2001,11 @@ struct Memory::Impl {
             }
         };
 
+        if (report == WriteReport::Coarse)
+        {
+            system.GetVideo().InvalidateMemoryCoarse(p, size);
+            return;
+        }
         system.GetVideo().InvalidateMemory(p, size);
     }
 
@@ -1825,6 +2015,7 @@ struct Memory::Impl {
     std::array<GPUDirtyState, Hardware::NUM_CPU_CORES> rasterizer_write_areas{};
     std::span<Core::GPUDirtyMemoryManager> gpu_dirty_managers;
     std::mutex sys_core_guard;
+    using PageCopy = std::array<u8, YUZU_PAGESIZE>;
 
 #if !defined(__APPLE__)
     std::mutex read_cached_mutex;
@@ -1835,6 +2026,21 @@ struct Memory::Impl {
     uint64_t read_cached_page_count{};
     std::mutex harvest_mutex;
     std::vector<u64> harvested_pages;
+    struct NceWrittenPage
+    {
+        PageCopy copy;
+        u32 unchanged_flushes;
+    };
+    static constexpr u32 NceUnchangedFlushesBeforeClose = 64;
+    std::map<u64, std::unique_ptr<NceWrittenPage>> nce_written;
+    struct FlushedPage
+    {
+        u64 page;
+        NceWrittenPage * entry;
+    };
+    std::vector<FlushedPage> nce_flushed_pages;
+    std::mutex nce_flush_mutex;
+    bool opens_nce_written_pages = false;
 #endif
 
 #if defined(__APPLE__)
@@ -1843,7 +2049,6 @@ struct Memory::Impl {
     // reload them even when the write went to another guest page. Their contents are compared
     // with a copy at the next GPU synchronization, when the writes of the JIT are reported too.
     static constexpr u64 NceHostPageSize = 0x4000;
-    using PageCopy = std::array<u8, YUZU_PAGESIZE>;
     std::mutex nce_write_mutex;
     std::map<u64, std::unique_ptr<PageCopy>> nce_written;
     std::map<u64, u32> nce_read_cached;
@@ -2140,12 +2345,17 @@ bool Memory::InvalidateNCE(Common::ProcessAddress vaddr, size_t size) {
             mapped = false;
         },
         [&] { rasterizer = true; });
+#if defined(__APPLE__)
     if (rasterizer) {
+#else
+    if (rasterizer && !impl->OpenNceWrittenPage(vaddr.GetValue())) {
+#endif
         impl->InvalidateGPUMemory(ptr, size);
     }
 
 #ifdef __linux__
-    if (!rasterizer && mapped) {
+    // Cached pages too: the store retries on a page OpenNceWrittenPage opened
+    if (mapped) {
         impl->buffer->DeferredMapSeparateHeap(vaddr.GetValue());
     }
 #endif
@@ -2228,6 +2438,12 @@ bool Memory::NcePrepareCanonicalWrite(uint64_t vaddr) {
 void Memory::FlushNceWrites(bool rearm_native_reads) {
 #if defined(__APPLE__)
     impl->FlushNceWrites(rearm_native_reads);
+#endif
+}
+
+void Memory::FlushNceWrittenPages() {
+#if !defined(__APPLE__)
+    impl->FlushNceWrittenPages();
 #endif
 }
 

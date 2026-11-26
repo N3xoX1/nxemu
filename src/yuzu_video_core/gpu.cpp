@@ -583,6 +583,11 @@ struct GPU::Impl :
         gpu_thread.InvalidateRegion(addr, size);
     }
 
+    void InvalidateRegionCoarse(DAddr addr, uint64_t size)
+    {
+        rasterizer->OnCoarseCacheInvalidation(addr, size);
+    }
+
     bool OnCPUWrite(DAddr addr, uint64_t size)
     {
         return rasterizer->OnCPUWrite(addr, size);
@@ -815,6 +820,11 @@ void GPU::FlushCommands()
 void GPU::InvalidateGPUCache()
 {
     impl->InvalidateGPUCache();
+}
+
+void GPU::FlushNceWrittenPages()
+{
+    impl->m_modules.OperatingSystem().FlushNceWrittenPages();
 }
 
 void GPU::OnCommandListEnd()
@@ -1067,6 +1077,11 @@ void GPU::FlushRegion(DAddr addr, uint64_t size)
 void GPU::InvalidateRegion(DAddr addr, uint64_t size)
 {
     impl->InvalidateRegion(addr, size);
+}
+
+void GPU::InvalidateRegionCoarse(DAddr addr, uint64_t size)
+{
+    impl->InvalidateRegionCoarse(addr, size);
 }
 
 bool GPU::OnCPUWrite(DAddr addr, uint64_t size)

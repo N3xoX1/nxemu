@@ -120,6 +120,7 @@ void Puller::ProcessSemaphoreTriggerMethod() {
                 LOG_ERROR(HW_GPU, "Invalid semaphore operation");
             }
         } while (false);
+        gpu.FlushNceWrittenPages();
     }
 }
 
@@ -152,6 +153,9 @@ void Puller::ProcessSemaphoreAcquire() {
         regs.acquire_mode = false;
         regs.acquire_source = false;
     }
+    // The guest thread that released the semaphore may have stored to pages opened for native stores
+    // after this command list was submitted
+    gpu.FlushNceWrittenPages();
 }
 
 /// Calls a GPU puller method.

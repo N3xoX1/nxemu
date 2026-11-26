@@ -13,6 +13,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
 #include "core/core.h"
+#include "core/memory.h"
 #include "core/hle/kernel/k_event.h"
 #include "core/hle/service/nvdrv/core/container.h"
 #include "core/hle/service/nvdrv/core/syncpoint_manager.h"
@@ -123,6 +124,8 @@ NvResult nvhost_ctrl::IocSyncptIncr(IocSyncptIncrParams& params) {
         return NvResult::BadParameter;
     }
 
+    // Before the increment: the GPU work it releases may read the guest's native stores
+    system.ApplicationMemory().FlushNceWrittenPages();
     syncpoint_manager.IncrementSyncpoint(params.id);
     return NvResult::Success;
 }

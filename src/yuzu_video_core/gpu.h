@@ -160,6 +160,7 @@ public:
     void FlushCommands();
     /// Synchronizes CPU writes with Host GPU memory.
     void InvalidateGPUCache();
+    void FlushNceWrittenPages();
     /// Signal the ending of command list.
     void OnCommandListEnd();
 
@@ -297,6 +298,7 @@ public:
 
     /// Notify rasterizer that any caches of the specified region should be invalidated
     void InvalidateRegion(DAddr addr, u64 size);
+    void InvalidateRegionCoarse(DAddr addr, u64 size);
 
     /// Notify rasterizer that CPU is trying to write this area. It returns true if the area is
     /// sensible, false otherwise

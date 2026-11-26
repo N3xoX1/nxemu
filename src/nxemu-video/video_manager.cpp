@@ -805,3 +805,15 @@ void VideoManager::InvalidateMemory(const uint8_t * pointer, uint64_t size)
         impl->m_gpuCore->InvalidateRegion(address, size);
     });
 }
+
+void VideoManager::InvalidateMemoryCoarse(const uint8_t * pointer, uint64_t size)
+{
+    if (impl == nullptr || impl->m_gpuCore == nullptr || impl->m_host1x == nullptr || pointer == nullptr || size == 0)
+    {
+        return;
+    }
+    thread_local Common::ScratchBuffer<u32> scratch;
+    impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
+        impl->m_gpuCore->InvalidateRegionCoarse(address, size);
+    });
+}

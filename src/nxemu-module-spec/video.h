@@ -308,6 +308,8 @@ nxinterface IVideo
     virtual void ClearCdmaInstance(uint32_t id) = 0;
     virtual uint32_t GetAppletCaptureBuffer(uint8_t * out, uint32_t out_size) = 0;
     virtual void InvalidateMemory(const uint8_t * pointer, uint64_t size) = 0;
+    // Like InvalidateMemory, but buffers keep their GPU-written data in the range
+    virtual void InvalidateMemoryCoarse(const uint8_t * pointer, uint64_t size) = 0;
     virtual void NotifyWindowChanged() = 0;
     virtual uint32_t GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height) = 0;
     virtual void WaitForComposite() = 0;

@@ -455,6 +455,14 @@ void OSManager::GatherGPUDirtyMemoryForReadback(ICacheInvalidator * invalidator)
     m_coreSystem.GatherGPUDirtyMemory(invalidator, false);
 }
 
+void OSManager::FlushNceWrittenPages()
+{
+    if (Kernel::KProcess * process = m_coreSystem.ApplicationProcess())
+    {
+        process->GetCoreMemory().FlushNceWrittenPages();
+    }
+}
+
 uint64_t OSManager::GetGPUTicks()
 {
     return m_coreSystem.CoreTiming().GetGPUTicks();

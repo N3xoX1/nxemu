@@ -330,6 +330,7 @@ NvResult nvhost_gpu::SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandL
     const auto bind_id = channel_state->BindId();
 
     auto& flags = params.flags;
+    system.ApplicationMemory().FlushNceWrittenPages();
 
     if (flags.fence_wait.Value()) {
         if (flags.increment_value.Value()) {

@@ -66,6 +66,7 @@ public:
         uint32_t commandListSize, void* resources, void (*release)(void*)) override;
     uint32_t GetAppletCaptureBuffer(uint8_t * out, uint32_t out_size) override;
     void InvalidateMemory(const uint8_t * pointer, uint64_t size) override;
+    void InvalidateMemoryCoarse(const uint8_t * pointer, uint64_t size) override;
     void NotifyWindowChanged() override;
     uint32_t GetLinearAppletCaptureBuffer(uint8_t * out, uint32_t out_size, uint32_t * out_width, uint32_t * out_height) override;
     bool ProcessShaderProfile(const ShaderProfileTask& task,IShaderProfileProgress& progress,
