@@ -1109,7 +1109,7 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
                                                   OpISub(U64, ssbo_size, guest_offset))));
                 ssbo_offset = OpUConvert(U32[1], host_offset);
             } else {
-                // The same checks on word pairs; the aligned base only differs in its low word
+                // The alignment mask clears only low bits, so the aligned base keeps the high word
                 const Id ssbo_addr{OpCompositeConstruct(
                     U32[2],
                     OpBitwiseAnd(U32[1], low_word(unaligned_pair),

@@ -106,7 +106,6 @@ static void GlobalMemoryLoads(bool aliasing, bool molten,
     assert(loads[context.load_global_func_u32.value] >= 3);
     assert(loads[context.load_global_func_u32x2.value] >= 3);
     assert(loads[context.load_global_func_u32x4.value] >= 3);
-    // Without 64-bit integers the helpers take the address as the pair LowerInt64ToInt32 makes.
     if (!int64) {
         assert(!declares_int64);
         for (const auto function : {context.load_global_func_u32, context.load_global_func_u32x2,
@@ -240,7 +239,7 @@ int main() {
     GlobalMemoryLoads(false, false);
     GlobalMemoryLoads(true, true);
     GlobalMemoryLoads(true, true, Shader::Stage::Fragment);
-    GlobalMemoryLoads(true, false, Shader::Stage::Compute, false); // Adreno
+    GlobalMemoryLoads(true, false, Shader::Stage::Compute, false);
     GlobalMemoryLoads(false, false, Shader::Stage::Fragment, false);
     std::puts("PASS: SPIR-V constant-buffer layouts and non-NVN global-memory loads");
 }
