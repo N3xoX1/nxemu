@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "core/core.h"
+#include "core/hle/kernel/hle_zstd.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/kernel/svc.h"
 
@@ -4167,6 +4168,9 @@ static void Call32(Core::System& system, u32 imm, std::span<uint64_t, 8> args) {
 }
 
 static void Call64(Core::System& system, u32 imm, std::span<uint64_t, 8> args) {
+    if (Kernel::HleZstd::HandleSvc(system, imm, args)) {
+        return;
+    }
     switch (static_cast<SvcId>(imm)) {
     case SvcId::SetHeapSize:
         return SvcWrap_SetHeapSize64(system, args);

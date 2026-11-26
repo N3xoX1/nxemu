@@ -55,6 +55,7 @@ target_link_libraries(nxemu-os PRIVATE
     yuzu_common
     fmt::fmt
     lz4
+    zstd::zstd
 )
 
 if(ANDROID)

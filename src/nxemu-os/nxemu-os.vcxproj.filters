@@ -579,6 +579,9 @@
     <ClInclude Include="core\hle\ipc.h">
       <Filter>Header Files\core\hle</Filter>
     </ClInclude>
+    <ClInclude Include="core\hle\kernel\hle_zstd.h">
+      <Filter>Header Files\core\hle\kernel</Filter>
+    </ClInclude>
     <ClInclude Include="core\hle\kernel\kernel.h">
       <Filter>Header Files\core\hle\kernel</Filter>
     </ClInclude>
@@ -2342,6 +2345,9 @@
       <Filter>Source Files\core\hle\kernel</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\kernel\k_object_name.cpp">
+      <Filter>Source Files\core\hle\kernel</Filter>
+    </ClCompile>
+    <ClCompile Include="core\hle\kernel\hle_zstd.cpp">
       <Filter>Source Files\core\hle\kernel</Filter>
     </ClCompile>
     <ClCompile Include="core\hle\kernel\kernel.cpp">

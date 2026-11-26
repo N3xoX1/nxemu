@@ -134,6 +134,7 @@ public:
      * @returns True if all bytes in the given range are valid, false otherwise.
      */
     [[nodiscard]] bool IsValidVirtualAddressRange(uint64_t base, uint64_t size) const override;
+    [[nodiscard]] u8 * TryGetPlainContiguousSpan(uint64_t base, uint64_t size);
 
     /**
      * Gets a pointer to the given address.

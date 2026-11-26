@@ -12,6 +12,7 @@
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/swap.h"
 #include "core/file_sys/patch_manager.h"
+#include "core/loader/hle_zstd_patcher.h"
 #include "core/loader/loader.h"
 #include <nxemu-module-spec/cpu.h>
 
@@ -85,7 +86,7 @@ public:
         return IdentifyType(file);
     }
 
-    static std::optional<VAddr> LoadModule(Systemloader & loader, ISystemModules& systemModules, const FileSys::VfsFile& nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm = {}, IPatchCollection * patch_collection = nullptr, int32_t patch_index = -1, bool is_application = false);
+    static std::optional<VAddr> LoadModule(Systemloader & loader, ISystemModules& systemModules, const FileSys::VfsFile& nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm = {}, IPatchCollection * patch_collection = nullptr, int32_t patch_index = -1, bool is_application = false, bool is_64bit = true, std::optional<HleZstdPatcher::Plan> * cached_zstd_plan = nullptr);
     LoadResult Load(Systemloader & loader, ISystemModules & systemModules) override;
     LoaderResultStatus ReadNSOModules(Modules& out_modules) override;
 

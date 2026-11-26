@@ -30,6 +30,7 @@ constexpr GameSetting kGameSettings[] = {
     {NXOsSetting::SystemSpeedLimit, NXOsSetting::GameSpeedLimit, "speed-range", false},
     {NXOsSetting::SystemUseMultiCore, NXOsSetting::GameUseMultiCore, "multicore", true},
     {NXOsSetting::SystemCpuHleSynchronization, NXOsSetting::GameCpuHleSynchronization, "cpu-hle", true},
+    {NXOsSetting::SystemNativeZstd, NXOsSetting::GameNativeZstd, "native-zstd", true},
     {NXOsSetting::SystemVibrationEnabled, NXOsSetting::GameVibrationEnabled, "vibration", true},
     {NXOsSetting::SystemEnableAccurateVibrations, NXOsSetting::GameEnableAccurateVibrations, "accurate-vibration", true},
     {NXOsSetting::SystemKeyboardEnabled, NXOsSetting::GameKeyboardEnabled, "direct-keyboard", true},

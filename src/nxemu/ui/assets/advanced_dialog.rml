@@ -561,6 +561,15 @@
                       <div class="switch-knob" />
                     </div>
                   </div>
+                  <div class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Native Zstd decompression</div>
+                      <div class="row-text">Decodes Zstd game data on the host CPU instead of emulating it.</div>
+                    </div>
+                    <div id="native-zstd" class="switch" data-command="toggle:native-zstd" title="Applies to JIT emulation when a game starts. Faster loading and fewer streaming stutters; falls back to the game's decoder on errors.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

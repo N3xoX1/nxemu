@@ -64,6 +64,8 @@ struct OSSettings
     bool global_use_multi_core;
     bool cpu_hle_synchronization;
     bool global_cpu_hle_synchronization;
+    bool native_zstd;
+    bool global_native_zstd;
     bool use_speed_limit;
     bool uncapped_present;
     u16 speed_limit;
