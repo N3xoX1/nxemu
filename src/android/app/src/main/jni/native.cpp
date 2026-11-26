@@ -2,6 +2,7 @@
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <jni.h>
+#include <malloc.h>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -218,6 +219,27 @@ extern "C" JNIEXPORT void JNICALL
 Java_org_nxemu_NativeLibrary_emulationSurfaceDestroyed(JNIEnv * /*env*/, jclass /*clazz*/)
 {
     EmulationSession::GetInstance().SurfaceDestroyed();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_nxemu_NativeLibrary_trimMemory(JNIEnv * /*env*/, jclass /*clazz*/, jint level)
+{
+    // ComponentCallbacks2: TRIM_MEMORY_RUNNING_LOW (10) and above, or the app in the background.
+    // Bionic keeps freed heap pages (shader/pipeline evictions, boot builds) resident until a
+    // purge; this is Android's malloc_trim (Lichii #1271 on Linux).
+    if (level < 10)
+    {
+        return;
+    }
+#if defined(M_PURGE_ALL)
+    const int purged = mallopt(M_PURGE_ALL, 0);
+#elif defined(M_PURGE)
+    const int purged = mallopt(M_PURGE, 0);
+#else
+    const int purged = 0;
+#endif
+    __android_log_print(ANDROID_LOG_INFO, kLogTag, "onTrimMemory(%d): native heap purge %s", level,
+                        purged == 1 ? "done" : "unsupported");
 }
 
 extern "C" JNIEXPORT void JNICALL

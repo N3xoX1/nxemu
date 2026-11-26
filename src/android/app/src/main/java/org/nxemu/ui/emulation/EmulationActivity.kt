@@ -186,6 +186,12 @@ class EmulationActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // Android kills the emulator first under memory pressure: hand freed native heap back.
+        NativeLibrary.trimMemory(level)
+    }
+
     override fun onUserLeaveHint() {
         leavingApp = true
         super.onUserLeaveHint()

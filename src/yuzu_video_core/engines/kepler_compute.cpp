@@ -46,6 +46,13 @@ void KeplerCompute::CallMethod(u32 method, u32 method_argument, bool) {
                         .exec_address = upload_state.ExecTargetAddress(),
                         .copy_size = upload_state.GetUploadSize(),
                         .was_dirty = upload_dirty};
+        // Only a launch reads and clears this list. A game that uploads through this engine
+        // without launching would grow it for the whole session (Lichii #1908: 768 MiB after
+        // ~90 minutes). A launch only uses the uploads since the previous one: keep the newest.
+        constexpr size_t MaxPendingUploads = 4096;
+        if (uploads.size() >= MaxPendingUploads) {
+            uploads.erase(uploads.begin(), uploads.begin() + MaxPendingUploads / 2);
+        }
         uploads.push_back(info);
         upload_state.ProcessExec(regs.exec_upload.linear != 0);
         break;
