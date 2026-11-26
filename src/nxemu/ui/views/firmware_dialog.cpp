@@ -39,7 +39,7 @@ Outcome OutcomeOf(FirmwareInstallStatus status)
         return {Tr("The source could not be read"), Tr("Check that the file or the folder is still there and that NXEmu may read it.")};
     case FirmwareInstallStatus::NotFirmware:
         return {Tr("No firmware found there"),
-                Tr("Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files.")};
+                Tr("Choose a firmware .zip archive, a firmware .dnsp, a .dxci game card image that carries an update, or a folder of the firmware's .nca files.")};
     case FirmwareInstallStatus::StorageUnavailable:
         return {Tr("The console's storage cannot be written"), Tr("Check that NXEmu may write to its data folder, then try again.")};
     case FirmwareInstallStatus::ReplaceFailed:
@@ -145,7 +145,7 @@ void FirmwareDialog::OnCommand(const std::string & command)
     const FirmwareInstaller::Phase phase = m_installer.Current().phase;
     if (command == "pick-file" && phase == FirmwareInstaller::Phase::Idle)
     {
-        const std::string filter = FileFilter({{Tr("Firmware"), "*.zip;*.dxci;*.nx"}, {Tr("All files"), "*.*"}});
+        const std::string filter = FileFilter({{Tr("Firmware"), "*.zip;*.dnsp;*.dxci;*.nx"}, {Tr("All files"), "*.*"}});
         Path selected;
         if (FileSelect(m_window.NativeHandle(), Path(Path::CURRENT_DIRECTORY), filter.c_str(), true, selected))
         {

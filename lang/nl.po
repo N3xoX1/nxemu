@@ -812,8 +812,8 @@ msgid "Firmware file"
 msgstr "Firmwarebestand"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
-msgid "A .zip archive, or a .dxci game card image that carries an update"
-msgstr "Een .zip-archief of .dxci-gamekaartimage met een update"
+msgid "A .zip archive, a firmware .dnsp, or a .dxci game card image that carries an update"
+msgstr "Een .zip-archief, een firmware-.dnsp of een .dxci-gamekaartimage met een update"
 
 #: src/nxemu/ui/assets/firmware_dialog.rml
 msgid "Browse"
@@ -2025,8 +2025,8 @@ msgid "No firmware found there"
 msgstr "Geen firmware gevonden op deze locatie"
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
-msgid "Choose a firmware .zip archive, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
-msgstr "Kies een .zip-firmwarearchief, een .dxci-gamekaartimage met een update of een map met .nca-firmwarebestanden."
+msgid "Choose a firmware .zip archive, a firmware .dnsp, a .dxci game card image that carries an update, or a folder of the firmware's .nca files."
+msgstr "Kies een .zip-firmwarearchief, een firmware-.dnsp, een .dxci-gamekaartimage met een update of een map met .nca-firmwarebestanden."
 
 #: src/nxemu/ui/views/firmware_dialog.cpp
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
@@ -4114,8 +4114,8 @@ msgid "Check that the file is still there and that NXEmu may read it."
 msgstr "Controleer of het bestand er nog is en of NXEmu het mag lezen."
 
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
-msgid "Choose a firmware .zip archive or a .dxci game card image that carries an update."
-msgstr "Kies een firmware-.zip-archief of een .dxci-gamekaartimage met een update."
+msgid "Choose a firmware .zip archive, a firmware .dnsp, or a .dxci game card image that carries an update."
+msgstr "Kies een firmware-.zip-archief, een firmware-.dnsp of een .dxci-gamekaartimage met een update."
 
 #: src/android/app/src/main/java/org/nxemu/ui/main/FirmwareInstallFlow.kt
 msgid "Check the free space on this device, then try again."
