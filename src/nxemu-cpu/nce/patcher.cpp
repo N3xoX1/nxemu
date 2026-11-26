@@ -320,10 +320,25 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
                  skipped_svcs, skipped_exclusives);
     }
 
-    // Determine patching mode for the final relocation step
+    // The loader allows svc in patch set caves only while this puts the section after the module
     total_program_size += image_size;
     this->mode = image_size > MaxRelativeBranch ? PatchMode::PreText : PatchMode::PostData;
     return true;
+}
+
+void Patcher::PatchCaves(const uint8_t * program_image, uint64_t code_offset, uint64_t cave_offset,
+                         uint64_t cave_size) {
+    const auto cave_words = std::span{reinterpret_cast<const u32*>(program_image + cave_offset),
+                                      cave_size / sizeof(u32)};
+    const uint64_t caves_from_text = cave_offset - code_offset;
+    for (size_t i = 0; i < cave_words.size(); i++) {
+        if (auto svc = SVC{cave_words[i]}; svc.Verify() && svc.GetValue() <= MaxSvcId) {
+            const uintptr_t this_offset = caves_from_text + i * sizeof(u32);
+            this->BranchToPatch(this_offset);
+            WriteSvcTrampoline(this_offset + sizeof(u32), svc.GetValue());
+        }
+    }
+    curr_patch->m_patched_size = caves_from_text + cave_size;
 }
 
 bool Patcher::RelocateAndCopy(uint64_t load_base, uint64_t code_offset, uint64_t code_size,
@@ -387,8 +402,9 @@ bool Patcher::RelocateModule(uint64_t text_base, uint64_t patch_base, uint8_t* t
         const auto distance = static_cast<s64>(target) - static_cast<s64>(source);
         return distance >= -(1LL << 27) && distance < (1LL << 27) && (distance & 3) == 0;
     };
+    const uint64_t patched_size = std::max<uint64_t>(code_size, patch.m_patched_size);
     for (const auto& rel : patch.m_branch_to_patch_relocations) {
-        if (rel.module_offset + sizeof(u32) > code_size ||
+        if (rel.module_offset + sizeof(u32) > patched_size ||
             !branch_fits(text_base + rel.module_offset, patch_base + rel.patch_offset)) return false;
     }
     for (const auto& rel : patch.m_branch_to_module_relocations) {

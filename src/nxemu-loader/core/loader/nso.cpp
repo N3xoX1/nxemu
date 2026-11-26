@@ -81,7 +81,7 @@ LoaderFileType AppLoader_NSO::IdentifyType(const FileSys::VirtualFile & in_file)
     return LoaderFileType::NSO;
 }
 
-std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemModules & systemModules, const FileSys::VfsFile & nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm, IPatchCollection * patch_collection, int32_t patch_index)
+std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemModules & systemModules, const FileSys::VfsFile & nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm, IPatchCollection * patch_collection, int32_t patch_index, bool is_application)
 {
     if (nso_file.GetSize() < sizeof(NSOHeader))
     {
@@ -204,9 +204,14 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
     if (pm)
     {
         const std::string build_id_raw = Common::HexToString(nso_header.build_id);
+        // Past its branch range the native code patcher puts its section before the module, out of the caves' reach
+        constexpr u32 NativeCodeBranchRange = 128 * 1024 * 1024;
+        const bool caves_reach_patch_section = static_cast<u64>(image_size - module_start) + FileSys::PatchSets::MaxCaveBytes +
+                                                   2 * NativeCodePageSize <= NativeCodeBranchRange;
         // The frame step (nxemu-os core/frame_step.h) writes the patch page
         const FileSys::PatchSets::Support support{.page_written = true,
                                                   .native_code = native_code,
+                                                  .native_svc = native_code && is_application && patch_collection && patch_index >= 0 && caves_reach_patch_section,
                                                   .cave_alignment = native_code ? NativeCodePageSize : FileSys::PatchSets::PageSize};
         patch_sets.emplace(pm->CollectPatchSetFiles(), build_id_raw.substr(0, build_id_raw.find_last_not_of('0') + 1), nso_file.GetName(), support);
         if (load_into_process)
@@ -273,6 +278,8 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
 
     // After the IPS and IPSwitch patches, so a patch set sees what they changed and leaves out a set they touched
     bool reads_patch_page = false;
+    u32 cave_offset = 0;
+    u32 cave_size = 0;
     if (patch_sets && patch_code)
     {
         program_image.resize((std::max)(program_image.size(), static_cast<size_t>(image_size)));
@@ -280,9 +287,11 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
         reads_patch_page = patch_sets->Apply(module_image, static_cast<u32>(patch_page - module_start), load_into_process);
         if (native_code && patch_sets->CaveSize() != 0)
         {
+            cave_offset = patch_page + patch_sets->CaveOffset();
+            cave_size = patch_sets->CaveSize();
             Kernel::CodeSet::Segment & cave_segment = codeset.CaveSegment();
-            cave_segment.addr = patch_page + patch_sets->CaveOffset();
-            cave_segment.size = patch_sets->CaveSize();
+            cave_segment.addr = cave_offset;
+            cave_segment.size = cave_size;
         }
     }
 
@@ -291,7 +300,7 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
         const auto & code = codeset.CodeSegment();
         if (!load_into_process)
         {
-            patch_collection->PatchText(patch_index, program_image.data(), image_size, (uint32_t)code.offset, code.size);
+            patch_collection->PatchText(patch_index, program_image.data(), image_size, (uint32_t)code.offset, code.size, cave_offset, cave_size);
         }
         else
         {

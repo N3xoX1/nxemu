@@ -131,8 +131,14 @@ uint32_t InvertToSkipNext(uint32_t w)
 
 // Why the host cannot run this word from a cave with native code execution, or nullptr. The native code patcher
 // rewrites these in .text (nxemu-cpu nce/patcher.cpp); a cave is not in .text.
-const char * NativeCodeProblem(uint32_t w)
+const char * NativeCodeProblem(uint32_t w, bool svc_rewritten)
 {
+    constexpr uint32_t MaxSvcId = 0x7F;
+    const bool horizon_svc = (w & 0xFFE0001F) == 0xD4000001 && ((w >> 5) & 0xFFFF) <= MaxSvcId;
+    if (svc_rewritten && horizon_svc)
+    {
+        return nullptr;
+    }
     if ((w & 0xFF000000) == 0xD4000000)
     {
         return "an exception (svc, brk)";
@@ -238,7 +244,7 @@ PatchSets::PatchSets(const std::vector<VirtualFile> & files, const std::string &
             {
                 values.push_back(word.value);
                 reads_page |= word.page_reg >= 0;
-                const char * problem = word.page_reg < 0 && site.words.size() > 1 ? NativeCodeProblem(word.value) : nullptr;
+                const char * problem = word.page_reg < 0 && site.words.size() > 1 ? NativeCodeProblem(word.value, support.native_svc) : nullptr;
                 if (support.native_code && problem != nullptr && native.empty())
                 {
                     native = fmt::format("the cave word {:08x} at module offset {:#x} ({}:{}) is {}, which native code execution cannot run "
