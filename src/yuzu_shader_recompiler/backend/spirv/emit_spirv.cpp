@@ -699,7 +699,11 @@ void PatchPhiNodes(IR::Program& program, EmitContext& ctx) {
                 } while (inst->GetOpcode() != IR::Opcode::Phi);
             }
         }
-        return ctx.Def(inst->Arg(phi_arg));
+        const Id value{ctx.Def(inst->Arg(phi_arg))};
+        if (!Sirit::ValidId(value)) {
+            throw LogicError("Phi operand {} has no definition", phi_arg);
+        }
+        return value;
     });
 }
 } // Anonymous namespace
