@@ -128,6 +128,7 @@
     <ClInclude Include="core\hle\service\set\settings_server.h" />
     <ClInclude Include="core\hle\service\set\settings_types.h" />
     <ClInclude Include="core\loader\deconstructed_rom_directory.h" />
+    <ClInclude Include="core\loader\hle_zstd_patcher.h" />
     <ClInclude Include="core\loader\loader.h" />
     <ClInclude Include="core\loader\loose_romfs_paths.h" />
     <ClInclude Include="core\loader\nca.h" />
@@ -205,6 +206,7 @@
     <ClCompile Include="core\hle\service\ns\platform_service_manager.cpp" />
     <ClCompile Include="core\hle\service\set\settings_server.cpp" />
     <ClCompile Include="core\loader\deconstructed_rom_directory.cpp" />
+    <ClCompile Include="core\loader\hle_zstd_patcher.cpp" />
     <ClCompile Include="core\loader\loader.cpp" />
     <ClCompile Include="core\loader\nx.cpp" />
     <ClCompile Include="core\file_sys\vfs\vfs_nx.cpp" />

@@ -1930,6 +1930,39 @@ bool Memory::IsValidVirtualAddressRange(uint64_t base, uint64_t size) const
     }
 }
 
+u8 * Memory::TryGetPlainContiguousSpan(uint64_t base, uint64_t size)
+{
+    if (size == 0 || size - 1 > std::numeric_limits<uint64_t>::max() - base)
+    {
+        return nullptr;
+    }
+    const auto & page_table = *impl->current_page_table;
+    const size_t first_page = base >> YUZU_PAGEBITS;
+    const size_t last_page = (base + size - 1) >> YUZU_PAGEBITS;
+    if (last_page >= page_table.pointers.size() || last_page >= page_table.blocks.size())
+    {
+        return nullptr;
+    }
+    if (page_table.blocks[first_page] != page_table.blocks[last_page])
+    {
+        return nullptr;
+    }
+    const auto [first_ptr, first_type] = page_table.pointers[first_page].PointerType();
+    if (first_type != Common::PageType::Memory || first_ptr == 0)
+    {
+        return nullptr;
+    }
+    for (size_t page = first_page + 1; page <= last_page; ++page)
+    {
+        const auto [ptr, type] = page_table.pointers[page].PointerType();
+        if (type != Common::PageType::Memory || ptr != first_ptr)
+        {
+            return nullptr;
+        }
+    }
+    return reinterpret_cast<u8 *>(first_ptr + base);
+}
+
 u8* Memory::GetPointer(Common::ProcessAddress vaddr)
 {
     return impl->GetPointer(vaddr);

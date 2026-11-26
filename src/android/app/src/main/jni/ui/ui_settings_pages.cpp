@@ -919,6 +919,10 @@ void UiActivity::RenderSystemSettings()
     }
     AppendSelectSetting(SelectFor(NXOsSetting::SystemSpeedLimit));
     AppendBoolSetting(Tr("Docked mode"), NXOsSetting::SystemDockedMode, Tr("Higher resolution, lower performance"), true);
+    if (!GameIsRunning())
+    {
+        AppendBoolSetting(Tr("Native Zstd decompression"), NXOsSetting::SystemNativeZstd, Tr("Faster loading on JIT; skipped under NCE"));
+    }
     AppendSelectSetting(SelectFor(NXCoreSetting::SystemLanguageIndex));
     CommitBody();
 }

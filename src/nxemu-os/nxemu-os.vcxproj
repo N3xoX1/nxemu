@@ -29,7 +29,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\3rd_party\nx_tzdb\include;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\boost;$(SolutionDir)external\fmt\include;$(SolutionDir)external\libusb\libusb;$(SolutionDir)external\opus\include;$(SolutionDir)external\sdl\include;$(SolutionDir)external;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\3rd_party\microprofile;$(SolutionDir)src\3rd_party\nx_tzdb\include;$(SolutionDir)src\3rd_party\stb;$(SolutionDir)external\boost;$(SolutionDir)external\fmt\include;$(SolutionDir)external\libusb\libusb;$(SolutionDir)external\opus\include;$(SolutionDir)external\sdl\include;$(SolutionDir)external\zstd\lib;$(SolutionDir)external;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <WarningLevel>Level3</WarningLevel>
       <UseStandardPreprocessor>true</UseStandardPreprocessor>
       <PreprocessorDefinitions>NOMINMAX;BOOST_CONTEXT_STATIC_LINK;BOOST_ALL_NO_LIB;HAVE_SDL;HAVE_LIBUSB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -56,6 +56,7 @@
     <ClCompile Include="core\constants.cpp" />
     <ClCompile Include="core\core.cpp" />
     <ClCompile Include="core\hle\kernel\board\nintendo\nx\k_system_control.cpp" />
+    <ClCompile Include="core\hle\kernel\hle_zstd.cpp" />
     <ClCompile Include="core\hle\kernel\init\init_slab_setup.cpp" />
     <ClCompile Include="core\hle\kernel\kernel.cpp" />
     <ClCompile Include="core\hle\kernel\k_device_address_space.cpp" />
@@ -557,6 +558,7 @@
     <ClInclude Include="core\hle\api_version.h" />
     <ClInclude Include="core\hle\kernel\board\nintendo\nx\secure_monitor.h" />
     <ClInclude Include="core\hle\kernel\init\init_slab_setup.h" />
+    <ClInclude Include="core\hle\kernel\hle_zstd.h" />
     <ClInclude Include="core\hle\kernel\k_debug.h" />
     <ClInclude Include="core\hle\kernel\k_device_address_space.h" />
     <ClInclude Include="core\hle\kernel\k_event_info.h" />

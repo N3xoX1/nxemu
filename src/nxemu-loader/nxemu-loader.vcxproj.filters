@@ -240,6 +240,9 @@
     <ClCompile Include="core\file_sys\submission_package.cpp">
       <Filter>Source Files\core\file_sys</Filter>
     </ClCompile>
+    <ClCompile Include="core\loader\hle_zstd_patcher.cpp">
+      <Filter>Source Files\core\loader</Filter>
+    </ClCompile>
     <ClCompile Include="core\loader\nso.cpp">
       <Filter>Source Files\core\loader</Filter>
     </ClCompile>
@@ -465,6 +468,9 @@
       <Filter>Header Files\core\hle</Filter>
     </ClInclude>
     <ClInclude Include="core\loader\loader.h">
+      <Filter>Header Files\core\loader</Filter>
+    </ClInclude>
+    <ClInclude Include="core\loader\hle_zstd_patcher.h">
       <Filter>Header Files\core\loader</Filter>
     </ClInclude>
     <ClInclude Include="core\loader\nso.h">

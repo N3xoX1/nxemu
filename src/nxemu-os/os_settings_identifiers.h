@@ -10,6 +10,7 @@ namespace NXOsSetting
     constexpr const char * AudioMuted = "nxos:AudioMuted";
     constexpr const char * SystemSpeedLimit = "nxos:SystemSpeedLimit";
     constexpr const char * SystemCpuHleSynchronization = "nxos:SystemCpuHleSynchronization";
+    constexpr const char * SystemNativeZstd = "nxos:SystemNativeZstd";
     constexpr const char * SystemUseMultiCore = "nxos:SystemUseMultiCore";
     constexpr const char * UseSpeedLimit = "nxos:UseSpeedLimit";
     constexpr const char * UncappedPresent = "nxos:UncappedPresent";
@@ -23,6 +24,7 @@ namespace NXOsSetting
     constexpr const char * GameSpeedLimit = "nxos:GameSpeedLimit";
     constexpr const char * GameUseMultiCore = "nxos:GameUseMultiCore";
     constexpr const char * GameCpuHleSynchronization = "nxos:GameCpuHleSynchronization";
+    constexpr const char * GameNativeZstd = "nxos:GameNativeZstd";
     constexpr const char * GameVibrationEnabled = "nxos:GameVibrationEnabled";
     constexpr const char * GameEnableAccurateVibrations = "nxos:GameEnableAccurateVibrations";
     constexpr const char * GameKeyboardEnabled = "nxos:GameKeyboardEnabled";

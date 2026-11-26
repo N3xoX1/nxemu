@@ -14,6 +14,7 @@
 #include "core/cpu_manager.h"
 #include "core/debugger/debugger.h"
 #include "core/gpu_dirty_memory_manager.h"
+#include "core/hle/kernel/hle_zstd.h"
 #include "core/hle/kernel/k_memory_manager.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/kernel/k_resource_limit.h"
@@ -201,6 +202,7 @@ struct System::Impl {
         ReconfigureIfNecessary(system);
 
         kernel.Initialize();
+        Kernel::HleZstd::Reset();
         cpu_manager.Initialize();
         arp_manager.ResetAll();
         audio_core = std::make_unique<AudioCore::AudioCore>(system);
@@ -246,6 +248,7 @@ struct System::Impl {
         // The cores stop at their next reschedule: wait for them before destroying what the
         // code they still run uses, such as a service still starting.
         cpu_manager.Shutdown();
+        Kernel::HleZstd::Reset();
         applet_manager.Reset();
         {
             std::scoped_lock lk{general_channel_mutex};

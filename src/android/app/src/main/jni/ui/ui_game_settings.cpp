@@ -21,6 +21,7 @@ namespace
 
     constexpr GameSetting kGameSettings[] = {
         {NXOsSetting::SystemDockedMode, NXOsSetting::GameDockedMode, false},
+        {NXOsSetting::SystemNativeZstd, NXOsSetting::GameNativeZstd, true},
         {NXCoreSetting::SystemLanguageIndex, NXOsSetting::GameLanguageIndex, false},
         {NXOsSetting::SystemSpeedLimit, NXOsSetting::GameSpeedLimit, false},
         {NXVideoSetting::SystemUseDiskPipelineCache, NXVideoSetting::GameUseDiskPipelineCache, true},

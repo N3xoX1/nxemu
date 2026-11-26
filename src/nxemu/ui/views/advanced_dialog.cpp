@@ -84,6 +84,7 @@ constexpr Toggle kToggles[] = {
     {"limit", NXOsSetting::UseSpeedLimit, Store::Module, true},
     {"multicore", NXOsSetting::SystemUseMultiCore, Store::Module, false},
     {"cpu-hle", NXOsSetting::SystemCpuHleSynchronization, Store::Module, false},
+    {"native-zstd", NXOsSetting::SystemNativeZstd, Store::Module, false},
     {"vibration", NXOsSetting::SystemVibrationEnabled, Store::Module, true},
     {"accurate-vibration", NXOsSetting::SystemEnableAccurateVibrations, Store::Module, true},
     {"direct-keyboard", NXOsSetting::SystemKeyboardEnabled, Store::Module, true},

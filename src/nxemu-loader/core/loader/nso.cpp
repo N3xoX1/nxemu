@@ -16,6 +16,7 @@
 #include "core/file_sys/patch_sets.h"
 #include "core/hle/kernel/code_set.h"
 #include "core/hle/kernel/k_thread.h"
+#include "core/loader/hle_zstd_patcher.h"
 #include "core/loader/nso.h"
 #include "core/memory.h"
 #include "system_loader.h"
@@ -28,6 +29,7 @@
 #include "yuzu_common/swap.h"
 #include <nxemu-cpu/cpu_settings_identifiers.h>
 #include <nxemu-module-spec/base.h>
+#include <nxemu-os/os_settings_identifiers.h>
 
 
 extern IModuleSettings * g_settings;
@@ -81,7 +83,7 @@ LoaderFileType AppLoader_NSO::IdentifyType(const FileSys::VirtualFile & in_file)
     return LoaderFileType::NSO;
 }
 
-std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemModules & systemModules, const FileSys::VfsFile & nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm, IPatchCollection * patch_collection, int32_t patch_index, bool is_application)
+std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemModules & systemModules, const FileSys::VfsFile & nso_file, VAddr load_base, bool should_pass_arguments, bool load_into_process, std::optional<FileSys::PatchManager> pm, IPatchCollection * patch_collection, int32_t patch_index, bool is_application, bool is_64bit, std::optional<HleZstdPatcher::Plan> * cached_zstd_plan)
 {
     if (nso_file.GetSize() < sizeof(NSOHeader))
     {
@@ -230,6 +232,69 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
             image_size += layout.image_growth;
         }
     }
+
+    // Reserve a trampoline cave in the data segment for host-accelerated Zstd decompression (64-bit application JIT only).
+    // Skip any module modified by IPS or .nxpatch mods so mod edits inside a Zstd function body are never bypassed.
+    std::optional<HleZstdPatcher::Plan> local_zstd_plan;
+    const HleZstdPatcher::Plan * hle_zstd_plan = nullptr;
+    u32 hle_zstd_cave = image_size;
+    const bool module_has_mods =
+        (pm && pm->HasNSOPatch(nso_header.build_id, nso_file.GetName())) ||
+        (patch_sets && !patch_sets->Empty());
+    if (!native_code && is_application && is_64bit && !module_has_mods && g_settings != nullptr && g_settings->GetBool(NXOsSetting::GameNativeZstd))
+    {
+        const std::string nso_name = nso_file.GetName();
+        if (nso_name != "rtld")
+        {
+            if (cached_zstd_plan != nullptr && cached_zstd_plan->has_value())
+            {
+                hle_zstd_plan = &cached_zstd_plan->value();
+            }
+            else
+            {
+                const u32 text_loc = nso_header.segments[0].location;
+                const u32 text_sz = nso_header.segments[0].size;
+                const u32 ro_loc = nso_header.segments[1].location;
+                const u32 ro_sz = nso_header.segments[1].size;
+                const std::span<const u8> text_span =
+                    (static_cast<size_t>(module_start) + text_loc + text_sz <= program_image.size())
+                        ? std::span<const u8>(program_image.data() + module_start + text_loc, text_sz)
+                        : std::span<const u8>{};
+                const std::span<const u8> ro_span =
+                    (static_cast<size_t>(module_start) + ro_loc + ro_sz <= program_image.size())
+                        ? std::span<const u8>(program_image.data() + module_start + ro_loc, ro_sz)
+                        : std::span<const u8>{};
+                const HleZstdPatcher::DynSymInfo dynsym{
+                    .dynstr_offset = nso_header.dynstr_extent.data_offset,
+                    .dynstr_size = nso_header.dynstr_extent.size,
+                    .dynsym_offset = nso_header.dynsyn_extent.data_offset,
+                    .dynsym_size = nso_header.dynsyn_extent.size,
+                };
+                HleZstdPatcher::Plan plan = HleZstdPatcher::Analyze(nso_header.build_id, nso_name, text_span, text_loc, ro_span, dynsym);
+                if (cached_zstd_plan != nullptr)
+                {
+                    *cached_zstd_plan = std::move(plan);
+                    hle_zstd_plan = &cached_zstd_plan->value();
+                }
+                else
+                {
+                    local_zstd_plan = std::move(plan);
+                    hle_zstd_plan = &local_zstd_plan.value();
+                }
+            }
+            if (hle_zstd_plan != nullptr && !hle_zstd_plan->sites.empty())
+            {
+                const u32 cave_bytes = PageAlignSize(static_cast<u32>(hle_zstd_plan->sites.size() * HleZstdPatcher::kTrampolineBytes));
+                hle_zstd_cave = image_size;
+                codeset.DataSegment().size += cave_bytes;
+                image_size += cave_bytes;
+            }
+            else
+            {
+                hle_zstd_plan = nullptr;
+            }
+        }
+    }
 #if defined(__APPLE__)
     // Native code execution maps 16 KiB host pages: start every module, and the patch section
     // after the last one, on a host page, so the end of .bss never shares one with code.
@@ -293,6 +358,13 @@ std::optional<VAddr> AppLoader_NSO::LoadModule(Systemloader & loader, ISystemMod
             cave_segment.addr = cave_offset;
             cave_segment.size = cave_size;
         }
+    }
+
+    if (hle_zstd_plan && load_into_process)
+    {
+        program_image.resize((std::max)(program_image.size(), static_cast<size_t>(image_size)));
+        const std::span<u8> module_image(program_image.data() + module_start, image_size - module_start);
+        HleZstdPatcher::Apply(*hle_zstd_plan, module_image, static_cast<u32>(hle_zstd_cave - module_start));
     }
 
     if (patch_collection && patch_index >= 0)
