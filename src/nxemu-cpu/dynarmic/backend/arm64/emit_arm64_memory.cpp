@@ -544,15 +544,16 @@ void FastmemEmitReadMemory(oaknut::CodeGenerator& code, EmitContext& ctx, IR::In
     const auto fastmem_location = EmitMemoryLdr<bitsize>(code, Rvalue->index(), Xbase, Xoffset, ordered, ShouldExt32(ctx));
 
     ctx.deferred_emits.emplace_back([&code, &ctx, inst, marker, Xaddr = *Xaddr, Rvalue = *Rvalue, ordered, fallback, end, fastmem_location] {
-        ctx.ebi.fastmem_patch_info.emplace(
-            fastmem_location - ctx.ebi.entry_point,
-            FastmemPatchInfo{
+        ctx.ebi.fastmem_patch_info.push_back(FastmemPatchEntry{
+            .offset = fastmem_location - ctx.ebi.entry_point,
+            .info = FastmemPatchInfo{
                 .marker = marker,
                 .fc = FakeCall{
                     .call_pc = mcl::bit_cast<u64>(code.xptr<void*>()),
                 },
                 .recompile = ctx.conf.recompile_on_fastmem_failure,
-            });
+            },
+        });
 
         code.l(*fallback);
         code.MOV(Xscratch0, Xaddr);
@@ -594,15 +595,16 @@ void FastmemEmitWriteMemory(oaknut::CodeGenerator& code, EmitContext& ctx, IR::I
     const auto fastmem_location = EmitMemoryStr<bitsize>(code, Rvalue->index(), Xbase, Xoffset, ordered, ShouldExt32(ctx));
 
     ctx.deferred_emits.emplace_back([&code, &ctx, inst, marker, Xaddr = *Xaddr, Rvalue = *Rvalue, ordered, fallback, end, fastmem_location] {
-        ctx.ebi.fastmem_patch_info.emplace(
-            fastmem_location - ctx.ebi.entry_point,
-            FastmemPatchInfo{
+        ctx.ebi.fastmem_patch_info.push_back(FastmemPatchEntry{
+            .offset = fastmem_location - ctx.ebi.entry_point,
+            .info = FastmemPatchInfo{
                 .marker = marker,
                 .fc = FakeCall{
                     .call_pc = mcl::bit_cast<u64>(code.xptr<void*>()),
                 },
                 .recompile = ctx.conf.recompile_on_fastmem_failure,
-            });
+            },
+        });
 
         code.l(*fallback);
         if constexpr (bitsize == 128) {

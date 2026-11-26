@@ -276,12 +276,21 @@ protected:
     virtual void EmitTerminalImpl(IR::Term::CheckHalt terminal, IR::LocationDescriptor initial_location, bool is_single_step) = 0;
 
     // Patching
-    struct PatchInformation {
-        std::vector<CodePtr> jg;
-        std::vector<CodePtr> jz;
-        std::vector<CodePtr> jmp;
-        std::vector<CodePtr> mov_rcx;
+    enum class PatchKind : u8 {
+        Jg,
+        Jz,
+        Jmp,
+        MovRcx,
     };
+    struct PatchEntry {
+        u32 code_offset;
+        PatchKind kind;
+    };
+    struct PatchInformation {
+        std::vector<PatchEntry> entries;
+    };
+    void AddPatchSite(const IR::LocationDescriptor& target, PatchKind kind, CodePtr location);
+    CodePtr PatchEntryPtr(const PatchEntry& entry) const;
     virtual void Patch(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr);
     virtual void Unpatch(const IR::LocationDescriptor& target_desc);
     virtual void EmitPatchJg(const IR::LocationDescriptor& target_desc, CodePtr target_code_ptr = nullptr) = 0;

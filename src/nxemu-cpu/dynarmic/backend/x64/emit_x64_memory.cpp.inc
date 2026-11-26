@@ -59,9 +59,9 @@ std::optional<AxxEmitX64::DoNotFastmemMarker> AxxEmitX64::ShouldFastmem(AxxEmitC
 FakeCall AxxEmitX64::FastmemCallback(u64 rip_) {
     // The fault comes from JIT code, never from code that holds this lock.
     std::unique_lock lock{cache_mutex};
-    const auto iter = fastmem_patch_info.find(rip_);
+    const auto info = fastmem_patch_info.find(rip_);
 
-    if (iter == fastmem_patch_info.end()) {
+    if (!info) {
         fmt::print("dynarmic: Segfault happened within JITted code at rip = {:016x}\n", rip_);
         fmt::print("Segfault wasn't at a fastmem patch location!\n");
         fmt::print("Now dumping code.......\n\n");
@@ -70,12 +70,12 @@ FakeCall AxxEmitX64::FastmemCallback(u64 rip_) {
     }
 
     FakeCall result{
-        .call_rip = iter->second.callback,
-        .ret_rip = iter->second.resume_rip,
+        .call_rip = info->callback,
+        .ret_rip = info->resume_rip,
     };
 
-    if (iter->second.recompile) {
-        const auto marker = iter->second.marker;
+    if (info->recompile) {
+        const auto marker = info->marker;
         do_not_fastmem.insert(marker);
         InvalidateBasicBlocks({std::get<0>(marker)});
     }
