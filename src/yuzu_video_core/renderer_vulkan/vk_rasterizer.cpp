@@ -1525,6 +1525,10 @@ bool RasterizerVulkan::AccelerateConditionalRendering() {
     return false;
 }
 
+bool RasterizerVulkan::TryFlushQueryResults(DAddr addr, u64 size) {
+    return query_cache.TryWriteResults(addr, size);
+}
+
 bool RasterizerVulkan::AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Surface& src,
                                              const Tegra::Engines::Fermi2D::Surface& dst,
                                              const Tegra::Engines::Fermi2D::Config& copy_config) {

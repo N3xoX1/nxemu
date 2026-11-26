@@ -307,6 +307,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::SystemAccuracyLevel, "video", "accuracy_level", &videoSettings.global_gpu_accuracy, GpuAccuracy::Normal},
     {NXVideoSetting::SystemAnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.global_max_anisotropy, AnisotropyMode::Default},
     {NXVideoSetting::SystemFastShaderMath, "video", "fast_shader_math", &videoSettings.global_fast_shader_math, true},
+    {NXVideoSetting::SystemSkipConditionalRenderWait, "video", "skip_conditional_render_wait", &videoSettings.global_skip_conditional_render_wait, true},
 #else
     {NXVideoSetting::SystemAstcDecodeMode, "video", "astc_decode_mode", &videoSettings.global_accelerate_astc, AstcDecodeMode::Gpu},
     {NXVideoSetting::SystemEnableAsynchronousPresentation, "video", "async_presentation", &videoSettings.global_async_presentation, true, true},
@@ -314,6 +315,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::SystemAccuracyLevel, "video", "accuracy_level", &videoSettings.global_gpu_accuracy, GpuAccuracy::High},
     {NXVideoSetting::SystemAnisotropicFiltering, "video", "anisotropic_filtering", &videoSettings.global_max_anisotropy, AnisotropyMode::Automatic},
     {NXVideoSetting::SystemFastShaderMath, "video", "fast_shader_math", &videoSettings.global_fast_shader_math, false},
+    {NXVideoSetting::SystemSkipConditionalRenderWait, "video", "skip_conditional_render_wait", &videoSettings.global_skip_conditional_render_wait, false},
 #endif
     {NXVideoSetting::SystemDMAAccuracy, "video", "dma_accuracy", &videoSettings.global_dma_accuracy, 0, 0, 2, true},
     {NXVideoSetting::SystemGpuCommandSynchronization, "video", "gpu_command_synchronization", &videoSettings.global_gpu_command_synchronization, false, true},
@@ -376,6 +378,7 @@ static VideoSetting settings[] = {
     {NXVideoSetting::GameSyncToFramerateOfVideoPlayback, "video", "use_video_framerate", &videoSettings.use_video_framerate, NXVideoSetting::SystemSyncToFramerateOfVideoPlayback},
     {NXVideoSetting::GameBarrierFeedbackLoops, "video", "barrier_feedback_loops", &videoSettings.barrier_feedback_loops, NXVideoSetting::SystemBarrierFeedbackLoops},
     {NXVideoSetting::GameFastShaderMath, "video", "fast_shader_math", &videoSettings.fast_shader_math, NXVideoSetting::SystemFastShaderMath},
+    {NXVideoSetting::GameSkipConditionalRenderWait, "video", "skip_conditional_render_wait", &videoSettings.skip_conditional_render_wait, NXVideoSetting::SystemSkipConditionalRenderWait},
     {NXVideoSetting::GameASTCRecompressionMethod, "video", "astc_recompression_method", &videoSettings.astc_recompression, NXVideoSetting::SystemASTCRecompressionMethod},
     {NXVideoSetting::GameVRAMUsageMode, "video", "vram_usage_mode", &videoSettings.vram_usage_mode, NXVideoSetting::SystemVRAMUsageMode},
 };

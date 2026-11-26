@@ -37,6 +37,7 @@ namespace
         {NXVideoSetting::SystemForceMaximumClocks, NXVideoSetting::GameForceMaximumClocks, true},
         {NXVideoSetting::SystemUseAsynchronousShaderBuilding, NXVideoSetting::GameUseAsynchronousShaderBuilding, true},
         {NXVideoSetting::SystemFastShaderMath, NXVideoSetting::GameFastShaderMath, true},
+        {NXVideoSetting::SystemSkipConditionalRenderWait, NXVideoSetting::GameSkipConditionalRenderWait, true},
         {NXVideoSetting::SystemSkipUntrackedStoreReadback, NXVideoSetting::GameSkipUntrackedStoreReadback, true},
         {NXVideoSetting::SystemBarrierFeedbackLoops, NXVideoSetting::GameBarrierFeedbackLoops, true},
     };

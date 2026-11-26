@@ -252,6 +252,10 @@ public:
         return false;
     }
 
+    virtual bool TryFlushQueryResults(DAddr addr, u64 size) {
+        return true;
+    }
+
     /// Attempt to use a faster method to perform a surface copy
     [[nodiscard]] virtual bool AccelerateSurfaceCopy(
         const Tegra::Engines::Fermi2D::Surface& src, const Tegra::Engines::Fermi2D::Surface& dst,

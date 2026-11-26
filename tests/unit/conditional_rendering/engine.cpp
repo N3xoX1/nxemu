@@ -1,9 +1,12 @@
 #include <span>
 #include <array>
 #include <bitset>
+#include <cstddef>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <optional>
+#include <set>
 #include <stdexcept>
 #include <cstdio>
 #include "yuzu_video_core/engines/maxwell_3d.h"
@@ -21,8 +24,21 @@ using Regs=Maxwell3D::Regs;
 struct Memory {
  std::map<GPUVAddr,Regs::ReportSemaphore::Compare> values;
  unsigned reads{};
- void ReadBlock(GPUVAddr a,void* p,size_t n) { ++reads; Check(n==sizeof(values[a]),"read size"); std::memcpy(p,&values[a],n); }
+ std::map<GPUVAddr,DAddr> remapped_pages;
+ void ReadBlock(GPUVAddr a,void* p,size_t n) {
+  ++reads;
+  auto it=values.upper_bound(a);
+  if(it==values.begin()||a-std::prev(it)->first>=sizeof(Regs::ReportSemaphore::Compare)){std::memset(p,0,n);return;}
+  --it; const size_t offset=a-it->first;
+  Check(offset+n<=sizeof(it->second),"read past the condition");
+  std::memcpy(p,reinterpret_cast<const u8*>(&it->second)+offset,n);
+ }
+ std::optional<DAddr> GpuToCpuAddress(GPUVAddr a) const {
+  const auto page=remapped_pages.find(a&~GPUVAddr{0xfff});
+  return page==remapped_pages.end()?a:page->second+(a&0xfff);
+ }
 };
+struct { bool skip_conditional_render_wait=false; } videoSettings;
 struct Draw {
  std::function<void()> on_flush=[]{};
  void DrawDeferred(){on_flush();}
@@ -32,6 +48,8 @@ struct Raster {
  std::function<bool()> accelerate=[]{return false;};
  unsigned calls{};
  bool AccelerateConditionalRendering(){++calls;return accelerate();}
+ std::set<DAddr> pending;
+ bool TryFlushQueryResults(DAddr a,u64 n){ auto it=pending.lower_bound(a); return it==pending.end()||*it>=a+n; }
  void WaitForIdle(){} void FragmentBarrier(){} void InvalidateGPUCache(){} void TiledCacheBarrier(){}
  void ReleaseDrawLocks(){}
 };
@@ -46,6 +64,7 @@ struct Fixture {
  Macro macro; Macro* macro_engine=&macro;
  Upload upload_state;
  bool execute_on=true;
+ bool render_condition_skipped=false;
  u32 executing_macro{};
  GPUVAddr current_dma_segment{};
  std::vector<std::pair<u32,u32>> method_sink;
@@ -60,6 +79,9 @@ struct Fixture {
  bool IsMethodExecutable(u32);
  u32 ProcessShadowRam(u32,u32);
  void ProcessQueryCondition();
+ bool ShouldExecuteClear();
+ bool RenderConditionPasses(bool);
+ std::optional<Regs::ReportSemaphore::Compare> ReadRenderCondition(bool,bool);
  void ProcessMethodCall(u32,u32,u32);
  void CallMethod(u32,u32,bool);
  void PushMethod(u32 m,u32 a){method_sink.emplace_back(m,a);}
@@ -145,5 +167,42 @@ int main(){
   cases+=14;
  };
  test(false);test(true);
+ {
+  Fixture f; Dma d;d.subchannels[0]=&f;
+  auto write=[&](u32 m,u32 v){d.dma_state.method=m;d.CallMethod(v);};
+  auto mode=[&](Regs::RenderEnable::Mode m){write(MAXWELL3D_REG_INDEX(render_enable.mode),u32(m));};
+  videoSettings.skip_conditional_render_wait=true;
+  f.memory_manager.values[0x100]={0,0,0,0,1,1};
+  write(MAXWELL3D_REG_INDEX(render_enable.address_low),0x100);
+  f.raster.pending={0x108};
+  auto reads=f.memory_manager.reads;
+  mode(Regs::RenderEnable::Mode::Conditional);
+  Check(!f.execute_on&&f.memory_manager.reads==reads+1,"pending result outside the compared words skipped a known condition");
+  f.raster.pending={0x110};
+  mode(Regs::RenderEnable::Mode::Conditional);
+  Check(!f.execute_on,"conditional mode waited on the current operand");
+  reads=f.memory_manager.reads;
+  mode(Regs::RenderEnable::Mode::IfEqual);
+  Check(f.execute_on&&f.memory_manager.reads==reads&&f.render_condition_skipped,"pending current operand was waited for");
+  Check(!f.ShouldExecuteClear()&&f.memory_manager.reads==reads+2&&!f.execute_on,"clear did not wait for the skipped result");
+  Check(!f.ShouldExecuteClear()&&f.memory_manager.reads==reads+2,"clear read a known result again");
+  f.raster.pending={0x104};
+  mode(Regs::RenderEnable::Mode::IfNotEqual);
+  Check(f.execute_on&&f.render_condition_skipped,"pending initial operand was waited for");
+  write(MAXWELL3D_REG_INDEX(render_enable_override),u32(Regs::RenderEnable::Override::NeverRender));
+  Check(!f.render_condition_skipped&&!f.ShouldExecuteClear(),"override kept a skipped result");
+  write(MAXWELL3D_REG_INDEX(render_enable_override),u32(Regs::RenderEnable::Override::UseRenderEnable));
+  f.memory_manager.values[0x1ffc]={0,0,0,0,1,1};
+  f.memory_manager.remapped_pages[0x2000]=0x9000;
+  write(MAXWELL3D_REG_INDEX(render_enable.address_low),0x1ffc);
+  f.raster.pending={0x2000};
+  mode(Regs::RenderEnable::Mode::Conditional);
+  Check(!f.execute_on&&!f.render_condition_skipped,"operand word on another page probed the adjacent device page");
+  f.raster.pending={0x9000};
+  mode(Regs::RenderEnable::Mode::IfEqual);
+  Check(f.execute_on&&f.render_condition_skipped,"operand word on another page was not probed");
+  videoSettings.skip_conditional_render_wait=false;
+  cases+=9;
+ }
  std::printf("engine transitions: %u checks PASS (production dispatch, CPU and mocked host paths)\n",cases);
 }
