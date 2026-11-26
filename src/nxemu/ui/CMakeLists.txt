@@ -130,6 +130,7 @@ add_library(nxemu_ui STATIC
     views/tooltip.h
     "${_nxemu_rmlui_backends}/RmlUi_Platform_SDL.cpp"
 )
+add_dependencies(nxemu_ui nxemu_version)
 
 # The interface's shaders are compiled to SPIR-V headers at build time.
 find_program(GLSLANGVALIDATOR "glslangValidator" HINTS "$ENV{VULKAN_SDK}/Bin" "$ENV{VULKAN_SDK}/bin" REQUIRED)

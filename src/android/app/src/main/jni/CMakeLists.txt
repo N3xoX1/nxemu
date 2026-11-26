@@ -32,6 +32,7 @@ add_library(nxemu-android SHARED
     ui/ui_util.h
     "${_nxemu_rmlui_backends}/RmlUi_Renderer_GL3.cpp"
 )
+add_dependencies(nxemu-android nxemu_version)
 
 target_include_directories(nxemu-android PRIVATE
     ${CMAKE_SOURCE_DIR}/src

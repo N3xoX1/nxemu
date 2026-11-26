@@ -76,6 +76,24 @@ val copyGameDefaults = tasks.register<CopyGameDefaults>("copyGameDefaults") {
     gameDefaults.set(file("../../../config/game_defaults.json"))
 }
 
+// The APK version follows the native one: major, minor, revision and prefix from version.h.in, the build number
+// from the commit count, so every new commit installs as a newer version.
+val nxemuVersionHeader = file("../../nxemu-core/version.h.in").readText()
+fun nxemuVersionDefine(pattern: String) = Regex("#define $pattern").find(nxemuVersionHeader)?.groupValues?.get(1) ?: ""
+fun nxemuGit(vararg arguments: String): String = try {
+    providers.exec {
+        commandLine("git", *arguments)
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim()
+} catch (e: Exception) {
+    ""
+}
+val nxemuVersionBuild = nxemuGit("rev-list", "--count", "HEAD").toIntOrNull() ?: 1
+val nxemuVersionName = nxemuVersionDefine("VERSION_PREFIX\\s+\"([^\"]*)\"") +
+    listOf("MAJOR", "MINOR", "REVISION").joinToString(".") { nxemuVersionDefine("VERSION_$it\\s+(\\d+)") } +
+    ".$nxemuVersionBuild-" + nxemuGit("rev-parse", "--short", "HEAD").ifEmpty { "Unknown" } +
+    (if (nxemuGit("diff", "--stat").isNotEmpty()) "-Dirty" else "")
+
 android {
     namespace = "org.nxemu"
     compileSdk = 36
@@ -85,8 +103,8 @@ android {
         applicationId = "org.nxemu"
         minSdk = 28
         targetSdk = 36
-        versionCode = (project.findProperty("nxemuVersionCode") as String?)?.toInt() ?: 1
-        versionName = project.findProperty("nxemuVersionName") as String? ?: "0.1"
+        versionCode = (project.findProperty("nxemuVersionCode") as String?)?.toInt() ?: nxemuVersionBuild
+        versionName = project.findProperty("nxemuVersionName") as String? ?: nxemuVersionName
 
         ndk {
             abiFilters += "arm64-v8a"

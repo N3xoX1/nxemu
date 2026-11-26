@@ -106,15 +106,30 @@ endif()
 # ============================================================
 # Version
 # ============================================================
-set(VERSION_HEADER_IN "${CMAKE_SOURCE_DIR}/src/nxemu-core/version.h.in")
-set(VERSION_HEADER_OUT "${CMAKE_BINARY_DIR}/generated/nxemu-core/version.h")
+set(VERSION_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+set(VERSION_OUTPUT_DIR "${CMAKE_BINARY_DIR}/generated")
+set(VERSION_MODULES nxemu-core nxemu-cpu nxemu-loader nxemu-os nxemu-video)
 include(generate_version_header)
-set(VERSION_HEADER_IN "${CMAKE_SOURCE_DIR}/src/nxemu-cpu/version.h.in")
-set(VERSION_HEADER_OUT "${CMAKE_BINARY_DIR}/generated/nxemu-cpu/version.h")
-include(generate_version_header)
-set(VERSION_HEADER_IN "${CMAKE_SOURCE_DIR}/src/nxemu-video/version.h.in")
-set(VERSION_HEADER_OUT "${CMAKE_BINARY_DIR}/generated/nxemu-video/version.h")
-include(generate_version_header)
+
+set(_nxemu_version_headers)
+foreach(_module IN LISTS VERSION_MODULES)
+    list(APPEND _nxemu_version_headers "${VERSION_OUTPUT_DIR}/${_module}/version.h")
+endforeach()
+string(REPLACE ";" "," _nxemu_version_modules "${VERSION_MODULES}")
+set(_nxemu_version_git)
+if(GIT_EXECUTABLE)
+    set(_nxemu_version_git "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}")
+endif()
+add_custom_target(nxemu_version ALL
+    COMMAND ${CMAKE_COMMAND}
+        "-DVERSION_SOURCE_DIR=${VERSION_SOURCE_DIR}"
+        "-DVERSION_OUTPUT_DIR=${VERSION_OUTPUT_DIR}"
+        "-DVERSION_MODULES=${_nxemu_version_modules}"
+        ${_nxemu_version_git}
+        "-DANDROID=${ANDROID}"
+        -P "${CMAKE_SOURCE_DIR}/src/cmake/modules/generate_version_header.cmake"
+    BYPRODUCTS ${_nxemu_version_headers}
+    VERBATIM)
 
 # ============================================================
 # Include directories
