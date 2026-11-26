@@ -5,6 +5,11 @@
 #include <windows.h>
 #else
 #include <sys/mman.h>
+#if defined(__linux__) && (defined(__GLIBC__) || defined(__ANDROID__))
+#include <malloc.h>
+#elif defined(__APPLE__)
+#include <malloc/malloc.h>
+#endif
 #endif
 
 #include "yuzu_common/yuzu_assert.h"
@@ -36,6 +41,20 @@ void FreeMemoryPages(void* base, [[maybe_unused]] std::size_t size) noexcept {
     ASSERT(VirtualFree(base, 0, MEM_RELEASE));
 #else
     ASSERT(munmap(base, size) == 0);
+#endif
+}
+
+void PurgeHostHeap() noexcept {
+#if defined(__ANDROID__)
+#if defined(M_PURGE_ALL)
+    mallopt(M_PURGE_ALL, 0);
+#elif defined(M_PURGE)
+    mallopt(M_PURGE, 0);
+#endif
+#elif defined(__linux__) && defined(__GLIBC__)
+    malloc_trim(0);
+#elif defined(__APPLE__)
+    malloc_zone_pressure_relief(nullptr, 0);
 #endif
 }
 

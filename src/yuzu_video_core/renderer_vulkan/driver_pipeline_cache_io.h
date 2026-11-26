@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -158,8 +159,9 @@ struct LoadResult {
 namespace Detail {
 // Stream state is checked explicitly: malformed/short files are ordinary cache
 // misses, without relying on an implementation-specific ios_base::failure type.
-inline LoadResult Read(std::istream& file, std::streamoff size, std::span<const char> magic,
-                       std::uint32_t expected_version) {
+template <class ReadBytes>
+LoadResult ReadContents(ReadBytes read, std::streamoff size, std::span<const char> magic,
+                        std::uint32_t expected_version) {
     if (size < 0) return {LoadStatus::ReadFailure, {}};
     const std::uintmax_t header_size = magic.size() + sizeof(expected_version);
     const auto total_size = static_cast<std::uintmax_t>(size);
@@ -171,28 +173,55 @@ inline LoadResult Read(std::istream& file, std::streamoff size, std::span<const 
 
     std::vector<char> actual_magic(magic.size());
     std::uint32_t version{};
-    if (!file.read(actual_magic.data(), static_cast<std::streamsize>(actual_magic.size())) ||
-        !file.read(reinterpret_cast<char*>(&version), sizeof(version)))
+    if (!read(actual_magic.data(), actual_magic.size()) ||
+        !read(reinterpret_cast<char*>(&version), sizeof(version)))
         return {LoadStatus::ReadFailure, {}};
     if (!std::equal(actual_magic.begin(), actual_magic.end(), magic.begin()) ||
         version != expected_version)
         return {LoadStatus::InvalidHeader, {}};
 
     std::vector<char> payload(static_cast<std::size_t>(payload_size));
-    if (!payload.empty() && !file.read(payload.data(), static_cast<std::streamsize>(payload.size())))
+    if (!payload.empty() && !read(payload.data(), payload.size()))
         return {LoadStatus::ReadFailure, {}};
     return {LoadStatus::Loaded, std::move(payload)};
+}
+inline LoadResult Read(std::istream& file, std::streamoff size, std::span<const char> magic,
+                       std::uint32_t expected_version) {
+    return ReadContents([&](char* data, size_t count) {
+        return static_cast<bool>(file.read(data, static_cast<std::streamsize>(count)));
+    }, size, magic, expected_version);
 }
 } // namespace Detail
 
 inline LoadResult Load(const std::filesystem::path& filename, std::span<const char> magic,
                        std::uint32_t expected_version) {
+#ifdef _WIN32
+    // A replacement may open the old file for deletion while a reader is opening it.
+    // Share delete access so the reader can finish reading its original file handle.
+    HANDLE raw = CreateFileW(filename.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE |
+                             FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (raw == INVALID_HANDLE_VALUE) return {LoadStatus::Unavailable, {}};
+    std::unique_ptr<void, decltype(&CloseHandle)> file{raw, CloseHandle};
+    LARGE_INTEGER size{};
+    if (!GetFileSizeEx(file.get(), &size)) return {LoadStatus::ReadFailure, {}};
+    return Detail::ReadContents([&](char* data, size_t count) {
+        while (count != 0) {
+            const DWORD chunk = static_cast<DWORD>(std::min<size_t>(count, 1u << 30));
+            DWORD received{};
+            if (!ReadFile(file.get(), data, chunk, &received, nullptr) || received == 0) return false;
+            data += received;
+            count -= received;
+        }
+        return true;
+    }, size.QuadPart, magic, expected_version);
+#else
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file.is_open()) return {LoadStatus::Unavailable, {}};
     const auto end = file.tellg();
     if (end == std::streampos{-1}) return {LoadStatus::ReadFailure, {}};
     if (!file.seekg(0, std::ios::beg)) return {LoadStatus::ReadFailure, {}};
     return Detail::Read(file, static_cast<std::streamoff>(end), magic, expected_version);
+#endif
 }
 
 inline const char* StatusName(LoadStatus status) {

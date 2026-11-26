@@ -22,6 +22,20 @@
 #include <vector>
 #include <yuzu_common/fs/fs_util.h>
 #include <yuzu_common/string_util.h>
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace
 {
@@ -34,6 +48,62 @@ constexpr int kResizeEdge = 6;
 constexpr uint64_t kDoubleClickMs = 500;
 constexpr int kDoubleClickReach = 4;
 #endif
+
+// Maps a font file read-only for the whole session. RmlUi reads font files into a heap
+// buffer it keeps until shutdown: the system fallback fonts (CJK collections) are ~100 MiB.
+// A mapped view only brings the pages FreeType reads into memory, and the system can drop
+// them since they are backed by the file.
+Rml::Span<const Rml::byte> MapFontFile(const std::filesystem::path & path)
+{
+#if defined(_WIN32)
+    const HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+    {
+        return {};
+    }
+    LARGE_INTEGER size{};
+    const HANDLE mapping = GetFileSizeEx(file, &size) && size.QuadPart > 0 ? CreateFileMappingW(file, nullptr, PAGE_READONLY, 0, 0, nullptr) : nullptr;
+    CloseHandle(file);
+    if (mapping == nullptr)
+    {
+        return {};
+    }
+    const void * view = MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
+    CloseHandle(mapping);
+    if (view == nullptr)
+    {
+        return {};
+    }
+    return {static_cast<const Rml::byte *>(view), static_cast<size_t>(size.QuadPart)};
+#else
+    const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+    {
+        return {};
+    }
+    struct stat info{};
+    void * view = MAP_FAILED;
+    if (fstat(fd, &info) == 0 && info.st_size > 0)
+    {
+        view = mmap(nullptr, static_cast<size_t>(info.st_size), PROT_READ, MAP_PRIVATE, fd, 0);
+    }
+    close(fd);
+    if (view == MAP_FAILED)
+    {
+        return {};
+    }
+    return {static_cast<const Rml::byte *>(view), static_cast<size_t>(info.st_size)};
+#endif
+}
+
+void UnmapFontFile(std::span<const uint8_t> data)
+{
+#if defined(_WIN32)
+    UnmapViewOfFile(data.data());
+#else
+    munmap(const_cast<uint8_t *>(data.data()), data.size());
+#endif
+}
 
 void * WindowPointer(SDL_Window * window, const char * property)
 {
@@ -78,6 +148,10 @@ UiWindow::~UiWindow()
         Rml::Shutdown();
         Rml::SetRenderInterface(nullptr);
         Rml::SetSystemInterface(nullptr);
+    }
+    for (const auto data : m_mappedFonts)
+    {
+        UnmapFontFile(data);
     }
     m_renderer.reset();
     m_presenter.reset();
@@ -655,8 +729,21 @@ bool UiWindow::LoadFonts(const std::filesystem::path & fontDir)
             return Fail(std::string("Unable to load font ") + font);
         }
     }
-    for (const SystemFont & font : SystemFallbackFonts())
+    const auto fonts = SystemFallbackFonts();
+    m_mappedFonts.reserve(m_mappedFonts.size() + fonts.size());
+    for (const SystemFont & font : fonts)
     {
+        const Rml::Span<const Rml::byte> data = MapFontFile(font.path);
+        if (!data.empty())
+        {
+            if (Rml::LoadFontFace(data, {}, Rml::Style::FontStyle::Normal, Rml::Style::FontWeight::Normal, true, font.faceIndex))
+            {
+                // RmlUi borrows the bytes until shutdown.
+                m_mappedFonts.emplace_back(data.data(), data.size());
+                continue;
+            }
+            UnmapFontFile({data.data(), data.size()});
+        }
         Rml::LoadFontFace(Common::FS::PathToUTF8String(font.path), true, Rml::Style::FontWeight::Normal, font.faceIndex);
     }
     return true;

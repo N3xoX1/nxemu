@@ -9,6 +9,7 @@ namespace Common {
 
 void* AllocateMemoryPages(std::size_t size) noexcept;
 void FreeMemoryPages(void* base, std::size_t size) noexcept;
+void PurgeHostHeap() noexcept;
 
 template <typename T>
 class VirtualBuffer final {
@@ -33,10 +34,14 @@ public:
     VirtualBuffer& operator=(const VirtualBuffer&) = delete;
 
     VirtualBuffer(VirtualBuffer&& other) noexcept
-        : alloc_size{std::exchange(other.alloc_size, 0)}, base_ptr{std::exchange(other.base_ptr),
-                                                                   nullptr} {}
+        : alloc_size{std::exchange(other.alloc_size, 0)},
+          base_ptr{std::exchange(other.base_ptr, nullptr)} {}
 
     VirtualBuffer& operator=(VirtualBuffer&& other) noexcept {
+        if (this == &other) {
+            return *this;
+        }
+        FreeMemoryPages(base_ptr, alloc_size);
         alloc_size = std::exchange(other.alloc_size, 0);
         base_ptr = std::exchange(other.base_ptr, nullptr);
         return *this;

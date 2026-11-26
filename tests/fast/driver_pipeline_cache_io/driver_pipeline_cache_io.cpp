@@ -46,7 +46,7 @@ void Write(const fs::path& path, std::span<const char> bytes) {
 }
 void NoTemporary(const fs::path& root) {
     for (const auto& entry : fs::directory_iterator(root))
-        Check(entry.path().filename().string().find(".tmp.") == std::string::npos,
+        Check(entry.path().filename().u8string().find(u8".tmp.") == std::u8string::npos,
               "failed save left a temporary file");
 }
 void TestRoundTrip(const fs::path& root) {
@@ -295,7 +295,7 @@ void TestConcurrentWriters(const fs::path& root) {
     NoTemporary(root);
     fs::remove(filename);
 }
-int main() {
+int main() try {
     Scratch scratch;
     TestRoundTrip(scratch.root);
     TestReads(scratch.root);
@@ -305,4 +305,7 @@ int main() {
     TestInterruptedProcess(scratch.root);
 #endif
     TestConcurrentWriters(scratch.root);
+} catch (const std::exception& e) {
+    std::fprintf(stderr, "%s\n", e.what());
+    return 1;
 }
