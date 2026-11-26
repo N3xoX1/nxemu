@@ -32,6 +32,7 @@ constexpr GameSetting kGameSettings[] = {
     {NXOsSetting::SystemCpuHleSynchronization, NXOsSetting::GameCpuHleSynchronization, "cpu-hle", true},
     {NXOsSetting::SystemVibrationEnabled, NXOsSetting::GameVibrationEnabled, "vibration", true},
     {NXOsSetting::SystemEnableAccurateVibrations, NXOsSetting::GameEnableAccurateVibrations, "accurate-vibration", true},
+    {NXOsSetting::SystemKeyboardEnabled, NXOsSetting::GameKeyboardEnabled, "direct-keyboard", true},
     {NXVideoSetting::SystemUseDiskPipelineCache, NXVideoSetting::GameUseDiskPipelineCache, "disk-cache", true},
     {NXVideoSetting::SystemUseAsynchronousGPUEmulation, NXVideoSetting::GameUseAsynchronousGPUEmulation, "async-gpu", true},
     {NXVideoSetting::SystemAstcDecodeMode, NXVideoSetting::GameAstcDecodeMode, "astc", false},

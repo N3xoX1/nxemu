@@ -96,6 +96,35 @@ bool Printed(int virtualKey)
     return (virtualKey >= 'A' && virtualKey <= 'Z') || (virtualKey >= '0' && virtualKey <= '9') || (virtualKey >= 0xba && virtualKey <= 0xc0) ||
            (virtualKey >= 0xdb && virtualKey <= 0xde);
 }
+
+int SwitchModifiers(SDL_Keymod mod)
+{
+    struct ModifierBit
+    {
+        SDL_Keymod sdl;
+        KeyboardModifier modifier;
+    };
+    static const ModifierBit kModifiers[] = {
+        {SDL_KMOD_LCTRL, KeyboardModifier::LeftControl},
+        {SDL_KMOD_LSHIFT, KeyboardModifier::LeftShift},
+        {SDL_KMOD_LALT, KeyboardModifier::LeftAlt},
+        {SDL_KMOD_LGUI, KeyboardModifier::LeftMeta},
+        {SDL_KMOD_RCTRL, KeyboardModifier::RightControl},
+        {SDL_KMOD_RSHIFT, KeyboardModifier::RightShift},
+        {SDL_KMOD_RALT, KeyboardModifier::RightAlt},
+        {SDL_KMOD_RGUI, KeyboardModifier::RightMeta},
+        {SDL_KMOD_CAPS, KeyboardModifier::CapsLock},
+        {SDL_KMOD_SCROLL, KeyboardModifier::ScrollLock},
+        {SDL_KMOD_NUM, KeyboardModifier::NumLock},
+    };
+    int modifiers = 0;
+    for (const ModifierBit & bit : kModifiers)
+    {
+        if ((mod & bit.sdl) != 0)
+            modifiers |= 1 << int(bit.modifier);
+    }
+    return modifiers;
+}
 } // namespace
 
 void ForwardKeyboardEvent(const SDL_KeyboardEvent& event, IOperatingSystem& os)
@@ -106,10 +135,11 @@ void ForwardKeyboardEvent(const SDL_KeyboardEvent& event, IOperatingSystem& os)
     if (scancode == 0 || scancode >= static_cast<uint32_t>(KeyboardKey::NumKeyboardKeys))
         return;
     const int virtual_key = VirtualKey(UsKeycode(event.scancode));
+    const int modifiers = SwitchModifiers(event.mod);
     if (event.type == SDL_EVENT_KEY_DOWN)
-        os.KeyboardKeyPress(0, int(scancode), virtual_key);
+        os.KeyboardKeyPress(modifiers, int(scancode), virtual_key);
     else if (event.type == SDL_EVENT_KEY_UP)
-        os.KeyboardKeyRelease(0, int(scancode), virtual_key);
+        os.KeyboardKeyRelease(modifiers, int(scancode), virtual_key);
 }
 
 std::string VirtualKeyName(int virtualKey)

@@ -60,6 +60,12 @@ void Keyboard::OnUpdate(const Core::Timing::CoreTiming & core_timing)
         next_state.modifier = keyboard_modifier_state;
         next_state.attribute.is_connected.Assign(1);
     }
+    else
+    {
+        next_state.key = {};
+        next_state.modifier = {};
+        next_state.attribute = {};
+    }
 
     shared_memory.keyboard_lifo.WriteNextEntry(next_state);
 }
