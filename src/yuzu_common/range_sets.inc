@@ -43,6 +43,9 @@ struct RangeSet<AddressType>::RangeSetImpl {
     }
 
     void Subtract(AddressType base_address, size_t size) {
+        if (m_ranges_set.empty()) {
+            return;
+        }
         AddressType end_address = base_address + static_cast<AddressType>(size);
         IntervalType interval{base_address, end_address};
         m_ranges_set.subtract(interval);

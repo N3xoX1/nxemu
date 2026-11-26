@@ -20,6 +20,10 @@ public:
     }
 
     void Reset() noexcept {
+        if (!tracked) {
+            return;
+        }
+        tracked = false;
         std::ranges::fill(pages, 0ULL);
         covered_begin = covered_end = 0;
     }
@@ -48,6 +52,7 @@ public:
             covered_begin = begin_block;
             covered_end = end_block;
         }
+        tracked = true;
         TrackPage(page, offset, size);
         if (page == page_end) {
             return;
@@ -111,6 +116,7 @@ private:
     std::vector<u64> pages;
     u64 covered_begin{};
     u64 covered_end{};
+    bool tracked{};
 };
 
 } // namespace VideoCommon

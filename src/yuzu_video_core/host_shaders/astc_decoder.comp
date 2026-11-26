@@ -197,12 +197,14 @@ uint Hash52(uint p) {
     return p;
 }
 
-uint Select2DPartition(uint seed, uint x, uint y, uint partition_count) {
-    if ((block_dims.y * block_dims.x) < 32) {
-        x <<= 1;
-        y <<= 1;
-    }
+// What Select2DPartition derives from the seed and the partition count alone, once per block.
+struct PartitionSetup {
+    uvec4 x_scale;
+    uvec4 y_scale;
+    uvec4 offset;
+};
 
+PartitionSetup SetupPartition(uint seed, uint partition_count) {
     seed += (partition_count - 1) * 1024;
 
     const uint rnum = Hash52(uint(seed));
@@ -241,22 +243,35 @@ uint Select2DPartition(uint seed, uint x, uint y, uint partition_count) {
     seed7 >>= sh1;
     seed8 >>= sh2;
 
-    uint a = seed1 * x + seed2 * y + (rnum >> 14);
-    uint b = seed3 * x + seed4 * y + (rnum >> 10);
-    uint c = seed5 * x + seed6 * y + (rnum >> 6);
-    uint d = seed7 * x + seed8 * y + (rnum >> 2);
-
-    a &= 0x3F;
-    b &= 0x3F;
-    c &= 0x3F;
-    d &= 0x3F;
-
+    PartitionSetup setup;
+    setup.x_scale = uvec4(seed1, seed3, seed5, seed7);
+    setup.y_scale = uvec4(seed2, seed4, seed6, seed8);
+    setup.offset = uvec4(rnum >> 14, rnum >> 10, rnum >> 6, rnum >> 2);
+    // The unused partitions always compare as 0.
     if (partition_count < 4) {
-        d = 0;
+        setup.x_scale.w = 0;
+        setup.y_scale.w = 0;
+        setup.offset.w = 0;
     }
     if (partition_count < 3) {
-        c = 0;
+        setup.x_scale.z = 0;
+        setup.y_scale.z = 0;
+        setup.offset.z = 0;
     }
+    return setup;
+}
+
+uint Select2DPartition(PartitionSetup setup, uint x, uint y) {
+    if ((block_dims.y * block_dims.x) < 32) {
+        x <<= 1;
+        y <<= 1;
+    }
+
+    const uvec4 abcd = (setup.x_scale * x + setup.y_scale * y + setup.offset) & 0x3Fu;
+    const uint a = abcd.x;
+    const uint b = abcd.y;
+    const uint c = abcd.z;
+    const uint d = abcd.w;
 
     if (a >= b && a >= c && a >= d) {
         return 0;
@@ -462,16 +477,19 @@ void DecodeColorValues(uvec4 modes, uint num_partitions, uint color_data_bits, o
     for (uint i = 0; i < num_partitions; i++) {
         num_values += ((modes[i] >> 2) + 1) << 1;
     }
-    // Find the largest encoding that's within color_data_bits
-    // TODO(ameerj): profile with binary search
-    int range = 0;
-    while (++range < encoding_values.length()) {
-        const uint bit_length = GetBitLength(num_values, range);
-        if (bit_length > color_data_bits) {
-            break;
+    // Find the largest encoding that's within color_data_bits. The bit length never decreases
+    // with the encoding index, so the first one past color_data_bits is found by bisection.
+    int range_low = 1;
+    int range_high = encoding_values.length();
+    while (range_low < range_high) {
+        const int range_middle = (range_low + range_high) >> 1;
+        if (GetBitLength(num_values, uint(range_middle)) > color_data_bits) {
+            range_high = range_middle;
+        } else {
+            range_low = range_middle + 1;
         }
     }
-    DecodeIntegerSequence(range - 1, num_values);
+    DecodeIntegerSequence(range_low - 1, num_values);
     uint out_index = 0;
     for (int itr = 0; itr < result_index; ++itr) {
         if (out_index >= num_values) {
@@ -808,9 +826,13 @@ uint GetUnquantizedTexelWeight(uint offset_base, uint plane, bool is_dual_plane)
     return result_vector[offset];
 }
 
+// Scale from a texel position to the weight grid; they depend only on the block size.
+uint weight_scale_s;
+uint weight_scale_t;
+
 uvec4 GetUnquantizedWeightVector(uint t, uint s, uvec2 size, uint plane_index, bool is_dual_plane) {
-    const uint Ds = uint((block_dims.x * 0.5f + 1024) / (block_dims.x - 1));
-    const uint Dt = uint((block_dims.y * 0.5f + 1024) / (block_dims.y - 1));
+    const uint Ds = weight_scale_s;
+    const uint Dt = weight_scale_t;
     const uint area = size.x * size.y;
 
     const uint cs = Ds * s;
@@ -1141,11 +1163,17 @@ void DecompressBlock(ivec3 coord) {
     DecodeIntegerSequence(max_weight, GetNumWeightValues(size_params, dual_plane));
 
     UnquantizeTexelWeights(size_params, dual_plane);
+    weight_scale_s = uint((block_dims.x * 0.5f + 1024) / (block_dims.x - 1));
+    weight_scale_t = uint((block_dims.y * 0.5f + 1024) / (block_dims.y - 1));
+    PartitionSetup partition_setup;
+    if (num_partitions > 1) {
+        partition_setup = SetupPartition(partition_index, num_partitions);
+    }
     for (uint j = 0; j < block_dims.y; j++) {
         for (uint i = 0; i < block_dims.x; i++) {
             uint local_partition = 0;
             if (num_partitions > 1) {
-                local_partition = Select2DPartition(partition_index, i, j, num_partitions);
+                local_partition = Select2DPartition(partition_setup, i, j);
             }
             const uvec4 C0 = ReplicateByteTo16(endpoints0[local_partition]);
             const uvec4 C1 = ReplicateByteTo16(endpoints1[local_partition]);
