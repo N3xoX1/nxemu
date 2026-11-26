@@ -11,6 +11,10 @@ function(nxemu_unit_test name)
     endif()
 endfunction()
 
+add_executable(test_lazy_page_tables memory_reclaim/lazy_page_tables.cpp)
+target_link_libraries(test_lazy_page_tables PRIVATE nxemu_test_support yuzu_common common)
+nxemu_unit_test(test_lazy_page_tables LINUX)
+
 add_executable(test_lot1_audio eden_lot1/audio.cpp)
 target_include_directories(test_lot1_audio PRIVATE "${CMAKE_SOURCE_DIR}/src"
     "${CMAKE_SOURCE_DIR}/src/nxemu-os" "${CMAKE_SOURCE_DIR}/external/boost"

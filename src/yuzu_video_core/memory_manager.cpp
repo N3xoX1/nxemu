@@ -44,10 +44,10 @@ MemoryManager::MemoryManager(MaxwellDeviceMemoryManager& memory_, u64 address_sp
     page_table_mask = page_table_size - 1;
     big_page_table_mask = big_page_table_size - 1;
 
-    big_entries.resize(big_page_table_size / 32, 0);
-    big_page_table_dev.resize(big_page_table_size);
-    big_page_continuous.resize(big_page_table_size / continuous_bits, 0);
-    entries.resize(page_table_size / 32, 0);
+    big_entries.resize_lazy(big_page_table_size / 32);
+    big_page_table_dev.resize_lazy(big_page_table_size);
+    big_page_continuous.resize_lazy(big_page_table_size / continuous_bits);
+    entries.resize_lazy(page_table_size / 32);
 }
 
 MemoryManager::MemoryManager(Tegra::Host1x::Host1x & host1x, u64 address_space_bits_, GPUVAddr split_address_, u64 big_page_bits_, u64 page_bits_) :

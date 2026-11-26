@@ -5,6 +5,9 @@
 #include <windows.h>
 #else
 #include <sys/mman.h>
+#ifndef MAP_NORESERVE
+#define MAP_NORESERVE 0
+#endif
 #endif
 
 #include "yuzu_common/yuzu_assert.h"
@@ -29,7 +32,8 @@ MultiLevelPageTable<BaseAddr>::MultiLevelPageTable(std::size_t address_space_bit
 #ifdef _WIN32
     void* base{VirtualAlloc(nullptr, alloc_size, MEM_RESERVE, PAGE_READWRITE)};
 #else
-    void* base{mmap(nullptr, alloc_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)};
+    void* base{mmap(nullptr, alloc_size, PROT_READ | PROT_WRITE,
+                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0)};
 
     if (base == MAP_FAILED) {
         base = nullptr;
@@ -68,17 +72,13 @@ void MultiLevelPageTable<BaseAddr>::AllocateLevel(u64 level) {
     void* ptr = reinterpret_cast<char *>(base_ptr) + level * first_level_chunk_size;
 #ifdef _WIN32
     void* base{VirtualAlloc(ptr, first_level_chunk_size, MEM_COMMIT, PAGE_READWRITE)};
-#else
-    void* base{mmap(ptr, first_level_chunk_size, PROT_READ | PROT_WRITE,
-                    MAP_ANONYMOUS | MAP_PRIVATE, -1, 0)};
-
-    if (base == MAP_FAILED) {
-        base = nullptr;
-    }
-#endif
     ASSERT(base);
-
     first_level_map[level] = base;
+#else
+    // POSIX already mapped the full range lazily with MAP_NORESERVE in the constructor;
+    // calling mmap() again without MAP_FIXED would leak an orphan mapping.
+    first_level_map[level] = ptr;
+#endif
 }
 
 } // namespace Common
