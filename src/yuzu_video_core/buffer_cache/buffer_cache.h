@@ -2395,9 +2395,9 @@ void BufferCache<P>::MappedUploadMemory([[maybe_unused]] Buffer& buffer,
                                         [[maybe_unused]] std::span<BufferCopy> copies) {
     if constexpr (USE_MEMORY_MAPS) {
         // A cold buffer can have hundreds of MiB to upload, which took one staging buffer of
-        // that size (rounded up to a power of two) held until the tick completed. Past 64 MiB,
-        // upload through 32 MiB slices and wait for each so the next one reuses its memory
-        // (Lichii-rust #458).
+        // that size (rounded up to a power of two). Past 64 MiB, split into 32 MiB slices so
+        // uploads avoid power-of-two over-allocation without flushing the command buffer mid-draw
+        // (which would drop already-recorded Vulkan index/vertex bindings and stall the GPU).
         constexpr u64 SliceThreshold = 64ULL << 20;
         constexpr u64 SliceSize = 32ULL << 20;
         if (total_size_bytes <= SliceThreshold) {
@@ -2406,19 +2406,15 @@ void BufferCache<P>::MappedUploadMemory([[maybe_unused]] Buffer& buffer,
         }
         std::vector<BufferCopy> slice;
         u64 slice_bytes = 0;
-        const auto flush_slice = [&](bool last) {
+        const auto flush_slice = [&]() {
             if (slice.empty()) {
                 return;
             }
             MappedUploadSlice(buffer, slice_bytes, slice);
-            if (!last) {
-                runtime.Finish();
-            }
             slice.clear();
             slice_bytes = 0;
         };
-        for (size_t i = 0; i < copies.size(); ++i) {
-            const BufferCopy& copy = copies[i];
+        for (const BufferCopy& copy : copies) {
             for (u64 done = 0; done < copy.size;) {
                 const u64 size = std::min<u64>(copy.size - done, SliceSize - slice_bytes);
                 slice.push_back(BufferCopy{
@@ -2429,11 +2425,11 @@ void BufferCache<P>::MappedUploadMemory([[maybe_unused]] Buffer& buffer,
                 slice_bytes += size;
                 done += size;
                 if (slice_bytes == SliceSize) {
-                    flush_slice(i + 1 == copies.size() && done == copy.size);
+                    flush_slice();
                 }
             }
         }
-        flush_slice(true);
+        flush_slice();
     }
 }
 

@@ -999,8 +999,11 @@ UnswizzlePlan PlanUnswizzleImageRows(GPUVAddr gpu_addr, const ImageInfo& info, u
                 }
                 const u32 first_row = band * rows_per_band;
                 const u32 tile_rows = std::min(rows_per_band, num_tiles.height - first_row);
-                const u32 run_tiles = (last - first) * gob_tiles;
-                const size_t guest_bytes = size_t{last - first} * block_bytes;
+                const u32 remaining_tiles = num_tiles.width - first_tile;
+                const u32 num_blocks =
+                    std::min(last - first, Common::DivCeil(remaining_tiles, gob_tiles));
+                const u32 run_tiles = std::min(num_blocks * gob_tiles, remaining_tiles);
+                const size_t guest_bytes = size_t{num_blocks} * block_bytes;
                 const size_t host_bytes = (size_t{tile_rows} * run_tiles) << bpp_log2;
                 plan.runs.push_back(UnswizzleRowRun{
                     .src_addr = gpu_addr + segment_begin + u64{band} * band_bytes +
