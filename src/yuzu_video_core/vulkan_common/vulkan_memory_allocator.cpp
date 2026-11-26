@@ -294,6 +294,22 @@ vk::Image MemoryAllocator::CreateTransientImage(const VkImageCreateInfo& ci) con
 }
 
 vk::Buffer MemoryAllocator::CreateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage) const {
+    vk::Buffer buffer;
+    vk::Check(AllocateBuffer(ci, usage, buffer));
+    return buffer;
+}
+
+vk::Buffer MemoryAllocator::TryCreateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage) const {
+    vk::Buffer buffer;
+    const VkResult result = AllocateBuffer(ci, usage, buffer);
+    if (result != VK_ERROR_OUT_OF_DEVICE_MEMORY && result != VK_ERROR_OUT_OF_HOST_MEMORY) {
+        vk::Check(result);
+    }
+    return buffer;
+}
+
+VkResult MemoryAllocator::AllocateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage,
+                                         vk::Buffer& buffer) const {
     const VmaAllocationCreateInfo alloc_ci = {
         .flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT | MemoryUsageVmaFlags(usage),
         .usage = MemoryUsageVma(usage),
@@ -310,15 +326,20 @@ vk::Buffer MemoryAllocator::CreateBuffer(const VkBufferCreateInfo& ci, MemoryUsa
     VmaAllocation allocation{};
     VkMemoryPropertyFlags property_flags{};
 
-    vk::Check(vmaCreateBuffer(allocator, &ci, &alloc_ci, &handle, &allocation, &alloc_info));
+    const VkResult result =
+        vmaCreateBuffer(allocator, &ci, &alloc_ci, &handle, &allocation, &alloc_info);
+    if (result != VK_SUCCESS) {
+        return result;
+    }
     vmaGetAllocationMemoryProperties(allocator, allocation, &property_flags);
 
     u8* data = reinterpret_cast<u8*>(alloc_info.pMappedData);
     const std::span<u8> mapped_data = data ? std::span<u8>{data, ci.size} : std::span<u8>{};
     const bool is_coherent = property_flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
-    return vk::Buffer(handle, *device.GetLogical(), allocator, allocation, mapped_data, is_coherent,
-                      device.GetDispatchLoader());
+    buffer = vk::Buffer(handle, *device.GetLogical(), allocator, allocation, mapped_data,
+                        is_coherent, device.GetDispatchLoader());
+    return VK_SUCCESS;
 }
 
 MemoryCommit MemoryAllocator::Commit(const VkMemoryRequirements& requirements, MemoryUsage usage) {

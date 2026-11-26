@@ -934,6 +934,123 @@ boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(Tegra::Memory
     return copies;
 }
 
+UnswizzlePlan PlanUnswizzleImageRows(GPUVAddr gpu_addr, const ImageInfo& info, u64 begin,
+                                     u64 end) {
+    // Port of Lichii 073b877965 (chunked staging uploads of large 2D images).
+    UnswizzlePlan plan;
+    if (info.type != ImageType::e2D || info.size.depth != 1 || info.block.depth != 0 ||
+        info.num_samples != 1 || begin >= end) {
+        plan.layout_valid = false;
+        return plan;
+    }
+    const u32 bpp_log2 = BytesPerBlockLog2(info.format);
+    plan.bpp_log2 = bpp_log2;
+    const Extent2D tile_size = DefaultBlockSize(info.format);
+    const LevelInfo level_info = MakeLevelInfo(info);
+    const s32 num_levels = info.resources.levels;
+    const std::array level_sizes = CalculateLevelSizes(level_info, num_levels);
+    const u32 layer_size = CalculateLevelBytes(level_sizes, num_levels);
+    const u32 layer_stride = AlignLayerSize(layer_size, info.size, level_info.block,
+                                            tile_size.height, info.tile_width_spacing);
+    // Tiles across one GOB (64 bytes). A run of blocks is unswizzled as an image that many GOBs
+    // wide: tile width spacing only pads the end of each block row.
+    const u32 gob_tiles = 1U << (GOB_SIZE_X_SHIFT - bpp_log2);
+    const u32 run_alignment = GOB_SIZE_X_SHIFT - bpp_log2;
+    u32 level_offset = 0;
+    size_t host_offset = 0;
+    for (s32 level = 0; level < num_levels; ++level) {
+        const Extent3D level_size = AdjustMipSize(info.size, level);
+        const Extent3D num_tiles = AdjustTileSize(level_size, tile_size);
+        const Extent3D block =
+            AdjustMipBlockSize(num_tiles, level_info.block, level, level_info.num_levels);
+        // Each block (one GOB wide, GOB height << block height tall) is contiguous, and blocks
+        // are stored left to right, one block row (band) after the other.
+        const u32 rows_per_band = GOB_SIZE_Y << block.height;
+        const u32 block_bytes = GOB_SIZE << block.height;
+        const u32 num_bands = Common::DivCeil(num_tiles.height, rows_per_band);
+        if (num_bands == 0 || level_sizes[level] % num_bands != 0 ||
+            (level_sizes[level] / num_bands) % block_bytes != 0) {
+            plan.layout_valid = false;
+            return plan;
+        }
+        const u32 band_bytes = level_sizes[level] / num_bands;
+        const u32 blocks_per_band = band_bytes / block_bytes;
+        for (s32 layer = 0; layer < info.resources.layers; ++layer) {
+            const u64 segment_begin = static_cast<u64>(layer) * layer_stride + level_offset;
+            const u64 segment_end = segment_begin + level_sizes[level];
+            if (end <= segment_begin || begin >= segment_end) {
+                continue;
+            }
+            // Blocks [first_block, last_block) of this level and layer overlap the range.
+            const u64 low = std::max(begin, segment_begin) - segment_begin;
+            const u64 high = std::min(end, segment_end) - segment_begin;
+            const u64 first_block = low / block_bytes;
+            const u64 last_block = Common::DivCeil(high, u64{block_bytes});
+            for (u32 band = static_cast<u32>(first_block / blocks_per_band);
+                 band < num_bands && u64{band} * blocks_per_band < last_block; ++band) {
+                const u64 band_first = u64{band} * blocks_per_band;
+                const u32 first =
+                    static_cast<u32>(std::max(first_block, band_first) - band_first);
+                const u32 last = static_cast<u32>(
+                    std::min(last_block, band_first + blocks_per_band) - band_first);
+                const u32 first_tile = first * gob_tiles;
+                if (first_tile >= num_tiles.width) {
+                    continue; // only padding blocks past the width of the image
+                }
+                const u32 first_row = band * rows_per_band;
+                const u32 tile_rows = std::min(rows_per_band, num_tiles.height - first_row);
+                const u32 run_tiles = (last - first) * gob_tiles;
+                const size_t guest_bytes = size_t{last - first} * block_bytes;
+                const size_t host_bytes = (size_t{tile_rows} * run_tiles) << bpp_log2;
+                plan.runs.push_back(UnswizzleRowRun{
+                    .src_addr = gpu_addr + segment_begin + u64{band} * band_bytes +
+                                u64{first} * block_bytes,
+                    .guest_bytes = guest_bytes,
+                    .host_offset = host_offset,
+                    .host_bytes = host_bytes,
+                    .run_tiles = run_tiles,
+                    .tile_rows = tile_rows,
+                    .block = block,
+                    .run_alignment = run_alignment,
+                });
+                const u32 x = first_tile * tile_size.width;
+                const u32 y = first_row * tile_size.height;
+                plan.copies.push_back(BufferImageCopy{
+                    .buffer_offset = host_offset,
+                    .buffer_size = host_bytes,
+                    .buffer_row_length = run_tiles * tile_size.width,
+                    .buffer_image_height = tile_rows * tile_size.height,
+                    .image_subresource =
+                        {
+                            .base_level = level,
+                            .base_layer = layer,
+                            .num_layers = 1,
+                        },
+                    .image_offset = {static_cast<s32>(x), static_cast<s32>(y), 0},
+                    .image_extent = {std::min(run_tiles * tile_size.width, level_size.width - x),
+                                     std::min(tile_rows * tile_size.height, level_size.height - y),
+                                     1},
+                });
+                host_offset += host_bytes;
+            }
+        }
+        level_offset += level_sizes[level];
+    }
+    plan.total_host_bytes = host_offset;
+    return plan;
+}
+
+void ExecuteUnswizzlePlan(Tegra::MemoryManager& gpu_memory, const UnswizzlePlan& plan,
+                          std::span<u8> output, std::vector<u8>& scratch) {
+    for (const UnswizzleRowRun& run : plan.runs) {
+        scratch.resize(run.guest_bytes);
+        gpu_memory.ReadBlockUnsafe(run.src_addr, scratch.data(), run.guest_bytes);
+        UnswizzleTexture(output.subspan(run.host_offset, run.host_bytes), scratch,
+                         1U << plan.bpp_log2, run.run_tiles, run.tile_rows, 1, run.block.height,
+                         run.block.depth, run.run_alignment);
+    }
+}
+
 void ConvertImage(std::span<const u8> input, const ImageInfo& info, std::span<u8> output,
                   std::span<BufferImageCopy> copies) {
     u32 output_offset = 0;

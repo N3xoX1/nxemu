@@ -73,7 +73,8 @@ size_t BytesPerIndex(VkIndexType index_type) {
     }
 }
 
-vk::Buffer CreateBuffer(const Device& device, const MemoryAllocator& memory_allocator, u64 size) {
+vk::Buffer CreateBuffer(const Device& device, const MemoryAllocator& memory_allocator,
+                        StagingBufferPool& staging_pool, u64 size) {
     VkBufferUsageFlags flags =
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
         VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT |
@@ -96,6 +97,17 @@ vk::Buffer CreateBuffer(const Device& device, const MemoryAllocator& memory_allo
         .queueFamilyIndexCount = 0,
         .pQueueFamilyIndices = nullptr,
     };
+    if (vk::Buffer buffer = memory_allocator.TryCreateBuffer(buffer_ci, MemoryUsage::DeviceLocal)) {
+        return buffer;
+    }
+    // The staging pool holds most of the memory that can be freed now (Lichii #262: 926 MiB of
+    // a 3.2 GB heap when a 128 KiB guest buffer had no room after a scene change).
+    static u32 logged{};
+    if (logged++ < 32) {
+        LOG_WARNING(Render_Vulkan,
+                    "No memory for a {} byte buffer; freeing staging buffers and retrying", size);
+    }
+    staging_pool.ReleaseMemory();
     return memory_allocator.CreateBuffer(buffer_ci, MemoryUsage::DeviceLocal);
 }
 } // Anonymous namespace
@@ -112,7 +124,7 @@ Buffer::Buffer(BufferCacheRuntime& runtime, VideoCommon::NullBufferParams null_p
 
 Buffer::Buffer(BufferCacheRuntime& runtime, DAddr cpu_addr_, u64 size_bytes_)
     : VideoCommon::BufferBase(cpu_addr_, size_bytes_), device{&runtime.device},
-      buffer{CreateBuffer(*device, runtime.memory_allocator, SizeBytes())}, tracker{SizeBytes()} {
+      buffer{CreateBuffer(*device, runtime.memory_allocator, runtime.staging_pool, SizeBytes())}, tracker{SizeBytes()} {
     if (runtime.device.HasDebuggingToolAttached()) {
         buffer.SetObjectNameEXT(fmt::format("Buffer 0x{:x}", CpuAddr()).c_str());
     }
@@ -500,7 +512,7 @@ bool BufferCacheRuntime::DifferentialReadback(Buffer& buffer, const StagingBuffe
                 used, used + bytes, std::memory_order_relaxed));
             try {
                 buffer.readback_shadow = std::make_shared<ReadbackShadow>(
-                    readback_shadow_budget, bytes, CreateBuffer(device, memory_allocator, bytes));
+                    readback_shadow_budget, bytes, CreateBuffer(device, memory_allocator, staging_pool, bytes));
             } catch (...) {
                 readback_shadow_budget->used.fetch_sub(bytes, std::memory_order_relaxed);
                 throw;
@@ -530,6 +542,22 @@ void BufferCacheRuntime::FreeDeferredStagingBuffer(StagingBufferRef& ref) {
     staging_pool.FreeDeferred(ref);
 }
 
+BufferCacheRuntime::~BufferCacheRuntime() {
+    const auto& dld = device.GetDispatchLoader();
+    const VkDevice handle = *device.GetLogical();
+    if (host_mapped_imported_chunks > 0) {
+        LOG_INFO(Render_Vulkan, "Releasing {} on-demand guest RAM chunks ({} MiB imported)",
+                 host_mapped_imported_chunks, host_mapped_imported_bytes >> 20);
+    }
+    for (const HostMappedChunk& chunk : host_mapped_chunks) {
+        if (chunk.buffer != VK_NULL_HANDLE) {
+            dld.vkDestroyBuffer(handle, chunk.buffer, nullptr);
+        }
+        if (chunk.memory != VK_NULL_HANDLE) {
+            dld.vkFreeMemory(handle, chunk.memory, nullptr);
+        }
+    }
+}
 bool BufferCacheRuntime::AllocatePrefetch(u32 size, u32& offset, u8*& pointer) {
     if (prefetch_span.empty() || size == 0 || size > PrefetchRingSize / 8) {
         return false;
@@ -576,32 +604,38 @@ bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, uint64_t size
         !device.IsExtExternalMemoryHostSupported() || base == nullptr || size == 0) {
         return false;
     }
-    const vk::Device& logical = device.GetLogical();
-    const vk::DeviceDispatch& dld = device.GetDispatchLoader();
-    const auto get_host_pointer_properties =
-        reinterpret_cast<PFN_vkGetMemoryHostPointerPropertiesEXT>(
-            dld.vkGetDeviceProcAddr(*logical, "vkGetMemoryHostPointerPropertiesEXT"));
-    VkPhysicalDeviceExternalMemoryHostPropertiesEXT host_properties{
+    const auto& dld = device.GetDispatchLoader();
+    const VkDevice handle = *device.GetLogical();
+    const auto get_properties = reinterpret_cast<PFN_vkGetMemoryHostPointerPropertiesEXT>(
+        dld.vkGetDeviceProcAddr(handle, "vkGetMemoryHostPointerPropertiesEXT"));
+    const auto get_requirements = reinterpret_cast<PFN_vkGetBufferMemoryRequirements>(
+        dld.vkGetDeviceProcAddr(handle, "vkGetBufferMemoryRequirements"));
+    if (!get_properties || !get_requirements) {
+        return false;
+    }
+
+    VkPhysicalDeviceExternalMemoryHostPropertiesEXT host_props{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT,
         .pNext = nullptr,
-        .minImportedHostPointerAlignment = 0,
+        .minImportedHostPointerAlignment = 4096,
     };
-    VkPhysicalDeviceProperties2 properties{
+    VkPhysicalDeviceProperties2 props2{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-        .pNext = &host_properties,
+        .pNext = &host_props,
         .properties = {},
     };
-    device.GetPhysical().GetProperties2(properties);
-    const uint64_t alignment = host_properties.minImportedHostPointerAlignment;
-    if (alignment == 0 || reinterpret_cast<uintptr_t>(base) % alignment != 0 ||
-        size % alignment != 0 || HostMappedWindowSize % alignment != 0) {
-        LOG_WARNING(Render_Vulkan, "Guest RAM isn't aligned for import");
+    device.GetPhysical().GetProperties2(props2);
+    const uint64_t min_align =
+        std::max<uint64_t>(4096, static_cast<uint64_t>(host_props.minImportedHostPointerAlignment));
+    if (!std::has_single_bit(min_align) || min_align > HostMappedChunkSize ||
+        (reinterpret_cast<uintptr_t>(base) & (min_align - 1)) != 0) {
+        LOG_WARNING(Render_Vulkan,
+                    "Guest RAM base alignment incompatible with external memory host alignment {}",
+                    min_align);
         return false;
     }
-    if (get_host_pointer_properties == nullptr) {
-        return false;
-    }
-    // The CPU keeps using guest RAM, and writes it without flushing for the GPU
+
+    // The CPU keeps using guest RAM, and writes it without flushing for the GPU.
     constexpr VkMemoryPropertyFlags host_flags =
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     const VkPhysicalDeviceMemoryProperties memory_properties =
@@ -612,93 +646,136 @@ bool BufferCacheRuntime::InitHostMappedGuestMemory(const u8* base, uint64_t size
             host_type_bits |= 1U << type;
         }
     }
+
+    // Probe the base pointer without allocating or faulting the full guest backing.
+    VkMemoryHostPointerPropertiesEXT pointer_properties{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT,
+        .pNext = nullptr,
+        .memoryTypeBits = 0,
+    };
+    if (get_properties(handle, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+                       const_cast<u8*>(base), &pointer_properties) != VK_SUCCESS ||
+        (pointer_properties.memoryTypeBits & host_type_bits) == 0) {
+        LOG_WARNING(Render_Vulkan, "Guest RAM can't be imported as host-coherent device memory");
+        return false;
+    }
+
+    const size_t num_chunks =
+        static_cast<size_t>((size + HostMappedChunkSize - 1) >> HostMappedChunkBits);
+    host_mapped_chunks.assign(num_chunks, {});
+    pfn_get_host_pointer_properties = get_properties;
+    pfn_get_buffer_memory_requirements = get_requirements;
+    host_mapped_base = base;
+    host_mapped_size = size;
+    host_mapped_min_alignment = min_align;
+    host_mapped_type_bits = host_type_bits;
+    host_mapped_ubo_alignment =
+        std::max<uint64_t>(16, static_cast<uint64_t>(device.GetUniformBufferAlignment()));
+    LOG_INFO(Render_Vulkan,
+             "Guest RAM ready for on-demand device import: {} MiB ({} x {} MiB chunks)",
+             size >> 20, num_chunks, HostMappedChunkSize >> 20);
+    return true;
+}
+
+VkBuffer BufferCacheRuntime::ImportHostMappedChunk(size_t chunk_index) {
+    HostMappedChunk& chunk = host_mapped_chunks[chunk_index];
+    if (chunk.buffer != VK_NULL_HANDLE || chunk.failed) {
+        return chunk.buffer;
+    }
+    const uint64_t chunk_offset = static_cast<uint64_t>(chunk_index) << HostMappedChunkBits;
+    uint64_t chunk_size = std::min(host_mapped_size - chunk_offset, HostMappedChunkSize);
+    chunk_size &= ~(host_mapped_min_alignment - 1);
+    if (chunk_size == 0) {
+        chunk.failed = true;
+        return VK_NULL_HANDLE;
+    }
+
+    const auto& dld = device.GetDispatchLoader();
+    const VkDevice handle = *device.GetLogical();
+    void* const pointer = const_cast<u8*>(host_mapped_base + chunk_offset);
+
+    VkMemoryHostPointerPropertiesEXT pointer_properties{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT,
+        .pNext = nullptr,
+        .memoryTypeBits = 0,
+    };
+    if (pfn_get_host_pointer_properties(handle, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+                                        pointer, &pointer_properties) != VK_SUCCESS ||
+        (pointer_properties.memoryTypeBits & host_mapped_type_bits) == 0) {
+        chunk.failed = true;
+        return VK_NULL_HANDLE;
+    }
+
     const VkExternalMemoryBufferCreateInfo external_info{
         .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
         .pNext = nullptr,
         .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
     };
-    // One import per window: NVIDIA refuses a single allocation of all the guest RAM
-    std::vector<vk::DeviceMemory> memories;
-    std::vector<vk::Handle<VkBuffer, VkDevice, vk::DeviceDispatch>> windows;
-    for (uint64_t start = 0; start < size; start += HostMappedWindowSize) {
-        const uint64_t window_size = std::min(size - start, HostMappedWindowSize);
-        void* const pointer = const_cast<u8*>(base) + start;
-        VkMemoryHostPointerPropertiesEXT pointer_properties{
-            .sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT,
-            .pNext = nullptr,
-            .memoryTypeBits = 0,
-        };
-        if (get_host_pointer_properties(*logical,
-                                        VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
-                                        pointer, &pointer_properties) != VK_SUCCESS) {
-            LOG_WARNING(Render_Vulkan, "Guest RAM can't be imported as device memory");
-            return false;
-        }
-        const VkBufferCreateInfo window_ci{
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .pNext = &external_info,
-            .flags = 0,
-            .size = window_size,
-            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .queueFamilyIndexCount = 0,
-            .pQueueFamilyIndices = nullptr,
-        };
-        VkBuffer window{};
-        if (dld.vkCreateBuffer(*logical, &window_ci, nullptr, &window) != VK_SUCCESS) {
-            return false;
-        }
-        windows.emplace_back(window, *logical, dld);
-        const u32 memory_type_bits = pointer_properties.memoryTypeBits & host_type_bits &
-                                     logical.GetBufferMemoryRequirements(window).memoryTypeBits;
-        if (memory_type_bits == 0) {
-            LOG_WARNING(Render_Vulkan, "No host coherent memory type can import guest RAM");
-            return false;
-        }
-        const VkImportMemoryHostPointerInfoEXT import_info{
-            .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT,
-            .pNext = nullptr,
-            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
-            .pHostPointer = pointer,
-        };
-        vk::DeviceMemory memory = logical.TryAllocateMemory(VkMemoryAllocateInfo{
-            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .pNext = &import_info,
-            .allocationSize = window_size,
-            .memoryTypeIndex = static_cast<u32>(std::countr_zero(memory_type_bits)),
-        });
-        if (!memory) {
-            LOG_WARNING(Render_Vulkan, "Importing {} MiB of guest RAM at {} MiB failed",
-                        window_size >> 20, start >> 20);
-            return false;
-        }
-        if (dld.vkBindBufferMemory(*logical, window, *memory, 0) != VK_SUCCESS) {
-            return false;
-        }
-        memories.push_back(std::move(memory));
+    const VkBufferCreateInfo buffer_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = &external_info,
+        .flags = 0,
+        .size = chunk_size,
+        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+    };
+    VkBuffer buffer{};
+    if (dld.vkCreateBuffer(handle, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
+        chunk.failed = true;
+        return VK_NULL_HANDLE;
     }
-    host_mapped_memories = std::move(memories);
-    host_mapped_windows = std::move(windows);
-    host_mapped_base = base;
-    host_mapped_size = size;
-    host_mapped_ubo_alignment = std::max<uint64_t>(16, device.GetUniformBufferAlignment());
-    LOG_INFO(Render_Vulkan, "Guest RAM imported as device memory: {} MiB", size >> 20);
-    return true;
-}
 
-bool BufferCacheRuntime::BindHostMappedUniformBuffer(const u8* pointer, u32 size) {
-    const uint64_t offset = static_cast<uint64_t>(pointer - host_mapped_base);
-    if (offset >= host_mapped_size || host_mapped_size - offset < size ||
-        offset % host_mapped_ubo_alignment != 0) {
-        return false;
+    VkMemoryRequirements requirements{};
+    pfn_get_buffer_memory_requirements(handle, buffer, &requirements);
+    const u32 type_bits =
+        pointer_properties.memoryTypeBits & host_mapped_type_bits & requirements.memoryTypeBits;
+    if (type_bits == 0 || chunk_size < requirements.size) {
+        dld.vkDestroyBuffer(handle, buffer, nullptr);
+        chunk.failed = true;
+        return VK_NULL_HANDLE;
     }
-    const uint64_t window = offset / HostMappedWindowSize;
-    const uint64_t window_offset = offset % HostMappedWindowSize;
-    if (HostMappedWindowSize - window_offset < size) {
-        return false;
+
+    const VkImportMemoryHostPointerInfoEXT import_info{
+        .sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT,
+        .pNext = nullptr,
+        .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+        .pHostPointer = pointer,
+    };
+    const VkMemoryAllocateInfo allocate_info{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &import_info,
+        .allocationSize = chunk_size,
+        .memoryTypeIndex = static_cast<u32>(std::countr_zero(type_bits)),
+    };
+    VkDeviceMemory memory{};
+    if (dld.vkAllocateMemory(handle, &allocate_info, nullptr, &memory) != VK_SUCCESS) {
+        dld.vkDestroyBuffer(handle, buffer, nullptr);
+        chunk.failed = true;
+        LOG_WARNING(Render_Vulkan, "Importing {} MiB guest RAM chunk at offset {:#x} failed",
+                    chunk_size >> 20, chunk_offset);
+        return VK_NULL_HANDLE;
     }
-    BindBuffer(*host_mapped_windows[window], static_cast<u32>(window_offset), size);
-    return true;
+    if (dld.vkBindBufferMemory(handle, buffer, memory, 0) != VK_SUCCESS) {
+        dld.vkDestroyBuffer(handle, buffer, nullptr);
+        dld.vkFreeMemory(handle, memory, nullptr);
+        chunk.failed = true;
+        return VK_NULL_HANDLE;
+    }
+
+    chunk.buffer = buffer;
+    chunk.memory = memory;
+    chunk.size = chunk_size;
+    ++host_mapped_imported_chunks;
+    host_mapped_imported_bytes += chunk_size;
+    if (host_mapped_imported_chunks == 1 ||
+        (host_mapped_imported_chunks >= 4 && std::has_single_bit(host_mapped_imported_chunks))) {
+        LOG_INFO(Render_Vulkan, "On-demand guest RAM imported: {} chunks ({} MiB of {} MiB)",
+                 host_mapped_imported_chunks, host_mapped_imported_bytes >> 20,
+                 host_mapped_size >> 20);
+    }
+    return buffer;
 }
 
 u64 BufferCacheRuntime::GetDeviceLocalMemory() const {
@@ -736,7 +813,7 @@ void BufferCacheRuntime::MarkHostWrite(const Buffer& buffer) {
 VkBuffer BufferCacheRuntime::WriteTrackBitmap() {
     if (!write_track_bitmap) {
         constexpr u64 size = Shader::Backend::SPIRV::WRITE_TRACK_WORDS * sizeof(u32);
-        write_track_bitmap = CreateBuffer(device, memory_allocator, size);
+        write_track_bitmap = CreateBuffer(device, memory_allocator, staging_pool, size);
         scheduler.RequestOutsideRenderPassOperationContext();
         scheduler.Record([buffer = *write_track_bitmap](vk::CommandBuffer cmdbuf) {
             cmdbuf.FillBuffer(buffer, 0, VK_WHOLE_SIZE, 0);

@@ -319,9 +319,43 @@ private:
     std::vector<GraphicsPipelineCacheKey> transition_keys;
     std::vector<GraphicsPipeline*> transitions;
 
+    struct DrawCache {
+        boost::container::small_vector<VideoCommon::ImageViewInOut, 8> descriptor_views;
+        boost::container::small_vector<VideoCommon::SamplerId, 8> descriptor_samplers;
+        boost::container::small_vector<u32, 8> sampler_handles;
+        boost::container::small_vector<u32, 8> cached_view_indices;
+        boost::container::small_vector<VideoCommon::ImageViewId, 8> cached_view_ids;
+        boost::container::small_vector<u32, 8> cached_sampler_handles;
+        boost::container::small_vector<VideoCommon::SamplerId, 8> cached_samplers;
+    };
+
+    static constexpr u8 INVALID_STAGE_SLOT = 0xFF;
+    static inline const CompactStageInfo EMPTY_STAGE_INFO{};
+
+    [[nodiscard]] const CompactStageInfo& StageInfo(size_t stage) const noexcept {
+        const u8 slot = stage_slots[stage];
+        return slot != INVALID_STAGE_SLOT ? stage_infos[slot] : EMPTY_STAGE_INFO;
+    }
+
+    DrawCache& EnsureDrawCache() {
+        if (!draw_cache) [[unlikely]] {
+            draw_cache = std::make_unique<DrawCache>();
+            draw_cache->descriptor_views.resize(num_image_elements);
+            draw_cache->descriptor_samplers.resize(num_textures);
+            draw_cache->sampler_handles.resize(num_textures);
+        }
+        return *draw_cache;
+    }
+
     std::array<vk::ShaderModule, NUM_STAGES> spv_modules;
 
-    std::array<Shader::Info, NUM_STAGES> stage_infos;
+    std::vector<CompactStageInfo> stage_infos;
+    std::array<u8, NUM_STAGES> stage_slots{INVALID_STAGE_SLOT, INVALID_STAGE_SLOT,
+                                           INVALID_STAGE_SLOT, INVALID_STAGE_SLOT,
+                                           INVALID_STAGE_SLOT};
+    u8 fragment_color_write_mask{};
+    // Full compile-time Shader::Info array; released as soon as native pipeline creation finishes.
+    std::unique_ptr<std::array<Shader::Info, NUM_STAGES>> build_stage_infos;
     std::array<u8, Maxwell::NumVertexAttributes> vertex_attribute_components{};
     VertexInputMapping vertex_input_mapping;
     VkPipelineStageFlags image_write_stages{};
@@ -331,15 +365,9 @@ private:
     u32 num_image_elements{};
     size_t num_descriptor_entries{};
 
-    // Used only by the GPU thread; queued commands use GuestDescriptorQueue's own copies.
-    boost::container::small_vector<VideoCommon::ImageViewInOut, 64> descriptor_views;
-    boost::container::small_vector<VideoCommon::SamplerId, 64> descriptor_samplers;
+    // Used only by the GPU thread; lazily allocated on first draw so warmed-up pipelines pay 0 B.
+    std::unique_ptr<DrawCache> draw_cache;
     std::unique_ptr<DrawDescriptorCache<VideoCommon::SamplerId>> sampler_lookup;
-    boost::container::small_vector<u32, 64> sampler_handles;
-    boost::container::small_vector<u32, 64> cached_view_indices;
-    boost::container::small_vector<VideoCommon::ImageViewId, 64> cached_view_ids;
-    boost::container::small_vector<u32, 64> cached_sampler_handles;
-    boost::container::small_vector<VideoCommon::SamplerId, 64> cached_samplers;
     u64 cached_descriptor_epoch{};
 
     u32 enabled_stage_mask{};

@@ -42,6 +42,9 @@ public:
 
     void TickFrame();
 
+    /// Waits for the GPU and frees every staging buffer it is done with (out of memory).
+    void ReleaseMemory();
+
 private:
     struct StreamBufferCommit {
         size_t upper_bound;
@@ -79,6 +82,10 @@ private:
 
     /// Frames a free buffer stays cached without being requested.
     static constexpr u64 IDLE_FRAMES = 60;
+    /// Oversized temporary buffers should not stay resident as long as the
+    /// small buffers that are routinely reused every few frames.
+    static constexpr u64 LARGE_IDLE_FRAMES = 30;
+    static constexpr size_t LARGE_BUFFER_BYTES = 64ULL << 20;
 
     static constexpr size_t NUM_LEVELS = sizeof(size_t) * CHAR_BIT;
     using StagingBuffersCache = std::array<StagingBuffers, NUM_LEVELS>;
@@ -97,6 +104,9 @@ private:
     StagingBuffersCache& GetCache(MemoryUsage usage);
 
     void ReleaseCache(MemoryUsage usage);
+
+    /// Frees every staging buffer the GPU is done with, of every kind (out of memory).
+    void ReleaseIdleBuffers();
 
     void ReleaseLevel(StagingBuffersCache& cache, size_t log2);
     size_t Region(size_t iter) const noexcept {

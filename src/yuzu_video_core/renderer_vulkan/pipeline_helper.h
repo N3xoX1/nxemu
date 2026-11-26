@@ -66,7 +66,8 @@ inline bool RasterizesLines(Shader::OutputTopology output,
 /// Smallest descriptor array handled as a bindless array
 constexpr u32 LARGE_IMAGE_ARRAY_SIZE = 64;
 
-inline u32 NumCombinedSamplers(const Shader::Info& info) {
+template <typename StageInfo>
+inline u32 NumCombinedSamplers(const StageInfo& info) {
     u32 num{};
     for (const auto& desc : info.texture_descriptors) {
         num += desc.is_direct ? 0U : desc.count;
@@ -375,9 +376,10 @@ public:
     std::array<f32, 4> words{};
 };
 
+template <typename StageInfo>
 inline void PushImageDescriptors(TextureCache& texture_cache,
                                  GuestDescriptorQueue& guest_descriptor_queue,
-                                 const Shader::Info& info, RescalingPushConstant& rescaling,
+                                 const StageInfo& info, RescalingPushConstant& rescaling,
                                  const VideoCommon::SamplerId*& samplers,
                                  const VideoCommon::ImageViewInOut*& views,
                                  std::vector<VkDescriptorImageInfo>* texture_table = nullptr) {

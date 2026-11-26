@@ -439,6 +439,9 @@ private:
     /// Refresh the contents (pixel data) of an image
     void RefreshContents(Image& image, ImageId image_id);
 
+    /// Uploads a large 2D image in 32 MiB chunks instead of one staging buffer of its size.
+    bool UploadInChunks(Image& image);
+
     /// Upload data from guest to an image
     template <typename StagingBuffer>
     void UploadImageContents(Image& image, StagingBuffer& staging_buffer);
@@ -722,6 +725,13 @@ private:
 
     Common::ScratchBuffer<u8> swizzle_data_buffer;
     Common::ScratchBuffer<u8> unswizzle_data_buffer;
+    // Large, one-off texture conversions must not pin their scratch capacity for the
+    // rest of a session. These counters are updated at the frame boundary, where
+    // no temporary GpuGuestMemory span can still refer to either buffer.
+    u32 swizzle_scratch_small_frames = 0;
+    u32 unswizzle_scratch_small_frames = 0;
+    size_t peak_swizzle_scratch_bytes = 0;
+    size_t peak_unswizzle_scratch_bytes = 0;
 
     u64 modification_tick = 0;
     u64 frame_tick = 0;

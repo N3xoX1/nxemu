@@ -103,6 +103,9 @@ public:
 
     vk::Buffer CreateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage) const;
 
+    /// CreateBuffer, but a null buffer instead of an exception when there is no memory for it.
+    vk::Buffer TryCreateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage) const;
+
     /**
      * Commits a memory with the specified requirements.
      *
@@ -117,6 +120,10 @@ public:
     MemoryCommit Commit(const vk::Buffer& buffer, MemoryUsage usage);
 
 private:
+    /// CreateBuffer's body; the buffer is left null when the result is an error.
+    VkResult AllocateBuffer(const VkBufferCreateInfo& ci, MemoryUsage usage,
+                            vk::Buffer& buffer) const;
+
     /// Tries to allocate a chunk of memory.
     bool TryAllocMemory(VkMemoryPropertyFlags flags, u32 type_mask, u64 size);
 
