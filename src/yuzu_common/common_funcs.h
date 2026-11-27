@@ -144,4 +144,20 @@ constexpr std::size_t Size(const C& c) {
     }
 }
 
+/// Base classes for types that may not be copied, or not moved either.
+class NonCopyable {
+protected:
+    NonCopyable() = default;
+    ~NonCopyable() = default;
+    NonCopyable(const NonCopyable&) = delete;
+    NonCopyable& operator=(const NonCopyable&) = delete;
+};
+class NonMoveable {
+protected:
+    NonMoveable() = default;
+    ~NonMoveable() = default;
+    NonMoveable(NonMoveable&&) = delete;
+    NonMoveable& operator=(NonMoveable&&) = delete;
+};
+
 } // namespace Common
