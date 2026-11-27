@@ -175,6 +175,13 @@ void EmitStorageAtomicExchange32(EmitContext& ctx, IR::Inst& inst, const IR::Val
                ctx.var_alloc.Consume(offset), value);
 }
 
+void EmitStorageAtomicCompareExchange32(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
+                                        const IR::Value& offset, std::string_view value,
+                                        std::string_view compare) {
+    ctx.AddU32("{}=atomicCompSwap({}_ssbo{}[{}>>2],{},{});", inst, ctx.stage_name, binding.U32(),
+               ctx.var_alloc.Consume(offset), compare, value);
+}
+
 void EmitStorageAtomicIAdd64(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                              const IR::Value& offset, std::string_view value) {
     LOG_WARNING(Shader_GLSL, "Int64 atomics not supported, fallback to non-atomic");
@@ -441,6 +448,10 @@ void EmitGlobalAtomicExchange32(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
 }
 
+void EmitGlobalAtomicCompareExchange32(EmitContext&) {
+    throw NotImplementedException("GLSL Instruction");
+}
+
 void EmitGlobalAtomicIAdd64(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
 }
@@ -483,6 +494,23 @@ void EmitGlobalAtomicXor64(EmitContext&) {
 
 void EmitGlobalAtomicExchange64(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
+}
+
+void EmitGlobalAtomicCompareExchange64(EmitContext&) {
+    throw NotImplementedException("GLSL Instruction");
+}
+
+void EmitStorageAtomicCompareExchange64(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
+                                        const IR::Value& offset, std::string_view value,
+                                        std::string_view compare) {
+    LOG_WARNING(Shader_GLSL, "Int64 atomics not supported, fallback to non-atomic");
+    const std::string off = ctx.var_alloc.Consume(offset);
+    const std::string ret = ctx.var_alloc.Define(inst, IR::Type::U64);
+    ctx.Add("{}=packUint2x32(uvec2({}_ssbo{}[{}>>2],{}_ssbo{}[({}>>2)+1]));", ret, ctx.stage_name,
+            binding.U32(), off, ctx.stage_name, binding.U32(), off);
+    ctx.Add("if({}=={}){{uvec2 _cas=unpackUint2x32({});{}_ssbo{}[{}>>2]=_cas.x;{}_ssbo{}[({}>>2)+1]=_cas.y;}}",
+            ret, compare, value, ctx.stage_name, binding.U32(), off, ctx.stage_name, binding.U32(),
+            off);
 }
 
 void EmitGlobalAtomicIAdd32x2(EmitContext&) {

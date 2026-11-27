@@ -46,6 +46,7 @@ enum class RendererBackend : uint32_t
     OpenGL = 0,
     Vulkan,
     Null,
+    Metal,
 };
 
 enum class ShaderBackend : uint32_t
@@ -304,6 +305,8 @@ nxinterface IVideo
     virtual void ContinueShadersInBackground() = 0;
     // Pipelines the background build has finished, of its total; the total is 0 when none runs.
     virtual void BackgroundShaderProgress(uint32_t & done, uint32_t & total) = 0;
+    /// The renderer actually running, which a setting change only applies on the next launch.
+    virtual const char * RendererName() = 0;
     virtual bool UseNvdec() = 0;
     virtual void ClearCdmaInstance(uint32_t id) = 0;
     virtual uint32_t GetAppletCaptureBuffer(uint8_t * out, uint32_t out_size) = 0;

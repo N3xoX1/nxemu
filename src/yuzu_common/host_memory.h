@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <span>
 #include "yuzu_common/common_funcs.h"
 #include "yuzu_common/common_types.h"
 #include "yuzu_common/virtual_buffer.h"
@@ -52,6 +53,15 @@ public:
     /// Limits host access to guest pages the GPU caches or the debugger watches, independently
     /// of their guest permission. Same as Protect when guest permissions are host permissions.
     void ProtectAccess(size_t virtual_offset, size_t length, MemoryPermission allowed);
+
+    struct ProtectAccessRange {
+        size_t virtual_offset{};
+        size_t length{};
+        MemoryPermission allowed{};
+    };
+
+    /// Applies multiple ProtectAccess operations in a single batch.
+    void ProtectAccessBatch(std::span<const ProtectAccessRange> ranges);
 
     /// Whether guest memory is mapped for native code execution on 16 KiB pages.
     bool UsesNce() const;

@@ -219,6 +219,89 @@ void NceDirectMap::SetAccessMask(u64 address, u64 size, u32 allowed) {
     });
 }
 
+void NceDirectMap::SetAccessMaskBatch(std::span<const AccessMaskRange> ranges) {
+    if (ranges.empty()) {
+        return;
+    }
+    if (ranges.size() == 1) {
+        SetAccessMask(ranges[0].address, ranges[0].size, ranges[0].allowed);
+        return;
+    }
+
+    struct DirtyHostRange {
+        size_t state_index;
+        u64 begin;
+        u64 end;
+    };
+    thread_local std::vector<DirtyHostRange> dirty;
+    dirty.clear();
+    dirty.reserve(ranges.size());
+
+    std::scoped_lock lk{mutex};
+    for (const AccessMaskRange& range : ranges) {
+        if (range.size == 0) {
+            continue;
+        }
+        if (range.size > std::numeric_limits<u64>::max() - range.address) {
+            LOG_ERROR(HW_Memory, "NCE: overflowing guest range at {:#x}, size {:#x}", range.address,
+                      range.size);
+            continue;
+        }
+        const u64 denied = static_cast<u64>(~range.allowed & (PermRead | PermWrite)) << DenyShift;
+        const u64 range_end = range.address + range.size;
+        for (size_t state_index = 0; state_index < states.size(); ++state_index) {
+            WindowState& state = states[state_index];
+            const u64 begin = std::max(range.address, state.window.start);
+            const u64 end = std::min(range_end, state.window.end);
+            if (begin >= end) {
+                continue;
+            }
+            for (u64 page = begin; page < end; page += GuestPageSize) {
+                auto& guest = state.guest[(page - state.window.start) / GuestPageSize];
+                const u64 value = guest.load(std::memory_order_relaxed);
+                if ((value & Mapped) != 0) {
+                    const u64 updated = (value & ~(PermMask << DenyShift)) | denied;
+                    guest.store(updated, std::memory_order_release);
+                    if (atomic_table) {
+                        const u64 permissions =
+                            (updated & PermMask) & ~((updated >> DenyShift) & PermMask);
+                        const u64 translated =
+                            (reinterpret_cast<u64>(backing_base) + (updated & OffsetMask) - page) |
+                            (permissions & (PermRead | PermWrite));
+                        atomic_table[page / GuestPageSize].store(translated,
+                                                                 std::memory_order_release);
+                    }
+                }
+            }
+            dirty.push_back(
+                {state_index, AlignDown(begin, HostPageSize), AlignUp(end, HostPageSize)});
+        }
+    }
+
+    if (dirty.empty()) {
+        return;
+    }
+
+    std::sort(dirty.begin(), dirty.end(), [](const DirtyHostRange& a, const DirtyHostRange& b) {
+        if (a.state_index != b.state_index) {
+            return a.state_index < b.state_index;
+        }
+        return a.begin < b.begin;
+    });
+
+    DirtyHostRange cur = dirty[0];
+    for (size_t i = 1; i < dirty.size(); ++i) {
+        const DirtyHostRange& next = dirty[i];
+        if (next.state_index == cur.state_index && next.begin <= cur.end) {
+            cur.end = std::max(cur.end, next.end);
+        } else {
+            UpdateWindow(states[cur.state_index], cur.begin, cur.end);
+            cur = next;
+        }
+    }
+    UpdateWindow(states[cur.state_index], cur.begin, cur.end);
+}
+
 bool NceDirectMap::AccessAllowed(u64 address, bool write) const {
     const std::atomic<u64>* guest = GuestEntry(address);
     if (guest == nullptr) {
@@ -343,18 +426,20 @@ void NceDirectMap::UpdateWindow(WindowState& state, u64 begin, u64 end) {
             desired = Mapped | base | prot;
         }
 
-        const u64 current = state.host[index] == 0 ? HostNone : state.host[index];
+        const u64 current = std::atomic_ref<u64>{state.host[index]}.load(std::memory_order_relaxed);
+        const u64 effective_current = current == 0 ? HostNone : current;
         Action action = Action::None;
-        if (desired != current) {
+        if (desired != effective_current) {
             if (desired == HostNone) {
                 action = Action::Clear;
-            } else if (current != HostNone && (current & OffsetMask) == (desired & OffsetMask)) {
+            } else if (effective_current != HostNone &&
+                       (effective_current & OffsetMask) == (desired & OffsetMask)) {
                 action = Action::Protect;
             } else {
                 action = Action::Remap;
             }
         }
-        state.host[index] = desired;
+        std::atomic_ref<u64>{state.host[index]}.store(desired, std::memory_order_release);
 
         const u32 prot = static_cast<u32>(desired & PermMask);
         const u64 offset = desired & OffsetMask;

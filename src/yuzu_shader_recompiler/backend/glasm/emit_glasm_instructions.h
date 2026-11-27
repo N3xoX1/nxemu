@@ -397,6 +397,8 @@ void EmitStorageAtomicXor32(EmitContext& ctx, IR::Inst& inst, const IR::Value& b
                             ScalarU32 offset, ScalarU32 value);
 void EmitStorageAtomicExchange32(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                                  ScalarU32 offset, ScalarU32 value);
+void EmitStorageAtomicCompareExchange32(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
+                                        ScalarU32 offset, ScalarU32 value, ScalarU32 compare);
 void EmitStorageAtomicIAdd64(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                              ScalarU32 offset, Register value);
 void EmitStorageAtomicSMin64(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
@@ -415,6 +417,8 @@ void EmitStorageAtomicXor64(EmitContext& ctx, IR::Inst& inst, const IR::Value& b
                             ScalarU32 offset, Register value);
 void EmitStorageAtomicExchange64(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                                  ScalarU32 offset, Register value);
+void EmitStorageAtomicCompareExchange64(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
+                                        ScalarU32 offset, Register value, Register compare);
 void EmitStorageAtomicIAdd32x2(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                                ScalarU32 offset, Register value);
 void EmitStorageAtomicSMin32x2(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
@@ -458,6 +462,7 @@ void EmitGlobalAtomicAnd32(EmitContext& ctx);
 void EmitGlobalAtomicOr32(EmitContext& ctx);
 void EmitGlobalAtomicXor32(EmitContext& ctx);
 void EmitGlobalAtomicExchange32(EmitContext& ctx);
+void EmitGlobalAtomicCompareExchange32(EmitContext& ctx);
 void EmitGlobalAtomicIAdd64(EmitContext& ctx);
 void EmitGlobalAtomicSMin64(EmitContext& ctx);
 void EmitGlobalAtomicUMin64(EmitContext& ctx);
@@ -469,6 +474,7 @@ void EmitGlobalAtomicAnd64(EmitContext& ctx);
 void EmitGlobalAtomicOr64(EmitContext& ctx);
 void EmitGlobalAtomicXor64(EmitContext& ctx);
 void EmitGlobalAtomicExchange64(EmitContext& ctx);
+void EmitGlobalAtomicCompareExchange64(EmitContext& ctx);
 void EmitGlobalAtomicIAdd32x2(EmitContext& ctx);
 void EmitGlobalAtomicSMin32x2(EmitContext& ctx);
 void EmitGlobalAtomicUMin32x2(EmitContext& ctx);

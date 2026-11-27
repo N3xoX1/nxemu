@@ -3218,6 +3218,15 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         infos[stage_index] = &program.info;
 
         auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage)};
+        if (program.stage == Shader::Stage::Fragment && program.info.stores_frag_depth &&
+            !device.SupportsD24DepthBuffer() && key.state.depth_enabled != 0) {
+            const auto zfmt = static_cast<Tegra::DepthFormat>(key.state.depth_format.Value());
+            runtime_info.quantize_d24_frag_depth =
+                zfmt == Tegra::DepthFormat::Z24_UNORM_S8_UINT ||
+                zfmt == Tegra::DepthFormat::X8Z24_UNORM ||
+                zfmt == Tegra::DepthFormat::S8Z24_UNORM ||
+                zfmt == Tegra::DepthFormat::V8Z24_UNORM;
+        }
         if (forwarded_layer && program.stage == Shader::Stage::VertexB) {
             runtime_info.forwarded_layer_attribute = forwarded_layer;
             runtime_info.convert_depth_mode = key.state.ndc_minus_one_to_one != 0;

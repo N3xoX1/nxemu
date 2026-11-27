@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2014 Citra Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <atomic>
+#include <cstdlib>
 #include <memory>
 #include <stdexcept>
 
@@ -14,16 +16,35 @@
 #include "yuzu_video_core/renderer_null/renderer_null.h"
 #include "yuzu_video_core/renderer_opengl/renderer_opengl.h"
 #include "yuzu_video_core/renderer_vulkan/renderer_vulkan.h"
+#ifdef HAS_METAL
+#include "yuzu_video_core/renderer_metal/renderer_metal.h"
+#endif
 #include "yuzu_video_core/renderer_vulkan/vk_display.h"
 #include "yuzu_video_core/video_core.h"
 
 namespace {
 
+std::atomic<const char *> active_renderer_name{""};
+
+const char * RendererName(RendererBackend backend)
+{
+    switch (backend)
+    {
+    case RendererBackend::OpenGL: return "OpenGL";
+    case RendererBackend::Vulkan: return "Vulkan";
+    case RendererBackend::Metal: return "Metal";
+    case RendererBackend::Null: return "Null";
+    }
+    return "";
+}
+
 std::unique_ptr<VideoCore::RendererBase> CreateRenderer(Tegra::Host1x::Host1x & host1x, Core::Frontend::EmuWindow & emu_window, Tegra::GPU & gpu, std::unique_ptr<Core::Frontend::GraphicsContext> context, Vulkan::Display * display)
 {
     auto & device_memory = host1x.MemoryManager();
+    const RendererBackend backend = videoSettings.renderer_backend;
+    active_renderer_name.store(RendererName(backend));
 
-    switch (videoSettings.renderer_backend)
+    switch (backend)
     {
     case RendererBackend::OpenGL: return std::make_unique<OpenGL::RendererOpenGL>(emu_window, device_memory, gpu, std::move(context));
     case RendererBackend::Vulkan:
@@ -33,6 +54,16 @@ std::unique_ptr<VideoCore::RendererBase> CreateRenderer(Tegra::Host1x::Host1x & 
         }
         return std::make_unique<Vulkan::RendererVulkan>(emu_window, device_memory, gpu, std::move(context), *display);
     case RendererBackend::Null: return std::make_unique<Null::RendererNull>(emu_window, gpu, std::move(context));
+    case RendererBackend::Metal:
+#ifdef HAS_METAL
+        if (display == nullptr)
+        {
+            throw std::runtime_error{"No Vulkan display"};
+        }
+        return std::make_unique<Metal::RendererMetal>(emu_window, device_memory, gpu, std::move(context), *display);
+#else
+        throw std::runtime_error{"Metal is not available on this platform"};
+#endif
     }
     return nullptr;
 }
@@ -40,6 +71,11 @@ std::unique_ptr<VideoCore::RendererBase> CreateRenderer(Tegra::Host1x::Host1x & 
 } // Anonymous namespace
 
 namespace VideoCore {
+
+const char * ActiveRendererName()
+{
+    return active_renderer_name.load();
+}
 
 std::unique_ptr<Tegra::GPU> CreateGPU(ISystemModules & modules, Core::Frontend::EmuWindow& emu_window, Tegra::Host1x::Host1x & host1x, Vulkan::Display * display)
 {

@@ -412,7 +412,7 @@ Id CasLoop(EmitContext& ctx, Operation operation, Id array_pointer, Id element_p
     const Id word_pointer{is_struct ? ctx.OpAccessChain(element_pointer, base, zero, index)
                                     : ctx.OpAccessChain(element_pointer, base, index)};
     if (value_type.value == ctx.F32[2].value) {
-        const Id u32_value{ctx.OpLoad(ctx.U32[1], word_pointer)};
+        const Id u32_value{ctx.OpAtomicLoad(ctx.U32[1], word_pointer, scope_id, zero)};
         const Id value{ctx.OpUnpackHalf2x16(ctx.F32[2], u32_value)};
         const Id new_value{ctx.OpFunctionCall(value_type, cas_func, value, op_b)};
         const Id u32_new_value{ctx.OpPackHalf2x16(ctx.U32[1], new_value)};
@@ -424,7 +424,7 @@ Id CasLoop(EmitContext& ctx, Operation operation, Id array_pointer, Id element_p
         ctx.AddLabel(merge_block);
         ctx.OpReturnValue(ctx.OpUnpackHalf2x16(ctx.F32[2], atomic_res));
     } else {
-        const Id value{ctx.OpLoad(memory_type, word_pointer)};
+        const Id value{ctx.OpAtomicLoad(memory_type, word_pointer, scope_id, zero)};
         const bool matching_type{value_type.value == memory_type.value};
         const Id bitcast_value{matching_type ? value : ctx.OpBitcast(value_type, value)};
         const Id cal_res{ctx.OpFunctionCall(value_type, cas_func, bitcast_value, op_b)};
@@ -758,7 +758,7 @@ void EmitContext::DefineSharedMemory(const IR::Program& program) {
 
         AddLabel(continue_block);
         const Id word_pointer{OpAccessChain(shared_u32, shared_memory_u32, word_offset)};
-        const Id old_value{OpLoad(U32[1], word_pointer)};
+        const Id old_value{OpAtomicLoad(U32[1], word_pointer, Const(1U), u32_zero_value)};
         const Id new_value{OpBitFieldInsert(U32[1], old_value, insert_value, bit_offset, count)};
         const Id atomic_res{OpAtomicCompareExchange(U32[1], word_pointer, Const(1U), u32_zero_value,
                                                     u32_zero_value, new_value, old_value)};
@@ -974,24 +974,28 @@ void EmitContext::DefineAttributeMemAccess(const Info& info) {
 }
 
 void EmitContext::DefineWriteStorageCasLoopFunction(const Info& info) {
-    if (profile.support_int8 && profile.support_int16) {
+    if (profile.support_int8 && profile.support_int16 && profile.support_descriptor_aliasing) {
         return;
     }
-    if (!info.uses_int8 && !info.uses_int16) {
+    if (!info.uses_int8 && !info.uses_int16 &&
+        False(info.used_storage_buffer_types & (IR::Type::U8 | IR::Type::U16))) {
+        return;
+    }
+    if (info.storage_buffers_descriptors.empty() || !Sirit::ValidId(storage_types.U32.array)) {
         return;
     }
 
-    AddCapability(spv::Capability::VariablePointersStorageBuffer);
-
-    const Id ptr_type{TypePointer(spv::StorageClass::StorageBuffer, U32[1])};
-    const Id func_type{TypeFunction(void_id, ptr_type, U32[1], U32[1], U32[1])};
+    const Id func_type{
+        TypeFunction(void_id, storage_types.U32.array, U32[1], U32[1], U32[1], U32[1])};
     const Id func{OpFunction(void_id, spv::FunctionControlMask::MaskNone, func_type)};
-    const Id pointer{OpFunctionParameter(ptr_type)};
+    const Id ssbo{OpFunctionParameter(storage_types.U32.array)};
+    const Id index{OpFunctionParameter(U32[1])};
     const Id value{OpFunctionParameter(U32[1])};
     const Id bit_offset{OpFunctionParameter(U32[1])};
     const Id bit_count{OpFunctionParameter(U32[1])};
 
     AddLabel();
+    const Id pointer{OpAccessChain(storage_types.U32.element, ssbo, u32_zero_value, index)};
     const Id scope_device{Const(1u)};
     const Id ordering_relaxed{u32_zero_value};
     const Id body_label{OpLabel()};
@@ -1005,7 +1009,7 @@ void EmitContext::DefineWriteStorageCasLoopFunction(const Info& info) {
     OpBranch(body_label);
 
     AddLabel(body_label);
-    const Id expected_value{OpLoad(U32[1], pointer)};
+    const Id expected_value{OpAtomicLoad(U32[1], pointer, scope_device, ordering_relaxed)};
     const Id desired_value{OpBitFieldInsert(U32[1], expected_value, value, bit_offset, bit_count)};
     const Id actual_value{OpAtomicCompareExchange(U32[1], pointer, scope_device, ordering_relaxed,
                                                   ordering_relaxed, desired_value, expected_value)};
@@ -1279,6 +1283,33 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
         OpReturnValue(zero);
         OpFunctionEnd();
         this->*global_atomics[i].func_id = func_id;
+    }
+    bool uses_global_cas_u32{false};
+    for (const IR::Block* const block : program.blocks) {
+        for (const IR::Inst& inst : block->Instructions()) {
+            if (inst.GetOpcode() == IR::Opcode::GlobalAtomicCompareExchange32) {
+                uses_global_cas_u32 = true;
+                break;
+            }
+        }
+        if (uses_global_cas_u32) {
+            break;
+        }
+    }
+    if (uses_global_cas_u32) {
+        const Id function_type{TypeFunction(U32[1], U64, U32[1], U32[1])};
+        const Id func_id{OpFunction(U32[1], function_control, function_type)};
+        const Id addr{OpFunctionParameter(U64)};
+        const Id value{OpFunctionParameter(U32[1])};
+        const Id compare{OpFunctionParameter(U32[1])};
+        define_body(&StorageDefinitions::U32, addr, storage_types.U32.element, 2, 1, true,
+                    [&](Id ssbo_pointer, Id, Id) {
+                        OpReturnValue(OpAtomicCompareExchange(U32[1], ssbo_pointer, scope, zero,
+                                                              zero, value, compare));
+                    });
+        OpReturnValue(zero);
+        OpFunctionEnd();
+        global_atomic_compare_exchange_func_u32 = func_id;
     }
 }
 

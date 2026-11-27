@@ -76,3 +76,9 @@
 [submodule "external/nxemu-switch-mods"]
 	path = external/nxemu-switch-mods
 	url = https://github.com/N3xoX1/nxemu-switch-mods.git
+[submodule "external/metal-cpp"]
+	path = external/metal-cpp
+	url = https://github.com/apple/metal-cpp.git
+[submodule "external/spirv-cross"]
+	path = external/spirv-cross
+	url = https://github.com/KhronosGroup/SPIRV-Cross.git

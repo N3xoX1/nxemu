@@ -539,13 +539,21 @@ void EmitSetSampleMask(EmitContext& ctx, Id value) {
 }
 
 void EmitSetFragDepth(EmitContext& ctx, Id value) {
-    if (!ctx.runtime_info.convert_depth_mode || ctx.profile.support_native_ndc) {
-        ctx.OpStore(ctx.frag_depth, value);
-        return;
+    Id depth = value;
+    if (ctx.runtime_info.convert_depth_mode && !ctx.profile.support_native_ndc) {
+        const Id unit{ctx.Const(0.5f)};
+        depth = ctx.OpFma(ctx.F32[1], value, unit, unit);
     }
-    const Id unit{ctx.Const(0.5f)};
-    const Id new_depth{ctx.OpFma(ctx.F32[1], value, unit, unit)};
-    ctx.OpStore(ctx.frag_depth, new_depth);
+    if (ctx.runtime_info.quantize_d24_frag_depth) {
+        const Id zero{ctx.Const(0.0f)};
+        const Id one{ctx.Const(1.0f)};
+        const Id scale{ctx.Const(16777215.0f)};
+        const Id clamped{ctx.OpFClamp(ctx.F32[1], depth, zero, one)};
+        const Id scaled{ctx.OpFMul(ctx.F32[1], clamped, scale)};
+        const Id rounded{ctx.OpRoundEven(ctx.F32[1], scaled)};
+        depth = ctx.OpFDiv(ctx.F32[1], rounded, scale);
+    }
+    ctx.OpStore(ctx.frag_depth, depth);
 }
 
 void EmitGetZFlag(EmitContext&) {

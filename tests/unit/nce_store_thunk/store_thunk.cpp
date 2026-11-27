@@ -63,5 +63,23 @@ int main() {
         assert(memory.prepared.empty() && memory.written.size() == 8);
         assert(memory.tracked.size() == 2 && memory.tracked[0] == 0x10000ffc && memory.tracked[1] == 0x10001003);
     }
+    // Data cache maintenance (DC CIVAC/CVAC/CVAU/CVAP/CVADP) never modifies memory
+    // and must not enter write tracking, which would expose undownloaded GPU-read-cached pages.
+    for (const std::uint32_t insn :
+         {0xd50b7e20u, 0xd50b7a20u, 0xd50b7b20u, 0xd50b7c20u, 0xd50b7d20u}) {
+        static_assert(StoreThunk::Cache(0xd50b7e20u) && StoreThunk::Cache(0xd50b7a20u) &&
+                      StoreThunk::Cache(0xd50b7b20u) && StoreThunk::Cache(0xd50b7c20u) &&
+                      StoreThunk::Cache(0xd50b7d20u));
+        for (const auto trap : {StoreThunk::Trap::Prepare, StoreThunk::Trap::Plain, StoreThunk::Trap::Spilled}) {
+            Memory memory;
+            Registers registers;
+            registers[0] = 0x10000040;
+            std::uint64_t sp = 0x1000, pc = 0;
+            std::array<std::uint8_t, 512> vectors{};
+            StoreThunk::Complete(memory, registers, sp, pc, OriginalPc, insn, trap, vectors.data());
+            assert(pc == OriginalPc + 4);
+            assert(memory.prepared.empty() && memory.tracked.empty() && memory.written.empty());
+        }
+    }
     return 0;
 }

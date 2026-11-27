@@ -68,10 +68,13 @@ void WriteStorage32(EmitContext& ctx, const IR::Value& binding, const IR::Value&
 
 void WriteStorageByCasLoop(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
                            Id value, Id bit_offset, Id bit_count) {
-    const Id pointer{StoragePointer(ctx, binding, offset, ctx.storage_types.U32, sizeof(u32),
-                                    &StorageDefinitions::U32)};
-    ctx.OpFunctionCall(ctx.TypeVoid(), ctx.write_storage_cas_loop_func, pointer, value, bit_offset,
-                       bit_count);
+    if (!binding.IsImmediate()) {
+        throw NotImplementedException("Dynamic storage buffer indexing");
+    }
+    const Id ssbo{ctx.ssbos[binding.U32()].U32};
+    const Id index{StorageIndex(ctx, offset, sizeof(u32))};
+    ctx.OpFunctionCall(ctx.TypeVoid(), ctx.write_storage_cas_loop_func, ssbo, index, value,
+                       bit_offset, bit_count);
 }
 } // Anonymous namespace
 
@@ -203,7 +206,7 @@ Id EmitLoadStorage128(EmitContext& ctx, const IR::Value& binding, const IR::Valu
 
 void EmitWriteStorageU8(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
                         Id value) {
-    if (ctx.profile.support_int8) {
+    if (ctx.profile.support_int8 && ctx.profile.support_descriptor_aliasing) {
         WriteStorage(ctx, binding, offset, ctx.OpSConvert(ctx.U8, value), ctx.storage_types.U8,
                      sizeof(u8), &StorageDefinitions::U8);
     } else {
@@ -213,7 +216,7 @@ void EmitWriteStorageU8(EmitContext& ctx, const IR::Value& binding, const IR::Va
 
 void EmitWriteStorageS8(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
                         Id value) {
-    if (ctx.profile.support_int8) {
+    if (ctx.profile.support_int8 && ctx.profile.support_descriptor_aliasing) {
         WriteStorage(ctx, binding, offset, ctx.OpSConvert(ctx.S8, value), ctx.storage_types.S8,
                      sizeof(s8), &StorageDefinitions::S8);
     } else {
@@ -223,7 +226,7 @@ void EmitWriteStorageS8(EmitContext& ctx, const IR::Value& binding, const IR::Va
 
 void EmitWriteStorageU16(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
                          Id value) {
-    if (ctx.profile.support_int16) {
+    if (ctx.profile.support_int16 && ctx.profile.support_descriptor_aliasing) {
         WriteStorage(ctx, binding, offset, ctx.OpSConvert(ctx.U16, value), ctx.storage_types.U16,
                      sizeof(u16), &StorageDefinitions::U16);
     } else {
@@ -233,7 +236,7 @@ void EmitWriteStorageU16(EmitContext& ctx, const IR::Value& binding, const IR::V
 
 void EmitWriteStorageS16(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
                          Id value) {
-    if (ctx.profile.support_int16) {
+    if (ctx.profile.support_int16 && ctx.profile.support_descriptor_aliasing) {
         WriteStorage(ctx, binding, offset, ctx.OpSConvert(ctx.S16, value), ctx.storage_types.S16,
                      sizeof(s16), &StorageDefinitions::S16);
     } else {

@@ -135,6 +135,14 @@ struct BufferCache
     {
         ++cleared;
     }
+    void AddGpuModifiedRange(DAddr addr, u64 size)
+    {
+        gpu_modified_ranges.Add(addr, size);
+    }
+    void SubtractGpuModifiedRange(DAddr addr, u64 size)
+    {
+        gpu_modified_ranges.Subtract(addr, size);
+    }
     void MarkWrittenBuffer(BufferId, DAddr, u32, bool tracked = false);
     void MarkWrittenWithoutReadback(BufferId, DAddr, u32);
     bool SynchronizeBuffer(Buffer &, DAddr, u32, boost::container::small_vector<BufferCopy, 4> &);

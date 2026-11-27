@@ -9,9 +9,11 @@ namespace Shader::Backend::SPIRV {
 namespace {
 Id Decorate(EmitContext& ctx, IR::Inst* inst, Id op) {
     const auto flags{inst->Flags<IR::FpControl>()};
-    // Stages that write the position keep it so multi-pass depth stays exact
+    // Stages that write depth (position stages, or fragment shaders writing gl_FragDepth)
+    // keep NoContraction so multi-pass Equal depth tests stay bit-exact.
     const bool skip{ctx.profile.has_slow_fragment_no_contraction &&
-                    (ctx.stage == Stage::Fragment || ctx.stage == Stage::Compute)};
+                    ((ctx.stage == Stage::Fragment && !Sirit::ValidId(ctx.frag_depth)) ||
+                     ctx.stage == Stage::Compute)};
     if (flags.no_contraction && !skip) {
         ctx.Decorate(op, spv::Decoration::NoContraction);
     }

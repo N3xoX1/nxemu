@@ -21,6 +21,9 @@
 namespace VideoCommon {
 
 void ShaderCache::InvalidateRegion(VAddr addr, size_t size) {
+    if (!MayContainShaders(addr, size)) {
+        return;
+    }
     std::scoped_lock lock{invalidation_mutex};
     InvalidatePagesInRegion(addr, size);
     RemovePendingShaders();
@@ -32,12 +35,17 @@ void ShaderCache::InvalidateRegions(std::span<const std::pair<DAddr, size_t>> se
     }
     std::scoped_lock lock{invalidation_mutex};
     for (const auto& [addr, size] : sequences) {
-        InvalidatePagesInRegion(addr, size);
+        if (MayContainShaders(addr, size)) {
+            InvalidatePagesInRegion(addr, size);
+        }
     }
     RemovePendingShaders();
 }
 
 void ShaderCache::OnCacheInvalidation(VAddr addr, size_t size) {
+    if (!MayContainShaders(addr, size)) {
+        return;
+    }
     std::scoped_lock lock{invalidation_mutex};
     InvalidatePagesInRegion(addr, size);
 }
@@ -147,6 +155,15 @@ void ShaderCache::Register(std::unique_ptr<ShaderInfo> data, VAddr addr, size_t 
     const u64 page_end = (addr_end + YUZU_PAGESIZE - 1) >> YUZU_PAGEBITS;
     for (u64 page = addr >> YUZU_PAGEBITS; page < page_end; ++page) {
         invalidation_cache[page].push_back(entry);
+    }
+    if (size != 0) {
+        const u64 first_bucket = addr >> SHADER_REGION_BITS;
+        const u64 last_bucket = (addr_end - 1) >> SHADER_REGION_BITS;
+        for (u64 bucket = first_bucket; bucket <= last_bucket; ++bucket) {
+            const size_t idx = static_cast<size_t>(bucket & SHADER_REGION_MASK);
+            registered_regions[idx >> 6].fetch_or(u64{1} << (idx & 63),
+                                                  std::memory_order_release);
+        }
     }
 
     storage.push_back(std::move(data));

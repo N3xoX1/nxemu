@@ -246,6 +246,7 @@
     <ClInclude Include="texture_cache\format_lookup_table.h" />
     <ClInclude Include="texture_cache\image_base.h" />
     <ClInclude Include="texture_cache\image_info.h" />
+    <ClInclude Include="texture_cache\expand_format.h" />
     <ClInclude Include="texture_cache\mip_levels.h" />
     <ClInclude Include="texture_cache\image_view_base.h" />
     <ClInclude Include="texture_cache\image_view_info.h" />
@@ -434,6 +435,7 @@
     <ClCompile Include="textures\workers.cpp" />
     <ClCompile Include="texture_cache\accelerated_swizzle.cpp" />
     <ClCompile Include="texture_cache\decode_bc.cpp" />
+    <ClCompile Include="texture_cache\expand_format.cpp" />
     <ClCompile Include="texture_cache\formatter.cpp" />
     <ClCompile Include="texture_cache\format_lookup_table.cpp" />
     <ClCompile Include="texture_cache\image_base.cpp" />

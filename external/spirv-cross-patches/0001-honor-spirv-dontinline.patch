@@ -1,0 +1,44 @@
+diff --git a/spirv_common.hpp b/spirv_common.hpp
+index cd06f754..ba0b6720 100644
+--- a/spirv_common.hpp
++++ b/spirv_common.hpp
+@@ -1009,6 +1009,9 @@ struct SPIRFunction : IVariant
+ 	{
+ 	}
+ 
++	// FunctionControl mask of OpFunction.
++	uint32_t function_control = 0;
++
+ 	struct Parameter
+ 	{
+ 		TypeID type;
+diff --git a/spirv_msl.cpp b/spirv_msl.cpp
+index 025427cc..c55f1d48 100644
+--- a/spirv_msl.cpp
++++ b/spirv_msl.cpp
+@@ -11858,7 +11858,12 @@ void CompilerMSL::emit_function_prototype(SPIRFunction &func, const Bitset &)
+ 
+ 	// Metal helper functions must be static force-inline otherwise they will cause problems when linked together in a single Metallib.
+ 	if (!processing_entry_point)
+-		statement(force_inline);
++	{
++		if (func.function_control & spv::FunctionControlDontInlineMask)
++			statement("static __attribute__((noinline))");
++		else
++			statement(force_inline);
++	}
+ 
+ 	auto &type = get<SPIRType>(func.return_type);
+ 
+diff --git a/spirv_parser.cpp b/spirv_parser.cpp
+index d2e7dfa5..41b87753 100644
+--- a/spirv_parser.cpp
++++ b/spirv_parser.cpp
+@@ -1147,6 +1147,7 @@ void Parser::parse(const Instruction &instruction)
+ 			SPIRV_CROSS_THROW("Must end a function before starting a new one!");
+ 
+ 		current_function = &set<SPIRFunction>(id, res, type);
++		current_function->function_control = ops[2];
+ 		break;
+ 	}
+ 

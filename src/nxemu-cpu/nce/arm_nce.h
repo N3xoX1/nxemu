@@ -93,8 +93,6 @@ public:
 
     // Ranges of the host address space that hold guest memory; guest code only runs there.
     std::vector<std::pair<uint64_t, uint64_t>> m_guest_windows;
-
-    std::unique_ptr<u8[]> m_stack{};
 };
 #else
     static Dynarmic::HaltReason ReturnToRunCodeByExceptionLevelChange(int tid, void * tpidr);

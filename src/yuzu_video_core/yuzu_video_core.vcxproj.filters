@@ -693,6 +693,9 @@
     <ClInclude Include="texture_cache\types.h">
       <Filter>Header Files\texture_cache</Filter>
     </ClInclude>
+    <ClInclude Include="texture_cache\expand_format.h">
+      <Filter>Header Files\texture_cache</Filter>
+    </ClInclude>
     <ClInclude Include="texture_cache\util.h">
       <Filter>Header Files\texture_cache</Filter>
     </ClInclude>
@@ -1134,6 +1137,9 @@
       <Filter>Source Files\texture_cache</Filter>
     </ClCompile>
     <ClCompile Include="texture_cache\texture_cache.cpp">
+      <Filter>Source Files\texture_cache</Filter>
+    </ClCompile>
+    <ClCompile Include="texture_cache\expand_format.cpp">
       <Filter>Source Files\texture_cache</Filter>
     </ClCompile>
     <ClCompile Include="texture_cache\util.cpp">

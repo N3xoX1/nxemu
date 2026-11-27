@@ -889,6 +889,29 @@ void HostMemory::ProtectAccess(size_t virtual_offset, size_t length, MemoryPermi
     Protect(virtual_offset, length, allowed);
 }
 
+void HostMemory::ProtectAccessBatch(std::span<const ProtectAccessRange> ranges) {
+    if (ranges.empty()) {
+        return;
+    }
+#if defined(__APPLE__)
+    if (impl && impl->nce_map) {
+        thread_local std::vector<NceDirectMap::AccessMaskRange> batch;
+        batch.clear();
+        batch.reserve(ranges.size());
+        for (const ProtectAccessRange& r : ranges) {
+            batch.push_back(
+                {static_cast<u64>(r.virtual_offset), static_cast<u64>(r.length),
+                 static_cast<u32>(r.allowed)});
+        }
+        impl->nce_map->SetAccessMaskBatch(batch);
+        return;
+    }
+#endif
+    for (const ProtectAccessRange& r : ranges) {
+        Protect(r.virtual_offset, r.length, r.allowed);
+    }
+}
+
 bool HostMemory::UsesNce() const {
 #if defined(__APPLE__)
     return impl && impl->nce_map;

@@ -154,14 +154,20 @@ public:
     void RasterizerSetNativeReadAccess(uint64_t vaddr, uint64_t size, bool readable) override;
 
     /// Reports to the GPU the native code writes to the pages NceTrackWrites opened, and
-    /// write-protects them again.
-    void FlushNceWrites(bool rearm_native_reads = true);
+    /// write-protects them again. When @p defer_release is true, flushed snapshots stay visible
+    /// to GPU readbacks until CompleteNceWriteFlush() is called after GPU dirty managers gather.
+    void FlushNceWrites(bool rearm_native_reads = true, bool defer_release = false);
+    void CompleteNceWriteFlush();
     /// Reports the cached pages the JIT marked in the write map since the last call.
     void HarvestCpuWrites();
     void RasterizerMarkRegionReadCached(uint64_t vaddr, uint64_t size, int32_t delta) override;
     void RasterizerMarkRegionWriteProtected(uint64_t vaddr, uint64_t size, int32_t delta) override;
     bool ProtectsReadCachedRegions() override;
     bool ProtectsQueryResults() override;
+    bool WriteGpuReadback(uint64_t vaddr, uint8_t * dst, const uint8_t * src, uint64_t size,
+                          void (*copy)(uint8_t *, const uint8_t *, uint64_t, void *), void * user) override;
+    bool TryRunInPlaceGpuReadback(uint64_t vaddr, uint8_t * dst, uint64_t size,
+                                  void (*fn)(uint8_t *, uint64_t, void *), void * user) override;
 
     template <typename T>
     T* GetPointer(Common::ProcessAddress vaddr) {

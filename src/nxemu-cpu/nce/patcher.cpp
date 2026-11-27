@@ -5,11 +5,11 @@
 #include <array>
 
 #include "arm_dynarmic.h"
+#include "nce/decode.h"
 #include "nce/guest_context.h"
 #include "nce/instructions.h"
 #include "nce/patcher.h"
 #include "nce/read_thunk.h"
-#include "nce/decode.h"
 #include "nce/store_thunk.h"
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/arm64/native_clock.h"
@@ -18,7 +18,8 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/yuzu_assert.h"
 
-namespace Core::NCE {
+namespace Core::NCE
+{
 
 using namespace Common::Literals;
 using namespace oaknut::util;
@@ -36,11 +37,13 @@ constexpr size_t DataWindowWords = 4_KiB / sizeof(u32);
 // in 250 of such data matches the exclusive encoding, and rewriting it corrupts the data. A
 // 4 KiB window in which more than a quarter of the words do not decode is data. Zero words are
 // left out: they also pad the end of a small text, after its code.
-static bool IsDataWindow(std::span<const u32> words, size_t window) {
+static bool IsDataWindow(std::span<const u32> words, size_t window)
+{
     const size_t begin = window * DataWindowWords;
     const size_t end = std::min(begin + DataWindowWords, words.size());
     size_t nonzero = 0, undecodable = 0;
-    for (size_t i = begin; i < end; ++i) {
+    for (size_t i = begin; i < end; ++i)
+    {
         if (words[i] == 0) continue;
         ++nonzero;
         undecodable += !IsA64Instruction(words[i]);
@@ -48,7 +51,8 @@ static bool IsDataWindow(std::span<const u32> words, size_t window) {
     return undecodable * 4 > nonzero;
 }
 
-Patcher::Patcher() : c(m_patch_instructions) {
+Patcher::Patcher() : c(m_patch_instructions)
+{
     // The first word of the patch section is always a branch to the first instruction of the
     // module.
     c.dw(0);
@@ -65,10 +69,12 @@ Patcher::Patcher() : c(m_patch_instructions) {
 Patcher::~Patcher() = default;
 
 bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint64_t code_offset,
-                        uint64_t code_size, uint64_t atomic_table, bool legacy_36bit, bool legacy_36bit_sdk, bool read_thunks, bool all_read_bases, bool float_reads, bool store_thunks) {
+                        uint64_t code_size, uint64_t atomic_table, bool legacy_36bit, bool legacy_36bit_sdk, bool read_thunks, bool all_read_bases, bool float_reads, bool store_thunks)
+{
     // If we have patched modules but cannot reach the new module, then it needs its own patcher.
     if (total_program_size + image_size + GetSectionSize() > MaxRelativeBranch &&
-        total_program_size > 0) {
+        total_program_size > 0)
+    {
         return false;
     }
     // Branches between the start of the first module and the end of the patch section
@@ -88,22 +94,33 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
     // Retrieve text segment data.
     const auto text = std::span{program_image + code_offset, code_size};
     const auto text_words =
-        std::span<const u32>{reinterpret_cast<const u32*>(text.data()), text.size() / sizeof(u32)};
+        std::span<const u32>{reinterpret_cast<const u32 *>(text.data()), text.size() / sizeof(u32)};
 
     // Early Horizon rtld scans only [128 MiB, 2 GiB) for modules. A 36-bit
     // identity map on Darwin has to move that region above hard page zero.
     // Recognize the complete scanner sequence, including its range check, before
     // replacing its two constants. Other modules and unknown code are untouched.
     static constexpr std::array<u32, 12> LegacyModuleScan{
-        0x320503F4, 0xB26593F8, 0x7289E9BB, 0xB000003C,
-        0xF90002A9, 0xF9000519, 0xF9000535, 0xF9000328,
-        0x8B180288, 0xD35BFD08, 0xF100391F, 0x54000748,
+        0x320503F4,
+        0xB26593F8,
+        0x7289E9BB,
+        0xB000003C,
+        0xF90002A9,
+        0xF9000519,
+        0xF9000535,
+        0xF9000328,
+        0x8B180288,
+        0xD35BFD08,
+        0xF100391F,
+        0x54000748,
     };
     size_t legacy_scan = text_words.size();
-    if (legacy_36bit) {
+    if (legacy_36bit)
+    {
         const auto scan = std::search(text_words.begin(), text_words.end(),
                                       LegacyModuleScan.begin(), LegacyModuleScan.end());
-        if (scan != text_words.end()) {
+        if (scan != text_words.end())
+        {
             legacy_scan = static_cast<size_t>(scan - text_words.begin());
             LOG_INFO(Core_ARM, "NCE: relocating verified legacy module scanner at text offset {:#x}",
                      legacy_scan * sizeof(u32));
@@ -113,15 +130,25 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
     // Early nnSdk initializes its general and thread-stack allocators from fixed
     // bounds instead of querying GetInfo. Match both complete initializers together.
     static constexpr std::array<u32, 11> LegacyAllocators{
-        0x91006260, 0x320503E1, 0xB25C03E2, 0x321203E3, 0x940AF05F,
-        0x91010260, 0x320503E1, 0x320103E2, 0x321203E3, 0x940AF05A,
+        0x91006260,
+        0x320503E1,
+        0xB25C03E2,
+        0x321203E3,
+        0x940AF05F,
+        0x91010260,
+        0x320503E1,
+        0x320103E2,
+        0x321203E3,
+        0x940AF05A,
         0x9101A260,
     };
     size_t legacy_alloc = text_words.size();
-    if (legacy_36bit_sdk) {
+    if (legacy_36bit_sdk)
+    {
         const auto alloc = std::search(text_words.begin(), text_words.end(),
                                        LegacyAllocators.begin(), LegacyAllocators.end());
-        if (alloc != text_words.end()) {
+        if (alloc != text_words.end())
+        {
             legacy_alloc = static_cast<size_t>(alloc - text_words.begin());
             LOG_INFO(Core_ARM, "NCE: relocating verified legacy SDK allocators at text offset {:#x}",
                      legacy_alloc * sizeof(u32));
@@ -132,12 +159,15 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
     // selected by static instruction frequency, to avoid filling the code budget
     // with uncommon offsets before frequently repeated pointer loads are reached.
     std::vector<bool> extra_reads(text_words.size());
-    if (read_thunks && atomic_table && (all_read_bases || float_reads)) {
+    if (read_thunks && atomic_table && (all_read_bases || float_reads))
+    {
         std::unordered_map<u32, size_t> frequency;
         std::vector<u32> candidates;
-        for (u32 i = ModuleCodeIndex; i < text_words.size(); ++i) {
+        for (u32 i = ModuleCodeIndex; i < text_words.size(); ++i)
+        {
             if (ReadThunk::Eligible(text_words[i]) && !ReadThunk::Basic(text_words[i]) &&
-                (ReadThunk::Floating(text_words[i]) ? float_reads : all_read_bases)) {
+                (ReadThunk::Floating(text_words[i]) ? float_reads : all_read_bases))
+            {
                 ++frequency[text_words[i]];
                 candidates.push_back(i);
             }
@@ -146,24 +176,37 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
             return frequency.at(text_words[a]) > frequency.at(text_words[b]);
         });
         const size_t slots = (16_MiB - std::min(m_extra_read_bytes, size_t{16_MiB})) / MaxReadHandlerBytes;
-        for (size_t i = 0; i < std::min(slots, candidates.size()); ++i) extra_reads[candidates[i]] = true;
+        for (size_t i = 0; i < std::min(slots, candidates.size()); ++i)
+            extra_reads[candidates[i]] = true;
     }
 
     std::vector<bool> extra_stores(text_words.size());
-    if (store_thunks && atomic_table) {
-        size_t available = (8_MiB - std::min(m_store_bytes, size_t{8_MiB})) / 256;
-        for (u32 i = ModuleCodeIndex; i < text_words.size() && available; ++i) {
-            if (StoreThunk::Eligible(text_words[i])) {
-                extra_stores[i] = true;
-                --available;
+    if (store_thunks && atomic_table)
+    {
+        std::unordered_map<u32, size_t> frequency;
+        std::vector<u32> candidates;
+        for (u32 i = ModuleCodeIndex; i < text_words.size(); ++i)
+        {
+            if (StoreThunk::Eligible(text_words[i]) && !StoreThunk::Cache(text_words[i]))
+            {
+                ++frequency[text_words[i]];
+                candidates.push_back(i);
             }
+        }
+        std::stable_sort(candidates.begin(), candidates.end(), [&](u32 a, u32 b) {
+            return frequency.at(text_words[a]) > frequency.at(text_words[b]);
+        });
+        const size_t available = (8_MiB - std::min(m_store_bytes, size_t{8_MiB})) / 256;
+        for (size_t i = 0; i < std::min(available, candidates.size()); ++i)
+        {
+            extra_stores[candidates[i]] = true;
         }
     }
 
     // Windows are classified on first use: only those holding an exclusive pay for decoding.
     std::vector<s8> data_windows((text_words.size() + DataWindowWords - 1) / DataWindowWords, -1);
     const auto in_data = [&](size_t i) {
-        s8& data = data_windows[i / DataWindowWords];
+        s8 & data = data_windows[i / DataWindowWords];
         if (data < 0) data = IsDataWindow(text_words, i / DataWindowWords);
         return data != 0;
     };
@@ -173,13 +216,34 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
     // The dormant read and store thunks are written after every required patch, as far as
     // the branch range allows. The original instruction remains the fallback.
     const auto write_thunks = [&] {
-        for (u32 i = ModuleCodeIndex; i < static_cast<u32>(text_words.size()); i++) {
+        // Cache maintenance (DC CIVAC/CVAC/CVAU) loops live in SDK modules loaded after
+        // the main binary has exhausted the general store-thunk budget. Reserve their
+        // few handlers first so they execute natively without per-cache-line signals.
+        if (store_thunks && atomic_table)
+        {
+            for (u32 i = ModuleCodeIndex; i < static_cast<u32>(text_words.size()); i++)
+            {
+                const u32 inst = text_words[i];
+                if (StoreThunk::Cache(inst) && StoreThunk::Eligible(inst) &&
+                    c.offset() + 256 <= patch_limit)
+                {
+                    curr_patch->m_read_handlers.push_back({c.offset(), i * sizeof(u32)});
+                    const size_t before = c.offset();
+                    WriteStoreHandler((i + 1) * sizeof(u32), inst);
+                    ASSERT(c.offset() - before <= 256);
+                }
+            }
+        }
+        for (u32 i = ModuleCodeIndex; i < static_cast<u32>(text_words.size()); i++)
+        {
             const u32 inst = text_words[i];
             const bool basic_read = ReadThunk::Basic(inst);
             if (read_thunks && atomic_table &&
                 ((basic_read && m_basic_read_bytes + MaxReadHandlerBytes <= 16_MiB) ||
-                 extra_reads[i])) {
-                if (c.offset() + MaxReadHandlerBytes > patch_limit) {
+                 extra_reads[i]))
+            {
+                if (c.offset() + MaxReadHandlerBytes > patch_limit)
+                {
                     continue;
                 }
                 curr_patch->m_read_handlers.push_back({c.offset(), i * sizeof(u32)});
@@ -187,8 +251,10 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
                 WriteReadHandler((i + 1) * sizeof(u32), inst);
                 ASSERT(c.offset() - before <= MaxReadHandlerBytes);
                 (basic_read ? m_basic_read_bytes : m_extra_read_bytes) += c.offset() - before;
-            } else if (store_thunks && atomic_table && extra_stores[i] &&
-                       c.offset() + 256 <= patch_limit) {
+            }
+            else if (store_thunks && atomic_table && extra_stores[i] &&
+                     c.offset() + 256 <= patch_limit)
+            {
                 curr_patch->m_read_handlers.push_back({c.offset(), i * sizeof(u32)});
                 const size_t before = c.offset();
                 WriteStoreHandler((i + 1) * sizeof(u32), inst);
@@ -200,7 +266,8 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
 #endif
 
     // Loop through instructions, patching as needed.
-    for (u32 i = ModuleCodeIndex; i < static_cast<u32>(text_words.size()); i++) {
+    for (u32 i = ModuleCodeIndex; i < static_cast<u32>(text_words.size()); i++)
+    {
         const u32 inst = text_words[i];
 
         const auto AddRelocations = [&] {
@@ -214,7 +281,8 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
             return next_offset;
         };
 
-        if (i == legacy_scan || (legacy_scan < text_words.size() && i == legacy_scan + 1)) {
+        if (i == legacy_scan || (legacy_scan < text_words.size() && i == legacy_scan + 1))
+        {
             const auto next = AddRelocations();
             const auto reg = i == legacy_scan ? X20 : X24;
             oaknut::Label relocated_start;
@@ -228,7 +296,8 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
 
         if (legacy_alloc < text_words.size() &&
             (i == legacy_alloc + 1 || i == legacy_alloc + 2 ||
-             i == legacy_alloc + 6 || i == legacy_alloc + 7)) {
+             i == legacy_alloc + 6 || i == legacy_alloc + 7))
+        {
             const auto next = AddRelocations();
             const bool start = i == legacy_alloc + 1 || i == legacy_alloc + 6;
             oaknut::Label bound;
@@ -236,14 +305,17 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
             this->BranchToModule(next);
             c.l(bound);
             curr_patch->m_write_legacy_region_relocations.push_back(
-                {c.offset(), start ? 0U : i == legacy_alloc + 2 ? 1U : 2U});
+                {c.offset(), start ? 0U : i == legacy_alloc + 2 ? 1U
+                                                                : 2U});
             c.dx(0);
             continue;
         }
 
         // SVC. Horizon has no SVC above 0x7F: a larger immediate is data, left untouched.
-        if (auto svc = SVC{inst}; svc.Verify()) {
-            if (svc.GetValue() > MaxSvcId) {
+        if (auto svc = SVC{inst}; svc.Verify())
+        {
+            if (svc.GetValue() > MaxSvcId)
+            {
                 ++skipped_svcs;
                 continue;
             }
@@ -254,7 +326,8 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
         // MRS Xn, TPIDR_EL0
         // MRS Xn, TPIDRRO_EL0
         if (auto mrs = MRS{inst};
-            mrs.Verify() && (mrs.GetSystemReg() == TpidrroEl0 || mrs.GetSystemReg() == TpidrEl0)) {
+            mrs.Verify() && (mrs.GetSystemReg() == TpidrroEl0 || mrs.GetSystemReg() == TpidrEl0))
+        {
             const auto src_reg = mrs.GetSystemReg() == TpidrroEl0 ? oaknut::SystemReg::TPIDRRO_EL0
                                                                   : oaknut::SystemReg::TPIDR_EL0;
             const auto dest_reg = oaknut::XReg{static_cast<int>(mrs.GetRt())};
@@ -265,13 +338,15 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
         // MRS Xn, CNTPCT_EL0
         // MRS Xn, CNTVCT_EL0
         if (auto mrs = MRS{inst};
-            mrs.Verify() && (mrs.GetSystemReg() == CntpctEl0 || mrs.GetSystemReg() == CntvctEl0)) {
+            mrs.Verify() && (mrs.GetSystemReg() == CntpctEl0 || mrs.GetSystemReg() == CntvctEl0))
+        {
             WriteCntpctHandler(AddRelocations(), oaknut::XReg{static_cast<int>(mrs.GetRt())});
             continue;
         }
 
         // MRS Xn, CNTFRQ_EL0
-        if (auto mrs = MRS{inst}; mrs.Verify() && mrs.GetSystemReg() == CntfrqEl0) {
+        if (auto mrs = MRS{inst}; mrs.Verify() && mrs.GetSystemReg() == CntfrqEl0)
+        {
             WriteConstantMrsHandler(AddRelocations(), oaknut::XReg{static_cast<int>(mrs.GetRt())},
                                     GuestCntfrq);
             continue;
@@ -281,7 +356,8 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
         // MRS Xn, CTR_EL0 traps at EL0 on macOS. Report the Cortex-A57 value; its 64 byte
         // minimum line sizes are not larger than the host ones, so cache maintenance loops
         // still cover every line.
-        if (auto mrs = MRS{inst}; mrs.Verify() && mrs.GetSystemReg() == CtrEl0) {
+        if (auto mrs = MRS{inst}; mrs.Verify() && mrs.GetSystemReg() == CtrEl0)
+        {
             WriteConstantMrsHandler(AddRelocations(), oaknut::XReg{static_cast<int>(mrs.GetRt())},
                                     GuestCtrEl0);
             continue;
@@ -289,18 +365,22 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
 #endif
 
         // MSR TPIDR_EL0, Xn
-        if (auto msr = MSR{inst}; msr.Verify() && msr.GetSystemReg() == TpidrEl0) {
+        if (auto msr = MSR{inst}; msr.Verify() && msr.GetSystemReg() == TpidrEl0)
+        {
             WriteMsrHandler(AddRelocations(), oaknut::XReg{static_cast<int>(msr.GetRt())});
             continue;
         }
 
-        if (auto exclusive = Exclusive{inst}; exclusive.Verify()) {
-            if (in_data(i)) {
+        if (auto exclusive = Exclusive{inst}; exclusive.Verify())
+        {
+            if (in_data(i))
+            {
                 ++skipped_exclusives;
                 continue;
             }
 #if defined(__APPLE__)
-            if (atomic_table) {
+            if (atomic_table)
+            {
                 curr_patch->m_atomic_handlers.push_back({c.offset(), i * sizeof(u32)});
                 WriteExclusiveHandler((i + 1) * sizeof(u32), inst, atomic_table);
             }
@@ -315,7 +395,8 @@ bool Patcher::PatchText(const uint8_t * program_image, uint64_t image_size, uint
     write_thunks();
 #endif
 
-    if (skipped_svcs || skipped_exclusives) {
+    if (skipped_svcs || skipped_exclusives)
+    {
         LOG_INFO(Core_ARM, "NCE: left {} SVC and {} exclusive words untouched as data in .text",
                  skipped_svcs, skipped_exclusives);
     }
@@ -343,9 +424,11 @@ void Patcher::PatchCaves(const uint8_t * program_image, uint64_t code_offset, ui
 
 bool Patcher::RelocateAndCopy(uint64_t load_base, uint64_t code_offset, uint64_t code_size,
                               uint8_t * program_image, uint64_t * image_size,
-                              EntryTrampolines * out_trampolines, RestartPcs * out_restart_pcs, EntryTrampolines* out_atomics, EntryTrampolines* out_reads) {
+                              EntryTrampolines * out_trampolines, RestartPcs * out_restart_pcs, EntryTrampolines * out_atomics, EntryTrampolines * out_reads)
+{
     if (image_size == nullptr || program_image == nullptr || out_trampolines == nullptr ||
-        m_relocate_module_index >= modules.size()) {
+        m_relocate_module_index >= modules.size())
+    {
         return false;
     }
 
@@ -355,14 +438,15 @@ bool Patcher::RelocateAndCopy(uint64_t load_base, uint64_t code_offset, uint64_t
     // Retrieve text segment data.
     const auto text = std::span{program_image + code_offset, code_size};
     const auto text_words =
-        std::span<u32>{reinterpret_cast<u32*>(text.data()), text.size() / sizeof(u32)};
+        std::span<u32>{reinterpret_cast<u32 *>(text.data()), text.size() / sizeof(u32)};
 
     const u64 text_base = load_base + (mode == PatchMode::PreText ? patch_size : 0);
     const u64 patch_base = mode == PatchMode::PreText ? load_base : load_base + total_program_size;
     RestartPcs unused_restarts;
-    if (!RelocateModule(text_base, patch_base, reinterpret_cast<u8*>(text_words.data()),
+    if (!RelocateModule(text_base, patch_base, reinterpret_cast<u8 *>(text_words.data()),
                         code_size, *out_trampolines,
-                        out_restart_pcs ? *out_restart_pcs : unused_restarts, out_atomics, out_reads)) {
+                        out_restart_pcs ? *out_restart_pcs : unused_restarts, out_atomics, out_reads))
+    {
         return false;
     }
 
@@ -371,14 +455,18 @@ bool Patcher::RelocateAndCopy(uint64_t load_base, uint64_t code_offset, uint64_t
     total_program_size -= current_image_size;
 
     // Only copy to the program image of the last module
-    if (m_relocate_module_index == modules.size()) {
-        if (this->mode == PatchMode::PreText) {
+    if (m_relocate_module_index == modules.size())
+    {
+        if (this->mode == PatchMode::PreText)
+        {
             // The section is placed before the only module: PatchText starts a new patcher
             // for any module that does not fit in the branch range of the previous ones.
             ASSERT(modules.size() == 1);
             std::memcpy(program_image, m_patch_instructions.data(),
                         m_patch_instructions.size() * sizeof(u32));
-        } else {
+        }
+        else
+        {
             std::memcpy(program_image + current_image_size, m_patch_instructions.data(),
                         m_patch_instructions.size() * sizeof(u32));
             *image_size = current_image_size + patch_size;
@@ -389,11 +477,12 @@ bool Patcher::RelocateAndCopy(uint64_t load_base, uint64_t code_offset, uint64_t
     return false;
 }
 
-bool Patcher::RelocateModule(uint64_t text_base, uint64_t patch_base, uint8_t* text,
-                            uint64_t code_size, EntryTrampolines& trampolines,
-                            RestartPcs& restart_pcs, EntryTrampolines* atomics, EntryTrampolines* reads) {
+bool Patcher::RelocateModule(uint64_t text_base, uint64_t patch_base, uint8_t * text,
+                             uint64_t code_size, EntryTrampolines & trampolines,
+                             RestartPcs & restart_pcs, EntryTrampolines * atomics, EntryTrampolines * reads)
+{
     if (!text || m_relocate_module_index >= modules.size()) return false;
-    auto& patch = modules[m_relocate_module_index];
+    auto & patch = modules[m_relocate_module_index];
     if (!patch.m_write_legacy_region_relocations.empty() &&
         (m_legacy_region_start < (1ULL << 32) ||
          m_legacy_region_start + 0x78000000ULL > m_legacy_region_end ||
@@ -403,85 +492,109 @@ bool Patcher::RelocateModule(uint64_t text_base, uint64_t patch_base, uint8_t* t
         return distance >= -(1LL << 27) && distance < (1LL << 27) && (distance & 3) == 0;
     };
     const uint64_t patched_size = std::max<uint64_t>(code_size, patch.m_patched_size);
-    for (const auto& rel : patch.m_branch_to_patch_relocations) {
+    for (const auto & rel : patch.m_branch_to_patch_relocations)
+    {
         if (rel.module_offset + sizeof(u32) > patched_size ||
             !branch_fits(text_base + rel.module_offset, patch_base + rel.patch_offset)) return false;
     }
-    for (const auto& rel : patch.m_branch_to_module_relocations) {
+    for (const auto & rel : patch.m_branch_to_module_relocations)
+    {
         if (!branch_fits(patch_base + rel.patch_offset, text_base + rel.module_offset)) return false;
     }
-    for (const auto& rel : patch.m_atomic_handlers) {
+    for (const auto & rel : patch.m_atomic_handlers)
+    {
         if (!branch_fits(text_base + rel.module_offset, patch_base + rel.patch_offset)) return false;
     }
-    for (const auto& rel : patch.m_read_handlers) {
+    for (const auto & rel : patch.m_read_handlers)
+    {
         if (!branch_fits(text_base + rel.module_offset, patch_base + rel.patch_offset)) return false;
     }
-    auto* words = reinterpret_cast<u32*>(text);
-    for (const auto& rel : patch.m_branch_to_patch_relocations) {
+    auto * words = reinterpret_cast<u32 *>(text);
+    for (const auto & rel : patch.m_branch_to_patch_relocations)
+    {
         oaknut::CodeGenerator rc{words + rel.module_offset / sizeof(u32)};
         rc.B(static_cast<s64>(patch_base + rel.patch_offset) -
              static_cast<s64>(text_base + rel.module_offset));
     }
-    for (const auto& rel : patch.m_branch_to_module_relocations) {
+    for (const auto & rel : patch.m_branch_to_module_relocations)
+    {
         oaknut::CodeGenerator rc{m_patch_instructions.data() + rel.patch_offset / sizeof(u32)};
         rc.B(static_cast<s64>(text_base + rel.module_offset) -
              static_cast<s64>(patch_base + rel.patch_offset));
     }
-    for (const auto& rel : patch.m_write_module_pc_relocations) {
+    for (const auto & rel : patch.m_write_module_pc_relocations)
+    {
         oaknut::CodeGenerator rc{m_patch_instructions.data() + rel.patch_offset / sizeof(u32)};
         rc.dx(text_base + rel.module_offset);
     }
-    for (const auto& rel : patch.m_write_legacy_region_relocations) {
+    for (const auto & rel : patch.m_write_legacy_region_relocations)
+    {
         oaknut::CodeGenerator rc{m_patch_instructions.data() + rel.patch_offset / sizeof(u32)};
-        rc.dx(rel.module_offset == 0 ? m_legacy_region_start :
-              rel.module_offset == 1 ? m_legacy_region_end : m_legacy_region_start + 0x78000000ULL);
+        rc.dx(rel.module_offset == 0 ? m_legacy_region_start : rel.module_offset == 1 ? m_legacy_region_end
+                                                                                      : m_legacy_region_start + 0x78000000ULL);
     }
-    for (const auto& rel : patch.m_trampolines) {
+    for (const auto & rel : patch.m_trampolines)
+    {
         trampolines.emplace(text_base + rel.module_offset, patch_base + rel.patch_offset);
     }
-    if (atomics) for (const auto& rel : patch.m_atomic_handlers)
-        atomics->emplace(text_base + rel.module_offset, patch_base + rel.patch_offset);
-    if (reads) for (const auto& rel : patch.m_read_handlers)
-        reads->emplace(text_base + rel.module_offset, patch_base + rel.patch_offset);
-    for (const auto i : patch.m_exclusives) {
+    if (atomics)
+        for (const auto & rel : patch.m_atomic_handlers)
+            atomics->emplace(text_base + rel.module_offset, patch_base + rel.patch_offset);
+    if (reads)
+        for (const auto & rel : patch.m_read_handlers)
+            reads->emplace(text_base + rel.module_offset, patch_base + rel.patch_offset);
+    for (const auto i : patch.m_exclusives)
+    {
         words[i] = Exclusive{words[i]}.AsOrdered();
     }
-    if (++m_relocate_module_index == modules.size()) {
-        for (const auto offset : m_thread_parameters_loads) {
+    if (++m_relocate_module_index == modules.size())
+    {
+        for (const auto offset : m_thread_parameters_loads)
+        {
             restart_pcs.emplace(patch_base + offset, patch_base + offset - sizeof(u32));
         }
-        for (const auto& [fault, restart] : m_fault_restarts)
+        for (const auto & [fault, restart] : m_fault_restarts)
             restart_pcs.emplace(patch_base + fault, patch_base + restart);
     }
     return true;
 }
 
-size_t Patcher::GetSectionSize() const noexcept {
+size_t Patcher::GetSectionSize() const noexcept
+{
     return Common::AlignUp(m_patch_instructions.size() * sizeof(u32), NceHostPageSize);
 }
 
-void Patcher::WriteStoreHandler(ModuleDestLabel module_dest, u32 instruction) {
+void Patcher::WriteStoreHandler(ModuleDestLabel module_dest, u32 instruction)
+{
     const unsigned scratch = StoreThunk::Scratch(instruction);
     const auto reg = oaknut::XReg{static_cast<int>(scratch)};
     const auto base = oaknut::XReg{static_cast<int>(StoreThunk::Base(instruction))};
     const auto offset = StoreThunk::Offset(instruction);
     oaknut::Label prepare, fallback;
     const auto address = [&] {
-        if (StoreThunk::Indexed(instruction)) {
+        if (StoreThunk::Indexed(instruction))
+        {
             const unsigned shift = (instruction & (1u << 12)) ? instruction >> 30 : 0;
             c.dw(0x8b200000u | (instruction & (31u << 16)) | (instruction & (7u << 13)) |
                  (shift << 10) | (StoreThunk::Base(instruction) << 5) | scratch);
-        } else if (offset < 0) c.SUB(reg, base, static_cast<u32>(-offset));
-        else {
+        }
+        else if (offset < 0)
+            c.SUB(reg, base, static_cast<u32>(-offset));
+        else if (offset == 0)
+            c.MOV(reg, base);
+        else
+        {
             c.ADD(reg, base, static_cast<u32>(offset) & 0xfff);
             if (offset >> 12) c.ADD(reg, reg, static_cast<u32>(offset >> 12) << 12);
         }
     };
+    const bool is_cache = StoreThunk::Cache(instruction);
     const ptrdiff_t spill = c.offset();
     c.STR(reg, SP, PRE_INDEXED, -16);
     address();
     // Unaligned stores stay native unless they cross a 4 KiB page. Flags are guest state.
-    if (const unsigned bytes = StoreThunk::Bytes(instruction); bytes > 1) {
+    if (const unsigned bytes = StoreThunk::Bytes(instruction); bytes > 1)
+    {
         c.AND(reg, reg, 0xfff);
         c.ADD(reg, reg, bytes - 1);
         c.TBNZ(reg, 12, fallback);
@@ -493,46 +606,87 @@ void Patcher::WriteStoreHandler(ModuleDestLabel module_dest, u32 instruction) {
     c.LSR(reg, reg, 9);
     c.AND(reg, reg, (1ULL << 30) - 8);
     m_atomic_table_relocations.push_back(c.offset());
-    c.NOP();c.MOVK(reg, {0, oaknut::MovImm16Shift::SHL_32});c.MOVK(reg, {0, oaknut::MovImm16Shift::SHL_48});
+    c.NOP();
+    c.MOVK(reg, {0, oaknut::MovImm16Shift::SHL_32});
+    c.MOVK(reg, {0, oaknut::MovImm16Shift::SHL_48});
     c.LDAR(reg, reg);
-    c.TBZ(reg, 0, prepare);
-    c.TBZ(reg, 1, prepare);
+    const ptrdiff_t post_ldar = c.offset();
+    if (is_cache)
+    {
+        // Cache maintenance does not modify memory: execute against canonical backing
+        // without trapping into write tracking on GPU-protected pages.
+        c.CBZ(reg, fallback);
+    }
+    else
+    {
+        c.TBZ(reg, 0, prepare);
+        c.TBZ(reg, 1, prepare);
+    }
     c.AND(reg, reg, ~0xfffULL);
-    if (StoreThunk::Indexed(instruction)) c.ADD(reg, reg, base);
-    else {
+    if (StoreThunk::Indexed(instruction))
         c.ADD(reg, reg, base);
-        if (offset < 0) c.SUB(reg, reg, static_cast<u32>(-offset));
-        else {c.ADD(reg, reg, static_cast<u32>(offset) & 0xfff);if (offset >> 12) c.ADD(reg, reg, static_cast<u32>(offset >> 12) << 12);}
+    else
+    {
+        c.ADD(reg, reg, base);
+        if (offset < 0)
+            c.SUB(reg, reg, static_cast<u32>(-offset));
+        else if (offset > 0)
+        {
+            if (offset & 0xfff) c.ADD(reg, reg, static_cast<u32>(offset) & 0xfff);
+            if (offset >> 12) c.ADD(reg, reg, static_cast<u32>(offset >> 12) << 12);
+        }
     }
     const ptrdiff_t store = c.offset();
-    if (StoreThunk::Cache(instruction)) c.dw((instruction & ~31u) | scratch);
-    else if (StoreThunk::Pair(instruction)) c.dw((instruction & ~((127u << 15) | (31u << 5))) | (scratch << 5));
-    else if (StoreThunk::Indexed(instruction)) c.dw((instruction & ~(31u << 5)) | (scratch << 5));
-    else c.dw((instruction & ~((4095u << 10) | (31u << 5))) | (scratch << 5));
+    if (is_cache)
+        c.dw((instruction & ~31u) | scratch);
+    else if (StoreThunk::Pair(instruction))
+        c.dw((instruction & ~((127u << 15) | (31u << 5))) | (scratch << 5));
+    else if (StoreThunk::Indexed(instruction))
+        c.dw((instruction & ~(31u << 5)) | (scratch << 5));
+    else
+        c.dw((instruction & ~((4095u << 10) | (31u << 5))) | (scratch << 5));
     const ptrdiff_t completed_restore = c.offset();
     c.LDR(reg, SP, POST_INDEXED, 16);
     BranchToModule(module_dest);
-    c.l(prepare);
-    const ptrdiff_t prepare_restore = c.offset();
-    c.LDR(reg, SP, POST_INDEXED, 16);
-    c.BRK(static_cast<u32>(StoreThunk::Trap::Prepare));WriteModulePc(module_dest - 4);c.dw(instruction);
+    ptrdiff_t prepare_restore = -1;
+    if (!is_cache)
+    {
+        c.l(prepare);
+        prepare_restore = c.offset();
+        c.LDR(reg, SP, POST_INDEXED, 16);
+        c.BRK(static_cast<u32>(StoreThunk::Trap::Prepare));
+        WriteModulePc(module_dest - 4);
+        c.dw(instruction);
+    }
     c.l(fallback);
     const ptrdiff_t fallback_restore = c.offset();
     c.LDR(reg, SP, POST_INDEXED, 16);
     const ptrdiff_t plain = c.offset();
-    c.BRK(static_cast<u32>(StoreThunk::Trap::Plain));WriteModulePc(module_dest - 4);c.dw(instruction);
+    c.BRK(static_cast<u32>(StoreThunk::Trap::Plain));
+    WriteModulePc(module_dest - 4);
+    c.dw(instruction);
     const ptrdiff_t spilled = c.offset();
-    c.BRK(static_cast<u32>(StoreThunk::Trap::Spilled));WriteModulePc(module_dest - 4);c.dw(instruction);
+    c.BRK(static_cast<u32>(StoreThunk::Trap::Spilled));
+    WriteModulePc(module_dest - 4);
+    c.dw(instruction);
     const ptrdiff_t done = c.offset();
-    c.BRK(static_cast<u32>(StoreThunk::Trap::Completed));WriteModulePc(module_dest - 4);c.dw(instruction);
+    c.BRK(static_cast<u32>(StoreThunk::Trap::Completed));
+    WriteModulePc(module_dest - 4);
+    c.dw(instruction);
     m_fault_restarts.emplace_back(spill, plain);
-    m_fault_restarts.emplace_back(store, spilled);
-    m_fault_restarts.emplace_back(prepare_restore, spilled);
+    // Cover every instruction from LDAR through the store so a preemption signal
+    // cannot resume later with a stale canonical pointer after FlushNceWrites/MergeNceReadback.
+    for (ptrdiff_t pc = post_ldar; pc <= store; pc += sizeof(u32))
+    {
+        m_fault_restarts.emplace_back(pc, spilled);
+    }
+    if (prepare_restore >= 0) m_fault_restarts.emplace_back(prepare_restore, spilled);
     m_fault_restarts.emplace_back(fallback_restore, spilled);
     m_fault_restarts.emplace_back(completed_restore, done);
 }
 
-void Patcher::WriteReadHandler(ModuleDestLabel module_dest, u32 instruction) {
+void Patcher::WriteReadHandler(ModuleDestLabel module_dest, u32 instruction)
+{
     const unsigned rt = instruction & 31;
     const unsigned rn = (instruction >> 5) & 31;
     const unsigned scratch = ReadThunk::Scratch(instruction);
@@ -550,7 +704,8 @@ void Patcher::WriteReadHandler(ModuleDestLabel module_dest, u32 instruction) {
     address();
     // Aligned scalar accesses cannot cross a 4 KiB page. Unaligned loads use
     // the byte-wise slow path, including split pages and address wraparound.
-    for (unsigned bit = 0; bit < size_log2; ++bit) c.TBNZ(reg, bit, slow_restore);
+    for (unsigned bit = 0; bit < size_log2; ++bit)
+        c.TBNZ(reg, bit, slow_restore);
     c.LSR(reg, reg, 39);
     c.CBNZ(reg, slow_restore);
     address();
@@ -561,17 +716,20 @@ void Patcher::WriteReadHandler(ModuleDestLabel module_dest, u32 instruction) {
     c.MOVK(reg, {0, oaknut::MovImm16Shift::SHL_32});
     c.MOVK(reg, {0, oaknut::MovImm16Shift::SHL_48});
     c.LDAR(reg, reg);
+    const ptrdiff_t post_ldar_pc = c.offset();
     c.TBZ(reg, 0, slow_restore);
     c.AND(reg, reg, ~0xfffULL);
     c.ADD(reg, reg, base);
-    c.ADD(reg, reg, offset & 0xfff);
+    if (offset & 0xfff) c.ADD(reg, reg, offset & 0xfff);
     if (offset >> 12) c.ADD(reg, reg, (offset >> 12) << 12);
     const ptrdiff_t load_pc = c.offset();
     c.dw((instruction & ~((0xfffu << 10) | (31u << 5))) | (scratch << 5));
     const ptrdiff_t fast_restore_pc = c.offset();
     const bool restore_scratch = ReadThunk::Floating(instruction) || scratch != rt;
-    if (!restore_scratch) c.ADD(SP, SP, 16);
-    else c.LDR(reg, SP, POST_INDEXED, 16);
+    if (!restore_scratch)
+        c.ADD(SP, SP, 16);
+    else
+        c.LDR(reg, SP, POST_INDEXED, 16);
     BranchToModule(module_dest);
     c.l(slow_restore);
     const ptrdiff_t restore_pc = c.offset();
@@ -584,7 +742,8 @@ void Patcher::WriteReadHandler(ModuleDestLabel module_dest, u32 instruction) {
     c.BRK(ReadThunk::SpilledTrap);
     WriteModulePc(module_dest - 4);
     c.dw(instruction);
-    if (restore_scratch) {
+    if (restore_scratch)
+    {
         const ptrdiff_t completed_pc = c.offset();
         c.BRK(ReadThunk::CompletedTrap);
         WriteModulePc(module_dest - 4);
@@ -594,11 +753,15 @@ void Patcher::WriteReadHandler(ModuleDestLabel module_dest, u32 instruction) {
     // A spill can itself hit a protected neighbour or a stack guard. Do not
     // treat its address as the guest load, nor leave a temporary SP/register behind.
     m_fault_restarts.emplace_back(spill_pc, plain_pc);
-    m_fault_restarts.emplace_back(load_pc, spilled_pc);
+    for (ptrdiff_t pc = post_ldar_pc; pc <= load_pc; pc += sizeof(u32))
+    {
+        m_fault_restarts.emplace_back(pc, spilled_pc);
+    }
     m_fault_restarts.emplace_back(restore_pc, spilled_pc);
 }
 
-void Patcher::WriteExclusiveHandler(ModuleDestLabel module_dest, u32 instruction, u64 table) {
+void Patcher::WriteExclusiveHandler(ModuleDestLabel module_dest, u32 instruction, u64 table)
+{
     using namespace oaknut::util;
     const unsigned rn = (instruction >> 5) & 31;
     const unsigned rt = instruction & 31;
@@ -618,18 +781,22 @@ void Patcher::WriteExclusiveHandler(ModuleDestLabel module_dest, u32 instruction
     // the reservation granule (64 bytes measured, at most a 128-byte line) of anything at or
     // above sp: a lock on the stack would otherwise lose its reservation on every attempt.
     constexpr int SpillDistance = 240;
-    if (spill) {
+    if (spill)
+    {
         scratch = 0;
         while (scratch == rn || scratch == rt || (!load && scratch == rs) ||
-               (pair && scratch == rt2)) ++scratch;
+               (pair && scratch == rt2))
+            ++scratch;
         c.STR(oaknut::XReg{static_cast<int>(scratch)}, SP, PRE_INDEXED, -SpillDistance);
     }
     const auto reg = oaknut::XReg{static_cast<int>(scratch)};
     const auto source = oaknut::XReg{static_cast<int>(rn)};
     const ptrdiff_t restart = c.offset();
     const auto virtual_address = [&] {
-        if (rn == 31) c.ADD(reg, SP, spill ? SpillDistance : 0);
-        else c.MOV(reg, source);
+        if (rn == 31)
+            c.ADD(reg, SP, spill ? SpillDistance : 0);
+        else
+            c.MOV(reg, source);
     };
     oaknut::Label fallback, done;
     virtual_address();
@@ -645,15 +812,24 @@ void Patcher::WriteExclusiveHandler(ModuleDestLabel module_dest, u32 instruction
     c.MOVK(reg, {0, oaknut::MovImm16Shift::SHL_32});
     c.MOVK(reg, {0, oaknut::MovImm16Shift::SHL_48});
     c.LDAR(reg, reg);
+    const ptrdiff_t post_ldar = c.offset();
     c.TBZ(reg, load ? 0 : 1, fallback);
     c.AND(reg, reg, ~0xfffULL);
-    if (rn == 31) {
+    if (rn == 31)
+    {
         c.ADD(reg, SP, reg);
         if (spill) c.ADD(reg, reg, SpillDistance);
-    } else c.ADD(reg, reg, source);
+    }
+    else
+        c.ADD(reg, reg, source);
     // Preserve hardware exclusive semantics using the same physical backing for every alias.
+    const ptrdiff_t excl_pc = c.offset();
     const u32 translated = (instruction | (1u << 15)) & ~(31u << 5);
     c.dw(translated | (scratch << 5));
+    for (ptrdiff_t pc = post_ldar; pc <= excl_pc; pc += sizeof(u32))
+    {
+        m_fault_restarts.emplace_back(pc, restart);
+    }
     c.B(done);
     c.l(fallback);
     virtual_address();
@@ -668,20 +844,25 @@ void Patcher::WriteExclusiveHandler(ModuleDestLabel module_dest, u32 instruction
     BranchToModule(module_dest);
 }
 
-void Patcher::SetAtomicTable(u64 table) {
+void Patcher::SetAtomicTable(u64 table)
+{
     ASSERT(table != 0 && (table & ((1ULL << 30) - 1)) == 0);
-    for (const auto offset : m_atomic_table_relocations) {
-        auto* words = m_patch_instructions.data() + offset / sizeof(u32);
+    for (const auto offset : m_atomic_table_relocations)
+    {
+        auto * words = m_patch_instructions.data() + offset / sizeof(u32);
         const auto reg = oaknut::XReg{static_cast<int>(words[1] & 31)};
         oaknut::CodeGenerator rc{words};
-        if (table & 0xc0000000ULL) rc.ORR(reg, reg, table & 0xc0000000ULL);
-        else rc.NOP();
+        if (table & 0xc0000000ULL)
+            rc.ORR(reg, reg, table & 0xc0000000ULL);
+        else
+            rc.NOP();
         rc.MOVK(reg, {static_cast<u16>(table >> 32), oaknut::MovImm16Shift::SHL_32});
         rc.MOVK(reg, {static_cast<u16>(table >> 48), oaknut::MovImm16Shift::SHL_48});
     }
 }
 
-void Patcher::LoadThreadParameters(oaknut::XReg reg) {
+void Patcher::LoadThreadParameters(oaknut::XReg reg)
+{
 #if defined(__APPLE__)
     // The Darwin kernel owns TPIDR_EL0, so the parameters live in a TSD slot.
     c.MRS(reg, oaknut::SystemReg::TPIDRRO_EL0);
@@ -693,14 +874,16 @@ void Patcher::LoadThreadParameters(oaknut::XReg reg) {
 }
 
 void Patcher::WriteConstantMrsHandler(ModuleDestLabel module_dest, oaknut::XReg dest_reg,
-                                      u64 value) {
+                                      u64 value)
+{
     c.MOV(dest_reg, value);
 
     // Jump back to the instruction after the emulated MRS.
     this->BranchToModule(module_dest);
 }
 
-void Patcher::WriteLoadContext() {
+void Patcher::WriteLoadContext()
+{
     // This function was called, which modifies X30, so use that as a scratch register.
     // SP contains the guest X30, so save our return X30 to SP + 8, since we have allocated 16 bytes
     // of stack.
@@ -719,12 +902,14 @@ void Patcher::WriteLoadContext() {
 
     // Load all vector registers.
     static constexpr size_t VEC_OFF = offsetof(GuestContext, vector_registers);
-    for (int i = 0; i <= 30; i += 2) {
+    for (int i = 0; i <= 30; i += 2)
+    {
         c.LDP(oaknut::QReg{i}, oaknut::QReg{i + 1}, X30, VEC_OFF + 16 * i);
     }
 
     // Load all general-purpose registers except X30.
-    for (int i = 0; i <= 28; i += 2) {
+    for (int i = 0; i <= 28; i += 2)
+    {
         c.LDP(oaknut::XReg{i}, oaknut::XReg{i + 1}, X30, 8 * i);
     }
 
@@ -734,7 +919,8 @@ void Patcher::WriteLoadContext() {
     c.RET();
 }
 
-void Patcher::WriteSaveContext() {
+void Patcher::WriteSaveContext()
+{
     // This function was called, which modifies X30, so use that as a scratch register.
     // SP contains the guest X30, so save our X30 to SP + 8, since we have allocated 16 bytes of
     // stack.
@@ -743,13 +929,15 @@ void Patcher::WriteSaveContext() {
     c.LDR(X30, X30, offsetof(NativeExecutionParameters, native_context));
 
     // Store all general-purpose registers except X30.
-    for (int i = 0; i <= 28; i += 2) {
+    for (int i = 0; i <= 28; i += 2)
+    {
         c.STP(oaknut::XReg{i}, oaknut::XReg{i + 1}, X30, 8 * i);
     }
 
     // Store all vector registers.
     static constexpr size_t VEC_OFF = offsetof(GuestContext, vector_registers);
-    for (int i = 0; i <= 30; i += 2) {
+    for (int i = 0; i <= 30; i += 2)
+    {
         c.STP(oaknut::QReg{i}, oaknut::QReg{i + 1}, X30, VEC_OFF + 16 * i);
     }
 
@@ -776,7 +964,8 @@ void Patcher::WriteSaveContext() {
     c.RET();
 }
 
-void Patcher::WriteSvcTrampoline(ModuleDestLabel module_dest, u32 svc_id) {
+void Patcher::WriteSvcTrampoline(ModuleDestLabel module_dest, u32 svc_id)
+{
     // We are about to start saving state, so we need to lock the context.
     this->LockContext();
 
@@ -880,12 +1069,16 @@ void Patcher::WriteSvcTrampoline(ModuleDestLabel module_dest, u32 svc_id) {
 }
 
 void Patcher::WriteMrsHandler(ModuleDestLabel module_dest, oaknut::XReg dest_reg,
-                              oaknut::SystemReg src_reg) {
+                              oaknut::SystemReg src_reg)
+{
     // Retrieve emulated TLS register from GuestContext.
     this->LoadThreadParameters(dest_reg);
-    if (src_reg == oaknut::SystemReg::TPIDRRO_EL0) {
+    if (src_reg == oaknut::SystemReg::TPIDRRO_EL0)
+    {
         c.LDR(dest_reg, dest_reg, offsetof(NativeExecutionParameters, tpidrro_el0));
-    } else {
+    }
+    else
+    {
         c.LDR(dest_reg, dest_reg, offsetof(NativeExecutionParameters, tpidr_el0));
     }
 
@@ -893,7 +1086,8 @@ void Patcher::WriteMrsHandler(ModuleDestLabel module_dest, oaknut::XReg dest_reg
     this->BranchToModule(module_dest);
 }
 
-void Patcher::WriteMsrHandler(ModuleDestLabel module_dest, oaknut::XReg src_reg) {
+void Patcher::WriteMsrHandler(ModuleDestLabel module_dest, oaknut::XReg src_reg)
+{
     const auto scratch_reg = src_reg.index() == 0 ? X1 : X0;
     c.STR(scratch_reg, SP, PRE_INDEXED, -16);
 
@@ -908,7 +1102,8 @@ void Patcher::WriteMsrHandler(ModuleDestLabel module_dest, oaknut::XReg src_reg)
     this->BranchToModule(module_dest);
 }
 
-void Patcher::WriteCntpctHandler(ModuleDestLabel module_dest, oaknut::XReg dest_reg) {
+void Patcher::WriteCntpctHandler(ModuleDestLabel module_dest, oaknut::XReg dest_reg)
+{
     static Common::Arm64::NativeClock clock{};
     const auto factor = clock.GetGuestCNTFRQFactor();
     const auto raw_factor = Common::BitCast<std::array<u64, 2>>(factor);
@@ -949,7 +1144,8 @@ void Patcher::WriteCntpctHandler(ModuleDestLabel module_dest, oaknut::XReg dest_
     c.dx(raw_factor[1]);
 }
 
-void Patcher::LockContext() {
+void Patcher::LockContext()
+{
     oaknut::Label retry;
 
     // Save scratches.
@@ -979,7 +1175,8 @@ void Patcher::LockContext() {
     c.LDP(X0, X1, SP, POST_INDEXED, 16);
 }
 
-void Patcher::UnlockContext() {
+void Patcher::UnlockContext()
+{
     // Save scratches.
     c.STP(X0, X1, SP, PRE_INDEXED, -16);
 

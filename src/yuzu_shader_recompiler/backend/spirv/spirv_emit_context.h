@@ -390,6 +390,7 @@ public:
     Id global_atomic_or_func_u32{};
     Id global_atomic_xor_func_u32{};
     Id global_atomic_exchange_func_u32{};
+    Id global_atomic_compare_exchange_func_u32{};
 
     bool need_input_position_indirect{};
     Id input_position{};

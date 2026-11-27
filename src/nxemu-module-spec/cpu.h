@@ -114,6 +114,18 @@ nxinterface IMemory
     virtual bool ProtectsQueryResults() { return false; }
     virtual bool NceTrackReads(uint64_t vaddr) { return false; }
     virtual void RasterizerSetNativeReadAccess(uint64_t vaddr, uint64_t size, bool readable) {}
+    // Writes GPU readback data over guest memory without overwriting native CPU stores the GPU
+    // caches have not been told about yet. Plain parts are written by copy(dst, src, size, user).
+    // Returns false when the caller writes the whole range itself.
+    virtual bool WriteGpuReadback(uint64_t vaddr, uint8_t * dst, const uint8_t * src, uint64_t size,
+                                  void (*copy)(uint8_t *, const uint8_t *, uint64_t, void *), void * user) { return false; }
+    // Zero-copy fast path: runs fn(dst, size, user) in place under the NCE write lock
+    // iff no page in [vaddr, vaddr + size) has pending unmerged native CPU writes.
+    virtual bool TryRunInPlaceGpuReadback(uint64_t vaddr, uint8_t * dst, uint64_t size,
+                                          void (*fn)(uint8_t *, uint64_t, void *), void * user) {
+        fn(dst, size, user);
+        return true;
+    }
 
 };
 

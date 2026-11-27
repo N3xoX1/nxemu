@@ -197,6 +197,18 @@ Choices VramUsages()
     };
 }
 
+Choices GraphicsApis()
+{
+    return {
+#ifdef __APPLE__
+        Numbered("Vulkan (MoltenVK)", static_cast<int>(RendererBackend::Vulkan), Tr("The usual choice.")),
+        Numbered("Metal", static_cast<int>(RendererBackend::Metal), Tr("Draws with Metal directly. On trial: some games may show faults.")),
+#else
+        Numbered("Vulkan", static_cast<int>(RendererBackend::Vulkan), Tr("The usual choice.")),
+#endif
+    };
+}
+
 Choices VideoDecodings()
 {
     return {
@@ -280,6 +292,7 @@ constexpr List kLists[] = {
     {"astc", NXVideoSetting::SystemAstcDecodeMode, false, AstcDecodings},
     {"astc-recompression", NXVideoSetting::SystemASTCRecompressionMethod, false, AstcRecompressions},
     {"vram", NXVideoSetting::SystemVRAMUsageMode, false, VramUsages},
+    {"graphics-api", NXVideoSetting::GraphicsAPI, false, GraphicsApis},
     {"nvdec", NXVideoSetting::SystemNvdecEmulation, false, VideoDecodings},
     {"cpu-backend", NXCpuSetting::SystemCpuBackend, false, ProcessorEngines},
     {"cpu-accuracy", NXCpuSetting::SystemCpuAccuracy, false, ProcessorAccuracies},
@@ -582,6 +595,13 @@ void AdvancedDialog::OnCloseRequested()
 void AdvancedDialog::FillLists()
 {
     SettingsContext & settings = m_settings;
+#ifndef __APPLE__
+    // Only macOS has a choice of graphics API.
+    if (Rml::Element * row = Document()->GetElementById("graphics-api-row"); row != nullptr && row->GetParentNode() != nullptr)
+    {
+        row->GetParentNode()->RemoveChild(row);
+    }
+#endif
     for (const List & list : kLists)
     {
         const Choices choices = list.choices();

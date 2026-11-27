@@ -39,6 +39,10 @@ inline constexpr u32 TEXTURE_POOL_SIZE_BIT = 1U << 31;
 [[nodiscard]] Shader::TexturePoolInfo GraphicsTexturePoolInfo(
     const Tegra::Engines::Maxwell3D::Regs& regs);
 
+/// Sizes of the compute texture and sampler tables indexed by runtime handles.
+[[nodiscard]] Shader::TexturePoolInfo ComputeTexturePoolInfo(
+    const Tegra::Engines::KeplerCompute& kepler_compute);
+
 class GenericEnvironment : public Shader::Environment {
 public:
     explicit GenericEnvironment() = default;
@@ -222,6 +226,8 @@ public:
     u32 ReadCbufSize(u32 cbuf_index) override;
 
     u32 ReadTextureTableSize() override;
+
+    std::optional<Shader::TexturePoolInfo> ReadTexturePoolInfo() override;
 
     Shader::TextureType ReadTextureType(u32 handle) override;
 

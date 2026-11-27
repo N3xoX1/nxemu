@@ -1527,6 +1527,9 @@ void InstallAtomicBranch(Core::Memory::Memory& memory, uint64_t pc, uint64_t tar
 #if defined(__APPLE__)
     const auto distance = static_cast<s64>(target) - static_cast<s64>(pc);
     auto* word = reinterpret_cast<u32*>(memory.GetPointerSilent(pc));
+    if (word == nullptr) {
+        return;
+    }
     std::atomic_ref<u32>(*word).store(0x14000000u | ((distance >> 2) & 0x03ffffffu),
                                      std::memory_order_release);
     sys_dcache_flush(word, sizeof(u32));

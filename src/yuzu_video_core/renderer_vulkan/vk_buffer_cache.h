@@ -210,6 +210,12 @@ public:
     /// skip onwards; the widened buffer keeps that prefix so firstIndex stays valid.
     void BindHostUint8IndexBuffer(std::span<const u8> indices, u32 skip, bool primitive_restart);
 
+    /// Binds quad or quad-strip indices expanded into triangles on the host, the same
+    /// buffer QuadIndexedPass writes: @p indices are the guest's from the start of the
+    /// binding, and @p base_vertex (the draw's first index) is added to every index.
+    void BindHostQuadIndexBuffer(std::span<const u8> indices, IndexFormat index_format,
+                                 u32 base_vertex, u32 num_indices, bool is_strip);
+
     void BindVertexBuffer(u32 index, VkBuffer buffer, u32 offset, u32 size, u32 stride);
 
     void BindVertexBuffers(VideoCommon::HostBindings<Buffer>& bindings);

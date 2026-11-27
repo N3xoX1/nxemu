@@ -102,6 +102,7 @@ const char* RendererBackendToString(RendererBackend value)
     case RendererBackend::OpenGL: return "OpenGL";
     case RendererBackend::Vulkan: return "Vulkan";
     case RendererBackend::Null: return "Null";
+    case RendererBackend::Metal: return "Metal";
     }
     return "OpenGL";
 }
@@ -111,6 +112,7 @@ RendererBackend RendererBackendFromString(std::string_view str)
     if (str == "OpenGL") return RendererBackend::OpenGL;
     if (str == "Vulkan") return RendererBackend::Vulkan;
     if (str == "Null") return RendererBackend::Null;
+    if (str == "Metal") return RendererBackend::Metal;
     return RendererBackend::OpenGL;
 }
 

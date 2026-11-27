@@ -701,6 +701,48 @@ void MemoryManager::WriteBlockUnsafe(GPUVAddr gpu_dest_addr, const void * src_bu
     WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
 }
 
+void MemoryManager::WriteBlockForGpuReadback(GPUVAddr gpu_dest_addr, const void * src_buffer,
+                                             std::size_t size)
+{
+    auto just_advance = [&]([[maybe_unused]] std::size_t page_index,
+                            [[maybe_unused]] std::size_t offset,
+                            std::size_t copy_amount) {
+        src_buffer = static_cast<const u8 *>(src_buffer) + copy_amount;
+    };
+    auto mapped_normal = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
+        const DAddr dev_addr_base =
+            (static_cast<DAddr>(page_table[page_index]) << cpu_page_bits) + offset;
+        memory.WriteBlockForGpuReadback(dev_addr_base, src_buffer, copy_amount);
+        src_buffer = static_cast<const u8 *>(src_buffer) + copy_amount;
+    };
+    auto mapped_big = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
+        const DAddr dev_addr_base =
+            (static_cast<DAddr>(big_page_table_dev[page_index]) << cpu_page_bits) + offset;
+        memory.WriteBlockForGpuReadback(dev_addr_base, src_buffer, copy_amount);
+        src_buffer = static_cast<const u8 *>(src_buffer) + copy_amount;
+    };
+    auto write_short_pages = [&](std::size_t page_index, std::size_t offset, std::size_t copy_amount) {
+        const GPUVAddr base = (page_index << big_page_bits) + offset;
+        MemoryOperation<false>(base, copy_amount, mapped_normal, just_advance, just_advance);
+    };
+    MemoryOperation<true>(gpu_dest_addr, size, mapped_big, just_advance, write_short_pages);
+}
+
+bool MemoryManager::TryRunInPlaceGpuReadback(GPUVAddr gpu_dest_addr, std::size_t size,
+                                             void (*fn)(u8*, u64, void*), void* user)
+{
+    if (!IsContinuousRange(gpu_dest_addr, size))
+    {
+        return false;
+    }
+    const auto dev_addr = GpuToCpuAddress(gpu_dest_addr);
+    if (!dev_addr)
+    {
+        return false;
+    }
+    return memory.TryRunInPlaceGpuReadback(*dev_addr, size, fn, user);
+}
+
 void MemoryManager::WriteBlockCached(GPUVAddr gpu_dest_addr, const void * src_buffer, std::size_t size)
 {
     WriteBlockImpl<false>(gpu_dest_addr, src_buffer, size, VideoCommon::CacheType::None);
