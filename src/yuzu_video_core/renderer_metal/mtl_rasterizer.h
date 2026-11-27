@@ -467,12 +467,14 @@ private:
     bool m_xfb_session_active{};
     std::array<u64, 4> m_xfb_session_addr{};
     std::array<u32, 4> m_xfb_session_start{};
-    Owned<MTL::Buffer> m_xfb_emitted_buffer;
+    Owned<MTL::Buffer> m_xfb_counter_buffer;
     std::array<bool, 4> m_xfb_vtg_pending{};
     std::array<u64, 4> m_xfb_vtg_tick{};
-    std::array<u32, 4> m_xfb_vtg_stride{};
-    std::array<u32, 4> m_xfb_vtg_verts_per_prim{};
+    std::array<bool, 4> m_xfb_gpu_counter_synced{true, true, true, true};
 
+    void EnsureXfbCounterBuffer();
+    void ResetXfbGpuCounters(u32 stream_mask, bool reset_bytes, bool reset_primitives);
+    void SyncCpuXfbCountersToGpu(u32 stream_mask);
     void BeginOrSyncXfbSession();
     void ResolvePendingVtgXfbCounters(u32 stream);
 

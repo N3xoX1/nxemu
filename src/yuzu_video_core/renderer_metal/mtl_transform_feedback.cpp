@@ -61,6 +61,13 @@ struct VtgXfbScatterParams {
     u32 src_limit;
 };
 
+struct VtgXfbAdvanceParams {
+    u32 active_mask;
+    u32 verts_per_prim;
+    u32 strides[4];
+    u32 pad[2];
+};
+
 /// Gathers one varying per thread-y, one vertex per thread-x, plus 3-pass GPU
 /// stream compaction + scatter for combined VTG Geometry Shader + Transform Feedback.
 constexpr const char* GATHER_MSL = R"MSL(
@@ -99,6 +106,18 @@ struct VtgXfbScatterParams {
     uint num_entries;
     uint dst_limit;
     uint src_limit;
+};
+
+struct XfbGpuCounter {
+    ulong bytes;
+    ulong primitives;
+};
+
+struct VtgXfbAdvanceParams {
+    uint active_mask;
+    uint verts_per_prim;
+    uint strides[4];
+    uint pad[2];
 };
 
 kernel void gather_varyings(device const uint* capture [[buffer(0)]],
@@ -214,18 +233,19 @@ kernel void vtg_xfb_scan_groups(device uint* group_offsets [[buffer(0)]],
 static void CopyVtgVertexVaryings(device const uint* geometry_out, device uint* destination,
                                   constant GatherEntry* entries,
                                   constant VtgXfbScatterParams& p, uint src_vertex,
-                                  uint dst_vertex) {
+                                  uint dst_vertex, ulong base_bytes) {
     const uint src_base_bytes = src_vertex * p.capture_stride;
     for (uint e = 0u; e < p.num_entries; ++e) {
         const GatherEntry entry = entries[e];
         const uint src_word = (src_base_bytes + entry.src_offset) / 4u;
-        const uint dst_word = (dst_vertex * entry.dst_stride + entry.dst_offset) / 4u;
+        const ulong dst_byte =
+            base_bytes + ulong(dst_vertex) * ulong(entry.dst_stride) + ulong(entry.dst_offset);
         for (uint c = 0u; c < entry.components; ++c) {
-            if ((dst_word + c + 1u) * 4u > p.dst_limit ||
-                (src_word + c + 1u) * 4u > p.src_limit) {
+            const ulong out_byte = dst_byte + ulong(c) * 4ul;
+            if (out_byte + 4ul > ulong(p.dst_limit) || (src_word + c + 1u) * 4u > p.src_limit) {
                 break;
             }
-            destination[dst_word + c] = geometry_out[src_word + c];
+            destination[out_byte / 4ul] = geometry_out[src_word + c];
         }
     }
 }
@@ -237,17 +257,20 @@ kernel void vtg_xfb_scatter(device const uint* geometry_out [[buffer(0)]],
                             device uint* destination [[buffer(4)]],
                             constant VtgXfbScatterParams& p [[buffer(5)]],
                             constant GatherEntry* entries [[buffer(6)]],
+                            device const XfbGpuCounter* counter [[buffer(7)]],
                             uint prim [[thread_position_in_grid]]) {
     if (prim >= p.num_primitives) {
         return;
     }
+    const ulong base_bytes = counter[0].bytes;
     uint dst_v = prim_offsets[prim] + group_offsets[prim >> 8u];
     const uint base = prim * p.indices_per_prim;
     if (p.output_topology == 0u) {
         for (uint i = 0u; i < p.indices_per_prim; ++i) {
             const uint v = indices[base + i];
             if (v < p.sentinel) {
-                CopyVtgVertexVaryings(geometry_out, destination, entries, p, v, dst_v++);
+                CopyVtgVertexVaryings(geometry_out, destination, entries, p, v, dst_v++,
+                                      base_bytes);
             }
         }
     } else if (p.output_topology == 1u) {
@@ -258,8 +281,10 @@ kernel void vtg_xfb_scatter(device const uint* geometry_out [[buffer(0)]],
                 prev = 0xFFFFFFFFu;
             } else {
                 if (prev != 0xFFFFFFFFu) {
-                    CopyVtgVertexVaryings(geometry_out, destination, entries, p, prev, dst_v++);
-                    CopyVtgVertexVaryings(geometry_out, destination, entries, p, v, dst_v++);
+                    CopyVtgVertexVaryings(geometry_out, destination, entries, p, prev, dst_v++,
+                                          base_bytes);
+                    CopyVtgVertexVaryings(geometry_out, destination, entries, p, v, dst_v++,
+                                          base_bytes);
                 }
                 prev = v;
             }
@@ -277,19 +302,39 @@ kernel void vtg_xfb_scatter(device const uint* geometry_out [[buffer(0)]],
             } else {
                 if (v0 != 0xFFFFFFFFu && v1 != 0xFFFFFFFFu) {
                     if ((tri_idx & 1u) == 0u) {
-                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v0, dst_v++);
-                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v1, dst_v++);
-                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v, dst_v++);
+                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v0, dst_v++,
+                                              base_bytes);
+                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v1, dst_v++,
+                                              base_bytes);
+                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v, dst_v++,
+                                              base_bytes);
                     } else {
-                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v1, dst_v++);
-                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v0, dst_v++);
-                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v, dst_v++);
+                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v1, dst_v++,
+                                              base_bytes);
+                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v0, dst_v++,
+                                              base_bytes);
+                        CopyVtgVertexVaryings(geometry_out, destination, entries, p, v, dst_v++,
+                                              base_bytes);
                     }
                     ++tri_idx;
                 }
                 v0 = v1;
                 v1 = v;
             }
+        }
+    }
+}
+
+kernel void vtg_xfb_advance_counters(device const uint* total_emitted [[buffer(0)]],
+                                     device XfbGpuCounter* counters [[buffer(1)]],
+                                     constant VtgXfbAdvanceParams& p [[buffer(2)]]) {
+    const uint emitted_verts = total_emitted[0];
+    const uint vpp = max(p.verts_per_prim, 1u);
+    const ulong emitted_prims = ulong(emitted_verts / vpp);
+    for (uint s = 0u; s < 4u; ++s) {
+        if (((p.active_mask >> s) & 1u) != 0u) {
+            counters[s].bytes += ulong(emitted_verts) * ulong(p.strides[s]);
+            counters[s].primitives += emitted_prims;
         }
     }
 }
@@ -325,6 +370,8 @@ TransformFeedback::TransformFeedback(const Device& device_, Scheduler& scheduler
                                                     "nxemu vtg xfb scan groups");
     vtg_scatter_pipeline = BuildComputePipeline(device, library.get(), "vtg_xfb_scatter",
                                                 "nxemu vtg xfb scatter");
+    vtg_advance_counters_pipeline = BuildComputePipeline(
+        device, library.get(), "vtg_xfb_advance_counters", "nxemu vtg xfb advance counters");
 }
 
 TransformFeedback::~TransformFeedback() = default;
@@ -557,10 +604,11 @@ bool TransformFeedback::GatherVtg(StagingBufferPool& staging_pool,
                                   const Shader::VtgVaryingLayout& geometry_layout,
                                   const VideoCommon::TransformFeedbackState& xfb_state,
                                   std::span<const TransformFeedbackBinding> bindings,
-                                  MTL::Buffer* total_emitted_buffer, u32 total_emitted_offset) {
+                                  MTL::Buffer* counter_buffer, u32 active_counter_mask) {
     if (!vtg_count_scan_pipeline || !vtg_scan_groups_pipeline || !vtg_scatter_pipeline ||
-        geometry_out.buffer == nullptr || index_out.buffer == nullptr || num_primitives == 0 ||
-        indices_per_primitive == 0 || geometry_stride_bytes == 0) {
+        !vtg_advance_counters_pipeline || geometry_out.buffer == nullptr ||
+        index_out.buffer == nullptr || num_primitives == 0 || indices_per_primitive == 0 ||
+        geometry_stride_bytes == 0) {
         return false;
     }
 
@@ -679,18 +727,29 @@ bool TransformFeedback::GatherVtg(StagingBufferPool& staging_pool,
                                       MTL::Size::Make(VTG_SCAN_WG_SIZE, 1, 1));
     });
 
-    StagingBufferRef fallback_total{};
-    MTL::Buffer* total_buf = total_emitted_buffer;
-    u32 total_off = total_emitted_offset;
-    if (total_buf == nullptr) {
-        fallback_total = staging_pool.Request(sizeof(u32), MemoryUsage::DeviceLocal);
-        total_buf = fallback_total.buffer;
-        total_off = static_cast<u32>(fallback_total.offset);
-    }
-    if (total_buf == nullptr) {
+    const StagingBufferRef total_emitted =
+        staging_pool.Request(sizeof(u32), MemoryUsage::DeviceLocal);
+    if (total_emitted.buffer == nullptr) {
         return false;
     }
+    MTL::Buffer* const total_buf = total_emitted.buffer;
+    const u32 total_off = static_cast<u32>(total_emitted.offset);
     scheduler.KeepAlive(total_buf);
+
+    StagingBufferRef fallback_counter{};
+    MTL::Buffer* active_counter_buf = counter_buffer;
+    u32 counter_base_off = 0;
+    bool counter_has_per_stream_slots = counter_buffer != nullptr;
+    if (active_counter_buf == nullptr) {
+        fallback_counter = staging_pool.Request(sizeof(XfbGpuCounter), MemoryUsage::Upload);
+        if (fallback_counter.buffer == nullptr) {
+            return false;
+        }
+        std::memset(fallback_counter.mapped_span.data(), 0, sizeof(XfbGpuCounter));
+        active_counter_buf = fallback_counter.buffer;
+        counter_base_off = static_cast<u32>(fallback_counter.offset);
+    }
+    scheduler.KeepAlive(active_counter_buf);
 
     MTL::ComputePipelineState* const scan_groups_state = vtg_scan_groups_pipeline.get();
     scheduler.Record([scan_groups_state, group_buf = group_offsets.buffer,
@@ -731,13 +790,17 @@ bool TransformFeedback::GatherVtg(StagingBufferPool& staging_pool,
         };
         MTL::Buffer* const destination = bindings[buffer_index].buffer;
         const u32 destination_offset = bindings[buffer_index].offset;
+        const u32 slot_counter_off =
+            counter_has_per_stream_slots
+                ? static_cast<u32>(buffer_index * sizeof(XfbGpuCounter))
+                : counter_base_off;
         scheduler.KeepAlive(destination);
         scheduler.Record([scatter_state, geom_buf = geometry_out.buffer,
                           geom_off = geometry_out.offset, index_buf = index_out.buffer,
                           index_off = index_out.offset, prim_buf = prim_offsets.buffer,
                           prim_off = prim_offsets.offset, group_buf = group_offsets.buffer,
                           group_off = group_offsets.offset, destination, destination_offset,
-                          scatter_params, scatter_groups,
+                          active_counter_buf, slot_counter_off, scatter_params, scatter_groups,
                           entries = std::move(entries)](CommandContext& context) {
             ComputeEncoder encoder = context.RequestCompute();
             if (encoder == nullptr) {
@@ -751,8 +814,36 @@ bool TransformFeedback::GatherVtg(StagingBufferPool& staging_pool,
             encoder->setBuffer(destination, destination_offset, 4);
             encoder->setBytes(&scatter_params, sizeof(scatter_params), 5);
             encoder->setBytes(entries.data(), entries.size() * sizeof(GatherEntry), 6);
+            encoder->setBuffer(active_counter_buf, slot_counter_off, 7);
             encoder->dispatchThreadgroups(MTL::Size::Make(scatter_groups, 1, 1),
                                           MTL::Size::Make(THREADGROUP_SIZE, 1, 1));
+        });
+    }
+
+    if (counter_buffer != nullptr && active_counter_mask != 0) {
+        const u32 verts_per_prim =
+            output_topology == Shader::OutputTopology::PointList
+                ? 1u
+                : (output_topology == Shader::OutputTopology::LineStrip ? 2u : 3u);
+        VtgXfbAdvanceParams advance_params{
+            .active_mask = active_counter_mask,
+            .verts_per_prim = verts_per_prim,
+            .strides = {xfb_state.layouts[0].stride, xfb_state.layouts[1].stride,
+                        xfb_state.layouts[2].stride, xfb_state.layouts[3].stride},
+            .pad = {0, 0},
+        };
+        MTL::ComputePipelineState* const advance_state = vtg_advance_counters_pipeline.get();
+        scheduler.Record([advance_state, total_buf, total_off, counter_buffer,
+                          advance_params](CommandContext& context) {
+            ComputeEncoder encoder = context.RequestCompute();
+            if (encoder == nullptr) {
+                return;
+            }
+            encoder->setComputePipelineState(advance_state);
+            encoder->setBuffer(total_buf, total_off, 0);
+            encoder->setBuffer(counter_buffer, 0, 1);
+            encoder->setBytes(&advance_params, sizeof(advance_params), 2);
+            encoder->dispatchThreadgroups(MTL::Size::Make(1, 1, 1), MTL::Size::Make(1, 1, 1));
         });
     }
     return true;

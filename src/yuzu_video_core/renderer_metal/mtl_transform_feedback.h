@@ -26,6 +26,13 @@ struct TransformFeedbackBinding {
     u32 size{};
 };
 
+/// Per-stream GPU transform feedback counter (matches MSL XfbGpuCounter).
+struct XfbGpuCounter {
+    u64 bytes{};
+    u64 primitives{};
+};
+static_assert(sizeof(XfbGpuCounter) == 16);
+
 // Transform feedback, as two compute passes. Metal has no stream-out stage, so
 // the vertex program is re-emitted as a compute kernel (see
 // TranslateVertexToCaptureKernel) that writes its whole stage-out struct to a
@@ -102,9 +109,9 @@ public:
 
     /// 100% GPU compaction + gather for combined Geometry Shader + Transform Feedback.
     /// Reads emitted vertices and indices produced by VtgGeometryToCompute, computes exact
-    /// per-primitive destination offsets via GPU prefix sum, and scatters each varying into
-    /// the guest's transform feedback buffers without any CPU readback.
-    /// Returns true if the scan/scatter passes (and total_emitted_buffer write) were recorded.
+    /// per-primitive destination offsets via GPU prefix sum, scatters each varying starting
+    /// at counter_buffer[buffer_index].bytes, and advances counter_buffer[stream] on the GPU
+    /// without any CPU readback or flush between consecutive draws.
     [[nodiscard]] bool GatherVtg(StagingBufferPool& staging_pool,
                                  const StagingBufferRef& geometry_out, u32 geometry_stride_bytes,
                                  u32 max_output_vertices, const StagingBufferRef& index_out,
@@ -113,8 +120,8 @@ public:
                                  const Shader::VtgVaryingLayout& geometry_layout,
                                  const VideoCommon::TransformFeedbackState& xfb_state,
                                  std::span<const TransformFeedbackBinding> bindings,
-                                 MTL::Buffer* total_emitted_buffer = nullptr,
-                                 u32 total_emitted_offset = 0);
+                                 MTL::Buffer* counter_buffer = nullptr,
+                                 u32 active_counter_mask = 0);
 
 private:
     const Device& device;
@@ -126,6 +133,7 @@ private:
     Owned<MTL::ComputePipelineState> vtg_count_scan_pipeline;
     Owned<MTL::ComputePipelineState> vtg_scan_groups_pipeline;
     Owned<MTL::ComputePipelineState> vtg_scatter_pipeline;
+    Owned<MTL::ComputePipelineState> vtg_advance_counters_pipeline;
 
     Owned<MTL::Buffer> capture_buffer;
     u32 capture_capacity{};

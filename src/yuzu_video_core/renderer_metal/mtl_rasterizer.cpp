@@ -1479,30 +1479,38 @@ void RasterizerMetal::DrawImpl(bool is_indexed, u32 instance_count,
             return;
         }
         if (vtg_xfb) {
+            EnsureXfbCounterBuffer();
+            u32 active_counter_mask = 0;
             for (u32 stream = 0; stream < 4; ++stream) {
-                if (m_xfb_vtg_pending[stream]) {
-                    ResolvePendingVtgXfbCounters(stream);
+                const auto& control = regs.transform_feedback.controls[stream];
+                if (control.varying_count != 0 || control.stride != 0) {
+                    active_counter_mask |= 1u << stream;
                 }
             }
-            if (!m_xfb_emitted_buffer) {
-                m_xfb_emitted_buffer = Adopt(m_device.GetDevice()->newBuffer(
-                    4 * sizeof(u32), MTL::ResourceStorageModeShared));
-                if (m_xfb_emitted_buffer) {
-                    m_xfb_emitted_buffer->setLabel(MTLSTR("nxemu vtg xfb emitted counts"));
-                    std::memset(m_xfb_emitted_buffer->contents(), 0, 4 * sizeof(u32));
-                }
+            if (m_xfb_counter_buffer) {
+                SyncCpuXfbCountersToGpu(active_counter_mask);
             }
             const auto runtime_bindings = m_buffer_cache_runtime.GetTransformFeedbackBindings();
             boost::container::small_vector<TransformFeedbackBinding, 4> gather_bindings;
             for (size_t i = 0; i < runtime_bindings.size(); ++i) {
                 const BufferBinding& binding = runtime_bindings[i];
-                const u64 append = i < 4 ? m_xfb_bytes[i] : 0ull;
-                const u32 clamped = static_cast<u32>(std::min<u64>(append, binding.size));
-                gather_bindings.push_back(TransformFeedbackBinding{
-                    .buffer = binding.buffer,
-                    .offset = binding.offset + clamped,
-                    .size = binding.size - clamped,
-                });
+                if (m_xfb_counter_buffer) {
+                    // GPU scatter reads its append offset from m_xfb_counter_buffer[i].bytes
+                    // and advances it on the GPU, avoiding any CPU<->GPU stall between draws.
+                    gather_bindings.push_back(TransformFeedbackBinding{
+                        .buffer = binding.buffer,
+                        .offset = binding.offset,
+                        .size = binding.size,
+                    });
+                } else {
+                    const u64 append = i < 4 ? m_xfb_bytes[i] : 0ull;
+                    const u32 clamped = static_cast<u32>(std::min<u64>(append, binding.size));
+                    gather_bindings.push_back(TransformFeedbackBinding{
+                        .buffer = binding.buffer,
+                        .offset = binding.offset + clamped,
+                        .size = binding.size - clamped,
+                    });
+                }
             }
             VideoCommon::TransformFeedbackState xfb_state{};
             for (size_t i = 0; i < xfb_state.layouts.size(); ++i) {
@@ -1522,7 +1530,7 @@ void RasterizerMetal::DrawImpl(bool is_indexed, u32 instance_count,
                 vtg_bindings.output_vertices, vtg_bindings.index_out,
                 vtg_bindings.total_primitives, vtg->geometry_bindings.indices_per_primitive,
                 sentinel, vtg->geometry_bindings.output_topology, vtg->geometry_layout, xfb_state,
-                gather_bindings, m_xfb_emitted_buffer.get(), 0);
+                gather_bindings, m_xfb_counter_buffer.get(), active_counter_mask);
             if (gathered) {
                 const u32 est_verts_per_prim =
                     vtg->geometry_bindings.output_topology == Shader::OutputTopology::PointList ? 1u
@@ -1531,15 +1539,13 @@ void RasterizerMetal::DrawImpl(bool is_indexed, u32 instance_count,
                            : 3u);
                 const u64 tick = m_scheduler.CurrentTick();
                 for (u32 stream = 0; stream < 4; ++stream) {
-                    const auto& control = regs.transform_feedback.controls[stream];
-                    if (control.varying_count == 0 && control.stride == 0) {
+                    if (((active_counter_mask >> stream) & 1u) == 0u) {
                         continue;
                     }
-                    if (m_xfb_emitted_buffer) {
+                    const auto& control = regs.transform_feedback.controls[stream];
+                    if (m_xfb_counter_buffer) {
                         m_xfb_vtg_pending[stream] = true;
                         m_xfb_vtg_tick[stream] = tick;
-                        m_xfb_vtg_stride[stream] = control.stride;
-                        m_xfb_vtg_verts_per_prim[stream] = est_verts_per_prim;
                     } else {
                         m_xfb_primitives[stream] += vtg_bindings.total_primitives;
                         m_xfb_bytes[stream] += u64{vtg_bindings.total_primitives} *
@@ -2648,6 +2654,7 @@ bool RasterizerMetal::RecordXfbCapture(
         }
         m_xfb_primitives[stream] += total_primitives;
         m_xfb_bytes[stream] += u64{captured_vertices} * control.stride;
+        m_xfb_gpu_counter_synced[stream] = false;
     }
     if (gather_bindings.empty() || gather_bindings[0].buffer == nullptr) {
         static std::atomic<u32> reported{0};
@@ -5266,16 +5273,112 @@ void RasterizerMetal::ResetCounter(VideoCommon::QueryType type) {
         break;
     case VideoCommon::QueryType::StreamingByteCount:
         m_xfb_bytes.fill(0);
-        m_xfb_vtg_pending.fill(false);
+        ResetXfbGpuCounters(0xFu, /*reset_bytes=*/true, /*reset_primitives=*/false);
         break;
     case VideoCommon::QueryType::StreamingPrimitivesSucceeded:
     case VideoCommon::QueryType::StreamingPrimitivesNeeded:
         // Both, or Needed - Succeeded goes non-zero, which guests read as
         // capture overflow.
         m_xfb_primitives.fill(0);
+        ResetXfbGpuCounters(0xFu, /*reset_bytes=*/false, /*reset_primitives=*/true);
         break;
     default:
         break;
+    }
+}
+
+void RasterizerMetal::EnsureXfbCounterBuffer() {
+    if (m_xfb_counter_buffer) {
+        return;
+    }
+    m_xfb_counter_buffer = Adopt(m_device.GetDevice()->newBuffer(
+        4 * sizeof(XfbGpuCounter), MTL::ResourceStorageModeShared));
+    if (m_xfb_counter_buffer) {
+        m_xfb_counter_buffer->setLabel(MTLSTR("nxemu xfb gpu counters"));
+        std::memset(m_xfb_counter_buffer->contents(), 0, 4 * sizeof(XfbGpuCounter));
+        m_device.AddResidentAllocation(m_xfb_counter_buffer.get());
+        m_device.CommitResidency();
+        // Sync any pre-existing CPU counters (e.g. from earlier classic XFB draws) on first use.
+        for (u32 i = 0; i < 4; ++i) {
+            m_xfb_gpu_counter_synced[i] = (m_xfb_bytes[i] == 0 && m_xfb_primitives[i] == 0);
+        }
+    }
+}
+
+void RasterizerMetal::ResetXfbGpuCounters(u32 stream_mask, bool reset_bytes,
+                                          bool reset_primitives) {
+    if (!m_xfb_counter_buffer || stream_mask == 0 || (!reset_bytes && !reset_primitives)) {
+        return;
+    }
+    MTL::Buffer* const counter_buf = m_xfb_counter_buffer.get();
+    m_scheduler.KeepAlive(counter_buf);
+    m_scheduler.Record([counter_buf, stream_mask, reset_bytes,
+                        reset_primitives](CommandContext& context) {
+        BlitEncoder encoder = context.RequestBlit();
+        if (encoder == nullptr) {
+            return;
+        }
+        for (u32 s = 0; s < 4; ++s) {
+            if (((stream_mask >> s) & 1u) == 0u) {
+                continue;
+            }
+            const NS::UInteger base = s * sizeof(XfbGpuCounter);
+            if (reset_bytes && reset_primitives) {
+                encoder->fillBuffer(counter_buf, NS::Range::Make(base, sizeof(XfbGpuCounter)), 0);
+            } else if (reset_bytes) {
+                encoder->fillBuffer(counter_buf, NS::Range::Make(base, sizeof(u64)), 0);
+            } else {
+                encoder->fillBuffer(counter_buf, NS::Range::Make(base + sizeof(u64), sizeof(u64)),
+                                    0);
+            }
+        }
+    });
+    const u64 tick = m_scheduler.CurrentTick();
+    for (u32 s = 0; s < 4; ++s) {
+        if (((stream_mask >> s) & 1u) == 0u) {
+            continue;
+        }
+        if (m_xfb_vtg_pending[s]) {
+            m_xfb_vtg_tick[s] = tick;
+        }
+        if (reset_bytes && reset_primitives) {
+            m_xfb_gpu_counter_synced[s] = true;
+            m_xfb_vtg_pending[s] = false;
+        }
+    }
+}
+
+void RasterizerMetal::SyncCpuXfbCountersToGpu(u32 stream_mask) {
+    if (!m_xfb_counter_buffer) {
+        return;
+    }
+    for (u32 s = 0; s < 4; ++s) {
+        if (((stream_mask >> s) & 1u) == 0u || m_xfb_gpu_counter_synced[s]) {
+            continue;
+        }
+        const StagingBufferRef staging =
+            m_staging_pool.Request(sizeof(XfbGpuCounter), MemoryUsage::Upload);
+        if (staging.buffer == nullptr) {
+            continue;
+        }
+        const XfbGpuCounter value{
+            .bytes = m_xfb_bytes[s],
+            .primitives = m_xfb_primitives[s],
+        };
+        std::memcpy(staging.mapped_span.data(), &value, sizeof(value));
+        MTL::Buffer* const dst = m_xfb_counter_buffer.get();
+        const NS::UInteger dst_offset = s * sizeof(XfbGpuCounter);
+        m_scheduler.KeepAlive(staging.buffer);
+        m_scheduler.KeepAlive(dst);
+        m_scheduler.Record([src = staging.buffer, src_off = staging.offset, dst,
+                            dst_offset](CommandContext& context) {
+            BlitEncoder encoder = context.RequestBlit();
+            if (encoder == nullptr) {
+                return;
+            }
+            encoder->copyFromBuffer(src, src_off, dst, dst_offset, sizeof(XfbGpuCounter));
+        });
+        m_xfb_gpu_counter_synced[s] = true;
     }
 }
 
@@ -5289,13 +5392,14 @@ void RasterizerMetal::BeginOrSyncXfbSession() {
     if (!m_xfb_session_active || toggled) {
         m_xfb_session_active = true;
         m_xfb_bytes.fill(0);
-        m_xfb_vtg_pending.fill(false);
+        ResetXfbGpuCounters(0xFu, /*reset_bytes=*/true, /*reset_primitives=*/false);
         for (u32 i = 0; i < 4; ++i) {
             m_xfb_session_addr[i] = tfb.buffers[i].Address();
             m_xfb_session_start[i] = tfb.buffers[i].start_offset;
         }
         return;
     }
+    u32 reset_mask = 0;
     for (u32 i = 0; i < 4; ++i) {
         const u64 addr = tfb.buffers[i].Address();
         const u32 start = tfb.buffers[i].start_offset;
@@ -5303,13 +5407,16 @@ void RasterizerMetal::BeginOrSyncXfbSession() {
             m_xfb_session_addr[i] = addr;
             m_xfb_session_start[i] = start;
             m_xfb_bytes[i] = 0;
-            m_xfb_vtg_pending[i] = false;
+            reset_mask |= 1u << i;
         }
+    }
+    if (reset_mask != 0) {
+        ResetXfbGpuCounters(reset_mask, /*reset_bytes=*/true, /*reset_primitives=*/false);
     }
 }
 
 void RasterizerMetal::ResolvePendingVtgXfbCounters(u32 stream) {
-    if (stream >= 4 || !m_xfb_vtg_pending[stream] || !m_xfb_emitted_buffer) {
+    if (stream >= 4 || !m_xfb_vtg_pending[stream] || !m_xfb_counter_buffer) {
         return;
     }
     const u64 tick = m_xfb_vtg_tick[stream];
@@ -5317,10 +5424,10 @@ void RasterizerMetal::ResolvePendingVtgXfbCounters(u32 stream) {
         m_scheduler.Flush();
         m_scheduler.Wait(tick);
     }
-    const u32 emitted_verts = static_cast<const u32*>(m_xfb_emitted_buffer->contents())[0];
-    const u32 vpp = std::max(m_xfb_vtg_verts_per_prim[stream], 1u);
-    m_xfb_primitives[stream] += emitted_verts / vpp;
-    m_xfb_bytes[stream] += u64{emitted_verts} * m_xfb_vtg_stride[stream];
+    const XfbGpuCounter counter =
+        static_cast<const XfbGpuCounter*>(m_xfb_counter_buffer->contents())[stream];
+    m_xfb_bytes[stream] = counter.bytes;
+    m_xfb_primitives[stream] = counter.primitives;
     m_xfb_vtg_pending[stream] = false;
 }
 
