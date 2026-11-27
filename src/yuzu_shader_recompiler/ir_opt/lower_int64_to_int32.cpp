@@ -218,6 +218,8 @@ void Lower(IR::Block& block, IR::Inst& inst) {
         return inst.ReplaceOpcode(IR::Opcode::GlobalAtomicXor32x2);
     case IR::Opcode::GlobalAtomicExchange64:
         return inst.ReplaceOpcode(IR::Opcode::GlobalAtomicExchange32x2);
+    case IR::Opcode::GlobalAtomicCompareExchange64:
+        return inst.ReplaceOpcode(IR::Opcode::GlobalAtomicCompareExchange32x2);
     default:
         break;
     }

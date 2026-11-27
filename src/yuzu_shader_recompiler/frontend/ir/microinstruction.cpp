@@ -129,6 +129,7 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::GlobalAtomicOr32:
     case Opcode::GlobalAtomicXor32:
     case Opcode::GlobalAtomicExchange32:
+    case Opcode::GlobalAtomicCompareExchange32:
     case Opcode::GlobalAtomicIAdd64:
     case Opcode::GlobalAtomicSMin64:
     case Opcode::GlobalAtomicUMin64:
@@ -138,6 +139,7 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::GlobalAtomicOr64:
     case Opcode::GlobalAtomicXor64:
     case Opcode::GlobalAtomicExchange64:
+    case Opcode::GlobalAtomicCompareExchange64:
     case Opcode::GlobalAtomicIAdd32x2:
     case Opcode::GlobalAtomicSMin32x2:
     case Opcode::GlobalAtomicUMin32x2:
@@ -147,6 +149,7 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::GlobalAtomicOr32x2:
     case Opcode::GlobalAtomicXor32x2:
     case Opcode::GlobalAtomicExchange32x2:
+    case Opcode::GlobalAtomicCompareExchange32x2:
     case Opcode::GlobalAtomicAddF32:
     case Opcode::GlobalAtomicAddF16x2:
     case Opcode::GlobalAtomicAddF32x2:
@@ -165,6 +168,7 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::StorageAtomicOr32:
     case Opcode::StorageAtomicXor32:
     case Opcode::StorageAtomicExchange32:
+    case Opcode::StorageAtomicCompareExchange32:
     case Opcode::StorageAtomicIAdd64:
     case Opcode::StorageAtomicSMin64:
     case Opcode::StorageAtomicUMin64:
@@ -174,6 +178,7 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::StorageAtomicOr64:
     case Opcode::StorageAtomicXor64:
     case Opcode::StorageAtomicExchange64:
+    case Opcode::StorageAtomicCompareExchange64:
     case Opcode::StorageAtomicIAdd32x2:
     case Opcode::StorageAtomicSMin32x2:
     case Opcode::StorageAtomicUMin32x2:
@@ -183,6 +188,7 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::StorageAtomicOr32x2:
     case Opcode::StorageAtomicXor32x2:
     case Opcode::StorageAtomicExchange32x2:
+    case Opcode::StorageAtomicCompareExchange32x2:
     case Opcode::StorageAtomicAddF32:
     case Opcode::StorageAtomicAddF16x2:
     case Opcode::StorageAtomicAddF32x2:

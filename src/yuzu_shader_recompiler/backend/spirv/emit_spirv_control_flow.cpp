@@ -11,6 +11,10 @@ void EmitJoin(EmitContext&) {
 }
 
 void EmitDemoteToHelperInvocation(EmitContext& ctx) {
+    // OpDemoteToHelperInvocation and OpKill are only valid in the Fragment execution model.
+    if (ctx.stage != Stage::Fragment) {
+        return;
+    }
     if (ctx.profile.support_demote_to_helper_invocation) {
         ctx.OpDemoteToHelperInvocation();
     } else {

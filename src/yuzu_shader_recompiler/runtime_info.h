@@ -88,6 +88,8 @@ struct RuntimeInfo {
 
     bool convert_depth_mode{};
     bool force_early_z{};
+    /// Quantize custom gl_FragDepth to 24-bit UNORM when the host promotes guest D24 to D32F.
+    bool quantize_d24_frag_depth{};
 
     TessPrimitive tess_primitive{};
     TessSpacing tess_spacing{};

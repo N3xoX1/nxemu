@@ -199,6 +199,67 @@ void TranslatorVisitor::ATOM(u64 insn) {
     GlobalAtomic(*this, atom.dest_reg, atom.operand_reg, offset, atom.size, atom.op, true);
 }
 
+void TranslatorVisitor::ATOM_cas(u64 insn) {
+    union {
+        u64 raw;
+        BitField<0, 8, IR::Reg> dest_reg;
+        BitField<20, 8, IR::Reg> operand_reg;
+        BitField<49, 1, u64> is_64bit;
+        BitField<50, 2, u64> data_layout;
+    } const atom{insn};
+    const IR::U64 offset{AtomOffset(*this, insn)};
+    const auto next_reg = [](IR::Reg reg, u32 delta) -> IR::Reg {
+        const u32 idx = static_cast<u32>(reg);
+        if (reg == IR::Reg::RZ || idx + delta >= static_cast<u32>(IR::Reg::RZ)) {
+            return IR::Reg::RZ;
+        }
+        return static_cast<IR::Reg>(idx + delta);
+    };
+    if (atom.is_64bit != 0) {
+        IR::U64 compare;
+        IR::U64 value;
+        switch (atom.data_layout) {
+        case 0: // Packed: [Rb..Rb+1] = compare, [Rb+2..Rb+3] = value
+            compare = L(atom.operand_reg);
+            value = L(next_reg(atom.operand_reg, 2));
+            break;
+        case 1: // Separate, value == 0
+            compare = L(atom.operand_reg);
+            value = ir.Imm64(u64{0});
+            break;
+        case 2: // Separate, compare == 0
+            compare = ir.Imm64(u64{0});
+            value = L(atom.operand_reg);
+            break;
+        default:
+            throw NotImplementedException("ATOM.CAS 64-bit layout {}", atom.data_layout.Value());
+        }
+        const IR::U64 result{ir.GlobalAtomicCompareExchange(offset, value, compare)};
+        L(atom.dest_reg, result);
+    } else {
+        IR::U32 compare;
+        IR::U32 value;
+        switch (atom.data_layout) {
+        case 0: // Packed: Rb = compare, Rb+1 = value
+            compare = X(atom.operand_reg);
+            value = X(next_reg(atom.operand_reg, 1));
+            break;
+        case 1: // Separate, value == 0
+            compare = X(atom.operand_reg);
+            value = ir.Imm32(0);
+            break;
+        case 2: // Separate, compare == 0
+            compare = ir.Imm32(0);
+            value = X(atom.operand_reg);
+            break;
+        default:
+            throw NotImplementedException("ATOM.CAS 32-bit layout {}", atom.data_layout.Value());
+        }
+        const IR::U32 result{ir.GlobalAtomicCompareExchange(offset, value, compare)};
+        X(atom.dest_reg, result);
+    }
+}
+
 void TranslatorVisitor::RED(u64 insn) {
     union {
         u64 raw;
