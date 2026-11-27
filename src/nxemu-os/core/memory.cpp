@@ -941,6 +941,14 @@ struct Memory::Impl
 
         if (cached)
         {
+#if !defined(__APPLE__)
+            if (WriteTracking())
+            {
+                // After the pages are cached, so that a harvest keeps the marks of later writes. A
+                // write in between loses its mark, but the caller uploads the region after this.
+                ClearWriteMarks(orig_vaddr, size);
+            }
+#endif
             return;
         }
         for (u64 i = 0; i < num_pages; ++i, vaddr += YUZU_PAGESIZE)
@@ -995,14 +1003,6 @@ struct Memory::Impl
                 UNREACHABLE();
             }
         }
-#if !defined(__APPLE__)
-        if (cached && WriteTracking())
-        {
-            // After the pages are cached, so that a harvest keeps the marks of later writes. A write
-            // in between loses its mark, but the caller uploads the region after this.
-            ClearWriteMarks(region_vaddr, size);
-        }
-#endif
     }
 
     /**
