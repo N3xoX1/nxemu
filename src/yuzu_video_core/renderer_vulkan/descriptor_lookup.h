@@ -6,10 +6,45 @@
 #include <cstring>
 #include <limits>
 #include <utility>
+#include <vector>
 
 #include "yuzu_common/common_types.h"
+#include "yuzu_shader_recompiler/shader_info.h"
 
 namespace Vulkan {
+
+/// Compact subset of Shader::Info retained after native pipeline creation for draw/dispatch-time
+/// descriptor binding, without inline small/static_vector padding or compile-only metadata.
+struct CompactStageInfo {
+    std::vector<Shader::StorageBufferDescriptor> storage_buffers_descriptors;
+    std::vector<Shader::TextureBufferDescriptor> texture_buffer_descriptors;
+    std::vector<Shader::ImageBufferDescriptor> image_buffer_descriptors;
+    std::vector<Shader::TextureDescriptor> texture_descriptors;
+    std::vector<Shader::ImageDescriptor> image_descriptors;
+    u32 constant_buffer_mask{};
+    u32 runtime_sampler_count{};
+    u32 input_attachment_mask{};
+    u32 write_tracking_slots{};
+    u32 runtime_image_write_mask_words{};
+    bool uses_render_area{};
+
+    CompactStageInfo() = default;
+    explicit CompactStageInfo(const Shader::Info& info)
+        : storage_buffers_descriptors(info.storage_buffers_descriptors.begin(),
+                                      info.storage_buffers_descriptors.end()),
+          texture_buffer_descriptors(info.texture_buffer_descriptors.begin(),
+                                     info.texture_buffer_descriptors.end()),
+          image_buffer_descriptors(info.image_buffer_descriptors.begin(),
+                                   info.image_buffer_descriptors.end()),
+          texture_descriptors(info.texture_descriptors.begin(), info.texture_descriptors.end()),
+          image_descriptors(info.image_descriptors.begin(), info.image_descriptors.end()),
+          constant_buffer_mask{info.constant_buffer_mask},
+          runtime_sampler_count{info.runtime_sampler_count},
+          input_attachment_mask{info.input_attachment_mask},
+          write_tracking_slots{info.write_tracking_slots},
+          runtime_image_write_mask_words{info.runtime_image_write_mask_words},
+          uses_render_area{info.uses_render_area} {}
+};
 
 // Lives for one shader stage of one draw/dispatch. Never retains guest pointers across draws,
 // rebindings or address-space changes. Discontiguous ranges keep the original scalar read path.

@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <span>
+#include <vector>
 #include <boost/container/small_vector.hpp>
 
 #include "yuzu_common/common_types.h"
@@ -69,6 +70,34 @@ struct OverlapResult {
 [[nodiscard]] boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(
     Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr, const ImageInfo& info,
     std::span<const u8> input, std::span<u8> output);
+
+struct UnswizzleRowRun {
+    GPUVAddr src_addr;
+    size_t guest_bytes;
+    size_t host_offset;
+    size_t host_bytes;
+    u32 run_tiles;
+    u32 tile_rows;
+    Extent3D block;
+    u32 run_alignment;
+};
+
+struct UnswizzlePlan {
+    boost::container::small_vector<BufferImageCopy, 16> copies;
+    boost::container::small_vector<UnswizzleRowRun, 16> runs;
+    size_t total_host_bytes{0};
+    u32 bpp_log2{0};
+    bool layout_valid{true};
+};
+
+/// Plans the unswizzle of the blocks of a 2D block-linear image that overlap the guest byte range
+/// [begin, end). Reads no guest memory. layout_valid is false for layouts it does not handle.
+[[nodiscard]] UnswizzlePlan PlanUnswizzleImageRows(GPUVAddr gpu_addr, const ImageInfo& info,
+                                                   u64 begin, u64 end);
+
+/// Runs a plan into `output` (at least plan.total_host_bytes bytes).
+void ExecuteUnswizzlePlan(Tegra::MemoryManager& gpu_memory, const UnswizzlePlan& plan,
+                          std::span<u8> output, std::vector<u8>& scratch);
 
 void ConvertImage(std::span<const u8> input, const ImageInfo& info, std::span<u8> output,
                   std::span<BufferImageCopy> copies);

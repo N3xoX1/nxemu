@@ -622,6 +622,9 @@ private:
 
     void MappedUploadMemory(Buffer& buffer, u64 total_size_bytes, std::span<BufferCopy> copies);
 
+    /// One staging buffer for `copies` (src offsets relative to it).
+    void MappedUploadSlice(Buffer& buffer, u64 total_size_bytes, std::span<BufferCopy> copies);
+
     void DownloadBufferMemory(Buffer& buffer_id);
 
     void DownloadBufferMemory(Buffer& buffer_id, DAddr device_addr, u64 size);

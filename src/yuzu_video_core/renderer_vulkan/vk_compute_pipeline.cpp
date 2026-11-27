@@ -35,18 +35,17 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
                                  vk::ShaderModule spv_module_, StagingBufferPool& staging_pool_)
     : device{device_},
       pipeline_cache(pipeline_cache_), guest_descriptor_queue{guest_descriptor_queue_}, info{info_},
-      staging_pool{staging_pool_},
+      build_info{std::make_unique<Shader::Info>(info_)}, staging_pool{staging_pool_},
       spv_module(std::move(spv_module_)) {
-    num_descriptor_entries = NumDescriptorUpdateEntries(device, info);
+    num_descriptor_entries = NumDescriptorUpdateEntries(device, *build_info);
     num_textures = Shader::NumDescriptors(info.texture_descriptors);
-    descriptor_views.resize(num_textures + Shader::NumDescriptors(info.texture_buffer_descriptors) +
-                            Shader::NumDescriptors(info.image_buffer_descriptors) +
-                            Shader::NumDescriptors(info.image_descriptors));
-    descriptor_samplers.resize(num_textures);
+    num_image_elements = num_textures + Shader::NumDescriptors(info.texture_buffer_descriptors) +
+                         Shader::NumDescriptors(info.image_buffer_descriptors) +
+                         Shader::NumDescriptors(info.image_descriptors);
     if (shader_notify) {
         shader_notify->MarkShaderBuilding();
     }
-    std::copy_n(info.constant_buffer_used_sizes.begin(), uniform_buffer_sizes.size(),
+    std::copy_n(build_info->constant_buffer_used_sizes.begin(), uniform_buffer_sizes.size(),
                 uniform_buffer_sizes.begin());
     const auto is_written = [](const auto& desc) { return desc.is_written; };
     writes_images = std::ranges::any_of(info.image_descriptors, is_written) ||
@@ -55,14 +54,15 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
     auto func{[this, &descriptor_pool, shader_notify, pipeline_statistics, runtime_event=VideoCommon::ShaderProfile::Runtime::current] {
         VideoCommon::ShaderProfile::Runtime::Span runtime_timer(runtime_event,VideoCommon::ShaderProfile::Runtime::Work::Native);
         try {
+            const Shader::Info& stage_info{*build_info};
             DescriptorLayoutBuilder builder{device};
-            builder.Add(info, VK_SHADER_STAGE_COMPUTE_BIT);
+            builder.Add(stage_info, VK_SHADER_STAGE_COMPUTE_BIT);
 
             descriptor_set_layout = builder.CreateDescriptorSetLayout(false);
             pipeline_layout = builder.CreatePipelineLayout(*descriptor_set_layout);
             descriptor_update_template =
                 builder.CreateTemplate(*descriptor_set_layout, *pipeline_layout, false);
-            descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, info);
+            descriptor_allocator = descriptor_pool.Allocator(*descriptor_set_layout, stage_info);
             const VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT subgroup_size_ci{
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO_EXT,
                 .pNext = nullptr,
@@ -100,9 +100,10 @@ ComputePipeline::ComputePipeline(const Device& device_, vk::PipelineCache& pipel
             LOG_ERROR(Render_Vulkan, "Compute pipeline build failed: {}", exception.what());
             build_failed = true;
         }
-        // The module is not required after vkCreateComputePipelines returns. Release it
-        // on both success and failure instead of retaining it for the pipeline's lifetime.
+        // The module and full compile-time Shader::Info are not required after
+        // vkCreateComputePipelines returns. Release them on both success and failure.
         spv_module.reset();
+        build_info.reset();
         VideoCommon::ShaderProfile::Runtime::NativeResult(runtime_event,!build_failed);
         std::scoped_lock lock{build_mutex};
         is_built = true;
@@ -140,8 +141,12 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
 
     texture_cache.SynchronizeComputeDescriptors();
 
-    auto& views = descriptor_views;
-    auto& samplers = descriptor_samplers;
+    thread_local std::vector<VideoCommon::ImageViewInOut> scratch_views;
+    thread_local std::vector<VideoCommon::SamplerId> scratch_samplers;
+    scratch_views.resize(num_image_elements);
+    scratch_samplers.resize(num_textures);
+    auto& views = scratch_views;
+    auto& samplers = scratch_samplers;
     size_t view_index{};
     size_t sampler_index{};
     if (num_textures > 64) {
