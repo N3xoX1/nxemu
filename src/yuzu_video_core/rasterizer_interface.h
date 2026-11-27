@@ -206,6 +206,15 @@ public:
 
     virtual bool OnCPUWrite(PAddr addr, u64 size) = 0;
 
+    /// Lock-free: true when the region is cached only to keep pending query results
+    /// unreadable. No other cache tracks CPU accesses there.
+    virtual bool IsCachedOnlyForQueryResults(DAddr addr, u64 size) const {
+        return false;
+    }
+    virtual bool IsReadCachedOnlyForQueryResults(DAddr addr, u64 size) const {
+        return false;
+    }
+
     /// The guest may have written memory it ordered before this point, without reporting it
     virtual void OnGuestSynchronization() {}
 

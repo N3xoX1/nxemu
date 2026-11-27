@@ -121,7 +121,12 @@ public:
         wait_finished.wait(false, std::memory_order_acquire);
     }
 
-    void WaitPendingFences([[maybe_unused]] bool force) {
+    void WaitPendingFences(bool force) {
+        // A guest may poll a query before submitting its next command list.
+        // The forced asynchronous path already submits a fence in WaitForFence().
+        if ((!force || !can_async_check) && query_cache.HasUnfencedReports()) {
+            SignalReference();
+        }
         if constexpr (!can_async_check) {
             TryReleasePendingFences<true>();
         } else if (force) {

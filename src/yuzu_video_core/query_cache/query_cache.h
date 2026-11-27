@@ -172,6 +172,11 @@ struct QueryCacheBase<Traits>::QueryCacheBaseImpl {
     std::vector<QueryCacheBase<Traits>::QueryLocation> pending_unregister;
     // Payloads kept behind a readback and not published yet
     std::atomic<size_t> payloads_behind_readback{};
+    // Only the GPU producer reads/writes this flag.
+    bool has_unfenced_reports{};
+    // Unprotected occlusion results must precede later fast visibility payloads.
+    std::atomic<size_t> pending_unprotected_occlusion_reports{};
+    std::atomic<size_t> pending_visibility_payloads{};
 };
 
 template <typename Traits>
@@ -254,7 +259,11 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
     // the CPU could read before its publication keeps them behind it. Commit before this
     // report exists: the fence also prepares the pending queries.
     const bool fast_payload = !Settings::IsGpuReadbackExact() && counter_type == QueryType::Payload;
-    const bool behind_readback = fast_payload && !impl->rasterizer.CommitReadbacksForEarlySignal();
+    const bool order_visibility = fast_payload &&
+        (impl->pending_visibility_payloads.load(std::memory_order_acquire) != 0 ||
+         impl->pending_unprotected_occlusion_reports.load(std::memory_order_acquire) != 0);
+    const bool behind_readback = fast_payload &&
+        (!impl->rasterizer.CommitReadbacksForEarlySignal() || order_visibility);
     impl->device_memory.InvalidateNativeReadRegion(cpu_addr, report_size);
     impl->device_memory.RegisterFlushCacheRegion(cpu_addr, report_size, CacheType::QueryCache);
     const size_t new_query_id = streamer->WriteCounter(cpu_addr, has_timestamp, payload, subreport);
@@ -340,7 +349,11 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         // A later payload to this address may have been published already: semaphores only
         // move forward.
         impl->payloads_behind_readback.fetch_add(1, std::memory_order_relaxed);
-        operation = [this, op = std::move(operation), query_base = query, query_location] {
+        if (order_visibility) {
+            impl->pending_visibility_payloads.fetch_add(1, std::memory_order_relaxed);
+        }
+        operation = [this, op = std::move(operation), query_base = query, query_location,
+                     order_visibility] {
             {
                 std::scoped_lock lock(cache_mutex);
                 if (True(query_base->flags & QueryFlagBits::IsRewritten)) {
@@ -350,20 +363,29 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
                 }
             }
             impl->payloads_behind_readback.fetch_sub(1, std::memory_order_release);
+            if (order_visibility) {
+                impl->pending_visibility_payloads.fetch_sub(1, std::memory_order_release);
+            }
         };
     }
     // An earlier CPU access faults and waits for the write, so the guest signal need not.
     // Wrapped last: a rewritten held payload skips its write but must still release the page.
     const bool protect = impl->device_memory.ProtectsQueryResults();
+    if (!protect && counter_type == QueryType::ZPassPixelCount64) {
+        impl->pending_unprotected_occlusion_reports.fetch_add(1, std::memory_order_relaxed);
+        operation = [this, op = std::move(operation)] {
+            SCOPE_EXIT {
+                impl->pending_unprotected_occlusion_reports.fetch_sub(1, std::memory_order_release);
+            };
+            op();
+        };
+    }
     if (protect) {
         const u64 result_size = has_timestamp ? 16 : 4;
         {
             std::scoped_lock lock(cache_mutex);
             pending_results.Add(cpu_addr, result_size, query_location.raw, behind_readback);
         }
-        // Only cached pages fault: the result's page may hold nothing else the caches track
-        impl->device_memory.UpdatePagesCachedCount(cpu_addr, result_size, 1);
-        impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, 1);
         UpdateProtectedResult(cpu_addr, result_size, 1);
         operation = [this, op = std::move(operation), cpu_addr, result_size, query_location] {
             op();
@@ -373,14 +395,16 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
                 pending_results.Completed(cpu_addr, query_location.raw);
             }
             UpdateProtectedResult(cpu_addr, result_size, -1);
-            impl->device_memory.UpdatePagesReadCachedCount(cpu_addr, result_size, -1);
-            impl->device_memory.UpdatePagesCachedCount(cpu_addr, result_size, -1);
         };
     }
     if (is_fence && !protect) {
         impl->rasterizer.SignalFence(std::move(operation));
     } else {
         impl->rasterizer.SyncOperation(std::move(operation));
+        // A CPU read of a protected result submits its own fence.
+        if (!protect) {
+            impl->has_unfenced_reports = true;
+        }
         if (is_fence || behind_readback) {
             impl->rasterizer.SignalReference();
         }
@@ -397,6 +421,39 @@ void QueryCacheBase<Traits>::CounterReport(GPUVAddr addr, QueryType counter_type
         }
         MarkRewritten(it_current->second, query, cpu_addr);
         sub_container.insert_or_assign(base, query_location);
+    }
+}
+
+template <typename Traits>
+void QueryCacheBase<Traits>::RearmHeldResultPage([[maybe_unused]] VAddr page) {
+#if defined(__APPLE__)
+    // A CPU read can reopen an NCE page once its result is written, and only a new read-cached
+    // count closes it again: without it a native load would see the previous result
+    using PageBits = decltype(held_result_pages);
+    impl->device_memory.UpdatePagesReadCachedCount(page, PageBits::PAGE_SIZE, 1);
+    impl->device_memory.UpdatePagesReadCachedCount(page, PageBits::PAGE_SIZE, -1);
+#endif
+}
+
+template <typename Traits>
+void QueryCacheBase<Traits>::ReleaseIdleResultPages() {
+    using PageBits = decltype(held_result_pages);
+    constexpr auto idle_time = std::chrono::milliseconds(250);
+    std::scoped_lock lock{protected_result_mutex};
+    if (idle_result_pages.empty()) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    for (auto it = idle_result_pages.begin(); it != idle_result_pages.end();) {
+        if (now - it->second < idle_time) {
+            ++it;
+            continue;
+        }
+        const u64 page = it->first;
+        held_result_pages.Clear(page, PageBits::PAGE_SIZE);
+        impl->device_memory.UpdatePagesReadCachedCount(page, PageBits::PAGE_SIZE, -1);
+        impl->device_memory.UpdatePagesCachedCount(page, PageBits::PAGE_SIZE, -1);
+        it = idle_result_pages.erase(it);
     }
 }
 
@@ -418,12 +475,24 @@ void QueryCacheBase<Traits>::UpdateProtectedResult(VAddr addr, u64 size, s32 del
     // A CPU access to a neighbouring guest page of the same host page must not open the
     // page before the result is written: the guest-visible signal does not wait for it.
     using PageBits = decltype(protected_result_pages);
+    // A page with pending results stays cached and unreadable by the CPU. It holds one cached
+    // and one read-cached count, added before its held bit is set and removed after it is
+    // cleared, so a held bit and a count of one mean no other cache tracks it. The page stays
+    // held once its last result is written, until ReleaseIdleResultPages finds it unused.
     std::scoped_lock lock{protected_result_mutex};
     const VAddr end = Common::AlignUp(addr + size, PageBits::PAGE_SIZE);
     for (VAddr page = Common::AlignDown(addr, PageBits::PAGE_SIZE); page < end;
          page += PageBits::PAGE_SIZE) {
         if (delta > 0) {
             if (protected_result_counts[page]++ == 0) {
+                if (idle_result_pages.erase(page) == 0) {
+                    // Only cached pages fault: the page may hold nothing else the caches track
+                    impl->device_memory.UpdatePagesCachedCount(page, PageBits::PAGE_SIZE, 1);
+                    impl->device_memory.UpdatePagesReadCachedCount(page, PageBits::PAGE_SIZE, 1);
+                    held_result_pages.Set(page, PageBits::PAGE_SIZE);
+                } else {
+                    RearmHeldResultPage(page);
+                }
                 protected_result_pages.Set(page, PageBits::PAGE_SIZE);
             }
             continue;
@@ -433,6 +502,7 @@ void QueryCacheBase<Traits>::UpdateProtectedResult(VAddr addr, u64 size, s32 del
         if (--it->second == 0) {
             protected_result_counts.erase(it);
             protected_result_pages.Clear(page, PageBits::PAGE_SIZE);
+            idle_result_pages.emplace(page, std::chrono::steady_clock::now());
         }
     }
 }
@@ -610,6 +680,7 @@ template <typename Traits>
 void QueryCacheBase<Traits>::CommitAsyncFlushes() {
     // Make sure to have the results synced in Host.
     NotifyWFI();
+    impl->has_unfenced_reports = false;
 
     u64 mask{};
     {
@@ -650,6 +721,11 @@ bool QueryCacheBase<Traits>::HasUncommittedFlushes() const {
         return result;
     });
     return result;
+}
+
+template <typename Traits>
+bool QueryCacheBase<Traits>::HasUnfencedReports() const {
+    return impl->has_unfenced_reports;
 }
 
 template <typename Traits>

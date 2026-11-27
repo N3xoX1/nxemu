@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -86,6 +87,14 @@ public:
         return protected_result_pages.Any(addr, size);
     }
 
+    /// Lock-free: true when the page is kept cached for query results, pending or not.
+    [[nodiscard]] bool HoldsResultPage(VAddr page) const noexcept {
+        return held_result_pages.Any(page, 1);
+    }
+
+    /// Releases the pages no result used for a while
+    void ReleaseIdleResultPages();
+
     /// Return true when a CPU region is modified from the GPU
     [[nodiscard]] bool IsRegionGpuModified(VAddr addr, size_t size) {
         bool result = false;
@@ -124,6 +133,7 @@ public:
     void CommitAsyncFlushes();
 
     bool HasUncommittedFlushes() const;
+    bool HasUnfencedReports() const;
 
     bool ShouldWaitAsyncFlushes();
 
@@ -194,6 +204,8 @@ protected:
     void RequestGuestHostSync();
     void UnregisterPending();
     void UpdateProtectedResult(VAddr addr, u64 size, s32 delta);
+    /// Closes a held page again where a CPU read could have opened it
+    void RearmHeldResultPage(VAddr page);
 
     std::unordered_map<u64, std::unordered_map<u32, QueryLocation>> cached_queries;
     std::mutex cache_mutex;
@@ -203,6 +215,10 @@ protected:
     /// Pages of results kept unreadable by the CPU, with the count of each page
     AtomicPageBits<34, 12> protected_result_pages;
     std::unordered_map<u64, u32> protected_result_counts;
+    /// Pages that stay cached after their last pending result: reports come back to the same
+    /// pages every frame, and each protection change is a system call
+    AtomicPageBits<34, 12> held_result_pages;
+    std::unordered_map<u64, std::chrono::steady_clock::time_point> idle_result_pages;
     std::mutex protected_result_mutex;
 
     struct QueryCacheBaseImpl;

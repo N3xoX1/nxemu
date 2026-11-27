@@ -435,8 +435,8 @@ msgid "Can gain FPS, but can cause halos or corruption in some games."
 msgstr "可以提高 FPS，但在某些游戏中可能导致光晕或画面错误。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
-msgstr "需要 Vulkan 和按需刷新。开启时，GPU 复制游戏将要读取的内容期间游戏会继续运行，可能读到旧值。关闭时，游戏会等待复制完成；快速回读仍可能跳过部分等待。"
+msgid "Needs Vulkan and reactive flushing. Off is exact: games wait for the GPU copies they will read. On, they go on while the GPU copies; some games read too early and see an old value. Query results stay protected either way."
+msgstr "需要 Vulkan 和按需刷新。关闭时结果准确：游戏会等待将要读取的 GPU 复制。开启时，GPU 复制期间游戏继续运行；部分游戏读取过早，会看到旧值。查询结果在两种情况下都受保护。"
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Untracked shader writes"

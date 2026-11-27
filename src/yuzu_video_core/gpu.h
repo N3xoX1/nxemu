@@ -305,6 +305,11 @@ public:
     /// sensible, false otherwise
     bool OnCPUWrite(DAddr addr, u64 size);
 
+    /// Lock-free: true when the region is cached only to keep pending query results
+    /// unreadable
+    bool IsCachedOnlyForQueryResults(DAddr addr, u64 size);
+    bool IsReadCachedOnlyForQueryResults(DAddr addr, u64 size);
+
     void WaitInPlaceReads(DAddr addr, u64 size);
 
     void WakeGpuThread();

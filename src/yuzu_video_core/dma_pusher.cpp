@@ -265,6 +265,20 @@ bool DmaPusher::Step()
              (subchannel_type[dma_state.subchannel] == Engines::EngineTypes::KeplerCompute &&
               dma_state.method == ComputeInline));
         bool use_safe = Settings::UseSafeDMAReads() && !is_gpu_consumed;
+        if (!use_safe && !is_gpu_consumed)
+        {
+            // Query results can overlap command headers even in fast DMA mode.
+            const GPUVAddr address = dma_state.dma_get;
+            const size_t size = header.size * sizeof(u32);
+            constexpr auto query_cache = VideoCommon::CacheType::QueryCache;
+            if (memory_manager.IsMemoryDirty(address, size, query_cache))
+            {
+                DrainMaxwell3D();
+                gpu.BackQueue().RunExclusive([&]() {
+                    memory_manager.FlushRegion(address, size, query_cache);
+                });
+            }
+        }
         if (use_safe && IsThreaded())
         {
             // The rasterizer runs on the GPU thread: flush there, then read here

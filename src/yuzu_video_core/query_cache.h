@@ -128,6 +128,26 @@ public:
         FlushAndRemoveRegion(addr, size);
     }
 
+    /// Returns true when a cached query overlaps the region and is not written to guest memory
+    bool IsRegionGpuModified(VAddr addr, std::size_t size) {
+        std::unique_lock lock{mutex};
+        const u64 addr_end = addr + size;
+        const u64 page_end = addr_end >> YUZU_PAGEBITS;
+        for (u64 page = addr >> YUZU_PAGEBITS; page <= page_end; ++page) {
+            const auto it = cached_queries.find(page);
+            if (it == std::end(cached_queries)) {
+                continue;
+            }
+            for (const auto& query : it->second) {
+                const u64 cache_begin = query.GetCpuAddr();
+                if (cache_begin < addr_end && addr < cache_begin + query.SizeInBytes()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /**
      * Records a query in GPU mapped memory, potentially marked with a timestamp.
      * @param gpu_addr  GPU address to flush to when the mapped memory is read.
@@ -204,6 +224,10 @@ public:
         std::unique_lock lock{mutex};
         committed_flushes.push_back(uncommitted_flushes);
         uncommitted_flushes.reset();
+    }
+
+    bool HasUnfencedReports() const {
+        return HasUncommittedFlushes();
     }
 
     bool HasUncommittedFlushes() const {

@@ -2147,20 +2147,19 @@ bool Memory::ProtectsReadCachedRegions() {
 #if defined(__APPLE__)
     return impl->buffer->UsesNce() && osSettings.use_reactive_flushing;
 #elif defined(_M_X64) || defined(__x86_64__)
-    return ProtectsQueryResults();
+    return ProtectOnlyReadCachedPages() && impl->current_page_table &&
+           impl->current_page_table->fastmem_arena;
 #else
     return false;
 #endif
 }
 
 bool Memory::ProtectsQueryResults() {
-    if (!osSettings.background_gpu_readbacks.load(std::memory_order_relaxed))
-    {
-        return false;
-    }
 #if defined(__APPLE__)
     return ProtectsReadCachedRegions();
 #elif defined(_M_X64) || defined(__x86_64__)
+    // Not tied to background readbacks: that setting only lets fences skip download waits.
+    // Protected results are exact and cheap, and unprotected ones can be read stale.
     // Matches where RasterizerMarkRegionReadCached denies access
     return ProtectOnlyReadCachedPages() && impl->current_page_table &&
            impl->current_page_table->fastmem_arena;

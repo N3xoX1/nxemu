@@ -567,7 +567,7 @@ msgid "Can gain FPS, but can cause halos or corruption in some games."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
+msgid "Needs Vulkan and reactive flushing. Off is exact: games wait for the GPU copies they will read. On, they go on while the GPU copies; some games read too early and see an old value. Query results stay protected either way."
 msgstr ""
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
