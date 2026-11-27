@@ -397,7 +397,7 @@ BlitImageHelper::BlitImageHelper(const Device& device_, Scheduler& scheduler_)
         LOG_ERROR(Render_Metal, "Failed to compile the blit shaders: {}", DescribeError(error));
         return;
     }
-    library->setLabel(MTLSTR("eden blit"));
+    library->setLabel(MTLSTR("nxemu blit"));
 
     sampler_linear = MakeSampler(device, MTL::SamplerMinMagFilterLinear);
     sampler_nearest = MakeSampler(device, MTL::SamplerMinMagFilterNearest);
@@ -825,7 +825,7 @@ MTL::ComputePipelineState* BlitImageHelper::GetPackDepthStencilPipeline() {
         return nullptr;
     }
     pack_depth_stencil_pipeline =
-        BuildComputePipeline(device, library.get(), "pack_d24s8", "eden pack D24S8");
+        BuildComputePipeline(device, library.get(), "pack_d24s8", "nxemu pack D24S8");
     return pack_depth_stencil_pipeline.get();
 }
 

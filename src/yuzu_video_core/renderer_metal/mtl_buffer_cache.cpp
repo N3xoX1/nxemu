@@ -302,7 +302,7 @@ Buffer::Buffer(BufferCacheRuntime& runtime, VAddr cpu_addr_, u64 size_bytes_, bo
         LOG_ERROR(Render_Metal, "Failed to allocate a {} byte guest buffer", size_bytes_);
         return;
     }
-    buffer->setLabel(MTLSTR("eden guest buffer"));
+    buffer->setLabel(MTLSTR("nxemu guest buffer"));
     gpu_address = buffer->gpuAddress();
     mapped = static_cast<u8*>(buffer->contents());
 }
@@ -468,7 +468,7 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
     if (device.HasUnifiedMemory()) {
         prefetch_buffer = memory_allocator.CreateBuffer(PrefetchRingSize, MemoryUsage::Upload);
         if (prefetch_buffer) {
-            prefetch_buffer->setLabel(MTLSTR("eden uniform prefetch ring"));
+            prefetch_buffer->setLabel(MTLSTR("nxemu uniform prefetch ring"));
             prefetch_gpu_address = prefetch_buffer->gpuAddress();
             prefetch_span = MemoryAllocator::Map(prefetch_buffer.get());
         }
@@ -542,9 +542,9 @@ bool BufferCacheRuntime::EnsureReadbackPipelines() {
         return false;
     }
     readback_delta_pipeline =
-        BuildComputePipeline(device, library.get(), "readback_delta", "eden readback delta");
+        BuildComputePipeline(device, library.get(), "readback_delta", "nxemu readback delta");
     tracked_readback_pipeline =
-        BuildComputePipeline(device, library.get(), "tracked_readback", "eden tracked readback");
+        BuildComputePipeline(device, library.get(), "tracked_readback", "nxemu tracked readback");
     if (!readback_delta_pipeline) {
         differential_readback_enabled = false;
     }
@@ -610,7 +610,7 @@ bool BufferCacheRuntime::DifferentialReadback(Buffer& buffer, const StagingBuffe
                 readback_shadow_budget->used.fetch_sub(bytes, std::memory_order_relaxed);
                 return false;
             }
-            shadow_buf->setLabel(MTLSTR("eden readback shadow"));
+            shadow_buf->setLabel(MTLSTR("nxemu readback shadow"));
             try {
                 buffer.readback_shadow = std::make_shared<ReadbackShadow>(
                     readback_shadow_budget, &scheduler, bytes, std::move(shadow_buf));
@@ -672,7 +672,7 @@ MTL::Buffer* BufferCacheRuntime::WriteTrackBitmap() {
             LOG_ERROR(Render_Metal, "Failed to allocate compute write-tracking bitmap");
             return nullptr;
         }
-        write_track_bitmap->setLabel(MTLSTR("eden write track bitmap"));
+        write_track_bitmap->setLabel(MTLSTR("nxemu write track bitmap"));
         const std::span<u8> mapped = MemoryAllocator::Map(write_track_bitmap.get());
         if (!mapped.empty()) {
             std::memset(mapped.data(), 0, size);
@@ -751,14 +751,14 @@ void BufferCacheRuntime::ReserveNullBuffer() {
     if (!null_buffer) {
         throw Exception("Failed to allocate the null buffer");
     }
-    null_buffer->setLabel(MTLSTR("eden null buffer"));
+    null_buffer->setLabel(MTLSTR("nxemu null buffer"));
     null_buffer_addr = null_buffer->gpuAddress();
 
     write_sink = memory_allocator.CreateBuffer(NULL_BUFFER_SIZE, MemoryUsage::DeviceLocal);
     if (!write_sink) {
         throw Exception("Failed to allocate the null write sink");
     }
-    write_sink->setLabel(MTLSTR("eden null write sink"));
+    write_sink->setLabel(MTLSTR("nxemu null write sink"));
     write_sink_addr = write_sink->gpuAddress();
 
     const std::span<u8> mapped = MemoryAllocator::Map(null_buffer.get());
@@ -784,7 +784,7 @@ void BufferCacheRuntime::ReserveNullBuffer() {
     null_texel_view = Adopt(null_buffer->newTexture(desc, 0, min_align));
     desc->release();
     if (null_texel_view) {
-        null_texel_view->setLabel(MTLSTR("eden null texel view"));
+        null_texel_view->setLabel(MTLSTR("nxemu null texel view"));
         device.AddResidentAllocation(null_texel_view.get());
     }
 }

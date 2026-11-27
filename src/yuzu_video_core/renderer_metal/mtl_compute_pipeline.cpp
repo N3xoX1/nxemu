@@ -100,7 +100,7 @@ void ComputePipeline::Build(std::vector<u32> spirv, const Shader::Info& full_inf
             MTL4::ComputePipelineDescriptor::alloc()->init();
         descriptor->setComputeFunctionDescriptor(
             MakeFunctionDescriptor(library.get(), shader.entry_point));
-        descriptor->setLabel(MTLSTR("eden compute"));
+        descriptor->setLabel(MTLSTR("nxemu compute"));
         pipeline_state = device.NewComputePipelineState(descriptor, &error);
         descriptor->release();
     }

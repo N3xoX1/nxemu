@@ -315,16 +315,16 @@ TransformFeedback::TransformFeedback(const Device& device_, Scheduler& scheduler
                   DescribeError(error));
         return;
     }
-    library->setLabel(MTLSTR("eden transform feedback"));
+    library->setLabel(MTLSTR("nxemu transform feedback"));
 
     gather_pipeline = BuildComputePipeline(device, library.get(), "gather_varyings",
-                                           "eden transform feedback gather");
+                                           "nxemu transform feedback gather");
     vtg_count_scan_pipeline = BuildComputePipeline(device, library.get(), "vtg_xfb_count_scan",
-                                                   "eden vtg xfb count scan");
+                                                   "nxemu vtg xfb count scan");
     vtg_scan_groups_pipeline = BuildComputePipeline(device, library.get(), "vtg_xfb_scan_groups",
-                                                    "eden vtg xfb scan groups");
+                                                    "nxemu vtg xfb scan groups");
     vtg_scatter_pipeline = BuildComputePipeline(device, library.get(), "vtg_xfb_scatter",
-                                                "eden vtg xfb scatter");
+                                                "nxemu vtg xfb scatter");
 }
 
 TransformFeedback::~TransformFeedback() = default;
@@ -335,7 +335,7 @@ Owned<MTL::Buffer> TransformFeedback::CreateCaptureSegment(u32 bytes) {
     }
     Owned<MTL::Buffer> buffer = memory_allocator.CreateBuffer(bytes, MemoryUsage::DeviceLocal);
     if (buffer) {
-        buffer->setLabel(MTLSTR("eden xfb capture segment"));
+        buffer->setLabel(MTLSTR("nxemu xfb capture segment"));
     } else {
         LOG_WARNING(Render_Metal, "Could not allocate a {} byte capture segment", bytes);
     }
@@ -374,7 +374,7 @@ MTL::Buffer* TransformFeedback::AcquireCaptureSegment(u32 bytes) {
         LOG_WARNING(Render_Metal, "Could not allocate a {} byte capture segment", capacity);
         return nullptr;
     }
-    buffer->setLabel(MTLSTR("eden xfb capture segment"));
+    buffer->setLabel(MTLSTR("nxemu xfb capture segment"));
 
     MTL::Buffer* const handle = buffer.get();
     segment_pool.push_back(PooledSegment{
@@ -454,7 +454,7 @@ MTL::Buffer* TransformFeedback::CaptureBuffer(u32 bytes) {
         capture_capacity = 0;
         return nullptr;
     }
-    capture_buffer->setLabel(MTLSTR("eden xfb capture"));
+    capture_buffer->setLabel(MTLSTR("nxemu xfb capture"));
     capture_capacity = capacity;
     return capture_buffer.get();
 }

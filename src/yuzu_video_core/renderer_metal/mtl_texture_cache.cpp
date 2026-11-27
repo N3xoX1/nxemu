@@ -786,7 +786,7 @@ MTL::Buffer* TextureCacheRuntime::GetTemporaryBuffer(size_t needed_size) {
     const size_t size = size_t{1} << log2;
     temporary_buffers[log2] = memory_allocator.CreateBuffer(size, MemoryUsage::DeviceLocal);
     if (temporary_buffers[log2]) {
-        temporary_buffers[log2]->setLabel(MTLSTR("eden temp texture buffer"));
+        temporary_buffers[log2]->setLabel(MTLSTR("nxemu temp texture buffer"));
         temporary_buffer_frames[log2] = frame_index;
         temporary_buffer_ticks[log2] = scheduler.CurrentTick() + 1;
     }
@@ -866,7 +866,7 @@ MTL::Texture* TextureCacheRuntime::GetScratchAttachment(MTL::PixelFormat format,
     if (!texture) {
         return nullptr;
     }
-    texture->setLabel(MTLSTR("eden scratch attachment"));
+    texture->setLabel(MTLSTR("nxemu scratch attachment"));
     return scratch_attachments.emplace(key, std::move(texture)).first->second.get();
 }
 
@@ -1338,7 +1338,7 @@ void TextureCacheRuntime::CopyImageMSAA(Image& dst, Image& src,
                             copies.size());
                 return;
             }
-            scratch->setLabel(MTLSTR("eden MSAA region resolve"));
+            scratch->setLabel(MTLSTR("nxemu MSAA region resolve"));
             resolve_target = scratch.get();
         }
 
@@ -1852,7 +1852,7 @@ void TextureCacheRuntime::BlitImage(Framebuffer* dst_framebuffer, ImageView& dst
                         src.Samples());
             return;
         }
-        resolved_source->setLabel(MTLSTR("eden blit resolve"));
+        resolved_source->setLabel(MTLSTR("nxemu blit resolve"));
 
         const RenderPassState pass = BuildMsaaResolvePass(source, resolved_source.get());
         scheduler.RequestRenderPass(pass);
@@ -1980,7 +1980,7 @@ Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu
                   info.size.height);
         return;
     }
-    texture->setLabel(MTLSTR("eden image"));
+    texture->setLabel(MTLSTR("nxemu image"));
 
 }
 
@@ -2100,7 +2100,7 @@ void Image::UploadMemoryImpl(MTL::Buffer* buffer, u64 offset,
             LOG_WARNING(Render_Metal, "No staging texture for a {}x MSAA upload", samples);
             return;
         }
-        staging->setLabel(MTLSTR("eden MSAA upload staging"));
+        staging->setLabel(MTLSTR("nxemu MSAA upload staging"));
     }
 
     boost::container::small_vector<VideoCommon::BufferImageCopy, 8> owned(copies.begin(),
@@ -2440,7 +2440,7 @@ void Image::DownloadMemory(MTL::Buffer* buffer, size_t offset,
                         info.num_samples);
             return;
         }
-        resolved->setLabel(MTLSTR("eden MSAA download resolve"));
+        resolved->setLabel(MTLSTR("nxemu MSAA download resolve"));
         // Keep the transient resolve target alive and resident until the GPU
         // finishes both the resolve pass and the blit that reads from it.
         runtime->scheduler.KeepAlive(resolved.get(), resolved.get());
@@ -3140,7 +3140,7 @@ MTL::Texture* ImageView::MakeArrayFromVolume(MTL::PixelFormat format,
                     base_width, base_height, array_length);
         return nullptr;
     }
-    copy->setLabel(MTLSTR("eden 3D-as-2D-array"));
+    copy->setLabel(MTLSTR("nxemu 3D-as-2D-array"));
 
     // Kept so we can refresh the copy. A volume the guest re-renders every frame
     // would otherwise be sampled as a frame-0 snapshot forever.

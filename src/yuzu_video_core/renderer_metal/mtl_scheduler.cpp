@@ -237,12 +237,12 @@ void Scheduler::CreateMetal4Bindings() {
     constexpr u32 MAX_TABLE_SAMPLERS = 16;
 
     mtl4_vertex_table =
-        make_table("eden vertex args", MAX_TABLE_BUFFERS, MAX_TABLE_TEXTURES, MAX_TABLE_SAMPLERS);
+        make_table("nxemu vertex args", MAX_TABLE_BUFFERS, MAX_TABLE_TEXTURES, MAX_TABLE_SAMPLERS);
     mtl4_fragment_table =
-        make_table("eden fragment args", MAX_TABLE_BUFFERS, MAX_TABLE_TEXTURES, MAX_TABLE_SAMPLERS);
+        make_table("nxemu fragment args", MAX_TABLE_BUFFERS, MAX_TABLE_TEXTURES, MAX_TABLE_SAMPLERS);
     mtl4_compute_table =
-        make_table("eden compute args", MAX_TABLE_BUFFERS, MAX_TABLE_TEXTURES, MAX_TABLE_SAMPLERS);
-    mtl4_upload_table = make_table("eden upload compute args", 4, 0, 0);
+        make_table("nxemu compute args", MAX_TABLE_BUFFERS, MAX_TABLE_TEXTURES, MAX_TABLE_SAMPLERS);
+    mtl4_upload_table = make_table("nxemu upload compute args", 4, 0, 0);
 
     constexpr u64 INLINE_RING_SIZE = 4_MiB;
     for (size_t i = 0; i < MAX_MTL4_ALLOCATORS; ++i) {
@@ -252,7 +252,7 @@ void Scheduler::CreateMetal4Bindings() {
             LOG_ERROR(Render_Metal, "Failed to allocate a Metal 4 inline constant ring");
             continue;
         }
-        mtl4_inline_buffers[i]->setLabel(MTLSTR("eden mtl4 inline constants"));
+        mtl4_inline_buffers[i]->setLabel(MTLSTR("nxemu mtl4 inline constants"));
         mtl4_inline_rings[i].buffer = mtl4_inline_buffers[i].get();
         mtl4_inline_rings[i].gpu_address = mtl4_inline_buffers[i]->gpuAddress();
         mtl4_inline_rings[i].mapped =
@@ -269,7 +269,7 @@ void Scheduler::CreateMetal4Bindings() {
     mtl4_null_buffer = Adopt(device.GetDevice()->newBuffer(
         NULL_BUFFER_SIZE, MTL::ResourceStorageModeShared));
     if (mtl4_null_buffer) {
-        mtl4_null_buffer->setLabel(MTLSTR("eden mtl4 null binding"));
+        mtl4_null_buffer->setLabel(MTLSTR("nxemu mtl4 null binding"));
         std::memset(mtl4_null_buffer->contents(), 0, NULL_BUFFER_SIZE);
         device.AddResidentAllocation(mtl4_null_buffer.get());
         mtl4_null_bindings.buffer = mtl4_null_buffer->gpuAddress();
@@ -324,7 +324,7 @@ void Scheduler::AllocateNewCommandBuffer() {
     }
     mtl4_command_buffer->beginCommandBuffer(allocator.get());
     mtl4_committed = false;
-    mtl4_command_buffer->setLabel(MTLSTR("eden frame"));
+    mtl4_command_buffer->setLabel(MTLSTR("nxemu frame"));
     if (MTL::ResidencySet* const set = device.GetResidencySet()) {
         mtl4_command_buffer->useResidencySet(set);
     }
@@ -493,7 +493,7 @@ void Scheduler::WorkerBeginUpload() {
             LOG_ERROR(Render_Metal, "Failed to create the Metal 4 upload command buffer");
             return;
         }
-        mtl4_upload_buffer->setLabel(MTLSTR("eden mtl4 uploads"));
+        mtl4_upload_buffer->setLabel(MTLSTR("nxemu mtl4 uploads"));
     }
     mtl4_upload_buffer->beginCommandBuffer(allocator.get());
     if (MTL::ResidencySet* const set = device.GetResidencySet()) {

@@ -1668,11 +1668,11 @@ MTL::Texture* BlitScreen::SmaaAntiAlias(MTL::Texture* source) {
         if (smaa_output) {
             scheduler.KeepAlive(smaa_output.get(), smaa_output.get());
         }
-        smaa_edges = make_target(MTL::PixelFormatRG8Unorm, "eden SMAA edges");
-        smaa_weights = make_target(MTL::PixelFormatRGBA8Unorm, "eden SMAA weights");
+        smaa_edges = make_target(MTL::PixelFormatRG8Unorm, "nxemu SMAA edges");
+        smaa_weights = make_target(MTL::PixelFormatRGBA8Unorm, "nxemu SMAA weights");
         // The blend pass can't write into the texture it samples, so its result
         // goes to a third target instead of back over the source.
-        smaa_output = make_target(source->pixelFormat(), "eden SMAA output");
+        smaa_output = make_target(source->pixelFormat(), "nxemu SMAA output");
         if (!smaa_edges || !smaa_weights || !smaa_output) {
             LOG_ERROR(Render_Metal, "Failed to allocate the {}x{} SMAA targets", width, height);
             if (smaa_edges) {
@@ -1877,7 +1877,7 @@ MTL::Texture* BlitScreen::MetalFxUpscale(MTL::Texture* source, u32 target_width,
             metalfx_scaler_mtl4.reset();
             return source;
         }
-        metalfx_output->setLabel(MTLSTR("eden MetalFX output"));
+        metalfx_output->setLabel(MTLSTR("nxemu MetalFX output"));
         device.AddResidentAllocation(metalfx_output.get());
         // Committed right away. Additions don't take effect until commit(), and
         // MetalFX encodes straight into the command buffer so nothing guarantees
@@ -1955,7 +1955,7 @@ MTL::Texture* BlitScreen::FsrUpscale(MTL::Texture* source, u32 target_width, u32
             fsr_width = fsr_height = 0;
             return source;
         }
-        fsr_texture->setLabel(MTLSTR("eden FSR EASU"));
+        fsr_texture->setLabel(MTLSTR("nxemu FSR EASU"));
         fsr_width = target_width;
         fsr_height = target_height;
     }
@@ -2058,7 +2058,7 @@ MTL::Texture* BlitScreen::AntiAlias(MTL::Texture* source) {
             aa_height = 0;
             return source;
         }
-        aa_texture->setLabel(MTLSTR("eden fxaa"));
+        aa_texture->setLabel(MTLSTR("nxemu fxaa"));
         aa_width = width;
         aa_height = height;
         aa_format = format;

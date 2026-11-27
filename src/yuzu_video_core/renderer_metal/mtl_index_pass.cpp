@@ -410,16 +410,16 @@ IndexPass::IndexPass(const Device& device_, Scheduler& scheduler_,
                   DescribeError(error));
         return;
     }
-    library->setLabel(MTLSTR("eden index conversion"));
+    library->setLabel(MTLSTR("nxemu index conversion"));
 
     pipeline_state = BuildComputePipeline(device, library.get(), "convert_indices",
-                                          "eden index conversion");
+                                          "nxemu index conversion");
 
     // Optional helpers: callers fall back to CPU paths when null.
     byte_count_state =
-        BuildComputePipeline(device, library.get(), "byte_count_draw_args", "eden byte count");
+        BuildComputePipeline(device, library.get(), "byte_count_draw_args", "nxemu byte count");
     indirect_patch_state =
-        BuildComputePipeline(device, library.get(), "patch_indirect", "eden indirect patch");
+        BuildComputePipeline(device, library.get(), "patch_indirect", "nxemu indirect patch");
     vtg_indirect_state = BuildComputePipeline(device, library.get(), "prepare_vtg_indirect",
                                               "nxemu vtg indirect");
     conditional_draw_state = BuildComputePipeline(device, library.get(), "conditional_draw_args",

@@ -101,7 +101,7 @@ MTL::Texture* RendererMetal::UploadFramebuffer(const Tegra::FramebufferConfig& c
             if (!slot) {
                 return nullptr;
             }
-            slot->setLabel(MTLSTR("eden guest framebuffer"));
+            slot->setLabel(MTLSTR("nxemu guest framebuffer"));
         }
         m_framebuffer_slot = 0;
         m_framebuffer_width = config.width;
@@ -398,7 +398,7 @@ void RendererMetal::RenderCaptureLayer(std::span<const Tegra::FramebufferConfig>
         if (!m_capture_texture) {
             return;
         }
-        m_capture_texture->setLabel(MTLSTR("eden applet capture"));
+        m_capture_texture->setLabel(MTLSTR("nxemu applet capture"));
     }
 
     bool drew_any = false;

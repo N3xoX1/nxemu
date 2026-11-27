@@ -1488,7 +1488,7 @@ void RasterizerMetal::DrawImpl(bool is_indexed, u32 instance_count,
                 m_xfb_emitted_buffer = Adopt(m_device.GetDevice()->newBuffer(
                     4 * sizeof(u32), MTL::ResourceStorageModeShared));
                 if (m_xfb_emitted_buffer) {
-                    m_xfb_emitted_buffer->setLabel(MTLSTR("eden vtg xfb emitted counts"));
+                    m_xfb_emitted_buffer->setLabel(MTLSTR("nxemu vtg xfb emitted counts"));
                     std::memset(m_xfb_emitted_buffer->contents(), 0, 4 * sizeof(u32));
                 }
             }
@@ -5331,7 +5331,7 @@ void RasterizerMetal::EnsureVisibilityBuffer() {
     m_visibility_buffer = Adopt(m_device.GetDevice()->newBuffer(
         VISIBILITY_SLOTS * sizeof(u64), MTL::ResourceStorageModeShared));
     if (m_visibility_buffer) {
-        m_visibility_buffer->setLabel(MTLSTR("eden occlusion counts"));
+        m_visibility_buffer->setLabel(MTLSTR("nxemu occlusion counts"));
         std::memset(m_visibility_buffer->contents(), 0, VISIBILITY_SLOTS * sizeof(u64));
         m_visibility_slot_tick.assign(VISIBILITY_SLOTS, 0);
         // Nothing is implicitly resident on Metal 4, and this is created here

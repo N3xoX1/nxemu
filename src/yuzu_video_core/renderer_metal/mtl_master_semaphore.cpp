@@ -108,7 +108,7 @@ MasterSemaphore::MasterSemaphore(const Device& device)
     if (!event) {
         throw Exception("Failed to create the master MTLSharedEvent");
     }
-    event->setLabel(MTLSTR("eden master semaphore"));
+    event->setLabel(MTLSTR("nxemu master semaphore"));
     // Tick 0 means "nothing submitted yet" and must read as already complete.
     event->setSignaledValue(0);
 }

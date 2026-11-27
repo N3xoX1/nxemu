@@ -57,7 +57,7 @@ StagingBufferPool::StagingBufferPool(const Device& device_, MemoryAllocator& mem
     if (!stream_buffer) {
         throw Exception("Failed to allocate the staging stream buffer");
     }
-    stream_buffer->setLabel(MTLSTR("eden stream buffer"));
+    stream_buffer->setLabel(MTLSTR("nxemu stream buffer"));
     stream_gpu_address = stream_buffer->gpuAddress();
 
     stream_pointer = MemoryAllocator::Map(stream_buffer.get());
@@ -235,7 +235,7 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
             throw Exception("Failed to allocate a staging buffer");
         }
     }
-    buffer->setLabel(MTLSTR("eden staging buffer"));
+    buffer->setLabel(MTLSTR("nxemu staging buffer"));
 
     std::span<u8> mapped_span = MemoryAllocator::Map(buffer.get());
     if (mapped_span.empty() && usage != MemoryUsage::DeviceLocal) {

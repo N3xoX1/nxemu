@@ -350,7 +350,7 @@ bool GraphicsPipeline::BuildGeometryPipelines() {
     // capture kernel fetches its attributes itself. See InjectManualVertexFetch.
     capture_pipeline = BuildComputePipeline(device, capture_library.get(),
                                             geometry->capture.entry_point,
-                                            "eden vertex capture kernel");
+                                            "nxemu vertex capture kernel");
     return static_cast<bool>(capture_pipeline);
 }
 

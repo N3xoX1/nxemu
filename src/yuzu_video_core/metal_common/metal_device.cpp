@@ -172,7 +172,7 @@ Device::Device(u32 device_index) : device{CreateDeviceByIndex(device_index)} {
     if (!command_queue) {
         throw Exception("Failed to create the Metal command queue");
     }
-    command_queue->setLabel(MTLSTR("eden"));
+    command_queue->setLabel(MTLSTR("nxemu"));
 
     DetectCapabilities();
     LogDeviceInfo();
@@ -383,7 +383,7 @@ bool Device::RecreateMTL4Queue() const {
     NS::Error* error = nullptr;
 
     MTL4::CommandQueueDescriptor* queue_descriptor = MTL4::CommandQueueDescriptor::alloc()->init();
-    queue_descriptor->setLabel(MTLSTR("eden mtl4 (recovered)"));
+    queue_descriptor->setLabel(MTLSTR("nxemu mtl4 (recovered)"));
     Owned<MTL4::CommandQueue> replacement =
         Adopt(device->newMTL4CommandQueue(queue_descriptor, &error));
     queue_descriptor->release();
@@ -414,7 +414,7 @@ void Device::CreateMetal4Objects() {
 
     // MTL4::CommandQueue has no setLabel, so the label goes on the descriptor.
     MTL4::CommandQueueDescriptor* queue_descriptor = MTL4::CommandQueueDescriptor::alloc()->init();
-    queue_descriptor->setLabel(MTLSTR("eden mtl4"));
+    queue_descriptor->setLabel(MTLSTR("nxemu mtl4"));
     mtl4_queue = Adopt(device->newMTL4CommandQueue(queue_descriptor, &error));
     queue_descriptor->release();
     if (!mtl4_queue) {
@@ -455,16 +455,16 @@ void Device::CreateMetal4Objects() {
     // archive generator to fail with "missing 'vertex' stage"). Internal helpers
     // like MetalFX use a third unserialized compiler.
     const bool capture = Metal::Options::PipelineArchive();
-    mtl4_compiler = make_compiler("eden mtl4 graphics compiler", capture, &mtl4_serializer);
+    mtl4_compiler = make_compiler("nxemu mtl4 graphics compiler", capture, &mtl4_serializer);
     mtl4_compute_compiler =
-        make_compiler("eden mtl4 compute compiler", capture, &mtl4_compute_serializer);
-    mtl4_utility_compiler = make_compiler("eden mtl4 utility compiler", false, nullptr);
+        make_compiler("nxemu mtl4 compute compiler", capture, &mtl4_compute_serializer);
+    mtl4_utility_compiler = make_compiler("nxemu mtl4 utility compiler", false, nullptr);
 
     // Nothing is implicitly resident on Metal 4. Every buffer and texture the GPU
     // may touch must be added here, or it reads unmapped memory with no error.
     MTL::ResidencySetDescriptor* residency_descriptor =
         MTL::ResidencySetDescriptor::alloc()->init();
-    residency_descriptor->setLabel(MTLSTR("eden mtl4 residency"));
+    residency_descriptor->setLabel(MTLSTR("nxemu mtl4 residency"));
     residency_descriptor->setInitialCapacity(4096);
     mtl4_residency_set = Adopt(device->newResidencySet(residency_descriptor, &error));
     residency_descriptor->release();
