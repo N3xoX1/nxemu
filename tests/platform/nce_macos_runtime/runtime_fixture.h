@@ -82,7 +82,7 @@ struct Process final : IKernelProcess {
     NceTest::Memory memory;
     TestPageTable pages;
     Core::NCE::EntryTrampolines handlers;
-    Core::NCE::RestartPcs restarts;
+    std::unordered_map<uint64_t, uint64_t> restarts;
     Core::NCE::EntryTrampolines atomics;
     bool force_signal_entry{};
     std::atomic<bool> atomics_enabled{};

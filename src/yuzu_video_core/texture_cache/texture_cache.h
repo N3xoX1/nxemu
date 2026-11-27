@@ -1835,10 +1835,32 @@ bool TextureCache<P>::PublishObservedReadback(const ImageBase& image,
     readback_pages.ForEachRange(image.cpu_addr, image.guest_size_bytes, observation_serial,
         [&](u64 offset, u64 size) {
             published += size;
-            Tegra::Memory::GpuGuestMemoryScoped<u8, GuestMemoryFlags::UnsafeReadWrite>
-                destination(*memory_owner, image.gpu_addr + offset, size, &swizzle_data_buffer);
-            Tegra::Texture::Swizzle2DRange(destination, input, info.size.width * 4,
-                                         info.size.height, MipBlockSize(info, 0).height, offset);
+            struct RangeCtx {
+                std::span<const u8> input;
+                u32 stride;
+                u32 height;
+                u32 block_height;
+                u64 offset;
+            };
+            RangeCtx ctx{input, info.size.width * 4, info.size.height,
+                         MipBlockSize(info, 0).height, offset};
+            const auto swizzle_cb = [](u8* dst, u64 dst_size, void* user) {
+                const auto& c = *static_cast<const RangeCtx*>(user);
+                Tegra::Texture::Swizzle2DRange(std::span<u8>(dst, static_cast<size_t>(dst_size)),
+                                               c.input, c.stride, c.height, c.block_height,
+                                               c.offset);
+            };
+            if (!memory_owner->TryRunInPlaceGpuReadback(image.gpu_addr + offset, size, swizzle_cb,
+                                                        &ctx)) {
+                swizzle_data_buffer.resize_destructive(size);
+                memory_owner->ReadBlockUnsafe(image.gpu_addr + offset, swizzle_data_buffer.data(),
+                                              size);
+                Tegra::Texture::Swizzle2DRange(std::span<u8>(swizzle_data_buffer.data(), size),
+                                               input, info.size.width * 4, info.size.height,
+                                               MipBlockSize(info, 0).height, offset);
+                memory_owner->WriteBlockForGpuReadback(image.gpu_addr + offset,
+                                                       swizzle_data_buffer.data(), size);
+            }
         });
     if (profile) {
         static thread_local u64 images{}, bytes{}, full_bytes{};
@@ -1999,8 +2021,8 @@ void TextureCache<P>::PopAsyncFlushes() {
                 const BufferDownload& buffer_info = slot_buffer_downloads[download_info.object_id];
                 std::span<u8> download_span =
                     download_buffer.mapped_span.subspan(download_buffer.offset);
-                gpu_memory->WriteBlockUnsafe(buffer_info.address, download_span.data(),
-                                             buffer_info.size);
+                gpu_memory->WriteBlockForGpuReadback(buffer_info.address, download_span.data(),
+                                                     buffer_info.size);
                 slot_buffer_downloads.erase(download_info.object_id);
             }
         }

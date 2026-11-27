@@ -121,6 +121,8 @@ public:
     void WriteBlock(DAddr address, const void* src_pointer, size_t size);
     void WriteBlockUnsafe(DAddr address, const void* src_pointer, size_t size);
     void WriteBlockForGpuReadback(DAddr address, const void* src_pointer, size_t size);
+    bool TryRunInPlaceGpuReadback(DAddr address, size_t size,
+                                  void (*fn)(u8*, u64, void*), void* user);
 
     Asid RegisterProcess(IMemory * memory);
     void UnregisterProcess(Asid id);
@@ -446,6 +448,8 @@ private:
     // Physical pages opened by a completed native readback. Only actual GPU image
     // writes consume these observers; cache-management commands leave them alone.
     std::set<size_t> native_read_pages;
+    std::mutex native_read_pages_mutex;
+    std::atomic<bool> has_native_read_pages{false};
     Common::RangeMutex counter_guard;
     std::mutex mapping_guard;
 };

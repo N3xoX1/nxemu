@@ -24,7 +24,7 @@ enum class PatchMode : u32
 using ModuleTextAddress = u64;
 using PatchTextAddress = u64;
 using EntryTrampolines = std::unordered_map<ModuleTextAddress, PatchTextAddress>;
-using RestartPcs = std::unordered_map<PatchTextAddress, PatchTextAddress>;
+using RestartPcs = std::vector<std::pair<PatchTextAddress, PatchTextAddress>>;
 
 class Patcher
 {
@@ -45,6 +45,14 @@ public:
     void SetLegacy36BitRegion(u64 start, u64 end) { m_legacy_region_start = start; m_legacy_region_end = end; }
     const std::vector<u32>& GetInstructions() const { return m_patch_instructions; }
     size_t GetSectionSize() const noexcept;
+    size_t GetDynamicArenaOffset() const noexcept;
+    size_t GetDynamicArenaSize() const noexcept { return m_dynamic_arena_size; }
+
+    static bool EmitDynamicThunk(u64 original_pc, u32 instruction, bool is_write,
+                                 u64 thunk_va, u64 atomic_table,
+                                 u32* out_words, size_t max_words, size_t& out_word_count,
+                                 std::pair<u64, u64>* out_restarts, size_t max_restarts,
+                                 size_t& out_restart_count);
 
     [[nodiscard]] PatchMode GetPatchMode() const noexcept
     {
@@ -100,6 +108,7 @@ private:
     std::vector<std::pair<ptrdiff_t, ptrdiff_t>> m_fault_restarts;
     std::vector<ptrdiff_t> m_atomic_table_relocations;
     size_t m_basic_read_bytes{}, m_extra_read_bytes{}, m_store_bytes{};
+    size_t m_dynamic_arena_size{};
     u64 m_legacy_region_start{};
     u64 m_legacy_region_end{};
 

@@ -524,8 +524,8 @@ void SwizzlePitchLinearImage(Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr
         const u32 host_offset_y = line * info.pitch;
         const u32 guest_offset_y = (copy.image_offset.y + line) * info.pitch;
         const u32 guest_offset = guest_offset_x + guest_offset_y;
-        gpu_memory.WriteBlockUnsafe(gpu_addr + guest_offset, memory.data() + host_offset_y,
-                                    row_length);
+        gpu_memory.WriteBlockForGpuReadback(gpu_addr + guest_offset, memory.data() + host_offset_y,
+                                            row_length);
     }
 }
 
@@ -563,12 +563,33 @@ void SwizzleBlockLinearImage(Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr
 
     for (s32 layer = 0; layer < info.resources.layers; ++layer) {
         const std::span<const u8> src = input.subspan(host_offset);
-        {
-            Tegra::Memory::GpuGuestMemoryScoped<u8, GuestMemoryFlags::UnsafeReadWrite>
-                dst(gpu_memory, gpu_addr + guest_offset, subresource_size, &tmp_buffer);
-
-            SwizzleTexture(dst, src, bytes_per_block, num_tiles.width, num_tiles.height,
-                           num_tiles.depth, block.height, block.depth);
+        struct SwizzleCtx {
+            std::span<const u8> src;
+            u32 bytes_per_block;
+            Extent3D num_tiles;
+            Extent3D block;
+        };
+        SwizzleCtx ctx{src, bytes_per_block, num_tiles, block};
+        const auto swizzle_cb = [](u8* dst, u64 dst_size, void* user) {
+            const auto& c = *static_cast<const SwizzleCtx*>(user);
+            SwizzleTexture(std::span<u8>(dst, static_cast<size_t>(dst_size)), c.src,
+                           c.bytes_per_block, c.num_tiles.width, c.num_tiles.height,
+                           c.num_tiles.depth, c.block.height, c.block.depth);
+        };
+        // Zero-copy fast path: swizzle directly into guest RAM while excluding concurrent
+        // NCE CPU writes when no page in this subresource has pending CPU stores.
+        if (!gpu_memory.TryRunInPlaceGpuReadback(gpu_addr + guest_offset, subresource_size,
+                                                 swizzle_cb, &ctx)) {
+            tmp_buffer.resize_destructive(subresource_size);
+            // Preserve untouched block-linear padding bytes before swizzling tiles into
+            // tmp_buffer, then commit through WriteBlockForGpuReadback to merge CPU writes.
+            gpu_memory.ReadBlockUnsafe(gpu_addr + guest_offset, tmp_buffer.data(),
+                                       subresource_size);
+            SwizzleTexture(std::span<u8>(tmp_buffer.data(), subresource_size), src, bytes_per_block,
+                           num_tiles.width, num_tiles.height, num_tiles.depth, block.height,
+                           block.depth);
+            gpu_memory.WriteBlockForGpuReadback(gpu_addr + guest_offset, tmp_buffer.data(),
+                                                subresource_size);
         }
 
         host_offset += host_bytes_per_layer;

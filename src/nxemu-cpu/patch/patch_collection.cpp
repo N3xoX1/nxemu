@@ -32,6 +32,7 @@ void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_ima
 #if defined(__APPLE__)
     // Opt-out for bisecting a title regression to the read and store thunks.
     const bool thunks = std::getenv("NXEMU_NCE_NO_THUNKS") == nullptr;
+    const bool all_read_bases = thunks && std::getenv("NXEMU_NCE_NO_ALL_READ_BASES") == nullptr;
 #endif
     Core::NCE::Patcher * patch = &m_patchers[patch_index];
     while (!patch->PatchText(program_image, image_size, code_offset, code_size
@@ -39,7 +40,7 @@ void PatchCollection::PatchText(int32_t patch_index, const uint8_t * program_ima
                              , 1, g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace) &&
                                   m_module_patcher_indices[0] < 0,
                                   g_settings->GetBool(NXCoreSetting::Has36BitAddressSpace),
-                                  thunks, thunks && std::getenv("NXEMU_NCE_ALL_READ_BASES") != nullptr,
+                                  thunks, all_read_bases,
                                   thunks, thunks
                              // The table address is known after process creation, at relocation.
 #endif
@@ -121,6 +122,26 @@ void PatchCollection::Relocate(int32_t patch_index, uint64_t load_base, uint8_t 
     {
         return;
     }
+
+#if defined(__APPLE__)
+    if (IKernelProcess * process = m_modules.OperatingSystem().CurrentProcess();
+        process != nullptr && patch.GetDynamicArenaSize() != 0)
+    {
+        const uint64_t patch_base =
+            patch.GetPatchMode() == Core::NCE::PatchMode::PreText
+                ? load_base
+                : load_base + image_size_before_relocate;
+        const uint64_t arena_base = patch_base + patch.GetDynamicArenaOffset();
+        const uint64_t arena_size = patch.GetDynamicArenaSize();
+        process->RegisterNceThunkArena(arena_base, arena_size);
+        if (std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr)
+        {
+            std::fprintf(stderr, "[NCE-THUNK-ARENA] base=%llx size_KiB=%.1f total_patch_KiB=%.1f\n",
+                         (unsigned long long)arena_base, arena_size / 1024.0,
+                         patch.GetSectionSize() / 1024.0);
+        }
+    }
+#endif
 
     if (segment_addr != nullptr)
     {

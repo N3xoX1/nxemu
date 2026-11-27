@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstddef>
 #include <mutex>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -68,6 +69,16 @@ public:
     /// Limits host access to [address, address + size) to `allowed`, independently of the guest
     /// permission. Used for pages the GPU caches and debugger watchpoints.
     void SetAccessMask(u64 address, u64 size, u32 allowed);
+
+    struct AccessMaskRange {
+        u64 address{};
+        u64 size{};
+        u32 allowed{};
+    };
+
+    /// Applies multiple SetAccessMask updates under a single lock, deduplicating shared 16 KiB
+    /// host pages and coalescing adjacent mach_vm_protect calls across the whole batch.
+    void SetAccessMaskBatch(std::span<const AccessMaskRange> ranges);
 
     /// Whether the guest permission of the page holding `address` allows the access. Safe to
     /// call from a signal handler.

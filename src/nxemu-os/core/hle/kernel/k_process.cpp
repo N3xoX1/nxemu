@@ -1526,6 +1526,9 @@ namespace {
 bool InstallAtomicBranch(Core::Memory::Memory& memory, uint64_t pc, uint64_t target) {
 #if defined(__APPLE__)
     const auto distance = static_cast<s64>(target) - static_cast<s64>(pc);
+    if (distance < -(1LL << 27) || distance >= (1LL << 27) || (distance & 3) != 0) {
+        return false;
+    }
     auto* word = reinterpret_cast<u32*>(memory.GetPointerSilent(pc));
     if (word == nullptr) {
         static std::atomic<u32> logged{0};
@@ -1546,9 +1549,14 @@ bool InstallAtomicBranch(Core::Memory::Memory& memory, uint64_t pc, uint64_t tar
 }
 }
 uint64_t KProcess::InstallNceReadHandler(uint64_t pc) {
-    const auto it = m_nce_read_handlers.find(pc);
-    if (it == m_nce_read_handlers.end()) return 0;
-    if (!InstallAtomicBranch(m_memory, pc, it->second)) {
+    u64 target = 0;
+    {
+        std::scoped_lock lk{m_nce_thunk_mutex};
+        const auto it = m_nce_read_handlers.find(pc);
+        if (it == m_nce_read_handlers.end()) return 0;
+        target = it->second;
+    }
+    if (!InstallAtomicBranch(m_memory, pc, target)) {
         return 0;
     }
     static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
@@ -1559,7 +1567,80 @@ uint64_t KProcess::InstallNceReadHandler(uint64_t pc) {
             std::fprintf(stderr, "[NCE-READ-THUNKS] install_attempts=%llu pc=%llx\n",
                          (unsigned long long)n, (unsigned long long)pc);
     }
-    return it->second;
+    return target;
+}
+uint64_t KProcess::InstallNceDynamicThunk(uint64_t pc, size_t max_bytes,
+                                          EmitNceThunkFn emit_fn, void* ctx) {
+#if defined(__APPLE__)
+    if (emit_fn == nullptr || max_bytes == 0 || (pc & 3) != 0) return 0;
+    const auto branch_fits = [](u64 src, u64 dst) {
+        const s64 d = static_cast<s64>(dst) - static_cast<s64>(src);
+        return d >= -(1LL << 27) && d < (1LL << 27) && (d & 3) == 0;
+    };
+    std::scoped_lock lk{m_nce_thunk_mutex};
+    if (const auto it = m_nce_read_handlers.find(pc); it != m_nce_read_handlers.end()) {
+        InstallAtomicBranch(m_memory, pc, it->second);
+        return it->second;
+    }
+    NceThunkArena* arena = nullptr;
+    for (auto& candidate : m_nce_thunk_arenas) {
+        if (candidate.cursor + max_bytes <= candidate.end &&
+            branch_fits(pc, candidate.cursor) &&
+            branch_fits(candidate.cursor + max_bytes, pc + 4)) {
+            arena = &candidate;
+            break;
+        }
+    }
+    if (arena == nullptr) return 0;
+    const u64 thunk_va = arena->cursor;
+    std::array<u32, 96> words{};
+    std::array<NativeCodeEntry, 64> restarts{};
+    size_t word_count = 0;
+    size_t restart_count = 0;
+    if (!emit_fn(ctx, thunk_va, words.data(), words.size(), &word_count,
+                 restarts.data(), restarts.size(), &restart_count) ||
+        word_count == 0 || word_count * sizeof(u32) > max_bytes) {
+        return 0;
+    }
+    const size_t byte_len = word_count * sizeof(u32);
+    // Write thunk bytes into the canonical RW host backing page-by-page without triggering
+    // rasterizer/watchpoint hooks, then flush dcache & icache before publishing the branch.
+    const auto* src_bytes = reinterpret_cast<const u8*>(words.data());
+    size_t written = 0;
+    while (written < byte_len) {
+        const u64 dst_va = thunk_va + written;
+        const size_t page_rem = Core::Memory::YUZU_PAGESIZE - (dst_va & Core::Memory::YUZU_PAGEMASK);
+        const size_t chunk = std::min(byte_len - written, page_rem);
+        auto* dst_ptr = m_memory.GetPointerSilent(dst_va);
+        if (dst_ptr == nullptr) return 0;
+        std::memcpy(dst_ptr, src_bytes + written, chunk);
+        sys_dcache_flush(dst_ptr, chunk);
+        written += chunk;
+    }
+    sys_icache_invalidate(reinterpret_cast<void*>(thunk_va), byte_len);
+    if (restart_count != 0) {
+        m_runtime_code_metadata.AppendRestarts({restarts.data(), restart_count});
+    }
+    arena->cursor = Common::AlignUp(thunk_va + byte_len, 16ULL);
+    m_nce_read_handlers.emplace(pc, thunk_va);
+    if (!InstallAtomicBranch(m_memory, pc, thunk_va)) {
+        return 0;
+    }
+    static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
+    if (profile) {
+        static std::atomic<u64> dynamic_count{};
+        const u64 n = dynamic_count.fetch_add(1, std::memory_order_relaxed) + 1;
+        if ((n & (n - 1)) == 0) {
+            std::fprintf(stderr, "[NCE-DYNAMIC-THUNKS] installed=%llu pc=%llx arena_used_KiB=%.2f\n",
+                         (unsigned long long)n, (unsigned long long)pc,
+                         (arena->cursor - arena->base) / 1024.0);
+        }
+    }
+    return thunk_va;
+#else
+    (void)pc; (void)max_bytes; (void)emit_fn; (void)ctx;
+    return 0;
+#endif
 }
 void KProcess::EnableNceAtomicHandlers() {
     if (m_native_atomics_enabled.exchange(true)) return;
