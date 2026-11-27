@@ -242,7 +242,7 @@ void PhysicalCore::LogBacktrace()
 
 void PhysicalCore::Idle()
 {
-#if !defined(__APPLE__)
+#if !(defined(__APPLE__) && defined(__aarch64__))
     // Waking a sleeping host thread costs tens of microseconds, and guest threads wake each other often
     const std::chrono::steady_clock::time_point spin_end = std::chrono::steady_clock::now() + std::chrono::microseconds(50);
     while (!m_is_interrupted.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < spin_end)
