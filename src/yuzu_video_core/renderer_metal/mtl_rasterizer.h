@@ -86,12 +86,21 @@ public:
                VideoCommon::QueryPropertiesFlags flags, u32 payload, u32 subreport) override;
     void BindGraphicsUniformBuffer(size_t stage, u32 index, GPUVAddr gpu_addr, u32 size) override;
     void DisableGraphicsUniformBuffer(size_t stage, u32 index) override;
+    bool PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                         VideoCommon::UniformPrefetch& prefetch) override;
+    u64 UniformPrefetchPosition() override;
+    void ApplyUniformPrefetch(size_t stage, u32 index,
+                              const VideoCommon::UniformPrefetch& prefetch) override;
+    void ResetUniformPrefetch(u64 position) override;
     void FlushAll() override;
     void FlushNativeRegion(DAddr addr, u64 size) override;
     bool MayFlushSharedPage(DAddr addr, u64 size) override;
+    bool MayHaveComputeWrites(DAddr addr, u64 size) override;
+    u64 ComputeWriteEpoch() override;
     VideoCore::SharedPageAccess ObserveSharedPage(DAddr addr, u64 size) override;
     bool AwaitsProtectedDownload(DAddr addr, u64 size) override;
     bool AwaitsProtectedBufferDownload(DAddr addr, u64 size) override;
+    void WaitProtectedBufferDownloads(DAddr addr, u64 size) override;
     bool HasPendingResult(DAddr addr, u64 size) override;
     bool CommitReadbacksForEarlySignal() override;
     void FlushRegion(DAddr addr, u64 size,
@@ -102,8 +111,10 @@ public:
                           VideoCommon::CacheType which = VideoCommon::CacheType::All) override;
     void InnerInvalidation(std::span<const std::pair<DAddr, std::size_t>> sequences) override;
     void OnCacheInvalidation(PAddr addr, u64 size) override;
+    u64 OnCacheInvalidationAhead(PAddr addr, u64 size) override;
     void OnCoarseCacheInvalidation(PAddr addr, u64 size) override;
     bool OnCPUWrite(PAddr addr, u64 size) override;
+    bool IsReadCachedOnlyForQueryResults(DAddr addr, u64 size) const override;
     RasterizerDownloadArea GetFlushArea(DAddr addr, u64 size) override;
     void InvalidateGPUCache() override;
     void UnmapMemory(DAddr addr, u64 size) override;

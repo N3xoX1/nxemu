@@ -4431,10 +4431,11 @@ void RasterizerMetal::UpdatePipelineState() {
     auto& dirty = maxwell3d->dirty.flags;
     const u32 topology = static_cast<u32>(maxwell3d->draw_manager->GetDrawState().topology);
 
-    // Fast path: when PIPELINE_STATE_DIRTY, Dirty::VertexBuffers (not cleared until
-    // ConfigureGraphicsResources), framebuffer, topology, and RT dirty generation are
-    // all unchanged, neither stream_words nor rt_formats can have changed.
-    if (!dirty[PIPELINE_STATE_DIRTY] && !dirty[VideoCommon::Dirty::VertexBuffers] &&
+    // Fast path: when neither pipeline_key_changed nor PIPELINE_STATE_DIRTY is set (or
+    // Dirty::VertexBuffers is clear), and engine/framebuffer/topology/RT dirty generation are
+    // unchanged, neither stream_words nor rt_formats can have changed.
+    if (!dirty[PIPELINE_STATE_DIRTY] &&
+        (!maxwell3d->dirty.pipeline_key_changed || !dirty[VideoCommon::Dirty::VertexBuffers]) &&
         m_pipeline_state_inputs.engine == maxwell3d &&
         m_pipeline_state_inputs.framebuffer == m_current_framebuffer &&
         m_pipeline_state_inputs.topology == topology &&
@@ -5408,8 +5409,10 @@ void RasterizerMetal::ResolveOcclusionQueries(bool wait) {
 
     // Serialize ordered retirement without holding m_occlusion_mutex across guest writes
     // or ProtectResult, while keeping entries visible in m_pending_occlusion until
-    // their writes have landed in guest RAM.
-    std::scoped_lock resolve_lock{m_occlusion_resolve_mutex};
+    // their writes have landed in guest RAM. Release m_occlusion_resolve_mutex BEFORE
+    // acquiring m_buffer_cache.mutex so ResolveOcclusionQueries never inverts lock order
+    // against DrawImpl (which holds m_buffer_cache.mutex when calling CountingSlot).
+    std::unique_lock resolve_lock{m_occlusion_resolve_mutex};
     boost::container::small_vector<PendingOcclusion, 16> ready;
     {
         std::scoped_lock lock{m_occlusion_mutex};
@@ -5449,6 +5452,7 @@ void RasterizerMetal::ResolveOcclusionQueries(bool wait) {
         m_pending_occlusion_count.store(static_cast<u32>(m_pending_occlusion.size()),
                                         std::memory_order_release);
     }
+    resolve_lock.unlock();
     {
         // Notify BufferCache of newly published occlusion results ONLY on 4 KiB pages that
         // have no live GPU writes (marking a GPU-modified page CPU-modified would clobber
@@ -5714,6 +5718,24 @@ void RasterizerMetal::DisableGraphicsUniformBuffer(size_t stage, u32 index) {
     m_buffer_cache.DisableGraphicsUniformBuffer(stage, index);
 }
 
+bool RasterizerMetal::PrefetchUniform(size_t stage, u32 index, DAddr device_addr, u32 max_size,
+                                      VideoCommon::UniformPrefetch& prefetch) {
+    return m_buffer_cache.PrefetchUniform(stage, index, device_addr, max_size, prefetch);
+}
+
+u64 RasterizerMetal::UniformPrefetchPosition() {
+    return m_buffer_cache.UniformPrefetchPosition();
+}
+
+void RasterizerMetal::ApplyUniformPrefetch(size_t stage, u32 index,
+                                           const VideoCommon::UniformPrefetch& prefetch) {
+    m_buffer_cache.ApplyUniformPrefetch(stage, index, prefetch);
+}
+
+void RasterizerMetal::ResetUniformPrefetch(u64 position) {
+    m_buffer_cache.ResetUniformPrefetch(position);
+}
+
 void RasterizerMetal::FlushAll() {}
 
 void RasterizerMetal::FlushRegion(DAddr addr, u64 size, CacheType which) {
@@ -5753,13 +5775,28 @@ bool RasterizerMetal::MayFlushSharedPage(DAddr addr, u64 size) {
            m_texture_cache.MayHaveUnpublishedReadImage(addr, size);
 }
 
+bool RasterizerMetal::MayHaveComputeWrites(DAddr addr, u64 size) {
+    return m_buffer_cache.MayHaveComputeWrites(addr, size) ||
+           m_texture_cache.MayHaveComputeWrites(addr, size);
+}
+
+u64 RasterizerMetal::ComputeWriteEpoch() {
+    return m_buffer_cache.ComputeWriteEpoch() + m_texture_cache.ComputeWriteEpoch();
+}
+
 bool RasterizerMetal::AwaitsProtectedDownload(DAddr addr, u64 size) {
     return m_buffer_cache.AwaitsProtectedDownload(addr, size) ||
            m_protected_result_pages.Any(addr, size);
 }
 
 bool RasterizerMetal::AwaitsProtectedBufferDownload(DAddr addr, u64 size) {
-    return m_buffer_cache.AwaitsProtectedDownload(addr, size);
+    return m_buffer_cache.AwaitsProtectedDownload(addr, size) ||
+           m_texture_cache.AwaitsProtectedDownload(addr, size);
+}
+
+void RasterizerMetal::WaitProtectedBufferDownloads(DAddr addr, u64 size) {
+    m_buffer_cache.WaitProtectedDownload(addr, size);
+    m_texture_cache.WaitProtectedDownload(addr, size);
 }
 
 u64 RasterizerMetal::PendingOcclusionTickAt(DAddr addr, u64 size) {
@@ -5835,9 +5872,7 @@ bool RasterizerMetal::CommitReadbacksForEarlySignal() {
         m_fence_manager.SignalReference();
     }
     std::scoped_lock lock{m_buffer_cache.mutex, m_texture_cache.mutex};
-    const bool images_protected =
-        TextureCache::ReadFaultsWaitForDownloads || !m_texture_cache.HasUnpublishedDownloads();
-    return images_protected && !m_buffer_cache.HasUnprotectedDownloads();
+    return !m_texture_cache.HasUnprotectedDownloads() && !m_buffer_cache.HasUnprotectedDownloads();
 }
 
 VideoCore::SharedPageAccess RasterizerMetal::ObserveSharedPage(DAddr addr, u64 size) {
@@ -5971,6 +6006,26 @@ void RasterizerMetal::OnCacheInvalidation(PAddr addr, u64 size) {
         m_buffer_cache.WriteMemory(addr, size);
     }
     m_pipeline_cache.InvalidateRegion(addr, size);
+}
+
+u64 RasterizerMetal::OnCacheInvalidationAhead(PAddr addr, u64 size) {
+    if (addr == 0 || size == 0) {
+        return 0;
+    }
+    std::scoped_lock lock{m_buffer_cache.mutex};
+    return m_buffer_cache.WriteMemoryAhead(addr, size);
+}
+
+bool RasterizerMetal::IsReadCachedOnlyForQueryResults(DAddr addr, u64 size) const {
+    const DAddr end = addr + size;
+    for (DAddr page = Common::AlignDown(addr, Core::DEVICE_PAGESIZE); page < end;
+         page += Core::DEVICE_PAGESIZE) {
+        if (!m_protected_result_pages.Any(page, Core::DEVICE_PAGESIZE) ||
+            !m_device_memory.IsReadCachedOnce(page, Core::DEVICE_PAGESIZE)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void RasterizerMetal::OnCoarseCacheInvalidation(PAddr addr, u64 size) {

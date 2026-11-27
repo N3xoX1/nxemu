@@ -39,7 +39,7 @@ constexpr bool kPlatformProtectsReadbacks = true;
 #else
 constexpr bool kPlatformProtectsReadbacks = false;
 #endif
-#if defined(_M_X64) || defined(__x86_64__)
+#if defined(__APPLE__) || defined(_M_X64) || defined(__x86_64__)
 constexpr bool kPlatformSupportsSkipReadbackWait = true;
 #else
 constexpr bool kPlatformSupportsSkipReadbackWait = false;
@@ -342,14 +342,16 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     }
     if (id == "background-readbacks")
     {
+        const int api = settings.GetInt(NXVideoSetting::GraphicsAPI);
         return !kPlatformProtectsReadbacks || !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing) ||
-               settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
+               (api != static_cast<int>(RendererBackend::Vulkan) && api != static_cast<int>(RendererBackend::Metal));
     }
     if (id == "skip-readback-wait")
     {
+        const int api = settings.GetInt(NXVideoSetting::GraphicsAPI);
         return !kPlatformSupportsSkipReadbackWait || !settings.GetBool(NXVideoSetting::SystemBackgroundGpuReadbacks) ||
                !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing) ||
-               settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
+               (api != static_cast<int>(RendererBackend::Vulkan) && api != static_cast<int>(RendererBackend::Metal));
     }
     if (id == "fast-readback")
     {

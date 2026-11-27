@@ -189,6 +189,9 @@ private:
     };
 
     [[nodiscard]] bool CanSkipCurrentDraw() const noexcept;
+    [[nodiscard]] bool CanReuseLastLookup(
+        Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology topology,
+        u32 hle_replacements) const noexcept;
     [[nodiscard]] bool QueueGraphicsPipeline(const GraphicsPipelineCacheKey& key);
     void DrainCompletedGraphicsPipelines();
     void FinishPendingGraphics(const GraphicsPipelineCacheKey& key);
@@ -293,6 +296,14 @@ private:
     /// same stages, answers the next one without comparing keys.
     u64 graphics_state_generation{1};
     u64 looked_up_generation{};
+
+    // Fast-path state: skip RefreshStages and cbuf-size/key checks when no pipeline
+    // register, shader, topology, channel, or cbuf-size dependency changed since last draw.
+    GraphicsPipeline* fast_lookup_pipeline{};
+    const void* fast_lookup_engine{};
+    Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology fast_lookup_topology{};
+    u32 fast_lookup_hle_replacements{};
+    u64 fast_lookup_revision{};
 
     std::unordered_map<GraphicsPipelineCacheKey, std::unique_ptr<GraphicsPipeline>>
         graphics_cache;

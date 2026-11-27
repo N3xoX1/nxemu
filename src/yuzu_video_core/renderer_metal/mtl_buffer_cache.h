@@ -5,8 +5,10 @@
 
 #include <array>
 #include <atomic>
+#include <deque>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <vector>
 
@@ -224,6 +226,7 @@ public:
 
     explicit BufferCacheRuntime(const Device& device_, MemoryAllocator& memory_allocator_,
                                 Scheduler& scheduler_, StagingBufferPool& staging_pool_);
+    ~BufferCacheRuntime();
 
     void TickFrame(Common::SlotVector<Buffer>& slot_buffers) noexcept;
 
@@ -349,6 +352,18 @@ public:
     }
 
     [[nodiscard]] std::span<u8> BindMappedUniformBuffer(size_t stage, u32 binding_index, u32 size);
+
+    bool AllocatePrefetch(u32 size, u32& offset, u8*& pointer);
+
+    [[nodiscard]] uint64_t PrefetchPosition() const noexcept {
+        return prefetch_head;
+    }
+
+    void ReleasePrefetch(uint64_t position);
+
+    void BindPrefetchedUniform(u32 offset, u32 size) {
+        BindBuffer(prefetch_buffer.get(), offset, size, false, prefetch_gpu_address);
+    }
 
     void BindUniformBuffer(MTL::Buffer* buffer, u32 offset, u32 size) {
         BindBuffer(buffer, offset, size);
@@ -495,6 +510,21 @@ private:
         u64 tick{};
     };
     UniformArena uniform_arena;
+
+    static constexpr uint64_t PrefetchRingSize = uint64_t{8} << 20;
+    Owned<MTL::Buffer> prefetch_buffer;
+    u64 prefetch_gpu_address{};
+    std::span<u8> prefetch_span;
+    uint64_t prefetch_alignment{};
+    uint64_t prefetch_head{};
+    uint64_t prefetch_tail{};
+    uint64_t prefetch_released{};
+    std::mutex prefetch_mutex;
+    struct PrefetchRelease {
+        uint64_t position;
+        u64 tick;
+    };
+    std::deque<PrefetchRelease> prefetch_releases;
 
     /// Rewrites index buffers Metal can't draw from. Held by value because it owns a
     /// compute pipeline we only want to build once.

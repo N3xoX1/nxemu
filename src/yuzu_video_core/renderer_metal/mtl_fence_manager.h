@@ -62,6 +62,9 @@ public:
         return false;
     }
     [[nodiscard]] bool HasUncommittedFlushes() const noexcept;
+    [[nodiscard]] bool HasUnfencedReports() const noexcept {
+        return HasUncommittedFlushes();
+    }
     static void PrepareAsyncFlushes() {}
     static void PopAsyncFlushes() {}
     void CommitAsyncFlushes() noexcept;

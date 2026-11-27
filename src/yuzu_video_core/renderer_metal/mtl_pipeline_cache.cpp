@@ -1050,16 +1050,23 @@ GraphicsPipeline* PipelineCache::WaitForCurrentGraphicsPipeline() {
     return CurrentGraphicsPipeline();
 }
 
+bool PipelineCache::CanReuseLastLookup(
+    Tegra::Engines::Maxwell3D::Regs::PrimitiveTopology topology,
+    u32 hle_replacements) const noexcept {
+    const auto& dirty = maxwell3d->dirty;
+    return !dirty.pipeline_key_changed && !dirty.flags[VideoCommon::Dirty::Shaders] &&
+           !shader_infos_stale.load(std::memory_order_relaxed) &&
+           fast_lookup_pipeline != nullptr && fast_lookup_pipeline == current_graphics_pipeline &&
+           looked_up_generation == graphics_state_generation && fast_lookup_engine == maxwell3d &&
+           fast_lookup_topology == topology &&
+           fast_lookup_hle_replacements == hle_replacements &&
+           fast_lookup_revision == cbuf_size_dependencies.Revision();
+}
+
 GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
     skipped_unfinished = false;
     DrainCompletedGraphicsPipelines();
 
-    const bool shaders_dirty = maxwell3d->dirty.flags[VideoCommon::Dirty::Shaders];
-    if (!RefreshStages(graphics_key.unique_hashes)) {
-        current_graphics_pipeline = nullptr;
-        looked_up_generation = 0;
-        return nullptr;
-    }
     // Without this a pipeline built outside a macro draw is reused inside one, where the base
     // vertex it reads from the constant buffer was never written, and the reverse.
     u32 hle_replacements = 0;
@@ -1067,6 +1074,31 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
         for (const auto& [address, type] : maxwell3d->replace_table) {
             hle_replacements |= 1u << static_cast<u32>(type);
         }
+    }
+
+    const auto topology = maxwell3d->draw_manager->GetDrawState().topology;
+    if (CanReuseLastLookup(topology, hle_replacements)) {
+        return BuiltPipeline(current_graphics_pipeline);
+    }
+    fast_lookup_pipeline = nullptr;
+    maxwell3d->dirty.pipeline_key_changed = false;
+
+    const auto finish_lookup = [&](GraphicsPipeline* pipeline) -> GraphicsPipeline* {
+        if (pipeline != nullptr && pipeline == current_graphics_pipeline) {
+            fast_lookup_pipeline = pipeline;
+            fast_lookup_engine = maxwell3d;
+            fast_lookup_topology = topology;
+            fast_lookup_hle_replacements = hle_replacements;
+            fast_lookup_revision = cbuf_size_dependencies.Revision();
+        }
+        return pipeline;
+    };
+
+    const bool shaders_dirty = maxwell3d->dirty.flags[VideoCommon::Dirty::Shaders];
+    if (!RefreshStages(graphics_key.unique_hashes)) {
+        current_graphics_pipeline = nullptr;
+        looked_up_generation = 0;
+        return nullptr;
     }
     const auto prev_cbuf_sizes = graphics_key.cbuf_sizes;
     const auto prev_texture_pool = graphics_key.texture_pool;
@@ -1090,7 +1122,7 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
         const auto& entry =
             *static_cast<const std::unique_ptr<GraphicsPipeline>*>(last_graphics_entry);
         current_graphics_pipeline = entry && entry->IsValid() ? entry.get() : nullptr;
-        return BuiltPipeline(current_graphics_pipeline);
+        return finish_lookup(BuiltPipeline(current_graphics_pipeline));
     }
     looked_up_generation = graphics_state_generation;
     graphics_key.state = graphics_state;
@@ -1110,7 +1142,7 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
     if (cached != nullptr) {
         last_graphics_entry = cached;
         current_graphics_pipeline = *cached && (*cached)->IsValid() ? cached->get() : nullptr;
-        return BuiltPipeline(current_graphics_pipeline);
+        return finish_lookup(BuiltPipeline(current_graphics_pipeline));
     }
 
     const auto record_transition = [&](const GraphicsPipelineCacheKey* key_ptr,
@@ -1129,7 +1161,7 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
         record_transition(&it->first, &it->second);
         current_graphics_pipeline =
             it->second && it->second->IsValid() ? it->second.get() : nullptr;
-        return BuiltPipeline(current_graphics_pipeline);
+        return finish_lookup(BuiltPipeline(current_graphics_pipeline));
     }
 
     if (const auto pit = pending_graphics.find(graphics_key); pit != pending_graphics.end()) {
@@ -1152,7 +1184,7 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
             record_transition(&it->first, &it->second);
             current_graphics_pipeline =
                 it->second && it->second->IsValid() ? it->second.get() : nullptr;
-            return BuiltPipeline(current_graphics_pipeline);
+            return finish_lookup(BuiltPipeline(current_graphics_pipeline));
         }
         last_graphics_entry = nullptr;
         current_graphics_pipeline = nullptr;
@@ -1186,7 +1218,7 @@ GraphicsPipeline* PipelineCache::CurrentGraphicsPipeline() {
     record_transition(&pair->first, &pipeline);
 
     current_graphics_pipeline = pipeline && pipeline->IsValid() ? pipeline.get() : nullptr;
-    return BuiltPipeline(current_graphics_pipeline);
+    return finish_lookup(BuiltPipeline(current_graphics_pipeline));
 }
 
 GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const noexcept {

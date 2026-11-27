@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -19,6 +20,7 @@
 #include "yuzu_common/literals.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_common/spin_lock.h"
 #include "video_settings.h"
 #include "yuzu_common/thread.h"
 #include "yuzu_video_core/metal_common/metal_device.h"
@@ -834,8 +836,9 @@ void Scheduler::SweepKeepAlive() {
 }
 
 namespace {
-/// About 50 to 100 microseconds of yields on Apple silicon.
-constexpr u32 WORKER_SPIN_ITERATIONS = 200;
+/// Adaptive spin window before sleeping (matches Vulkan #721): uses Common::ThreadPause
+/// instead of std::this_thread::yield() to avoid hundreds of swtch_pri kernel traps.
+constexpr auto WORKER_SPIN_WINDOW = std::chrono::microseconds{50};
 } // Anonymous namespace
 
 void Scheduler::WorkerThread(std::stop_token stop_token) {
@@ -843,6 +846,7 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
     pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
 
     CommandContext context{*this};
+    u32 quick_idles = 0;
 
     const auto TryPopQueue{[this](auto& work) -> bool {
         if (work_queue.empty()) {
@@ -861,12 +865,52 @@ void Scheduler::WorkerThread(std::stop_token stop_token) {
         std::unique_ptr<CommandChunk> work;
 
         // The recording thread hands over a chunk every few dozen draws. Sleeping in
-        // between makes each hand-off a wake-up system call on that thread, the
-        // bottleneck, so wait a little awake first.
-        for (u32 spin = 0; spin < WORKER_SPIN_ITERATIONS &&
-                           queued_chunks.load(std::memory_order_acquire) == 0;
-             ++spin) {
-            std::this_thread::yield();
+        // between makes each hand-off a wake-up system call on that thread, so spin
+        // briefly with ThreadPause (no syscall) while recent chunks arrived that fast.
+        if (queued_chunks.load(std::memory_order_acquire) == 0) {
+            const auto idle_start = std::chrono::steady_clock::now();
+            if (std::popcount(quick_idles & 0xFU) >= 3) {
+                const auto deadline = idle_start + WORKER_SPIN_WINDOW;
+                while (queued_chunks.load(std::memory_order_acquire) == 0 &&
+                       !stop_token.stop_requested()) {
+                    for (u32 i = 0; i < 16; ++i) {
+                        Common::ThreadPause();
+                    }
+                    if (std::chrono::steady_clock::now() >= deadline) {
+                        break;
+                    }
+                }
+            }
+            if (queued_chunks.load(std::memory_order_acquire) == 0) {
+                std::unique_lock lock{queue_mutex};
+                if (!TryPopQueue(work)) {
+                    worker_sleeping.store(true, std::memory_order_relaxed);
+                    event_cv.wait(lock, stop_token, [&] { return TryPopQueue(work); });
+                    worker_sleeping.store(false, std::memory_order_relaxed);
+                }
+                const bool quick =
+                    std::chrono::steady_clock::now() - idle_start <= WORKER_SPIN_WINDOW;
+                quick_idles = (quick_idles << 1) | (quick ? 1U : 0U);
+                if (stop_token.stop_requested()) {
+                    break;
+                }
+                static_cast<void>(std::exchange(lock, std::unique_lock{execution_mutex}));
+                const bool has_submit = work->HasSubmit();
+                {
+                    ScopedAutoreleasePool pool;
+                    work->ExecuteAll(context);
+                }
+                if (has_submit) {
+                    AllocateNewCommandBuffer();
+                }
+                std::scoped_lock reserve_lock{reserve_mutex};
+                constexpr size_t MAX_RESERVED_CHUNKS = 64;
+                if (chunk_reserve.size() < MAX_RESERVED_CHUNKS) {
+                    chunk_reserve.emplace_back(std::move(work));
+                }
+                continue;
+            }
+            quick_idles = (quick_idles << 1) | 1U;
         }
 
         {

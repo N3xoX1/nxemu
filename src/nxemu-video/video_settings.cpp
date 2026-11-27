@@ -102,11 +102,12 @@ bool IsGpuReadbackExact()
 
 bool IsReadbackWaitSkipped()
 {
-#if defined(_M_X64) || defined(__x86_64__)
+#if defined(__APPLE__) || defined(_M_X64) || defined(__x86_64__)
+    const RendererBackend backend = runtime_renderer_backend.load(std::memory_order_relaxed);
     return runtime_skip_readback_wait.load(std::memory_order_relaxed) &&
            runtime_background_gpu_readbacks.load(std::memory_order_relaxed) &&
            runtime_use_reactive_flushing.load(std::memory_order_relaxed) &&
-           runtime_renderer_backend.load(std::memory_order_relaxed) == RendererBackend::Vulkan &&
+           (backend == RendererBackend::Vulkan || backend == RendererBackend::Metal) &&
            !IsGpuReadbackExact();
 #else
     return false;

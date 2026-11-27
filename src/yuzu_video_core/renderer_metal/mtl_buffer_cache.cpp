@@ -464,7 +464,62 @@ BufferCacheRuntime::BufferCacheRuntime(const Device& device_, MemoryAllocator& m
       staging_pool{staging_pool_}, index_pass{device_, scheduler_, staging_pool_} {
     readback_shadow_budget = std::make_shared<ReadbackShadowBudget>();
     readback_shadow_budget->capacity = std::min<u64>(512ULL << 20, GetDeviceLocalMemory() / 16);
+    prefetch_alignment = GetUniformBufferAlignment();
+    if (device.HasUnifiedMemory()) {
+        prefetch_buffer = memory_allocator.CreateBuffer(PrefetchRingSize, MemoryUsage::Upload);
+        if (prefetch_buffer) {
+            prefetch_buffer->setLabel(MTLSTR("eden uniform prefetch ring"));
+            prefetch_gpu_address = prefetch_buffer->gpuAddress();
+            prefetch_span = MemoryAllocator::Map(prefetch_buffer.get());
+        }
+    }
     ReserveNullBuffer();
+}
+
+BufferCacheRuntime::~BufferCacheRuntime() {
+    if (prefetch_buffer) {
+        scheduler.KeepAlive(prefetch_buffer.get(), prefetch_buffer.get());
+    }
+}
+
+bool BufferCacheRuntime::AllocatePrefetch(u32 size, u32& offset, u8*& pointer) {
+    if (prefetch_span.empty() || size == 0 || size > PrefetchRingSize / 8) {
+        return false;
+    }
+    uint64_t start = Common::AlignUp(prefetch_head, prefetch_alignment);
+    if (start % PrefetchRingSize + size > PrefetchRingSize) {
+        start = Common::AlignUp(start, PrefetchRingSize);
+    }
+    if (start + size - prefetch_tail > PrefetchRingSize) {
+        MasterSemaphore& master = scheduler.GetMasterSemaphore();
+        master.Refresh();
+        std::scoped_lock lock{prefetch_mutex};
+        while (!prefetch_releases.empty() && master.IsFree(prefetch_releases.front().tick)) {
+            prefetch_tail = std::max(prefetch_tail, prefetch_releases.front().position);
+            prefetch_releases.pop_front();
+        }
+        if (start + size - prefetch_tail > PrefetchRingSize) {
+            return false;
+        }
+    }
+    prefetch_head = start + size;
+    offset = static_cast<u32>(start % PrefetchRingSize);
+    pointer = prefetch_span.data() + offset;
+    return true;
+}
+
+void BufferCacheRuntime::ReleasePrefetch(uint64_t position) {
+    if (position <= prefetch_released) {
+        return;
+    }
+    prefetch_released = position;
+    const u64 tick = scheduler.CurrentTick();
+    std::scoped_lock lock{prefetch_mutex};
+    if (!prefetch_releases.empty() && prefetch_releases.back().tick == tick) {
+        prefetch_releases.back().position = position;
+        return;
+    }
+    prefetch_releases.push_back({position, tick});
 }
 
 bool BufferCacheRuntime::EnsureReadbackPipelines() {
