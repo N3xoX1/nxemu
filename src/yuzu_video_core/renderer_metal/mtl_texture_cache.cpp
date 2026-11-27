@@ -36,12 +36,16 @@ namespace Metal {
 
 namespace {
 
-// Round a copy extent up to the format's compressed block size. Metal addresses
-// compressed textures in pixels but copies whole blocks, so a sub-block extent
-// is illegal, and the last mips of a block-compressed chain always are. Without
-// the validation layer Metal just takes the copy and gives an undefined result.
-// It doesn't overread, a mip's storage is always whole blocks.
-[[nodiscard]] MTL::Size AlignCopySizeToBlock(MTL::Size size, MTL::PixelFormat format) {
+// Round a copy extent up to the format's compressed block size, clamped to the
+// mip's edge. Metal requires compressed copy extents to be either a multiple of
+// the block size or to reach the texture's mip edge (exceeding the mip edge fails
+// Metal API validation on copyFromBuffer).
+[[nodiscard]] MTL::Size AlignCopySizeToBlock(MTL::Size size, const MTL::Texture* texture,
+                                             u32 mip_level, MTL::Origin origin) {
+    if (texture == nullptr) {
+        return size;
+    }
+    const MTL::PixelFormat format = texture->pixelFormat();
     u32 block_width = 1;
     u32 block_height = 1;
     switch (format) {
@@ -157,8 +161,17 @@ namespace {
         return size;
     }
 
-    return MTL::Size::Make(Common::AlignUp<NS::UInteger>(size.width, block_width),
-                           Common::AlignUp<NS::UInteger>(size.height, block_height), size.depth);
+    NS::UInteger w = Common::AlignUp<NS::UInteger>(size.width, block_width);
+    NS::UInteger h = Common::AlignUp<NS::UInteger>(size.height, block_height);
+    const NS::UInteger mip_w = (std::max<NS::UInteger>)(1, texture->width() >> mip_level);
+    const NS::UInteger mip_h = (std::max<NS::UInteger>)(1, texture->height() >> mip_level);
+    if (origin.x < mip_w) {
+        w = (std::min)(w, mip_w - origin.x);
+    }
+    if (origin.y < mip_h) {
+        h = (std::min)(h, mip_h - origin.y);
+    }
+    return MTL::Size::Make(w, h, size.depth);
 }
 
 // Whether Metal's validation layer is running. It aborts on things we do on
@@ -1112,10 +1125,11 @@ void TextureCacheRuntime::CopyImage(Image& dst, Image& src,
                 .bytes_per_row = bytes_per_row,
                 .bytes_per_image = bytes_per_image,
                 .src_size = AlignCopySizeToBlock(
-                    MTL::Size::Make(copy.extent.width, copy.extent.height, depth),
-                    src_texture->pixelFormat()),
-                .dst_size = AlignCopySizeToBlock(MTL::Size::Make(dst_w, dst_h, depth),
-                                                 dst_texture->pixelFormat()),
+                    MTL::Size::Make(copy.extent.width, copy.extent.height, depth), src_texture,
+                    copy.src_subresource.base_level, ToOrigin(copy.src_offset)),
+                .dst_size = AlignCopySizeToBlock(MTL::Size::Make(dst_w, dst_h, depth), dst_texture,
+                                                 copy.dst_subresource.base_level,
+                                                 ToOrigin(copy.dst_offset)),
                 .num_slices = num_layers,
             });
             total += static_cast<u64>(bytes_per_image) * depth * num_layers;
@@ -1192,13 +1206,15 @@ void TextureCacheRuntime::CopyImage(Image& dst, Image& src,
             if (src_is_3d && dst_is_3d) {
                 encoder->copyFromTexture(
                     src_texture, 0, copy.src_subresource.base_level, ToOrigin(copy.src_offset),
-                    AlignCopySizeToBlock(ToSize(copy.extent), src_texture->pixelFormat()),
+                    AlignCopySizeToBlock(ToSize(copy.extent), src_texture,
+                                         copy.src_subresource.base_level,
+                                         ToOrigin(copy.src_offset)),
                     dst_texture, 0, copy.dst_subresource.base_level, ToOrigin(copy.dst_offset));
                 continue;
             }
             const MTL::Size slice_size = AlignCopySizeToBlock(
-                MTL::Size::Make(copy.extent.width, copy.extent.height, 1),
-                src_texture->pixelFormat());
+                MTL::Size::Make(copy.extent.width, copy.extent.height, 1), src_texture,
+                copy.src_subresource.base_level, ToOrigin(copy.src_offset));
             if (src_is_3d != dst_is_3d) {
                 // Copying between a 3D volume and a 2D/2D-array texture requires
                 // depth == 1 per call, advancing origin.z on the 3D side and slice
@@ -1377,8 +1393,8 @@ void TextureCacheRuntime::CopyImageMSAA(Image& dst, Image& src,
             }
             for (const VideoCommon::ImageCopy& copy : copies) {
                 const MTL::Size size = AlignCopySizeToBlock(
-                    MTL::Size::Make(copy.extent.width, copy.extent.height, 1),
-                    keep->pixelFormat());
+                    MTL::Size::Make(copy.extent.width, copy.extent.height, 1), keep, 0,
+                    ToOrigin(copy.src_offset));
                 encoder->copyFromTexture(keep, 0, 0, ToOrigin(copy.src_offset), size, dst_texture,
                                          copy.dst_subresource.base_layer,
                                          copy.dst_subresource.base_level,
@@ -3173,10 +3189,11 @@ MTL::Texture* ImageView::MakeArrayFromVolume(MTL::PixelFormat format,
             const u32 level_depth = (std::max)(depth >> shift, 1u);
             if (is_single_2d) {
                 const u32 slice = (std::min)(clamped_first_layer, level_depth - 1);
+                const MTL::Origin src_origin = MTL::Origin::Make(0, 0, slice);
                 encoder->copyFromTexture(
-                    source, 0, shift, MTL::Origin::Make(0, 0, slice),
-                    AlignCopySizeToBlock(MTL::Size::Make(level_width, level_height, 1),
-                                         source->pixelFormat()),
+                    source, 0, shift, src_origin,
+                    AlignCopySizeToBlock(MTL::Size::Make(level_width, level_height, 1), source,
+                                         shift, src_origin),
                     copy, 0, level, MTL::Origin::Make(0, 0, 0));
             } else {
                 const u32 start_slice = (std::min)(clamped_first_layer, level_depth - 1);
@@ -3184,10 +3201,11 @@ MTL::Texture* ImageView::MakeArrayFromVolume(MTL::PixelFormat format,
                 for (u32 slice = 0; slice < slices; ++slice) {
                     // A 3D texture has one slice and addresses depth through the
                     // origin, the destination does it through the slice index.
+                    const MTL::Origin src_origin = MTL::Origin::Make(0, 0, start_slice + slice);
                     encoder->copyFromTexture(
-                        source, 0, shift, MTL::Origin::Make(0, 0, start_slice + slice),
-                        AlignCopySizeToBlock(MTL::Size::Make(level_width, level_height, 1),
-                                             source->pixelFormat()),
+                        source, 0, shift, src_origin,
+                        AlignCopySizeToBlock(MTL::Size::Make(level_width, level_height, 1), source,
+                                             shift, src_origin),
                         copy, slice, level, MTL::Origin::Make(0, 0, 0));
                 }
             }
@@ -3232,19 +3250,21 @@ void ImageView::RefreshVolumeCopy(MTL::Texture* destination) const {
             const u32 level_depth = (std::max)(depth >> shift, 1u);
             if (is_single_2d) {
                 const u32 slice = (std::min)(first_layer, level_depth - 1);
+                const MTL::Origin src_origin = MTL::Origin::Make(0, 0, slice);
                 encoder->copyFromTexture(
-                    source, 0, shift, MTL::Origin::Make(0, 0, slice),
-                    AlignCopySizeToBlock(MTL::Size::Make(level_width, level_height, 1),
-                                         source->pixelFormat()),
+                    source, 0, shift, src_origin,
+                    AlignCopySizeToBlock(MTL::Size::Make(level_width, level_height, 1), source,
+                                         shift, src_origin),
                     destination, 0, level, MTL::Origin::Make(0, 0, 0));
             } else {
                 const u32 start_slice = (std::min)(first_layer, level_depth - 1);
                 const u32 slices = (std::min)(dst_layers, level_depth - start_slice);
                 for (u32 slice = 0; slice < slices; ++slice) {
+                    const MTL::Origin src_origin = MTL::Origin::Make(0, 0, start_slice + slice);
                     encoder->copyFromTexture(
-                        source, 0, shift, MTL::Origin::Make(0, 0, start_slice + slice),
-                        AlignCopySizeToBlock(MTL::Size::Make(level_width, level_height, 1),
-                                             source->pixelFormat()),
+                        source, 0, shift, src_origin,
+                        AlignCopySizeToBlock(MTL::Size::Make(level_width, level_height, 1), source,
+                                             shift, src_origin),
                         destination, slice, level, MTL::Origin::Make(0, 0, 0));
                 }
             }

@@ -5159,51 +5159,56 @@ void RasterizerMetal::DispatchCompute() {
         // The arguments are only read; what the GPU wrote there must still reach the guest.
         static constexpr auto post_op = VideoCommon::ObtainBufferOperation::DoNothing;
         static constexpr u32 DISPATCH_ARGS_SIZE = 12; // three u32 group counts
-        std::scoped_lock lock{m_buffer_cache.mutex};
-        const auto [indirect_buffer, indirect_offset] =
-            m_buffer_cache.ObtainBuffer(*indirect, DISPATCH_ARGS_SIZE, sync_info, post_op);
-        if (indirect_buffer == nullptr) {
-            return;
+        {
+            std::scoped_lock lock{m_buffer_cache.mutex};
+            const auto [indirect_buffer, indirect_offset] =
+                m_buffer_cache.ObtainBuffer(*indirect, DISPATCH_ARGS_SIZE, sync_info, post_op);
+            if (indirect_buffer == nullptr) {
+                return;
+            }
+            // Read later in this command buffer: an upload reordered before the dispatch
+            // would replace arguments an earlier shader wrote.
+            indirect_buffer->MarkUsage(indirect_offset, DISPATCH_ARGS_SIZE);
+            MTL::Buffer* const handle = indirect_buffer->Handle();
+            m_scheduler.RequestOutsideRenderPassOperationContext();
+            m_scheduler.Record([pipeline, threadgroup, declared, handle, indirect_offset,
+                                argument_buffer, table_argument_buffer, compute_uses_push,
+                                compute_push, compute_push_size](CommandContext& context) {
+                pipeline->WaitBuilt();
+                MTL::ComputePipelineState* const state = pipeline->Handle();
+                if (state == nullptr) {
+                    return;
+                }
+                const u32 max_threads = pipeline->GetMaxTotalThreadsPerThreadgroup();
+                if (declared > max_threads) {
+                    LOG_WARNING(Render_Metal,
+                                "Compute kernel wants {} threads per group, max is {}", declared,
+                                max_threads);
+                    return;
+                }
+                ComputeEncoder encoder = context.RequestCompute();
+                if (encoder == nullptr) {
+                    return;
+                }
+                encoder->setComputePipelineState(state);
+                if (argument_buffer.buffer != nullptr) {
+                    encoder->setBuffer(argument_buffer.buffer, argument_buffer.offset,
+                                       BindingMap::ARGUMENT_BUFFER_INDEX);
+                }
+                if (table_argument_buffer.buffer != nullptr) {
+                    encoder->setBuffer(table_argument_buffer.buffer, table_argument_buffer.offset,
+                                       BindingMap::COMPUTE_TABLE_ARGUMENT_BUFFER_INDEX);
+                }
+                if (compute_uses_push) {
+                    encoder->setBytes(&compute_push, compute_push_size,
+                                      BindingMap::COMPUTE_PUSH_CONSTANT_INDEX);
+                }
+                encoder->dispatchThreadgroups(handle, indirect_offset, threadgroup);
+            });
+            m_buffer_cache.CopySparseWrites();
         }
-        // Read later in this command buffer: an upload reordered before the dispatch
-        // would replace arguments an earlier shader wrote.
-        indirect_buffer->MarkUsage(indirect_offset, DISPATCH_ARGS_SIZE);
-        MTL::Buffer* const handle = indirect_buffer->Handle();
-        m_scheduler.RequestOutsideRenderPassOperationContext();
-        m_scheduler.Record([pipeline, threadgroup, declared, handle, indirect_offset,
-                            argument_buffer, table_argument_buffer, compute_uses_push,
-                            compute_push, compute_push_size](CommandContext& context) {
-            pipeline->WaitBuilt();
-            MTL::ComputePipelineState* const state = pipeline->Handle();
-            if (state == nullptr) {
-                return;
-            }
-            const u32 max_threads = pipeline->GetMaxTotalThreadsPerThreadgroup();
-            if (declared > max_threads) {
-                LOG_WARNING(Render_Metal, "Compute kernel wants {} threads per group, max is {}",
-                            declared, max_threads);
-                return;
-            }
-            ComputeEncoder encoder = context.RequestCompute();
-            if (encoder == nullptr) {
-                return;
-            }
-            encoder->setComputePipelineState(state);
-            if (argument_buffer.buffer != nullptr) {
-                encoder->setBuffer(argument_buffer.buffer, argument_buffer.offset,
-                                   BindingMap::ARGUMENT_BUFFER_INDEX);
-            }
-            if (table_argument_buffer.buffer != nullptr) {
-                encoder->setBuffer(table_argument_buffer.buffer, table_argument_buffer.offset,
-                                   BindingMap::COMPUTE_TABLE_ARGUMENT_BUFFER_INDEX);
-            }
-            if (compute_uses_push) {
-                encoder->setBytes(&compute_push, compute_push_size,
-                                  BindingMap::COMPUTE_PUSH_CONSTANT_INDEX);
-            }
-            encoder->dispatchThreadgroups(handle, indirect_offset, threadgroup);
-        });
-        m_buffer_cache.CopySparseWrites();
+        // Released m_buffer_cache.mutex before finish_runtime_image_writes() so we
+        // never invert lock order with m_texture_cache.mutex or hold it across Finish().
         finish_runtime_image_writes();
         if (m_scheduler.CurrentTick() != bind_tick) [[unlikely]] {
             m_scheduler.Flush();
