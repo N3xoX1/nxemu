@@ -962,6 +962,7 @@ void UiActivity::RenderGraphicsSettings()
         AppendBoolSetting(Tr("Asynchronous shaders"), NXVideoSetting::SystemUseAsynchronousShaderBuilding, Tr("Reduces stutter, but can glitch"));
         AppendBoolSetting(Tr("Reactive flushing"), NXVideoSetting::SystemEnableReactiveFlushing, Tr("More accurate, costs performance"));
         AppendBoolSetting(Tr("Fast shader math"), NXVideoSetting::SystemFastShaderMath, Tr("Faster Vulkan shader math; can cause glitches"));
+        AppendBoolSetting(Tr("Skip occlusion waits"), NXVideoSetting::SystemSkipConditionalRenderWait, Tr("Draws instead of waiting for the GPU; can draw hidden objects"));
         AppendBoolSetting(Tr("Untracked shader writes"), NXVideoSetting::SystemSkipUntrackedStoreReadback, Tr("Skips reading back buffers a shader only might write."));
         AppendBoolSetting(Tr("Skip feedback loop barriers"), NXVideoSetting::SystemBarrierFeedbackLoops, Tr("Can gain FPS on mobile GPUs, but can break transparency"), false, true, true);
         AppendBoolSetting(Tr("Disk shader cache"), NXVideoSetting::SystemUseDiskPipelineCache, Tr("Games load faster after the first run"));

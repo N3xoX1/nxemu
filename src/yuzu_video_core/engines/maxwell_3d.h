@@ -3169,6 +3169,8 @@ public:
         return execute_on;
     }
 
+    bool ShouldExecuteClear();
+
     VideoCore::RasterizerInterface& Rasterizer() {
         return *rasterizer;
     }
@@ -3386,6 +3388,9 @@ private:
     /// Handles conditional rendering.
     void ProcessQueryCondition();
 
+    bool RenderConditionPasses(bool skip_pending);
+    std::optional<Regs::ReportSemaphore::Compare> ReadRenderCondition(bool skip_pending, bool compares_current);
+
     /// Handles counter resets.
     void ProcessCounterReset();
 
@@ -3518,6 +3523,7 @@ private:
         const_buffer_ranges{};
 
     bool execute_on{true};
+    bool render_condition_skipped{false};
 
     std::vector<std::pair<GPUVAddr, size_t>> macro_segments;
     std::vector<GPUVAddr> macro_addresses;

@@ -545,6 +545,15 @@
                   </div>
                   <div class="row">
                     <div class="row-texts">
+                      <div class="row-label">Skip occlusion waits</div>
+                      <div class="row-text">Draws instead of waiting for the GPU's occlusion result. Can draw hidden objects.</div>
+                    </div>
+                    <div id="skip-conditional-render-wait" class="switch" data-command="toggle:skip-conditional-render-wait" title="Needs Vulkan. Only matters on GPUs without conditional rendering, such as Adreno and Apple GPUs: a conditional draw whose result the GPU has not written yet is drawn instead of stalling the frame. Takes effect when a game starts.">
+                      <div class="switch-knob" />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="row-texts">
                       <div class="row-label">Untracked shader writes</div>
                       <div class="row-text">Skips reading back buffers a shader only might write.</div>
                     </div>

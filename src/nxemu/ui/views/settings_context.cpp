@@ -63,6 +63,7 @@ constexpr GameSetting kGameSettings[] = {
     {NXVideoSetting::SystemSyncToFramerateOfVideoPlayback, NXVideoSetting::GameSyncToFramerateOfVideoPlayback, "video-framerate", true},
     {NXVideoSetting::SystemBarrierFeedbackLoops, NXVideoSetting::GameBarrierFeedbackLoops, "feedback-loops", true},
     {NXVideoSetting::SystemFastShaderMath, NXVideoSetting::GameFastShaderMath, "fast-shader-math", true},
+    {NXVideoSetting::SystemSkipConditionalRenderWait, NXVideoSetting::GameSkipConditionalRenderWait, "skip-conditional-render-wait", true},
     {NXVideoSetting::SystemASTCRecompressionMethod, NXVideoSetting::GameASTCRecompressionMethod, "astc-recompression", false},
     {NXVideoSetting::SystemVRAMUsageMode, NXVideoSetting::GameVRAMUsageMode, "vram", false},
     {NXCpuSetting::SystemCpuBackend, NXCpuSetting::GameCpuBackend, "cpu-backend", false},

@@ -62,14 +62,18 @@ public:
     }
 
     void FlushRegion(VAddr addr, std::size_t size) {
-        bool result = false;
-        // Visit every query in the range so all finalized values are written out.
-        IterateCache<false>(addr, size, [this, &result](QueryLocation location) {
-            result |= SemiFlushQueryDirty(location);
-        });
-        if (result) {
+        if (!TryWriteResults(addr, size)) {
             RequestGuestHostSync();
         }
+    }
+
+    bool TryWriteResults(VAddr addr, std::size_t size) {
+        bool awaits_gpu = false;
+        // Visit every query in the range so all finalized values are written out.
+        IterateCache<false>(addr, size, [this, &awaits_gpu](QueryLocation location) {
+            awaits_gpu |= SemiFlushQueryDirty(location);
+        });
+        return !awaits_gpu;
     }
 
     static u64 BuildMask(std::span<const QueryType> types) {

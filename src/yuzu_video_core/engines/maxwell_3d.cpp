@@ -16,6 +16,7 @@
 #include "yuzu_video_core/rasterizer_interface.h"
 #include "yuzu_video_core/textures/texture.h"
 #include <atomic>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -1397,12 +1398,12 @@ void Maxwell3D::ProcessQueryCondition()
 {
     // Deferred instances still belong to the previous CPU and host predicate.
     draw_manager->DrawDeferred();
+    render_condition_skipped = false;
     if (rasterizer->AccelerateConditionalRendering())
     {
         execute_on = true;
         return;
     }
-    const GPUVAddr condition_address{regs.render_enable.Address()};
     switch (regs.render_enable_override)
     {
     case Regs::RenderEnable::Override::AlwaysRender:
@@ -1412,52 +1413,84 @@ void Maxwell3D::ProcessQueryCondition()
         execute_on = false;
         break;
     case Regs::RenderEnable::Override::UseRenderEnable:
-    {
-        switch (regs.render_enable.mode)
-        {
-        case Regs::RenderEnable::Mode::True:
-        {
-            execute_on = true;
-            break;
-        }
-        case Regs::RenderEnable::Mode::False:
-        {
-            execute_on = false;
-            break;
-        }
-        case Regs::RenderEnable::Mode::Conditional:
-        {
-            Regs::ReportSemaphore::Compare cmp;
-            memory_manager.ReadBlock(condition_address, &cmp, sizeof(cmp));
-            execute_on = cmp.initial_sequence != 0U && cmp.initial_mode != 0U;
-            break;
-        }
-        case Regs::RenderEnable::Mode::IfEqual:
-        {
-            Regs::ReportSemaphore::Compare cmp;
-            memory_manager.ReadBlock(condition_address, &cmp, sizeof(cmp));
-            execute_on = cmp.initial_sequence == cmp.current_sequence &&
-                         cmp.initial_mode == cmp.current_mode;
-            break;
-        }
-        case Regs::RenderEnable::Mode::IfNotEqual:
-        {
-            Regs::ReportSemaphore::Compare cmp;
-            memory_manager.ReadBlock(condition_address, &cmp, sizeof(cmp));
-            execute_on = cmp.initial_sequence != cmp.current_sequence ||
-                         cmp.initial_mode != cmp.current_mode;
-            break;
-        }
-        default:
-        {
-            UNIMPLEMENTED_MSG("Uninplemented Condition Mode!");
-            execute_on = true;
-            break;
-        }
-        }
+        execute_on = RenderConditionPasses(videoSettings.skip_conditional_render_wait);
         break;
     }
+}
+
+bool Maxwell3D::ShouldExecuteClear()
+{
+    if (render_condition_skipped)
+    {
+        // A clear erases what the GPU drew, so unlike a draw it waits for the result
+        draw_manager->DrawDeferred();
+        render_condition_skipped = false;
+        execute_on = RenderConditionPasses(false);
     }
+    return execute_on;
+}
+
+bool Maxwell3D::RenderConditionPasses(bool skip_pending)
+{
+    switch (regs.render_enable.mode)
+    {
+    case Regs::RenderEnable::Mode::True:
+        return true;
+    case Regs::RenderEnable::Mode::False:
+        return false;
+    case Regs::RenderEnable::Mode::Conditional:
+    {
+        const auto cmp = ReadRenderCondition(skip_pending, false);
+        return !cmp || (cmp->initial_sequence != 0U && cmp->initial_mode != 0U);
+    }
+    case Regs::RenderEnable::Mode::IfEqual:
+    {
+        const auto cmp = ReadRenderCondition(skip_pending, true);
+        return !cmp || (cmp->initial_sequence == cmp->current_sequence && cmp->initial_mode == cmp->current_mode);
+    }
+    case Regs::RenderEnable::Mode::IfNotEqual:
+    {
+        const auto cmp = ReadRenderCondition(skip_pending, true);
+        return !cmp || cmp->initial_sequence != cmp->current_sequence || cmp->initial_mode != cmp->current_mode;
+    }
+    default:
+        UNIMPLEMENTED_MSG("Uninplemented Condition Mode!");
+        return true;
+    }
+}
+
+std::optional<Maxwell3D::Regs::ReportSemaphore::Compare> Maxwell3D::ReadRenderCondition(bool skip_pending, bool compares_current)
+{
+    using Compare = Regs::ReportSemaphore::Compare;
+    constexpr u64 OperandSize = sizeof(Compare::initial_sequence) + sizeof(Compare::initial_mode);
+    const GPUVAddr initial_address{regs.render_enable.Address()};
+    const GPUVAddr current_address{initial_address + offsetof(Compare, current_sequence)};
+    const auto awaits_gpu = [&](GPUVAddr operand) {
+        // Per word: an operand can straddle two GPU pages
+        for (GPUVAddr word = operand; word < operand + OperandSize; word += sizeof(u32))
+        {
+            const std::optional<DAddr> device_addr = memory_manager.GpuToCpuAddress(word);
+            if (device_addr && !rasterizer->TryFlushQueryResults(*device_addr, sizeof(u32)))
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    // Without host conditional rendering, a result the GPU still owes would stall the frame: drawing is cheaper
+    if (skip_pending && (awaits_gpu(initial_address) || (compares_current && awaits_gpu(current_address))))
+    {
+        render_condition_skipped = true;
+        return std::nullopt;
+    }
+    // Only the compared operands: reading the other words would wait for queries the result doesn't use
+    Compare condition{};
+    memory_manager.ReadBlock(initial_address, &condition.initial_sequence, OperandSize);
+    if (compares_current)
+    {
+        memory_manager.ReadBlock(current_address, &condition.current_sequence, OperandSize);
+    }
+    return condition;
 }
 
 void Maxwell3D::ProcessCounterReset()

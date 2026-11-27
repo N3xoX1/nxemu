@@ -78,6 +78,7 @@ constexpr Toggle kToggles[] = {
     {"skip-readback-wait", NXVideoSetting::SystemSkipReadbackWait, Store::Module, true},
     {"feedback-loops", NXVideoSetting::SystemBarrierFeedbackLoops, Store::Module, false, true},
     {"fast-shader-math", NXVideoSetting::SystemFastShaderMath, Store::Module, false},
+    {"skip-conditional-render-wait", NXVideoSetting::SystemSkipConditionalRenderWait, Store::Module, false},
     {"fast-gpu-time", NXVideoSetting::SystemFastGPUTime, Store::Module, true},
     {"video-framerate", NXVideoSetting::SystemSyncToFramerateOfVideoPlayback, Store::Module, false},
     {"disk-cache", NXVideoSetting::SystemUseDiskPipelineCache, Store::Module, false},
@@ -341,7 +342,7 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     {
         return settings.GetInt(NXVideoSetting::SystemAccuracyLevel) != static_cast<int>(GpuAccuracy::High);
     }
-    if (id == "fast-shader-math")
+    if (id == "fast-shader-math" || id == "skip-conditional-render-wait")
     {
         return settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
     }

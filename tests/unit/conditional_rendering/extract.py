@@ -22,7 +22,8 @@ def method(source, name):
 source = (root / 'src/yuzu_video_core/engines/maxwell_3d.cpp').read_text()
 engine = [method(source, 'Maxwell3D::' + name).replace('Maxwell3D::', 'Fixture::')
           for name in ['IsMethodExecutable', 'ProcessShadowRam', 'ProcessMethodCall',
-                       'ProcessQueryCondition', 'CallMethod']]
+                       'ProcessQueryCondition', 'ShouldExecuteClear', 'RenderConditionPasses',
+                       'ReadRenderCondition', 'CallMethod']]
 source = (root / 'src/yuzu_video_core/dma_pusher.cpp').read_text()
 engine.append(method(source, 'DmaPusher::CallMethod').replace('DmaPusher::', 'Dma::'))
 (output / 'engine.inc').write_text('\n\n'.join(engine))
