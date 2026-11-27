@@ -833,7 +833,7 @@ u64 BufferCacheRuntime::GetDeviceLocalMemory() const {
     const u64 scale = (std::max<u64>)(1, videoSettings.resolution_info.ScaleUp(1));
     const u64 mode_cap = videoSettings.vram_usage_mode == VramUsageMode::Aggressive
                              ? (6 * GiB + scale * GiB)
-                             : (3 * GiB + scale * GiB);
+                             : (2 * GiB + scale * GiB);
     const u64 cap = device.HasUnifiedMemory() ? (std::min)(working_set / 2, mode_cap) : mode_cap;
     return (std::min)(working_set, (std::max)(cap, 2 * GiB));
 }

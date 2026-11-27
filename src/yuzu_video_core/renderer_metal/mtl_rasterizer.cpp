@@ -1347,7 +1347,7 @@ void RasterizerMetal::DrawImpl(bool is_indexed, u32 instance_count,
     if (pipeline->State().d24_frag_depth_equal && !ds_state.depth_write &&
         ds_state.depth_compare == MTL::CompareFunctionEqual &&
         m_render_pass.depth_stencil.texture != nullptr) {
-        const Shader::Info* const fs_info = pipeline->StageInfo(PipelineStage::Fragment);
+        const CompactStageInfo* const fs_info = pipeline->StageInfo(PipelineStage::Fragment);
         if (fs_info != nullptr && fs_info->stores_frag_depth) {
             ds_state.depth_compare = MTL::CompareFunctionAlways;
             d24_equal_depth_tex = m_render_pass.depth_stencil.texture;
@@ -2016,8 +2016,8 @@ void RasterizerMetal::DrawImpl(bool is_indexed, u32 instance_count,
     const u64 fragment_table_arg_addr = fs_stage.table_argument_buffer.gpu_address;
     const bool fragment_reads_attachments = fs_stage.reads_attachments;
     const u32 fragment_attachment_reads = fs_stage.attachment_reads;
-    const Shader::Info* const vs_info = pipeline->StageInfo(PipelineStage::Vertex);
-    const Shader::Info* const fs_info = pipeline->StageInfo(PipelineStage::Fragment);
+    const CompactStageInfo* const vs_info = pipeline->StageInfo(PipelineStage::Vertex);
+    const CompactStageInfo* const fs_info = pipeline->StageInfo(PipelineStage::Fragment);
     const bool vertex_uses_render_area = vs_info != nullptr && vs_info->uses_render_area;
     const bool fragment_uses_render_area = fs_info != nullptr && fs_info->uses_render_area;
     const bool vertex_uses_rescaling = vs_stage.uses_rescaling && vtg == nullptr;
@@ -2775,7 +2775,7 @@ void RasterizerMetal::ConfigureComputeResources(
     out_runtime_image_writes.mask_words = 0;
     out_runtime_image_writes.has_candidates = false;
     out_runtime_image_writes.views.clear();
-    const Shader::Info& info = pipeline.GetInfo();
+    const CompactStageInfo& info = pipeline.GetInfo();
     const auto& qmd = kepler_compute->launch_description;
     const auto& cbufs = qmd.const_buffer_config;
     const bool via_header_index = qmd.linked_tsc != 0;
@@ -3235,7 +3235,7 @@ void RasterizerMetal::ConfigureComputeResources(
 }
 
 template <typename Reads>
-u32 RasterizerMetal::SelectAttachmentReads(const Shader::Info& fragment, const Reads& reads,
+u32 RasterizerMetal::SelectAttachmentReads(const CompactStageInfo& fragment, const Reads& reads,
                                           std::span<VideoCommon::ImageViewInOut> views,
                                           u32 scratch) {
     using Maxwell = Tegra::Engines::Maxwell3D::Regs;
@@ -3337,7 +3337,7 @@ void RasterizerMetal::ConfigureGraphicsResources(
     const auto for_each_stage = [&](auto&& func) {
         for (size_t index = 0; index < NUM_PIPELINE_STAGES; ++index) {
             const auto metal_stage = static_cast<PipelineStage>(index);
-            if (const Shader::Info* info = pipeline.StageInfo(metal_stage)) {
+            if (const CompactStageInfo* info = pipeline.StageInfo(metal_stage)) {
                 func(index, MAXWELL_STAGE_INDEX[index], *info);
             }
         }
@@ -3375,7 +3375,7 @@ void RasterizerMetal::ConfigureGraphicsResources(
     boost::container::small_vector<LargeDescRecord, 32> large_desc_records;
     std::array<size_t, NUM_PIPELINE_STAGES> stage_view_end{};
 
-    for_each_stage([&](size_t metal_index, size_t stage, const Shader::Info& info) {
+    for_each_stage([&](size_t metal_index, size_t stage, const CompactStageInfo& info) {
         m_buffer_cache.UnbindGraphicsStorageBuffers(stage);
         u32 ssbo_index = 0;
         for (const auto& desc : info.storage_buffers_descriptors) {
@@ -3560,7 +3560,7 @@ void RasterizerMetal::ConfigureGraphicsResources(
 
     {
         size_t texel_view_it = 0;
-        for_each_stage([&](size_t metal_index, size_t stage, const Shader::Info& info) {
+        for_each_stage([&](size_t metal_index, size_t stage, const CompactStageInfo& info) {
             m_buffer_cache.UnbindGraphicsTextureBuffers(stage);
             size_t index = 0;
             const auto bind = [&](u32 count, bool is_image, bool is_written,
@@ -3834,7 +3834,7 @@ void RasterizerMetal::ConfigureGraphicsResources(
     size_t view_it = 0;
     size_t sampler_it = 0;
     size_t large_rec_it = 0;
-    for_each_stage([&](size_t metal_index, size_t stage, const Shader::Info& info) {
+    for_each_stage([&](size_t metal_index, size_t stage, const CompactStageInfo& info) {
         out[metal_index].uses_rescaling = info.uses_rescaling_uniform;
         out[metal_index].rescaling_masks.fill(0);
         out[metal_index].reads_gpu_texture = false;

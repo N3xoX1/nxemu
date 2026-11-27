@@ -59,7 +59,7 @@ public:
         return pipeline_state.get();
     }
 
-    [[nodiscard]] const Shader::Info& GetInfo() const noexcept {
+    [[nodiscard]] const CompactStageInfo& GetInfo() const noexcept {
         return info;
     }
 
@@ -88,12 +88,12 @@ public:
     }
 
 private:
-    void Build(std::vector<u32> spirv);
+    void Build(std::vector<u32> spirv, const Shader::Info& full_info);
     void SignalBuilt();
 
     const Device& device;
     Scheduler& scheduler;
-    Shader::Info info;
+    CompactStageInfo info;
     std::atomic<VideoCore::ShaderNotify*> shader_notify{nullptr};
 
     Owned<MTL::ComputePipelineState> pipeline_state;

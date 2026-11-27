@@ -168,6 +168,8 @@ public:
 private:
     static constexpr size_t INDEXING_SLOTS = 8 * sizeof(size_t);
     std::array<Owned<MTL::Buffer>, INDEXING_SLOTS> temporary_buffers{};
+    std::array<u64, INDEXING_SLOTS> temporary_buffer_frames{};
+    std::array<u64, INDEXING_SLOTS> temporary_buffer_ticks{};
 
     struct ScratchAttachmentKey {
         MTL::PixelFormat format;

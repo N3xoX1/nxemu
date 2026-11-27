@@ -20,6 +20,7 @@
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_common/virtual_buffer.h"
 #include "video_settings.h"
 #include "yuzu_video_core/metal_common/metal_device.h"
 #include "yuzu_video_core/renderer_metal/maxwell_to_mtl.h"
@@ -707,6 +708,22 @@ void TextureCacheRuntime::Finish() {
 
 void TextureCacheRuntime::TickFrame() {
     ++frame_index;
+    constexpr u64 TEMP_BUFFER_IDLE_FRAMES = 300;
+    if ((frame_index % 60) == 0) {
+        for (size_t log2 = 0; log2 < INDEXING_SLOTS; ++log2) {
+            if (!temporary_buffers[log2]) {
+                continue;
+            }
+            if (frame_index - temporary_buffer_frames[log2] >= TEMP_BUFFER_IDLE_FRAMES &&
+                scheduler.IsFree(temporary_buffer_ticks[log2])) {
+                device.RemoveResidentAllocation(temporary_buffers[log2].get());
+                temporary_buffers[log2].reset();
+            }
+        }
+    }
+    if ((frame_index % 300) == 0) {
+        Common::PurgeHostHeap();
+    }
 }
 
 StagingBufferRef TextureCacheRuntime::UploadStagingBuffer(size_t size, bool deferred) {
@@ -734,7 +751,7 @@ u64 TextureCacheRuntime::GetDeviceLocalMemory() const {
     // depth targets and hammering CommitResidency).
     const u64 mode_cap = videoSettings.vram_usage_mode == VramUsageMode::Aggressive
                              ? (8 * GiB + scale * GiB)
-                             : (5 * GiB + scale * GiB);
+                             : ((7 * GiB) / 2 + scale * GiB);
     const u64 cap = device.HasUnifiedMemory() ? (std::min)(working_set / 2, mode_cap) : mode_cap;
     return (std::min)(working_set, (std::max)(cap, 2 * GiB));
 }
@@ -761,6 +778,8 @@ MTL::Buffer* TextureCacheRuntime::GetTemporaryBuffer(size_t needed_size) {
         return nullptr;
     }
     if (temporary_buffers[log2]) {
+        temporary_buffer_frames[log2] = frame_index;
+        temporary_buffer_ticks[log2] = scheduler.CurrentTick() + 1;
         return temporary_buffers[log2].get();
     }
 
@@ -768,6 +787,8 @@ MTL::Buffer* TextureCacheRuntime::GetTemporaryBuffer(size_t needed_size) {
     temporary_buffers[log2] = memory_allocator.CreateBuffer(size, MemoryUsage::DeviceLocal);
     if (temporary_buffers[log2]) {
         temporary_buffers[log2]->setLabel(MTLSTR("eden temp texture buffer"));
+        temporary_buffer_frames[log2] = frame_index;
+        temporary_buffer_ticks[log2] = scheduler.CurrentTick() + 1;
     }
     return temporary_buffers[log2].get();
 }

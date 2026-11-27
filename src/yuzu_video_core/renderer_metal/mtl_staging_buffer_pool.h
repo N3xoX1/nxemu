@@ -116,6 +116,8 @@ private:
 
     void ReleaseCache(MemoryUsage usage);
     void ReleaseLevel(StagingBuffersCache& cache, size_t log2);
+    void ReleaseIdleBuffers();
+    void ReleaseMemory();
 
     const Device& device;
     MemoryAllocator& memory_allocator;

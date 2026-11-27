@@ -660,16 +660,39 @@ public:
     }
 
     bool ClearBackingRegion(size_t physical_offset, size_t length) {
-#if defined(__linux__) && defined(MADV_REMOVE)
-        // MADV_REMOVE rounds the end to a host page. Do not discard neighbouring
-        // guest memory, and let the caller use memset if hole punching fails.
         if (length == 0) {
             return true;
         }
+#if defined(__linux__) && defined(MADV_REMOVE)
+        // MADV_REMOVE rounds the end to a host page. Do not discard neighbouring
+        // guest memory, and let the caller use memset if hole punching fails.
         if (physical_offset % host_page_size != 0 || length % host_page_size != 0) {
             return false;
         }
         return madvise(backing_base + physical_offset, length, MADV_REMOVE) == 0;
+#elif defined(__APPLE__) && defined(MADV_ZERO)
+        // On macOS, a fallback memset(0) faults every 16 KiB page of a freshly allocated
+        // guest heap into backing_base (and causes XNU phys_footprint to double-count pages
+        // also mapped in NceDirectMap). MADV_ZERO leaves virgin pages unfaulted (0 bytes
+        // physical footprint) and zeros already-resident host pages without disturbing
+        // neighbors; MADV_FREE then marks those zeroed pages safely reclaimable.
+        const size_t range_end = physical_offset + length;
+        const size_t aligned_begin = AlignUp(physical_offset, host_page_size);
+        const size_t aligned_end = AlignDown(range_end, host_page_size);
+        if (aligned_begin >= aligned_end) {
+            return false;
+        }
+        if (madvise(backing_base + aligned_begin, aligned_end - aligned_begin, MADV_ZERO) != 0) {
+            return false;
+        }
+        madvise(backing_base + aligned_begin, aligned_end - aligned_begin, MADV_FREE);
+        if (aligned_begin > physical_offset) {
+            std::memset(backing_base + physical_offset, 0, aligned_begin - physical_offset);
+        }
+        if (range_end > aligned_end) {
+            std::memset(backing_base + aligned_end, 0, range_end - aligned_end);
+        }
+        return true;
 #else
         return false;
 #endif

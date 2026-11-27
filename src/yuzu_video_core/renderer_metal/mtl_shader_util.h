@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <bitset>
 #include <condition_variable>
@@ -79,6 +80,53 @@ struct MslShader {
     /// Number of `[[id(N)]]` slots SPIRV-Cross emitted in DescriptorSet 1's table
     /// argument buffer (direct texture/sampler tables), or 0 when unused.
     u32 table_argument_buffer_slots{};
+};
+
+/// Compact subset of Shader::Info retained on compiled pipelines after MSL
+/// translation finishes. Shader::Info embeds large static_vectors for every
+/// descriptor kind (~15 KiB per stage); replacing them with exact-sized
+/// std::vectors cuts per-pipeline host RAM dramatically.
+struct CompactStageInfo {
+    std::vector<Shader::StorageBufferDescriptor> storage_buffers_descriptors;
+    std::vector<Shader::TextureBufferDescriptor> texture_buffer_descriptors;
+    std::vector<Shader::ImageBufferDescriptor> image_buffer_descriptors;
+    std::vector<Shader::TextureDescriptor> texture_descriptors;
+    std::vector<Shader::ImageDescriptor> image_descriptors;
+    std::array<bool, 8> stores_frag_color{};
+    std::array<bool, 8> stores_frag_alpha{};
+    u32 constant_buffer_mask{};
+    u32 input_attachment_mask{};
+    u32 runtime_sampler_count{};
+    u32 runtime_image_write_mask_words{};
+    u32 write_tracking_slots{};
+    bool stores_frag_depth{};
+    bool uses_render_area{};
+    bool uses_rescaling_uniform{};
+    bool uses_typeless_image_writes{};
+    bool uses_global_memory{};
+    bool stores_global_memory{};
+
+    CompactStageInfo() = default;
+    explicit CompactStageInfo(const Shader::Info& src)
+        : storage_buffers_descriptors(src.storage_buffers_descriptors.begin(),
+                                      src.storage_buffers_descriptors.end()),
+          texture_buffer_descriptors(src.texture_buffer_descriptors.begin(),
+                                     src.texture_buffer_descriptors.end()),
+          image_buffer_descriptors(src.image_buffer_descriptors.begin(),
+                                   src.image_buffer_descriptors.end()),
+          texture_descriptors(src.texture_descriptors.begin(), src.texture_descriptors.end()),
+          image_descriptors(src.image_descriptors.begin(), src.image_descriptors.end()),
+          stores_frag_color{src.stores_frag_color}, stores_frag_alpha{src.stores_frag_alpha},
+          constant_buffer_mask{src.constant_buffer_mask},
+          input_attachment_mask{src.input_attachment_mask},
+          runtime_sampler_count{src.runtime_sampler_count},
+          runtime_image_write_mask_words{src.runtime_image_write_mask_words},
+          write_tracking_slots{src.write_tracking_slots}, stores_frag_depth{src.stores_frag_depth},
+          uses_render_area{src.uses_render_area},
+          uses_rescaling_uniform{src.uses_rescaling_uniform},
+          uses_typeless_image_writes{src.uses_typeless_image_writes},
+          uses_global_memory{src.uses_global_memory},
+          stores_global_memory{src.stores_global_memory} {}
 };
 
 /// Translates a SPIR-V module to MSL. Throws Exception when SPIRV-Cross can't

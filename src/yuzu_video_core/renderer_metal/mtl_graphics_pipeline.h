@@ -168,7 +168,7 @@ public:
     /// the shader does not write untouched, but the MSL output struct declares and
     /// zero-fills every output, so such an attachment has to be masked off.
     [[nodiscard]] static bool StoresColor(const FixedPipelineState& key,
-                                          const Shader::Info* fragment_info, u32 index);
+                                          const CompactStageInfo* fragment_info, u32 index);
 
     /// Whether any stage writes memory other than its attachments: storage buffers, storage
     /// images or global memory. Only such writes need a guest barrier to end the pass.
@@ -205,7 +205,7 @@ public:
         return enabled_vertex_slots;
     }
 
-    [[nodiscard]] const Shader::Info* StageInfo(PipelineStage stage) const noexcept {
+    [[nodiscard]] const CompactStageInfo* StageInfo(PipelineStage stage) const noexcept {
         const auto& info = stage_infos[static_cast<size_t>(stage)];
         return info ? &*info : nullptr;
     }
@@ -311,9 +311,9 @@ private:
     std::atomic<VideoCore::ShaderNotify*> shader_notify{};
     FixedPipelineState key;
 
-    // Held by value: the caller's Shader::Info lives in a local that dies when
-    // CreateGraphicsPipeline returns, so pointers into it would dangle.
-    std::array<std::optional<Shader::Info>, NUM_PIPELINE_STAGES> stage_infos{};
+    // Held as CompactStageInfo rather than full Shader::Info to avoid retaining
+    // multi-kilobyte static_vectors per stage on every cached pipeline.
+    std::array<std::optional<CompactStageInfo>, NUM_PIPELINE_STAGES> stage_infos{};
     std::array<u32, NUM_PIPELINE_STAGES> expected_argument_slots{};
     std::array<u32, NUM_PIPELINE_STAGES> expected_table_argument_slots{};
     std::array<u32, VideoCommon::NUM_STAGES> enabled_uniform_buffer_masks{};

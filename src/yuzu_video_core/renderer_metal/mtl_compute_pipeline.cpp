@@ -18,21 +18,25 @@ ComputePipeline::ComputePipeline(const Device& device_, Scheduler& scheduler_,
     : device{device_}, scheduler{scheduler_}, info{info_}, shader_notify{shader_notify_},
       threadgroup_size{MTL::Size::Make(workgroup_size[0], workgroup_size[1], workgroup_size[2])} {
     const size_t num_cbufs =
-        std::min(info.constant_buffer_used_sizes.size(), uniform_buffer_sizes.size());
-    std::copy_n(info.constant_buffer_used_sizes.begin(), num_cbufs, uniform_buffer_sizes.begin());
+        std::min(info_.constant_buffer_used_sizes.size(), uniform_buffer_sizes.size());
+    std::copy_n(info_.constant_buffer_used_sizes.begin(), num_cbufs, uniform_buffer_sizes.begin());
 
     if (shader_notify_ != nullptr) {
         shader_notify_->MarkShaderBuilding();
     }
 
     if (worker_thread == nullptr) {
-        Build(std::move(spirv));
+        Build(std::move(spirv), info_);
         return;
     }
     // Compute dispatches cannot be skipped without corrupting GPU state, so prioritize
     // them ahead of speculative async graphics compiles.
+    // The full Shader::Info is only needed for SPIRV->MSL translation and is freed
+    // as soon as the worker task finishes.
     worker_thread->QueueWork(
-        [this, code = std::move(spirv)]() mutable { Build(std::move(code)); },
+        [this, code = std::move(spirv), full_info = info_]() mutable {
+            Build(std::move(code), full_info);
+        },
         /*high_priority=*/true);
 }
 
@@ -59,7 +63,7 @@ void ComputePipeline::WaitBuilt() const {
     build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::acquire); });
 }
 
-void ComputePipeline::Build(std::vector<u32> spirv) {
+void ComputePipeline::Build(std::vector<u32> spirv, const Shader::Info& full_info) {
     ScopedAutoreleasePool pool;
 
     const auto fail = [this] {
@@ -71,8 +75,8 @@ void ComputePipeline::Build(std::vector<u32> spirv) {
     try {
         const BindingMap binding_map{};
         shader = RunOnLargeStack([&]() {
-            return TranslateSpirvToMsl(device, spirv, Shader::Stage::Compute, info, binding_map,
-                                       /*rasterizes_points=*/false);
+            return TranslateSpirvToMsl(device, spirv, Shader::Stage::Compute, full_info,
+                                       binding_map, /*rasterizes_points=*/false);
         });
         expected_argument_slots.store(shader.argument_buffer_slots, std::memory_order::release);
         expected_table_argument_slots.store(shader.table_argument_buffer_slots,

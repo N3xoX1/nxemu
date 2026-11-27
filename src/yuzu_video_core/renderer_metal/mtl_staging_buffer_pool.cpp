@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <bit>
+#include <cstdlib>
+#include <initializer_list>
 
 #include "yuzu_common/alignment.h"
 #include "yuzu_common/yuzu_assert.h"
@@ -19,12 +21,19 @@ using namespace Common::Literals;
 namespace {
 
 /// Size of the linear stream buffer used for small, short-lived requests.
-constexpr size_t STREAM_BUFFER_SIZE = 128_MiB;
+/// On Apple Silicon unified memory this stays permanently faulted in IOAccelerator;
+/// 32 MiB (2 MiB x 16 sync regions) saves 96 MiB vs 128 MiB while larger spikes use
+/// the bucketed cache and retire cleanly after use.
+constexpr size_t STREAM_BUFFER_SIZE = 32_MiB;
 constexpr size_t REGION_SIZE = STREAM_BUFFER_SIZE / StagingBufferPool::NUM_SYNCS;
 
 /// Requests at or below this go through the stream buffer; larger ones get a
 /// dedicated allocation from the bucketed cache.
-constexpr size_t MAX_STREAM_BUFFER_REQUEST_SIZE = 8_MiB;
+constexpr size_t MAX_STREAM_BUFFER_REQUEST_SIZE = REGION_SIZE;
+
+/// Only bucket levels up to 35 (32 GiB) are ever populated; cycling over 36 instead
+/// of 64 retires idle staging buffers nearly twice as fast.
+constexpr size_t ACTIVE_DELETE_LEVELS = 36;
 
 /// Buffer offsets have to satisfy the strictest alignment any consumer needs.
 /// 256 covers constant buffer binding on every Metal device and is a multiple
@@ -91,11 +100,32 @@ void StagingBufferPool::FreeDeferred(StagingBufferRef& ref) {
 
 void StagingBufferPool::TickFrame() {
     std::scoped_lock lock{pool_mutex};
-    current_delete_level = (current_delete_level + 1) % NUM_LEVELS;
+    current_delete_level = (current_delete_level + 1) % ACTIVE_DELETE_LEVELS;
 
     ReleaseCache(MemoryUsage::DeviceLocal);
     ReleaseCache(MemoryUsage::Upload);
     ReleaseCache(MemoryUsage::Download);
+
+    static const bool profile_memory = [] {
+        const char* value = std::getenv("NXEMU_MEMORY_PROFILE");
+        return value != nullptr && value[0] == '1';
+    }();
+    static u64 frame = 0;
+    if (profile_memory && (++frame % 300) == 0) {
+        const auto held_bytes = [](const StagingBuffersCache& cache) {
+            size_t bytes = 0;
+            for (const auto& level : cache) {
+                for (const auto& entry : level.entries) {
+                    bytes += size_t{1} << entry.log2_level;
+                }
+            }
+            return bytes;
+        };
+        LOG_INFO(Render_Metal,
+                 "Staging memory: stream_mib={} upload_mib={} download_mib={} device_local_mib={}",
+                 STREAM_BUFFER_SIZE / 1_MiB, held_bytes(upload_cache) / 1_MiB,
+                 held_bytes(download_cache) / 1_MiB, held_bytes(device_local_cache) / 1_MiB);
+    }
 }
 
 bool StagingBufferPool::AreRegionsActive(size_t region_begin, size_t region_end) const {
@@ -195,7 +225,15 @@ StagingBufferRef StagingBufferPool::CreateStagingBuffer(size_t size, MemoryUsage
 
     Owned<MTL::Buffer> buffer = memory_allocator.CreateBuffer(allocation_size, usage);
     if (!buffer) {
-        throw Exception("Failed to allocate a staging buffer");
+        ReleaseIdleBuffers();
+        buffer = memory_allocator.CreateBuffer(allocation_size, usage);
+        if (!buffer) {
+            ReleaseMemory();
+            buffer = memory_allocator.CreateBuffer(allocation_size, usage);
+        }
+        if (!buffer) {
+            throw Exception("Failed to allocate a staging buffer");
+        }
     }
     buffer->setLabel(MTLSTR("eden staging buffer"));
 
@@ -287,6 +325,32 @@ void StagingBufferPool::ReleaseLevel(StagingBuffersCache& cache, size_t log2) {
     if (staging.delete_index >= entries.size()) {
         staging.delete_index = 0;
     }
+}
+
+void StagingBufferPool::ReleaseIdleBuffers() {
+    const auto is_deletable = [this](const StagingBuffer& entry) {
+        return !entry.deferred && scheduler.IsFree(entry.tick);
+    };
+    for (StagingBuffersCache* const cache : {&device_local_cache, &upload_cache, &download_cache}) {
+        for (StagingBuffers& staging : *cache) {
+            auto& entries = staging.entries;
+            if (entries.empty()) {
+                continue;
+            }
+            for (const StagingBuffer& entry : entries) {
+                if (is_deletable(entry)) {
+                    device.RemoveResidentAllocation(entry.buffer.get());
+                }
+            }
+            std::erase_if(entries, is_deletable);
+            staging.delete_index = 0;
+        }
+    }
+}
+
+void StagingBufferPool::ReleaseMemory() {
+    scheduler.Finish();
+    ReleaseIdleBuffers();
 }
 
 } // namespace Metal

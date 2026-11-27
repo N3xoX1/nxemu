@@ -355,7 +355,7 @@ private:
     /// Picks the color attachment each pixel local read of the fragment shader takes
     /// through framebuffer fetch, and nulls the view it would have sampled instead.
     template <typename Reads>
-    u32 SelectAttachmentReads(const Shader::Info& fragment, const Reads& reads,
+    u32 SelectAttachmentReads(const CompactStageInfo& fragment, const Reads& reads,
                               std::span<VideoCommon::ImageViewInOut> views, u32 scratch);
 
     /// The colour attachments a draw with `pipeline` may modify.

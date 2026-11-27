@@ -64,7 +64,7 @@ GraphicsPipeline::GraphicsPipeline(
     for (size_t index = 0; index < NUM_PIPELINE_STAGES; ++index) {
         if (infos[index] != nullptr) {
             const Shader::Info& info = *infos[index];
-            stage_infos[index] = info;
+            stage_infos[index].emplace(info);
             const size_t maxwell_stage = MAXWELL_STAGE_INDEX[index];
             enabled_uniform_buffer_masks[maxwell_stage] = info.constant_buffer_mask;
             std::ranges::copy(info.constant_buffer_used_sizes,
@@ -101,7 +101,7 @@ GraphicsPipeline::GraphicsPipeline(
     // Precompute immutable per-pipeline masks once at creation instead of scanning
     // every stage descriptor / attachment / vertex binding on every draw call.
     for (size_t stage_index = 0; stage_index < stage_infos.size(); ++stage_index) {
-        const std::optional<Shader::Info>& info = stage_infos[stage_index];
+        const std::optional<CompactStageInfo>& info = stage_infos[stage_index];
         if (!info) {
             continue;
         }
@@ -118,7 +118,7 @@ GraphicsPipeline::GraphicsPipeline(
             }
         }
     }
-    if (const Shader::Info* const vertex_info = StageInfo(PipelineStage::Vertex)) {
+    if (const CompactStageInfo* const vertex_info = StageInfo(PipelineStage::Vertex)) {
         vertex_reads_textures =
             !vertex_info->texture_descriptors.empty() || !vertex_info->image_descriptors.empty();
         vertex_reads_buffers = !vertex_info->texture_buffer_descriptors.empty() ||
@@ -126,7 +126,7 @@ GraphicsPipeline::GraphicsPipeline(
                                !vertex_info->storage_buffers_descriptors.empty() ||
                                vertex_info->uses_global_memory;
     }
-    const Shader::Info* const fragment_info = StageInfo(PipelineStage::Fragment);
+    const CompactStageInfo* const fragment_info = StageInfo(PipelineStage::Fragment);
     if (!key.rasterizer_discard) {
         for (u32 index = 0; index < key.num_color_attachments; ++index) {
             if (key.color_attachments[index].write_mask != MTL::ColorWriteMaskNone &&
@@ -152,7 +152,7 @@ GraphicsPipeline::GraphicsPipeline(
 }
 
 bool GraphicsPipeline::StoresColor(const FixedPipelineState& key,
-                                   const Shader::Info* fragment_info, u32 index) {
+                                   const CompactStageInfo* fragment_info, u32 index) {
     if (fragment_info == nullptr || index >= fragment_info->stores_frag_color.size()) {
         return false;
     }
@@ -339,6 +339,8 @@ Owned<MTL::StageInputOutputDescriptor> GraphicsPipeline::BuildStageInputDescript
 
 bool GraphicsPipeline::BuildGeometryPipelines() {
     Owned<MTL::Library> capture_library = BuildLibrary(device, geometry->capture);
+    std::string{}.swap(geometry->capture.source);
+    std::string{}.swap(geometry->geometry.source);
     if (!capture_library) {
         LOG_ERROR(Render_Metal, "Failed to build the vertex capture kernel library");
         return false;
@@ -354,11 +356,14 @@ bool GraphicsPipeline::BuildGeometryPipelines() {
 
 bool GraphicsPipeline::BuildVtgPipelines() {
     Owned<MTL::Library> vertex_library = BuildLibrary(device, vtg->vertex_kernel);
+    std::string{}.swap(vtg->vertex_kernel.source);
     if (!vertex_library) {
+        std::string{}.swap(vtg->geometry_kernel.source);
         LOG_ERROR(Render_Metal, "Failed to build the VTG vertex compute library");
         return false;
     }
     Owned<MTL::Library> geometry_library = BuildLibrary(device, vtg->geometry_kernel);
+    std::string{}.swap(vtg->geometry_kernel.source);
     if (!geometry_library) {
         LOG_ERROR(Render_Metal, "Failed to build the VTG geometry compute library");
         return false;
@@ -431,7 +436,7 @@ void GraphicsPipeline::Build(std::array<MslShader, NUM_PIPELINE_STAGES> shaders,
 
     // Rasterizer discard is never baked in: Metal only allows it when the vertex
     // function returns void, so the rasterizer skips such draws instead.
-    const std::optional<Shader::Info>& fragment_info = stage_infos[FRAGMENT];
+    const std::optional<CompactStageInfo>& fragment_info = stage_infos[FRAGMENT];
 
     NS::Error* error = nullptr;
     {
