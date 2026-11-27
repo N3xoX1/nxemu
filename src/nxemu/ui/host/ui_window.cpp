@@ -128,7 +128,48 @@ SDL_DisplayID WindowDisplay(SDL_Window * window)
     return display != 0 ? display : SDL_GetPrimaryDisplay();
 }
 
-using UiSystemInterface = SystemInterface_SDL;
+// RmlUi has one system interface, created for the main window, but dialogs are separate SDL
+// windows. SDL 3 enables text input per window, so starting it on the main window alone leaves
+// dialog fields with key events but no typed characters.
+class UiSystemInterface final : public SystemInterface_SDL
+{
+public:
+    explicit UiSystemInterface(SDL_Window * window) :
+        SystemInterface_SDL(window),
+        m_mainWindow(window)
+    {
+    }
+
+    void ActivateKeyboard(Rml::Vector2f caretPosition, float lineHeight) override
+    {
+        SDL_Window * window = SDL_GetKeyboardFocus();
+        if (window == nullptr)
+        {
+            window = m_mainWindow;
+        }
+        if (m_textWindow != nullptr && m_textWindow != window)
+        {
+            SDL_StopTextInput(m_textWindow);
+        }
+        m_textWindow = window;
+        const SDL_Rect rect = {int(caretPosition.x), int(caretPosition.y), 1, int(lineHeight)};
+        SDL_SetTextInputArea(window, &rect, 0);
+        SDL_StartTextInput(window);
+    }
+
+    void DeactivateKeyboard() override
+    {
+        if (m_textWindow != nullptr)
+        {
+            SDL_StopTextInput(m_textWindow);
+            m_textWindow = nullptr;
+        }
+    }
+
+private:
+    SDL_Window * m_mainWindow;
+    SDL_Window * m_textWindow = nullptr;
+};
 } // namespace
 
 UiWindow::UiWindow() = default;
