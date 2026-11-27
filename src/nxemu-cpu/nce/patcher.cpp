@@ -549,12 +549,22 @@ bool Patcher::RelocateModule(uint64_t text_base, uint64_t patch_base, uint8_t * 
     }
     if (++m_relocate_module_index == modules.size())
     {
+        const size_t base_index = restart_pcs.size();
+        restart_pcs.reserve(base_index + m_thread_parameters_loads.size() + m_fault_restarts.size());
         for (const auto offset : m_thread_parameters_loads)
         {
-            restart_pcs.emplace(patch_base + offset, patch_base + offset - sizeof(u32));
+            restart_pcs.emplace_back(patch_base + offset, patch_base + offset - sizeof(u32));
         }
         for (const auto & [fault, restart] : m_fault_restarts)
-            restart_pcs.emplace(patch_base + fault, patch_base + restart);
+        {
+            restart_pcs.emplace_back(patch_base + fault, patch_base + restart);
+        }
+        std::stable_sort(restart_pcs.begin() + static_cast<ptrdiff_t>(base_index), restart_pcs.end(),
+                         [](const auto & a, const auto & b) { return a.first < b.first; });
+        restart_pcs.erase(
+            std::unique(restart_pcs.begin() + static_cast<ptrdiff_t>(base_index), restart_pcs.end(),
+                        [](const auto & a, const auto & b) { return a.first == b.first; }),
+            restart_pcs.end());
     }
     return true;
 }

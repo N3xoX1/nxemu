@@ -24,7 +24,7 @@ enum class PatchMode : u32
 using ModuleTextAddress = u64;
 using PatchTextAddress = u64;
 using EntryTrampolines = std::unordered_map<ModuleTextAddress, PatchTextAddress>;
-using RestartPcs = std::unordered_map<PatchTextAddress, PatchTextAddress>;
+using RestartPcs = std::vector<std::pair<PatchTextAddress, PatchTextAddress>>;
 
 class Patcher
 {

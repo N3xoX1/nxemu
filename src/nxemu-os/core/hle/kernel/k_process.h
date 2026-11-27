@@ -4,8 +4,12 @@
 #pragma once
 #include "yuzu_common/native_code_metadata.h"
 
+#include <algorithm>
+#include <iterator>
+#include <limits>
 #include <map>
 #include <unordered_map>
+#include <vector>
 #include <nxemu-module-spec/operating_system.h>
 #include <nxemu-module-spec/cpu.h>
 #include "core/hle/kernel/code_set.h"
@@ -138,8 +142,21 @@ private:
     std::atomic<s64> m_num_ipc_messages{};
     std::atomic<s64> m_num_ipc_replies{};
     std::atomic<s64> m_num_ipc_receives{};
+    struct NceRestartRange
+    {
+        u64 begin;
+        u32 span;
+        s32 target_delta;
+    };
+    struct NceRestartChunk
+    {
+        u64 min_pc;
+        u64 max_pc;
+        std::vector<NceRestartRange> ranges;
+    };
     std::unordered_map<u64, u64> m_post_handlers{};
-    std::unordered_map<u64, u64> m_nce_restart_pcs{};
+    std::vector<NceRestartChunk> m_nce_restart_chunks{};
+    std::unordered_map<u64, u64> m_nce_restart_overflow{};
     Common::NativeCodeMetadata m_runtime_code_metadata;
     std::unordered_map<u64, u64> m_nce_atomic_handlers;
     std::unordered_map<u64, u64> m_nce_read_handlers;
@@ -580,15 +597,69 @@ public:
 
     uint64_t GetNceRestartPc(uint64_t pc) const override
     {
-        const auto it = m_nce_restart_pcs.find(pc);
-        if (it != m_nce_restart_pcs.end()) return it->second;
+        for (auto chunk_it = m_nce_restart_chunks.rbegin(); chunk_it != m_nce_restart_chunks.rend(); ++chunk_it)
+        {
+            if (pc < chunk_it->min_pc || pc >= chunk_it->max_pc)
+            {
+                continue;
+            }
+            const auto & ranges = chunk_it->ranges;
+            const auto it = std::upper_bound(
+                ranges.begin(), ranges.end(), pc,
+                [](u64 addr, const NceRestartRange & r) { return addr < r.begin; });
+            if (it != ranges.begin())
+            {
+                const auto & r = *std::prev(it);
+                if (pc < r.begin + r.span && ((pc - r.begin) & 3ULL) == 0)
+                {
+                    return static_cast<u64>(static_cast<s64>(r.begin) + r.target_delta);
+                }
+            }
+        }
+        if (!m_nce_restart_overflow.empty())
+        {
+            const auto it = m_nce_restart_overflow.find(pc);
+            if (it != m_nce_restart_overflow.end()) return it->second;
+        }
         const auto restart = m_runtime_code_metadata.FindRestart(pc);
         return restart ? restart : pc;
     }
 
     void RegisterNceRestartPc(uint64_t interrupted_pc, uint64_t restart_pc) override
     {
-        m_nce_restart_pcs.insert_or_assign(interrupted_pc, restart_pc);
+        const s64 delta = static_cast<s64>(restart_pc) - static_cast<s64>(interrupted_pc);
+        if (delta < std::numeric_limits<s32>::min() || delta > std::numeric_limits<s32>::max())
+        {
+            m_nce_restart_overflow.insert_or_assign(interrupted_pc, restart_pc);
+            return;
+        }
+        if (!m_nce_restart_chunks.empty())
+        {
+            auto & chunk = m_nce_restart_chunks.back();
+            if (interrupted_pc >= chunk.max_pc)
+            {
+                if (!chunk.ranges.empty())
+                {
+                    auto & last = chunk.ranges.back();
+                    if (last.begin + last.span == interrupted_pc &&
+                        static_cast<u64>(static_cast<s64>(last.begin) + last.target_delta) == restart_pc &&
+                        last.span <= std::numeric_limits<u32>::max() - 4U)
+                    {
+                        last.span += 4U;
+                        chunk.max_pc = interrupted_pc + 4U;
+                        return;
+                    }
+                }
+                chunk.ranges.push_back({interrupted_pc, 4U, static_cast<s32>(delta)});
+                chunk.max_pc = interrupted_pc + 4U;
+                return;
+            }
+        }
+        NceRestartChunk chunk{};
+        chunk.min_pc = interrupted_pc;
+        chunk.max_pc = interrupted_pc + 4U;
+        chunk.ranges.push_back({interrupted_pc, 4U, static_cast<s32>(delta)});
+        m_nce_restart_chunks.push_back(std::move(chunk));
     }
 
     uint64_t FindNceAtomicHandler(uint64_t pc) const override {

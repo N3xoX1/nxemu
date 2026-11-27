@@ -2212,41 +2212,21 @@ struct Memory::Impl
             return true;
         }
 
-        // Batch ProtectAccess(Read) across all open nce_written VAs covering overlapping
-        // physical pages (including any multi-VA aliases) once before merging.
-        std::vector<u64> open_vaddrs;
-        if (hit_w)
-        {
-            for (auto it = it_w; it != nce_written_by_phys.end() && it->first < dst_byte_end; ++it)
+        // Register the full physical range in active_gpu_readbacks so clean-gap copies can
+        // release nce_write_mutex without allowing concurrent NCE write faults to open a
+        // clean page inside [dst_begin, dst_end).
+        active_gpu_readbacks.emplace_back(dst_begin, dst_end);
+        SCOPE_EXIT {
+            if (!lk.owns_lock())
             {
-                if (buffer->NceTrackedAccessAllowed(it->second, true))
-                {
-                    open_vaddrs.push_back(it->second);
-                }
+                lk.lock();
             }
-        }
-        std::vector<std::pair<u64, u64>> open_runs;
-        if (!open_vaddrs.empty())
-        {
-            std::sort(open_vaddrs.begin(), open_vaddrs.end());
-            open_vaddrs.erase(std::unique(open_vaddrs.begin(), open_vaddrs.end()), open_vaddrs.end());
-            for (size_t idx = 0; idx < open_vaddrs.size();)
-            {
-                const u64 run_begin = open_vaddrs[idx];
-                u64 run_end = run_begin + YUZU_PAGESIZE;
-                ++idx;
-                while (idx < open_vaddrs.size() && open_vaddrs[idx] == run_end)
-                {
-                    run_end += YUZU_PAGESIZE;
-                    ++idx;
-                }
-                buffer->ProtectAccess(run_begin, run_end - run_begin, Common::MemoryPermission::Read);
-                open_runs.emplace_back(run_begin, run_end - run_begin);
-            }
-        }
+            RemoveActiveGpuReadbackLocked(dst_begin, dst_end);
+        };
 
         uintptr_t cursor = base;
         std::vector<u8 *> refs;
+        std::vector<u64> dirty_open_vaddrs;
         while (cursor < dst_byte_end)
         {
             while (it_w != nce_written_by_phys.end() && it_w->first + YUZU_PAGESIZE <= cursor)
@@ -2263,7 +2243,23 @@ struct Memory::Impl
             const uintptr_t next = std::min(next_w, next_f);
             if (cursor < next)
             {
-                copy(dst + (cursor - base), src + (cursor - base), next - cursor, user);
+                const u64 gap_off = cursor - base;
+                const u64 gap_size = next - cursor;
+                if (gap_size >= YUZU_PAGESIZE)
+                {
+                    lk.unlock();
+                    copy(dst + gap_off, src + gap_off, gap_size, user);
+                    lk.lock();
+                    it_w = has_nce_written.load(std::memory_order_relaxed)
+                               ? LowerBoundPhys(nce_written_by_phys, next)
+                               : nce_written_by_phys.end();
+                    it_f = has_nce_flushing.load(std::memory_order_relaxed)
+                               ? LowerBoundPhys(nce_flushing_by_phys, next)
+                               : nce_flushing_by_phys.end();
+                    cursor = next;
+                    continue;
+                }
+                copy(dst + gap_off, src + gap_off, gap_size, user);
                 cursor = next;
             }
             if (cursor == dst_byte_end) break;
@@ -2274,9 +2270,16 @@ struct Memory::Impl
             const u64 chunk_size = page_end - cursor;
 
             refs.clear();
+            dirty_open_vaddrs.clear();
             while (it_w != nce_written_by_phys.end() && it_w->first == phys_page)
             {
-                refs.push_back(nce_written.at(it_w->second).copy->data() + chunk_off);
+                const u64 va = it_w->second;
+                if (buffer->NceTrackedAccessAllowed(va, true))
+                {
+                    buffer->ProtectAccess(va, YUZU_PAGESIZE, Common::MemoryPermission::Read);
+                    dirty_open_vaddrs.push_back(va);
+                }
+                refs.push_back(nce_written.at(va).copy->data() + chunk_off);
                 ++it_w;
             }
             while (it_f != nce_flushing_by_phys.end() && it_f->first == phys_page)
@@ -2295,12 +2298,15 @@ struct Memory::Impl
                 MergeNceReadbackBytesMulti(refs.data(), refs.size(), dst_chunk, src_chunk,
                                            chunk_size);
             }
+            else
+            {
+                copy(dst_chunk, src_chunk, chunk_size, user);
+            }
+            for (const u64 va : dirty_open_vaddrs)
+            {
+                buffer->ProtectAccess(va, YUZU_PAGESIZE, Common::MemoryPermission::ReadWrite);
+            }
             cursor = page_end;
-        }
-
-        for (const auto & [run_begin, run_size] : open_runs)
-        {
-            buffer->ProtectAccess(run_begin, run_size, Common::MemoryPermission::ReadWrite);
         }
         return true;
     }
@@ -2520,66 +2526,23 @@ struct Memory::Impl
         {
             Impl * impl;
             size_t core;
-            bool collected;
         };
         const auto collect_exact = [](uint64_t address, uint64_t size, void * user_data) {
             auto & ctx = *static_cast<FlushNceCollectContext *>(user_data);
-            ctx.collected = true;
             ctx.impl->gpu_dirty_managers[ctx.core].CollectExact(address, size);
         };
-        FlushNceCollectContext context{this, core, false};
-        // `written` is grouped by ascending 4 KiB page (from std::map nce_written).
-        // BufferCache GPU-modified tracking is 4 KiB page-granular, so if the first
-        // sub-range on a page does not trigger GPU-dirty collection (not GPU-modified),
-        // we can coalesce the remaining sub-ranges on the same page into a single
-        // bounding notification instead of acquiring BufferCache::mutex per 4-byte run.
-        for (size_t i = 0; i < written.size();)
+        FlushNceCollectContext context{this, core};
+        // Report every contiguous run of CPU-written words without merging across unchanged
+        // words: TextureCache::WriteMemory and BufferCache::IsRegionGpuModified are byte-granular,
+        // so bridging across unchanged words can invalidate a GPU-modified image or buffer.
+        for (const auto & [address, size] : written)
         {
-            const u64 page = written[i].first & ~YUZU_PAGEMASK;
-            size_t j = i + 1;
-            while (j < written.size() && (written[j].first & ~YUZU_PAGEMASK) == page)
+            if (const auto * p = GetPointerImpl(address, []() {}, []() {}); p != nullptr)
             {
-                ++j;
-            }
-            const auto & [first_addr, first_size] = written[i];
-            if (const auto * p = GetPointerImpl(first_addr, []() {}, []() {}); p != nullptr)
-            {
-                context.collected = false;
                 system.GetVideo().HandleRasterizerWrite(
-                    p, first_size, &rasterizer_write_areas[core].last_address, collect_exact,
+                    p, size, &rasterizer_write_areas[core].last_address, collect_exact,
                     &context);
-                if (j > i + 1)
-                {
-                    if (context.collected)
-                    {
-                        for (size_t k = i + 1; k < j; ++k)
-                        {
-                            const auto & [address, size] = written[k];
-                            if (const auto * kp = GetPointerImpl(address, []() {}, []() {});
-                                kp != nullptr)
-                            {
-                                system.GetVideo().HandleRasterizerWrite(
-                                    kp, size, &rasterizer_write_areas[core].last_address,
-                                    collect_exact, &context);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        const u64 tail_addr = written[i + 1].first;
-                        const u64 tail_end = written[j - 1].first + written[j - 1].second;
-                        if (const auto * tp = GetPointerImpl(tail_addr, []() {}, []() {});
-                            tp != nullptr && tail_end > tail_addr)
-                        {
-                            system.GetVideo().HandleRasterizerWrite(
-                                tp, tail_end - tail_addr,
-                                &rasterizer_write_areas[core].last_address, collect_exact,
-                                &context);
-                        }
-                    }
-                }
             }
-            i = j;
         }
     }
 
