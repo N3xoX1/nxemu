@@ -2358,8 +2358,10 @@ void TextureCache<P>::RefreshContents(Image& image, ImageId image_id) {
 template <class P>
 bool TextureCache<P>::UploadInChunks(Image& image) {
     // A whole upload of a very large image needs a staging buffer of its full size, rounded up to
-    // a power of two (1 GiB for 600 MiB of data), which can fail when memory is tight. Port of
-    // Lichii 073b877965 + b547bda625.
+    // a power of two (1 GiB for 600 MiB of data), which can fail when memory is tight. Split into
+    // 32 MiB chunks without flushing the command buffer mid-draw (UpdateRenderTargets can run
+    // after Vulkan index/vertex bindings are recorded, so calling runtime.Finish() here would
+    // drop those bindings and stall the GPU).
     constexpr u64 min_size = 64_MiB;
     constexpr u64 chunk_size = 32_MiB;
     constexpr ImageFlagBits excluded = ImageFlagBits::Sparse | ImageFlagBits::Converted |
@@ -2381,11 +2383,6 @@ bool TextureCache<P>::UploadInChunks(Image& image) {
         auto staging = runtime.UploadStagingBuffer(plan.total_host_bytes);
         ExecuteUnswizzlePlan(*gpu_memory, plan, staging.mapped_span, scratch);
         image.UploadMemory(staging, plan.copies);
-        if (end < image.guest_size_bytes) {
-            // Submit and wait so this chunk's staging memory is reused by the next one; without
-            // it every chunk's buffer stays alive until the next scheduler flush.
-            runtime.Finish();
-        }
     }
     runtime.InsertUploadMemoryBarrier();
     return true;
