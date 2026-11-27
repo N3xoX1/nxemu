@@ -30,7 +30,10 @@ struct Cache {
     std::function<void()> on_commit;
     std::function<void()> before_pop;
     bool protects_pending{};
+    bool unfenced{};
+    std::atomic<unsigned> commits{};
     bool HasUncommittedFlushes() const { return pending; }
+    bool HasUnfencedReports() const { return unfenced; }
     bool HasUnprotectedUncommittedFlushes() const { return pending && !protects_pending; }
     bool PendingDownloadsProtected() const { return protects_pending; }
     void AccumulateFlushes() {}
@@ -46,6 +49,8 @@ struct Cache {
     }
     void CommitAsyncFlushes() {
         NotifyWFI();
+        unfenced = false;
+        ++commits;
         if (on_commit) on_commit();
         std::scoped_lock lock(slot_guard);
         slots.push_back(std::exchange(pending, false));
@@ -495,6 +500,32 @@ void CheckCheckpointReadback(bool exact_readback) {
     assert(completed.load(std::memory_order_acquire));
     assert(textures.retired == buffers.retired && buffers.retired == queries.retired);
 }
+// A guest can poll a query result written by a report that no fence follows yet. Releasing
+// the pending fences must publish it, and must not submit anything when no report waits.
+template <bool async>
+void CheckUnfencedReport(bool exact_readback, bool force) {
+    Settings::exact_readback.store(exact_readback);
+    VideoCore::RasterizerInterface rasterizer;
+    Tegra::GPU gpu;
+    Cache textures, buffers, queries;
+    Manager<async> manager{rasterizer, gpu, textures, buffers, queries};
+    manager.SignalGpu();
+    manager.WaitPendingFences(force);
+    const unsigned idle_commits = queries.commits;
+    assert(idle_commits == (async && force ? 1u : 0u));
+    std::atomic<bool> published{};
+    manager.SyncOperation([&] { published.store(true, std::memory_order_release); });
+    queries.unfenced = true;
+    manager.WaitPendingFences(force);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    while (!published.load(std::memory_order_acquire) &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::yield();
+    }
+    assert(published.load(std::memory_order_acquire));
+    assert(!queries.unfenced);
+    assert(manager.host_fences == 0 && manager.waits == 0);
+}
 }
 
 int main(int argc, char** argv) {
@@ -515,6 +546,10 @@ int main(int argc, char** argv) {
         CheckOrdering<false>(exact_readback);
         CheckOrdinaryFenceOrdering<true>(exact_readback);
         CheckOrdinaryFenceOrdering<false>(exact_readback);
+        for (bool force : {false, true}) {
+            CheckUnfencedReport<true>(exact_readback, force);
+            CheckUnfencedReport<false>(exact_readback, force);
+        }
         CheckCheckpointReadback<true>(exact_readback);
         CheckCheckpointReadback<false>(exact_readback);
         CheckProtectedReadback<true>(exact_readback);

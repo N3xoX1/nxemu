@@ -588,6 +588,15 @@ struct GPU::Impl :
         return rasterizer->OnCPUWrite(addr, size);
     }
 
+    bool IsReadCachedOnlyForQueryResults(DAddr addr, uint64_t size)
+    {
+        return rasterizer->IsReadCachedOnlyForQueryResults(addr, size);
+    }
+    bool IsCachedOnlyForQueryResults(DAddr addr, uint64_t size)
+    {
+        return rasterizer->IsCachedOnlyForQueryResults(addr, size);
+    }
+
     void WaitInPlaceReads(DAddr addr, uint64_t size)
     {
         rasterizer->WaitInPlaceReads(addr, size);
@@ -1074,6 +1083,15 @@ uint64_t GPU::InvalidateRegionAhead(DAddr addr, uint64_t size)
 bool GPU::OnCPUWrite(DAddr addr, uint64_t size)
 {
     return impl->OnCPUWrite(addr, size);
+}
+
+bool GPU::IsReadCachedOnlyForQueryResults(DAddr addr, uint64_t size)
+{
+    return impl->IsReadCachedOnlyForQueryResults(addr, size);
+}
+bool GPU::IsCachedOnlyForQueryResults(DAddr addr, uint64_t size)
+{
+    return impl->IsCachedOnlyForQueryResults(addr, size);
 }
 
 void GPU::WaitInPlaceReads(DAddr addr, uint64_t size)

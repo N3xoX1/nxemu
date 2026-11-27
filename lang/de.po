@@ -435,8 +435,8 @@ msgid "Can gain FPS, but can cause halos or corruption in some games."
 msgstr "Kann FPS bringen, aber in manchen Spielen Halos oder Bildfehler verursachen."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
-msgid "Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits."
-msgstr "Benötigt Vulkan und reaktives Leeren. Eingeschaltet laufen Spiele weiter, während die GPU kopiert, was sie lesen werden, und können einen alten Wert lesen. Ausgeschaltet warten sie auf die Kopie; schnelles Zurücklesen kann einige Wartezeiten trotzdem überspringen."
+msgid "Needs Vulkan and reactive flushing. Off is exact: games wait for the GPU copies they will read. On, they go on while the GPU copies; some games read too early and see an old value. Query results stay protected either way."
+msgstr "Benötigt Vulkan und reaktives Leeren. Aus ist exakt: Spiele warten auf die GPU-Kopien, die sie lesen werden. An laufen sie weiter, während die GPU kopiert; manche Spiele lesen zu früh und sehen einen alten Wert. Abfrageergebnisse bleiben in beiden Fällen geschützt."
 
 #: src/nxemu/ui/assets/advanced_dialog.rml
 msgid "Untracked shader writes"

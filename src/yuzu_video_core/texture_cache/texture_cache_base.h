@@ -123,6 +123,7 @@ class TextureCache : public VideoCommon::ChannelSetupCaches<TextureCacheChannelI
     static constexpr s64 DEFAULT_EXPECTED_MEMORY = 1_GiB + 125_MiB;
     static constexpr s64 DEFAULT_CRITICAL_MEMORY = 1_GiB + 625_MiB;
     static constexpr size_t GC_EMERGENCY_COUNTS = 2;
+    static constexpr u64 COSTLY_KEEP_TICKS = 300;
 
     using Runtime = typename P::Runtime;
     static constexpr bool SUPPORTS_ASYNC_GC =
@@ -625,6 +626,7 @@ private:
     u64 minimum_memory;
     u64 expected_memory;
     u64 critical_memory;
+    u64 emergency_memory;
 
     struct BufferDownload {
         GPUVAddr address;

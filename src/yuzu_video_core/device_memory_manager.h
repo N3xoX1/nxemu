@@ -126,7 +126,30 @@ public:
     void UnregisterProcess(Asid id);
 
     void UpdatePagesCachedCount(DAddr addr, size_t size, s32 delta);
+
+    /// Lock-free: true when every page of the region is cached exactly once
+    [[nodiscard]] bool IsCachedOnce(DAddr addr, size_t size) const {
+        const size_t page_end = (addr + size + page_size - 1) >> page_bits;
+        for (size_t page = addr >> page_bits; page < page_end; ++page) {
+            if (cached_pages->at(page >> subentries_shift).Count(page).load(
+                    std::memory_order_acquire) != 1) {
+                return false;
+            }
+        }
+        return true;
+    }
     void UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta);
+    /// Lock-free: true when one cache alone keeps every page of the region read-cached
+    [[nodiscard]] bool IsReadCachedOnce(DAddr addr, size_t size) const {
+        const size_t page_end = (addr + size + page_size - 1) >> page_bits;
+        for (size_t page = addr >> page_bits; page < page_end; ++page) {
+            if (read_cached_pages->at(page >> subentries_shift).Count(page).load(
+                    std::memory_order_acquire) != 1) {
+                return false;
+            }
+        }
+        return true;
+    }
     void UpdatePagesWriteProtectedCount(DAddr addr, uint64_t size, s32 delta);
     // Pages holding bytes the GPU wrote stay cached and write protected, even once a CPU write
     // untracked them: every later CPU write there is reported exactly, never as a coarse write.
@@ -411,6 +434,7 @@ private:
         (1ULL << (device_virtual_bits - page_bits)) / subentries;
     using CachedPages = std::array<CounterEntry, num_counter_entries>;
     std::unique_ptr<CachedPages> cached_pages;
+    std::unique_ptr<CachedPages> read_cached_pages;
     VideoCommon::FlushRegionCacheFilter<Traits::device_virtual_bits> flush_cache_filter;
     // Physical pages opened by a completed native readback. Only actual GPU image
     // writes consume these observers; cache-management commands leave them alone.

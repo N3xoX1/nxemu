@@ -660,13 +660,16 @@ public:
     }
 
     bool ClearBackingRegion(size_t physical_offset, size_t length) {
-#ifdef __linux__
-        // Set MADV_REMOVE on backing map to destroy it instantly.
-        // This also deletes the area from the backing file.
-        int ret = madvise(backing_base + physical_offset, length, MADV_REMOVE);
-        ASSERT_MSG(ret == 0, "madvise failed: {}", strerror(errno));
-
-        return true;
+#if defined(__linux__) && defined(MADV_REMOVE)
+        // MADV_REMOVE rounds the end to a host page. Do not discard neighbouring
+        // guest memory, and let the caller use memset if hole punching fails.
+        if (length == 0) {
+            return true;
+        }
+        if (physical_offset % host_page_size != 0 || length % host_page_size != 0) {
+            return false;
+        }
+        return madvise(backing_base + physical_offset, length, MADV_REMOVE) == 0;
 #else
         return false;
 #endif

@@ -507,6 +507,11 @@ bool RasterizerOpenGL::MustFlushRegion(DAddr addr, u64 size, VideoCommon::CacheT
             return true;
         }
     }
+    // Query results not yet written to guest memory must be flushed at any accuracy.
+    if (True(which & VideoCommon::CacheType::QueryCache) &&
+        query_cache.IsRegionGpuModified(addr, size)) {
+        return true;
+    }
     if (!Settings::IsGPULevelHigh()) {
         return false;
     }

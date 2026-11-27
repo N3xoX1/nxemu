@@ -1282,6 +1282,33 @@ bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
     return false;
 }
 
+bool RasterizerVulkan::IsCachedOnlyForQueryResults(DAddr addr, u64 size) const {
+    // A page held for results holds one cached count, added before its bit is set and
+    // removed after it is cleared
+    const DAddr end = addr + size;
+    for (DAddr page = Common::AlignDown(addr, Core::DEVICE_PAGESIZE); page < end;
+         page += Core::DEVICE_PAGESIZE) {
+        if (!query_cache.HoldsResultPage(page) ||
+            !device_memory.IsCachedOnce(page, Core::DEVICE_PAGESIZE)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool RasterizerVulkan::IsReadCachedOnlyForQueryResults(DAddr addr, u64 size) const {
+    // Other caches may track the page, but none needs a download on a CPU read
+    const DAddr end = addr + size;
+    for (DAddr page = Common::AlignDown(addr, Core::DEVICE_PAGESIZE); page < end;
+         page += Core::DEVICE_PAGESIZE) {
+        if (!query_cache.HoldsResultPage(page) ||
+            !device_memory.IsReadCachedOnce(page, Core::DEVICE_PAGESIZE)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void RasterizerVulkan::OnGuestSynchronization() {
     // Writes to pages already CPU-modified go unreported
     ChangeMemoryEpoch();
@@ -1505,6 +1532,7 @@ void RasterizerVulkan::TickFrame() {
     draw_counter = 0;
     fence_manager.TickFrame();
     staging_pool.TickFrame();
+    query_cache.ReleaseIdleResultPages();
     {
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.TickFrame();

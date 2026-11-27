@@ -76,10 +76,14 @@ TextureCache<P>::TextureCache(Runtime& runtime_, Tegra::MaxwellDeviceMemoryManag
             std::max(std::min(device_local_memory - min_vacancy_critical, min_spacing_critical),
                      DEFAULT_CRITICAL_MEMORY));
         minimum_memory = static_cast<u64>((device_local_memory - mem_threshold) / 2);
+        // Leave an additional safety margin before the usable memory budget is exhausted.
+        emergency_memory = std::max(critical_memory, static_cast<u64>(
+            std::max<s64>(device_local_memory - 256_MiB, 0)));
     } else {
         expected_memory = DEFAULT_EXPECTED_MEMORY + 512_MiB;
         critical_memory = DEFAULT_CRITICAL_MEMORY + 1_GiB;
         minimum_memory = 0;
+        emergency_memory = critical_memory;
     }
 }
 
@@ -259,8 +263,10 @@ void TextureCache<P>::RunGarbageCollector() {
         ticks_to_destroy = aggressive_mode ? 10ULL : high_priority_mode ? 25ULL : 50ULL;
         num_iterations = aggressive_mode ? 40 : (high_priority_mode ? 20 : 10);
     };
+    const bool retain_costly = runtime.CanReportMemoryUsage() &&
+                               total_used_memory < emergency_memory;
     const auto Cleanup = [this, &num_iterations, &high_priority_mode,
-                          &aggressive_mode](ImageId image_id) {
+                          &aggressive_mode, retain_costly](ImageId image_id) {
         if (num_iterations == 0) {
             return true;
         }
@@ -271,7 +277,9 @@ void TextureCache<P>::RunGarbageCollector() {
             // used by the async decoder thread.
             return false;
         }
-        if (!aggressive_mode && True(image.flags & ImageFlagBits::CostlyLoad)) {
+        if (True(image.flags & ImageFlagBits::CostlyLoad) &&
+            (!aggressive_mode ||
+             (retain_costly && frame_tick - lru_cache.GetTick(image.lru_index) < COSTLY_KEEP_TICKS))) {
             return false;
         }
         if (gc_readback_ids.contains(image_id)) {

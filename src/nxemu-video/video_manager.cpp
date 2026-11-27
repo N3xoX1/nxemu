@@ -641,6 +641,10 @@ RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * po
         if (area.startAddress <= address && end_address <= area.endAddress) [[likely]] {
             return;
         }
+        // Only query results keep the page read-cached: the wait above is enough
+        if (impl->m_gpuCore->IsReadCachedOnlyForQueryResults(address, size)) {
+            return;
+        }
         area = impl->m_gpuCore->OnCPURead(address, size);
     });
     return area;
@@ -656,6 +660,11 @@ void VideoManager::HandleRasterizerWrite(const uint8_t * pointer, uint64_t size,
         // after the publication, which would otherwise copy the older GPU data over it
         impl->m_gpuCore->WaitProtectedBufferDownloads(address, size);
         impl->m_gpuCore->WaitInPlaceReads(address, size);
+        // Only query results keep the page cached: no cache tracks the write
+        if (impl->m_gpuCore->IsCachedOnlyForQueryResults(address, size))
+        {
+            return;
+        }
         bool do_collection = *last_page == subaddress;
         if (!do_collection) [[unlikely]]
         {

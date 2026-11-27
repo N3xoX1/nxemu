@@ -521,7 +521,7 @@
                       <div class="row-label">Readbacks in the background</div>
                       <div class="row-text">Can gain FPS, but can cause halos or corruption in some games.</div>
                     </div>
-                    <div id="background-readbacks" class="switch" data-command="toggle:background-readbacks" title="Needs Vulkan and reactive flushing. On, games go on while the GPU copies what they will read, and can read an old value. Off, they wait for the copy; fast readback can still skip some waits.">
+                    <div id="background-readbacks" class="switch" data-command="toggle:background-readbacks" title="Needs Vulkan and reactive flushing. Off is exact: games wait for the GPU copies they will read. On, they go on while the GPU copies; some games read too early and see an old value. Query results stay protected either way.">
                       <div class="switch-knob" />
                     </div>
                   </div>

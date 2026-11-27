@@ -201,6 +201,7 @@ DeviceMemoryManager<Traits>::DeviceMemoryManager(const IDeviceMemory & device_me
     cpu_backing_address.resize_lazy(device_as_size >> DEVICE_PAGEBITS);
     impl = std::make_unique<DeviceMemoryManagerAllocator<Traits>>();
     cached_pages = std::make_unique<CachedPages>();
+    read_cached_pages = std::make_unique<CachedPages>();
 
     // Fresh VirtualBuffer pages are zero-filled: the initial address space is
     // one unmapped run. Only nonempty boundary words need a summary bit.
@@ -839,6 +840,11 @@ void DeviceMemoryManager<Traits>::InvalidateNativeReadRegion(DAddr addr, size_t 
 template <typename Traits>
 void DeviceMemoryManager<Traits>::UpdatePagesReadCachedCount(DAddr addr, size_t size, s32 delta)
 {
+    const size_t page_end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
+    for (size_t page = addr >> DEVICE_PAGEBITS; page < page_end; ++page)
+    {
+        read_cached_pages->at(page >> subentries_shift).Count(page).fetch_add(static_cast<CounterType>(delta), std::memory_order_release);
+    }
     ForEachProcessRange(addr, size, [delta](IMemory& memory, VAddr begin, uint64_t bytes) {
         memory.RasterizerMarkRegionReadCached(begin, bytes, delta);
     });
