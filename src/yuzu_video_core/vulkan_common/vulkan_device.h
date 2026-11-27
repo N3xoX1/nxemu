@@ -93,6 +93,14 @@ VK_DEFINE_HANDLE(VmaAllocator)
     EXTENSION(NV, VIEWPORT_ARRAY2, viewport_array2)                                                \
     EXTENSION(NV, VIEWPORT_SWIZZLE, viewport_swizzle)
 
+// Extensions that only exist on some platforms.
+#ifdef __APPLE__
+// Lets the Metal renderer share its device and frames with the Vulkan display.
+#define FOR_EACH_VK_PLATFORM_EXTENSION(EXTENSION) EXTENSION(EXT, METAL_OBJECTS, metal_objects)
+#else
+#define FOR_EACH_VK_PLATFORM_EXTENSION(EXTENSION)
+#endif
+
 // Define extensions which must be supported.
 #define FOR_EACH_VK_MANDATORY_EXTENSION(EXTENSION_NAME)                                            \
     EXTENSION_NAME(VK_EXT_VERTEX_ATTRIBUTE_DIVISOR_EXTENSION_NAME)                                 \
@@ -666,6 +674,13 @@ public:
         return extensions.subgroup_size_control;
     }
 
+#ifdef __APPLE__
+    /// Returns true if the device supports VK_EXT_metal_objects.
+    bool IsExtMetalObjectsSupported() const {
+        return extensions.metal_objects;
+    }
+#endif
+
     /// Returns true if the device supports VK_EXT_transform_feedback.
     bool IsExtTransformFeedbackSupported() const {
         return extensions.transform_feedback;
@@ -958,6 +973,7 @@ private:
         FOR_EACH_VK_FEATURE_1_3(FEATURE);
         FOR_EACH_VK_FEATURE_EXT(FEATURE);
         FOR_EACH_VK_EXTENSION(EXTENSION);
+        FOR_EACH_VK_PLATFORM_EXTENSION(EXTENSION);
 
 #undef EXTENSION
 #undef FEATURE
