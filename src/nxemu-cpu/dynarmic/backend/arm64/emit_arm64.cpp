@@ -191,7 +191,7 @@ void EmitAddCycles(oaknut::CodeGenerator& code, EmitContext& ctx, size_t cycles_
     }
 }
 
-EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const EmitConfig& conf, FastmemManager& fastmem_manager) {
+EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const EmitConfig& conf, FastmemManager& fastmem_manager, size_t max_size) {
     if (conf.very_verbose_debugging_output) {
         std::puts(IR::DumpBlock(block).c_str());
     }
@@ -203,6 +203,9 @@ EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const E
     EmitContext ctx{block, reg_alloc, conf, ebi, fpsr_manager, fastmem_manager, {}};
 
     ebi.entry_point = code.xptr<CodePtr>();
+    const auto start_offset = code.offset();
+    // Leave room for the terminal and deferred memory paths, as in Eden #4659.
+    constexpr size_t block_tail_reserve = 512 * 1024;
 
     if (ctx.block.GetCondition() == IR::Cond::AL) {
         ASSERT(!ctx.block.HasConditionFailedLocation());
@@ -248,6 +251,10 @@ EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const E
         if (conf.very_verbose_debugging_output) {
             EmitVerboseDebuggingOutput(code, ctx);
         }
+
+        if (static_cast<size_t>(code.offset() - start_offset) + block_tail_reserve > max_size) {
+            throw CodeBufferExhausted{};
+        }
     }
 
     const bool host_flags_are_guest_nzcv = ctx.host_flags_are_guest_nzcv_at == code.xptr<CodePtr>();
@@ -263,6 +270,9 @@ EmittedBlockInfo EmitArm64(oaknut::CodeGenerator& code, IR::Block block, const E
     code.BRK(0);
 
     for (const auto& deferred_emit : ctx.deferred_emits) {
+        if (static_cast<size_t>(code.offset() - start_offset) + block_tail_reserve > max_size) {
+            throw CodeBufferExhausted{};
+        }
         deferred_emit();
     }
     code.BRK(0);
