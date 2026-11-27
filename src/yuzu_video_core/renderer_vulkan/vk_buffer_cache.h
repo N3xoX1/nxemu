@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deque>
+#include <functional>
 #include <mutex>
 #include "yuzu_video_core/buffer_cache/buffer_cache_base.h"
 #include "yuzu_common/readback_reference.h"
@@ -121,7 +122,10 @@ public:
     /// Prepares the guest RAM backing for on-demand device import (VK_EXT_external_memory_host),
     /// so buffers that only the guest CPU writes can be bound in place without importing or
     /// faulting unused guest RAM up front. Returns false when the device can't.
-    bool InitHostMappedGuestMemory(const u8* base, uint64_t size);
+    /// `on_pin` marks a backing range pinned (true) or released (false) while a driver that pins
+    /// its pages has it imported, so guest RAM reclaim leaves it alone.
+    bool InitHostMappedGuestMemory(const u8* base, uint64_t size,
+                                   std::function<void(uint64_t, uint64_t, bool)> on_pin = {});
 
     /// Binds `size` bytes at `pointer` (inside the guest RAM backing) as a uniform buffer.
     /// Imports the owning 32 MiB chunk on first use; returns false when the range can't be bound
@@ -355,6 +359,8 @@ private:
     VkBuffer ImportHostMappedChunk(size_t chunk_index);
 
     std::vector<HostMappedChunk> host_mapped_chunks;
+    /// Set only when the driver pins imported pages: called around each chunk's lifetime
+    std::function<void(uint64_t, uint64_t, bool)> host_mapped_on_pin;
     PFN_vkGetMemoryHostPointerPropertiesEXT pfn_get_host_pointer_properties{};
     PFN_vkGetBufferMemoryRequirements pfn_get_buffer_memory_requirements{};
     const u8* host_mapped_base{};

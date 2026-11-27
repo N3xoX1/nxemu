@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <tuple>
 
 #include "yuzu_common/common_funcs.h"
@@ -85,6 +86,7 @@ public:
     }
 
     void OpenFirst(KPhysicalAddress address, size_t num_pages) {
+        CommitBackingPages(address, num_pages);
         // Repeatedly open references until we've done so for all pages.
         while (num_pages) {
             auto& manager = this->GetManager(address);
@@ -101,6 +103,7 @@ public:
     }
 
     void Close(KPhysicalAddress address, size_t num_pages) {
+        MarkBackingPagesDirty(address, num_pages);
         // Repeatedly close references until we've done so for all pages.
         while (num_pages) {
             auto& manager = this->GetManager(address);
@@ -114,6 +117,7 @@ public:
             num_pages -= cur_pages;
             address += cur_pages * PageSize;
         }
+        ReleaseFreeBacking();
     }
 
     size_t GetSize() {
@@ -232,6 +236,9 @@ private:
         constexpr Pool GetPool() const {
             return m_pool;
         }
+        KPageHeap& GetHeap() {
+            return m_heap;
+        }
         constexpr size_t GetSize() const {
             return m_heap.GetSize();
         }
@@ -334,6 +341,11 @@ private:
     };
 
 private:
+    void CommitBackingPages(KPhysicalAddress address, size_t num_pages);
+    void MarkBackingPagesDirty(KPhysicalAddress address, size_t num_pages);
+    /// At most once a second: give back the host memory of granules free since the last pass.
+    void ReleaseFreeBacking();
+
     Impl& GetManager(KPhysicalAddress address) {
         return m_managers[m_memory_layout.GetPhysicalLinearRegion(address).GetAttributes()];
     }
@@ -371,6 +383,14 @@ private:
     size_t m_num_managers{};
     PoolArray<u64> m_optimized_process_ids{};
     PoolArray<bool> m_has_optimized_process{};
+    std::atomic<bool> m_has_dirty_free_granules{false};
+    std::atomic<bool> m_release_in_progress{false};
+    std::atomic<s64> m_next_release_pass_ms{0};
+    std::atomic<u64> m_released_granules_total{0};
+    std::atomic<s64> m_next_release_log_ms{0};
+    size_t m_release_manager_cursor{};
+    size_t m_release_granule_cursor{};
+    bool m_release_sweep_saw_remaining{};
 };
 
 } // namespace Kernel

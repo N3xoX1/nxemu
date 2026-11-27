@@ -3,6 +3,11 @@
 
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+
 #include "yuzu_common/host_memory.h"
 #include "yuzu_common/typed_address.h"
 #include <nxemu-module-spec/operating_system.h>
@@ -48,6 +53,16 @@ public:
         buffer.EnableDirectMappedAddress();
     }
 
+    void MarkBackingPinned(uint64_t physical_offset, uint64_t length) const
+    {
+        buffer.MarkBackingPinned(static_cast<size_t>(physical_offset), static_cast<size_t>(length));
+    }
+
+    void UnmarkBackingPinned(uint64_t physical_offset, uint64_t length) const
+    {
+        buffer.UnmarkBackingPinned(static_cast<size_t>(physical_offset), static_cast<size_t>(length));
+    }
+
     template <typename T>
     Common::PhysicalAddress GetPhysicalAddr(const T* ptr) const {
         return (reinterpret_cast<uintptr_t>(ptr) -
@@ -84,6 +99,14 @@ public:
     }
 
     Common::HostMemory buffer;
+
+private:
+    void MaintainGuestMemory(std::stop_token stop);
+
+    std::mutex trim_wake_mutex;
+    std::condition_variable_any trim_wake_cv;
+    // Destroyed before buffer, stopping all reclamation before its mappings go away.
+    std::jthread memory_maintenance_thread;
 };
 
 } // namespace Core

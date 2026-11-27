@@ -519,6 +519,8 @@ nxinterface IDeviceMemory
     virtual uint64_t BackingSize() const = 0;
     virtual uint8_t * VirtualBasePointer() = 0;
     virtual void EnableDirectMappedAddress() = 0;
+    virtual void MarkBackingPinned(uint64_t physical_offset, uint64_t length) const = 0;
+    virtual void UnmarkBackingPinned(uint64_t physical_offset, uint64_t length) const = 0;
 };
 
 nxinterface ICacheInvalidator

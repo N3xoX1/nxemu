@@ -35,8 +35,15 @@ BufferCache<P>::BufferCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, R
     inline_buffer_id = NULL_BUFFER_ID;
     if constexpr (!IS_OPENGL) {
         // Before any GPU command: engine writes made before the import go untracked
-        guest_ram_imported = runtime.InitHostMappedGuestMemory(device_memory.PhysicalBase(),
-                                                               device_memory.PhysicalSize());
+        guest_ram_imported = runtime.InitHostMappedGuestMemory(
+            device_memory.PhysicalBase(), device_memory.PhysicalSize(),
+            [&device_memory = device_memory_](uint64_t offset, uint64_t size, bool pinned) {
+                if (pinned) {
+                    device_memory.MarkBackingPinned(offset, size);
+                } else {
+                    device_memory.UnmarkBackingPinned(offset, size);
+                }
+            });
         if (guest_ram_imported) {
             device_memory.EnableInPlaceReads();
         }

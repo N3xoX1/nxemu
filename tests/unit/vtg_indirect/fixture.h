@@ -83,6 +83,8 @@ struct TestMemory : IDeviceMemory, IMemory {
         return bytes.data();
     }
     void EnableDirectMappedAddress() override {}
+    void MarkBackingPinned(uint64_t, uint64_t) const override {}
+    void UnmarkBackingPinned(uint64_t, uint64_t) const override {}
     u8* GetPointerSilent(u64 addr) override {
         return bytes.data() + addr;
     }
