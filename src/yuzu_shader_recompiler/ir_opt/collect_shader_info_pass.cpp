@@ -408,6 +408,7 @@ void VisitUsages(Info& info, IR::Inst& inst) {
     case IR::Opcode::GlobalAtomicOr32x2:
     case IR::Opcode::GlobalAtomicXor32x2:
     case IR::Opcode::GlobalAtomicExchange32x2:
+    case IR::Opcode::GlobalAtomicCompareExchange32x2:
     case IR::Opcode::GlobalAtomicAddF32:
     case IR::Opcode::GlobalAtomicAddF16x2:
     case IR::Opcode::GlobalAtomicAddF32x2:
@@ -641,6 +642,7 @@ void VisitUsages(Info& info, IR::Inst& inst) {
     case IR::Opcode::StorageAtomicOr32x2:
     case IR::Opcode::StorageAtomicXor32x2:
     case IR::Opcode::StorageAtomicExchange32x2:
+    case IR::Opcode::StorageAtomicCompareExchange32x2:
         info.used_storage_buffer_types |= IR::Type::U32x2;
         break;
     case IR::Opcode::LoadStorage128:

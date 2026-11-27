@@ -495,6 +495,15 @@ void EmitStorageAtomicExchange32x2([[maybe_unused]] EmitContext& ctx,
     throw NotImplementedException("GLASM instruction");
 }
 
+void EmitStorageAtomicCompareExchange32x2([[maybe_unused]] EmitContext& ctx,
+                                          [[maybe_unused]] IR::Inst& inst,
+                                          [[maybe_unused]] const IR::Value& binding,
+                                          [[maybe_unused]] ScalarU32 offset,
+                                          [[maybe_unused]] Register value,
+                                          [[maybe_unused]] Register compare) {
+    throw NotImplementedException("GLASM instruction");
+}
+
 void EmitStorageAtomicAddF32(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                              ScalarU32 offset, ScalarF32 value) {
     Atom(ctx, inst, binding, offset, value, "ADD", "F32");
@@ -670,6 +679,10 @@ void EmitGlobalAtomicXor32x2(EmitContext&) {
 }
 
 void EmitGlobalAtomicExchange32x2(EmitContext&) {
+    throw NotImplementedException("GLASM instruction");
+}
+
+void EmitGlobalAtomicCompareExchange32x2(EmitContext&) {
     throw NotImplementedException("GLASM instruction");
 }
 

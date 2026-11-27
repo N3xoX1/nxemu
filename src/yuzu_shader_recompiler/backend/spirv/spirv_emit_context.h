@@ -411,6 +411,7 @@ public:
     bool defer_frag_alpha_rounding{};
     Id sample_mask{};
     Id frag_depth{};
+    std::unordered_set<const IR::Inst*> frag_depth_ops;
 
     std::vector<Id> interfaces;
 

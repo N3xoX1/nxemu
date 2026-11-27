@@ -522,6 +522,32 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
     DefineCommonTypes(program.info);
     DefineCommonConstants();
     DefineInterfaces(program);
+    if (profile.has_slow_fragment_no_contraction && stage == Stage::Fragment &&
+        Sirit::ValidId(frag_depth)) {
+        std::vector<const IR::Inst*> worklist;
+        for (const IR::Block* const block : program.blocks) {
+            for (const IR::Inst& inst : block->Instructions()) {
+                if (inst.GetOpcode() == IR::Opcode::SetFragDepth) {
+                    worklist.push_back(&inst);
+                }
+            }
+        }
+        while (!worklist.empty()) {
+            const IR::Inst* const current = worklist.back();
+            worklist.pop_back();
+            const size_t num_args = current->NumArgs();
+            for (size_t i = 0; i < num_args; ++i) {
+                const IR::Value arg = current->Arg(i);
+                if (arg.IsImmediate()) {
+                    continue;
+                }
+                const IR::Inst* const producer = arg.InstRecursive();
+                if (producer != nullptr && frag_depth_ops.insert(producer).second) {
+                    worklist.push_back(producer);
+                }
+            }
+        }
+    }
     DefineLocalMemory(program);
     DefineSharedMemory(program);
     DefineSharedMemoryFunctions(program);
@@ -1297,9 +1323,9 @@ void EmitContext::DefineGlobalMemoryFunctions(const IR::Program& program) {
         }
     }
     if (uses_global_cas_u32) {
-        const Id function_type{TypeFunction(U32[1], U64, U32[1], U32[1])};
+        const Id function_type{TypeFunction(U32[1], address_type, U32[1], U32[1])};
         const Id func_id{OpFunction(U32[1], function_control, function_type)};
-        const Id addr{OpFunctionParameter(U64)};
+        const Id addr{OpFunctionParameter(address_type)};
         const Id value{OpFunctionParameter(U32[1])};
         const Id compare{OpFunctionParameter(U32[1])};
         define_body(&StorageDefinitions::U32, addr, storage_types.U32.element, 2, 1, true,

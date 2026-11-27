@@ -149,6 +149,7 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::GlobalAtomicOr32x2:
     case Opcode::GlobalAtomicXor32x2:
     case Opcode::GlobalAtomicExchange32x2:
+    case Opcode::GlobalAtomicCompareExchange32x2:
     case Opcode::GlobalAtomicAddF32:
     case Opcode::GlobalAtomicAddF16x2:
     case Opcode::GlobalAtomicAddF32x2:
@@ -187,6 +188,7 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::StorageAtomicOr32x2:
     case Opcode::StorageAtomicXor32x2:
     case Opcode::StorageAtomicExchange32x2:
+    case Opcode::StorageAtomicCompareExchange32x2:
     case Opcode::StorageAtomicAddF32:
     case Opcode::StorageAtomicAddF16x2:
     case Opcode::StorageAtomicAddF32x2:

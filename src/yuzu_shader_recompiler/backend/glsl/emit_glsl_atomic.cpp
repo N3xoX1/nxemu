@@ -369,6 +369,18 @@ void EmitStorageAtomicExchange32x2(EmitContext& ctx, IR::Inst& inst, const IR::V
                  ctx.stage_name, binding.U32(), ctx.var_alloc.Consume(offset), value);
 }
 
+void EmitStorageAtomicCompareExchange32x2(EmitContext& ctx, IR::Inst& inst,
+                                          const IR::Value& binding, const IR::Value& offset,
+                                          std::string_view value, std::string_view compare) {
+    LOG_WARNING(Shader_GLSL, "Int64 atomics not supported, fallback to non-atomic");
+    const std::string off = ctx.var_alloc.Consume(offset);
+    const std::string ret = ctx.var_alloc.Define(inst, IR::Type::U32x2);
+    ctx.Add("{}=uvec2({}_ssbo{}[{}>>2],{}_ssbo{}[({}>>2)+1]);", ret, ctx.stage_name, binding.U32(),
+            off, ctx.stage_name, binding.U32(), off);
+    ctx.Add("if({}=={}){{{}_ssbo{}[{}>>2]={}.x;{}_ssbo{}[({}>>2)+1]={}.y;}}", ret, compare,
+            ctx.stage_name, binding.U32(), off, value, ctx.stage_name, binding.U32(), off, value);
+}
+
 void EmitStorageAtomicAddF32(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                              const IR::Value& offset, std::string_view value) {
     SsboCasFunctionF32(ctx, inst, binding, offset, value, "CasFloatAdd");
@@ -554,6 +566,10 @@ void EmitGlobalAtomicXor32x2(EmitContext&) {
 }
 
 void EmitGlobalAtomicExchange32x2(EmitContext&) {
+    throw NotImplementedException("GLSL Instruction");
+}
+
+void EmitGlobalAtomicCompareExchange32x2(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
 }
 

@@ -437,6 +437,9 @@ void EmitStorageAtomicXor32x2(EmitContext& ctx, IR::Inst& inst, const IR::Value&
                               ScalarU32 offset, Register value);
 void EmitStorageAtomicExchange32x2(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                                    ScalarU32 offset, Register value);
+void EmitStorageAtomicCompareExchange32x2(EmitContext& ctx, IR::Inst& inst,
+                                          const IR::Value& binding, ScalarU32 offset,
+                                          Register value, Register compare);
 void EmitStorageAtomicAddF32(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                              ScalarU32 offset, ScalarF32 value);
 void EmitStorageAtomicAddF16x2(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
@@ -486,6 +489,7 @@ void EmitGlobalAtomicAnd32x2(EmitContext& ctx);
 void EmitGlobalAtomicOr32x2(EmitContext& ctx);
 void EmitGlobalAtomicXor32x2(EmitContext& ctx);
 void EmitGlobalAtomicExchange32x2(EmitContext& ctx);
+void EmitGlobalAtomicCompareExchange32x2(EmitContext& ctx);
 void EmitGlobalAtomicAddF32(EmitContext& ctx);
 void EmitGlobalAtomicAddF16x2(EmitContext& ctx);
 void EmitGlobalAtomicAddF32x2(EmitContext& ctx);
