@@ -664,12 +664,26 @@ public:
             return true;
         }
 #if defined(__linux__) && defined(MADV_REMOVE)
-        // MADV_REMOVE rounds the end to a host page. Do not discard neighbouring
-        // guest memory, and let the caller use memset if hole punching fails.
-        if (physical_offset % host_page_size != 0 || length % host_page_size != 0) {
+        // MADV_REMOVE punches holes in the memfd/tmpfs backing file and requires
+        // host-page alignment. On 16 KiB Android/Linux devices, Switch allocations
+        // are 4 KiB-aligned, so punch holes across the aligned interior and zero
+        // only the sub-page edges without disturbing neighboring guest memory.
+        const size_t range_end = physical_offset + length;
+        const size_t aligned_begin = AlignUp(physical_offset, host_page_size);
+        const size_t aligned_end = AlignDown(range_end, host_page_size);
+        if (aligned_begin >= aligned_end) {
             return false;
         }
-        return madvise(backing_base + physical_offset, length, MADV_REMOVE) == 0;
+        if (madvise(backing_base + aligned_begin, aligned_end - aligned_begin, MADV_REMOVE) != 0) {
+            return false;
+        }
+        if (aligned_begin > physical_offset) {
+            std::memset(backing_base + physical_offset, 0, aligned_begin - physical_offset);
+        }
+        if (range_end > aligned_end) {
+            std::memset(backing_base + aligned_end, 0, range_end - aligned_end);
+        }
+        return true;
 #elif defined(__APPLE__) && defined(MADV_ZERO)
         // On macOS, a fallback memset(0) faults every 16 KiB page of a freshly allocated
         // guest heap into backing_base (and causes XNU phys_footprint to double-count pages
