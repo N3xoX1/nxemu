@@ -236,8 +236,8 @@ private:
         SmallPages = 3,
     };
 
-    std::vector<u64> entries;
-    std::vector<u64> big_entries;
+    Common::VirtualBuffer<u64> entries;
+    Common::VirtualBuffer<u64> big_entries;
     void PrepareSmallPageMapping(GPUVAddr gpu_addr, size_t size);
 
     void NotifyMappingChanged(GPUVAddr gpu_addr, DAddr dev_addr, size_t size,
@@ -267,7 +267,7 @@ private:
     std::atomic<u32> mapping_updates_in_progress{};
     Common::VirtualBuffer<u32> big_page_table_dev;
 
-    std::vector<u64> big_page_continuous;
+    Common::VirtualBuffer<u64> big_page_continuous;
     boost::container::small_vector<std::pair<DAddr, std::size_t>, 32> page_stash{};
     boost::container::small_vector<std::pair<DAddr, std::size_t>, 32> page_stash2{};
 
