@@ -160,6 +160,32 @@ std::vector<DeviceRecord> EnumerateDevices() {
     return records;
 }
 
+bool IsMetal4Supported(u32 device_index) noexcept {
+    ScopedAutoreleasePool pool;
+    Owned<MTL::Device> device;
+#if METAL_IS_MOBILE
+    (void)device_index;
+    device = Adopt(MTL::CreateSystemDefaultDevice());
+#else
+    Owned<NS::Array> devices = Adopt(MTL::CopyAllDevices());
+    if (devices && devices->count() > 0) {
+        const NS::UInteger idx = device_index < devices->count() ? device_index : 0;
+        if (auto* selected = devices->object<MTL::Device>(idx)) {
+            device = Retain(selected);
+        }
+    }
+    if (!device) {
+        device = Adopt(MTL::CreateSystemDefaultDevice());
+    }
+#endif
+    if (!device) {
+        return false;
+    }
+    return device->argumentBuffersSupport() == MTL::ArgumentBuffersTier2 &&
+           device->supportsFamily(MTL::GPUFamilyMetal3) &&
+           device->supportsFamily(MTL::GPUFamilyMetal4);
+}
+
 Device::Device(u32 device_index) : device{CreateDeviceByIndex(device_index)} {
     ScopedAutoreleasePool pool;
 

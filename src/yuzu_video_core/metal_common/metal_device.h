@@ -39,6 +39,11 @@ struct DeviceRecord {
 /// one, on macOS there may be an integrated and a discrete GPU, plus eGPUs.
 [[nodiscard]] std::vector<DeviceRecord> EnumerateDevices();
 
+/// Returns true if the selected Metal device supports everything the Metal 4
+/// renderer requires (Tier 2 argument buffers, Metal 3, and Metal 4). Safe to
+/// call on older macOS releases without throwing.
+[[nodiscard]] bool IsMetal4Supported(u32 device_index = 0) noexcept;
+
 /// Owns the MTL::Device and the queue everything is submitted through, and
 /// answers the capability questions the rest of the backend asks.
 class Device : Common::NonCopyable, Common::NonMoveable {

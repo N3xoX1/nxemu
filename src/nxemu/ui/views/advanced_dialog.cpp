@@ -39,7 +39,7 @@ constexpr bool kPlatformProtectsReadbacks = true;
 #else
 constexpr bool kPlatformProtectsReadbacks = false;
 #endif
-#if defined(_M_X64) || defined(__x86_64__)
+#if defined(__APPLE__) || defined(_M_X64) || defined(__x86_64__)
 constexpr bool kPlatformSupportsSkipReadbackWait = true;
 #else
 constexpr bool kPlatformSupportsSkipReadbackWait = false;
@@ -197,6 +197,18 @@ Choices VramUsages()
     };
 }
 
+Choices GraphicsApis()
+{
+    return {
+#ifdef __APPLE__
+        Numbered("Metal", static_cast<int>(RendererBackend::Metal), Tr("The default on macOS. Draws with Metal directly.")),
+        Numbered("Vulkan (MoltenVK)", static_cast<int>(RendererBackend::Vulkan), Tr("Compatibility fallback through MoltenVK.")),
+#else
+        Numbered("Vulkan", static_cast<int>(RendererBackend::Vulkan), Tr("The usual choice.")),
+#endif
+    };
+}
+
 Choices VideoDecodings()
 {
     return {
@@ -280,6 +292,7 @@ constexpr List kLists[] = {
     {"astc", NXVideoSetting::SystemAstcDecodeMode, false, AstcDecodings},
     {"astc-recompression", NXVideoSetting::SystemASTCRecompressionMethod, false, AstcRecompressions},
     {"vram", NXVideoSetting::SystemVRAMUsageMode, false, VramUsages},
+    {"graphics-api", NXVideoSetting::GraphicsAPI, false, GraphicsApis},
     {"nvdec", NXVideoSetting::SystemNvdecEmulation, false, VideoDecodings},
     {"cpu-backend", NXCpuSetting::SystemCpuBackend, false, ProcessorEngines},
     {"cpu-accuracy", NXCpuSetting::SystemCpuAccuracy, false, ProcessorAccuracies},
@@ -329,14 +342,16 @@ bool Inapplicable(const Toggle & toggle, const SettingsContext & settings)
     }
     if (id == "background-readbacks")
     {
+        const int api = settings.GetInt(NXVideoSetting::GraphicsAPI);
         return !kPlatformProtectsReadbacks || !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing) ||
-               settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
+               (api != static_cast<int>(RendererBackend::Vulkan) && api != static_cast<int>(RendererBackend::Metal));
     }
     if (id == "skip-readback-wait")
     {
+        const int api = settings.GetInt(NXVideoSetting::GraphicsAPI);
         return !kPlatformSupportsSkipReadbackWait || !settings.GetBool(NXVideoSetting::SystemBackgroundGpuReadbacks) ||
                !settings.GetBool(NXVideoSetting::SystemEnableReactiveFlushing) ||
-               settings.GetInt(NXVideoSetting::GraphicsAPI) != static_cast<int>(RendererBackend::Vulkan);
+               (api != static_cast<int>(RendererBackend::Vulkan) && api != static_cast<int>(RendererBackend::Metal));
     }
     if (id == "fast-readback")
     {
@@ -582,6 +597,13 @@ void AdvancedDialog::OnCloseRequested()
 void AdvancedDialog::FillLists()
 {
     SettingsContext & settings = m_settings;
+#ifndef __APPLE__
+    // Only macOS has a choice of graphics API.
+    if (Rml::Element * row = Document()->GetElementById("graphics-api-row"); row != nullptr && row->GetParentNode() != nullptr)
+    {
+        row->GetParentNode()->RemoveChild(row);
+    }
+#endif
     for (const List & list : kLists)
     {
         const Choices choices = list.choices();

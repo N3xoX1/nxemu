@@ -2760,8 +2760,11 @@ void MainWindow::UpdateStatusText()
             // configured backend alone can still fall back for this particular game.
             const bool native = process->Is64Bit() && process->IsApplication() &&
                                 SettingsStore::GetInstance().GetBool(NXCpuSetting::NceEnabled);
-            cpu_backend = std::string(native ? "NCE" : "Dynarmic") +
-                          (process->Is64Bit() ? " · AArch64 · " : " · AArch32 · ") +
+            // The graphics backend in place of AArch64/AArch32: the address space width
+            // already tells 64 from 32-bit, and the renderer is what a test has to be sure of.
+            const char * const renderer = m_session.Modules().Video().RendererName();
+            cpu_backend = std::string(native ? "NCE" : "Dynarmic") + " · " +
+                          (renderer != nullptr && *renderer != '\0' ? renderer : "?") + " · " +
                           std::to_string(process->GetPageTable().GetAddressSpaceWidth()) + "-bit";
         }
     }

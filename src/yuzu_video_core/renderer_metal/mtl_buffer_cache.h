@@ -192,7 +192,8 @@ public:
                                                  u32 size) const {
         return buffer.IsRegionUsed(offset, size);
     }
-    [[nodiscard]] bool InitHostMappedGuestMemory(const u8*, uint64_t) noexcept {
+    template <typename OnPin = std::nullptr_t>
+    [[nodiscard]] bool InitHostMappedGuestMemory(const u8*, uint64_t, OnPin&& = {}) noexcept {
         return false;
     }
     [[nodiscard]] bool BindHostMappedUniformBuffer(const u8*, u32) noexcept {

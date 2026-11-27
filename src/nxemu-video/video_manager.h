@@ -57,6 +57,7 @@ public:
     uint32_t ShadersBuilding() override;
     void ContinueShadersInBackground() override;
     void BackgroundShaderProgress(uint32_t & done, uint32_t & total) override;
+    const char * RendererName() override;
     VideoPresentationState GetPresentationState() override;
     void MeasureGpuTime(bool measure) override;
     uint64_t GpuTimeNs() override;
