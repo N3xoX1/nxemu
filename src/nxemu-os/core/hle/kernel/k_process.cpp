@@ -1523,23 +1523,34 @@ bool KProcess::RemoveWatchpoint(KProcessAddress addr, u64 size, CpuDebugWatchpoi
 #endif
 namespace Kernel {
 namespace {
-void InstallAtomicBranch(Core::Memory::Memory& memory, uint64_t pc, uint64_t target) {
+bool InstallAtomicBranch(Core::Memory::Memory& memory, uint64_t pc, uint64_t target) {
 #if defined(__APPLE__)
     const auto distance = static_cast<s64>(target) - static_cast<s64>(pc);
     auto* word = reinterpret_cast<u32*>(memory.GetPointerSilent(pc));
+    if (word == nullptr) {
+        static std::atomic<u32> logged{0};
+        if (logged.fetch_add(1, std::memory_order_relaxed) < 8) {
+            LOG_WARNING(Kernel, "InstallAtomicBranch: unmapped pc={:#x} target={:#x}", pc, target);
+        }
+        return false;
+    }
     std::atomic_ref<u32>(*word).store(0x14000000u | ((distance >> 2) & 0x03ffffffu),
                                      std::memory_order_release);
     sys_dcache_flush(word, sizeof(u32));
     sys_icache_invalidate(reinterpret_cast<void*>(pc), sizeof(u32));
+    return true;
 #else
     (void)memory; (void)pc; (void)target;
+    return false;
 #endif
 }
 }
 uint64_t KProcess::InstallNceReadHandler(uint64_t pc) {
     const auto it = m_nce_read_handlers.find(pc);
     if (it == m_nce_read_handlers.end()) return 0;
-    InstallAtomicBranch(m_memory, pc, it->second);
+    if (!InstallAtomicBranch(m_memory, pc, it->second)) {
+        return 0;
+    }
     static const bool profile = std::getenv("NXEMU_NCE_READBACK_PROFILE") != nullptr;
     if (profile) {
         static std::atomic<u64> attempts{};

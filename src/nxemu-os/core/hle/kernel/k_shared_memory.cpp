@@ -49,8 +49,9 @@ Result KSharedMemory::Initialize(Core::DeviceMemory& device_memory, KProcess* ow
     R_UNLESS(m_physical_address != 0, ResultOutOfMemory);
     m_padding_pages = allocated_pages - num_pages;
     if (m_padding_pages != 0) {
-        std::memset(m_device_memory->GetPointer<void>(m_physical_address + num_pages * PageSize),
-                    0, m_padding_pages * PageSize);
+        m_device_memory->buffer.ClearBackingRegion(
+            (m_physical_address + num_pages * PageSize).GetValue() - Core::DramMemoryMap::Base,
+            m_padding_pages * PageSize, 0);
     }
 
     //! Insert the result into our page group.
@@ -70,7 +71,8 @@ Result KSharedMemory::Initialize(Core::DeviceMemory& device_memory, KProcess* ow
 
     // Clear all pages in the memory.
     for (const auto& block : *m_page_group) {
-        std::memset(m_device_memory->GetPointer<void>(block.GetAddress()), 0, block.GetSize());
+        m_device_memory->buffer.ClearBackingRegion(
+            block.GetAddress().GetValue() - Core::DramMemoryMap::Base, block.GetSize(), 0);
     }
 
     R_SUCCEED();
