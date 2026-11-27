@@ -201,8 +201,8 @@ Choices GraphicsApis()
 {
     return {
 #ifdef __APPLE__
-        Numbered("Vulkan (MoltenVK)", static_cast<int>(RendererBackend::Vulkan), Tr("The usual choice.")),
-        Numbered("Metal", static_cast<int>(RendererBackend::Metal), Tr("Draws with Metal directly. On trial: some games may show faults.")),
+        Numbered("Metal", static_cast<int>(RendererBackend::Metal), Tr("The default on macOS. Draws with Metal directly.")),
+        Numbered("Vulkan (MoltenVK)", static_cast<int>(RendererBackend::Vulkan), Tr("Compatibility fallback through MoltenVK.")),
 #else
         Numbered("Vulkan", static_cast<int>(RendererBackend::Vulkan), Tr("The usual choice.")),
 #endif

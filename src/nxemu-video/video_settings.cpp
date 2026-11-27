@@ -29,7 +29,12 @@ std::atomic<bool> runtime_skip_untracked_store_readback{false};
 std::atomic<bool> runtime_use_reactive_flushing{false};
 std::atomic<bool> runtime_background_gpu_readbacks{true};
 std::atomic<bool> runtime_skip_readback_wait{false};
-std::atomic<RendererBackend> runtime_renderer_backend{RendererBackend::Vulkan};
+#ifdef __APPLE__
+constexpr RendererBackend DefaultRendererBackend = RendererBackend::Metal;
+#else
+constexpr RendererBackend DefaultRendererBackend = RendererBackend::Vulkan;
+#endif
+std::atomic<RendererBackend> runtime_renderer_backend{DefaultRendererBackend};
 std::atomic<bool> runtime_fast_gpu_readback{true};
 std::atomic<bool> runtime_fsr_legacy{false};
 }
@@ -295,7 +300,7 @@ public:
 };
 
 static VideoSetting settings[] = {
-    {NXVideoSetting::GraphicsAPI, "video", "renderer_backend", &videoSettings.renderer_backend, RendererBackend::Vulkan},
+    {NXVideoSetting::GraphicsAPI, "video", "renderer_backend", &videoSettings.renderer_backend, DefaultRendererBackend},
     {NXVideoSetting::ShaderBackend, "video", "shader_backend", &videoSettings.shader_backend, ShaderBackend::Glsl},
     {NXVideoSetting::VulkanDevice, "video", "vulkan_device", &videoSettings.vulkan_device, 0},
     {NXVideoSetting::SystemUseDiskPipelineCache, "video", "use_disk_shader_cache", &videoSettings.global_use_disk_shader_cache, true},
