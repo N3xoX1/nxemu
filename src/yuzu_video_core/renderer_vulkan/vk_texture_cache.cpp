@@ -1831,15 +1831,17 @@ void TextureCacheRuntime::TickFrame() {
         return ++scratch.unused_frames > MAX_UNUSED_SCRATCH_FRAMES;
     });
     static constexpr u64 MAX_UNUSED_TEMP_BUFFER_FRAMES = 300;
+    bool retired_any = false;
     for (size_t level = 0; level < indexing_slots; ++level) {
         if (buffers[level] && frame_counter - buffer_frames[level] >= MAX_UNUSED_TEMP_BUFFER_FRAMES &&
             scheduler.IsFree(buffer_ticks[level])) {
             buffers[level].reset();
             buffer_ticks[level] = 0;
             buffer_frames[level] = 0;
+            retired_any = true;
         }
     }
-    if (frame_counter % 300 == 0) {
+    if (retired_any) {
         Common::PurgeHostHeap();
     }
 }

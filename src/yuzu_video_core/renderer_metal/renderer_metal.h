@@ -64,6 +64,7 @@ private:
     /// knows about, which is the common case for display-controller compositing.
     [[nodiscard]] MTL::Texture* UploadFramebuffer(const Tegra::FramebufferConfig& config);
     [[nodiscard]] bool HoldIncompleteFrame();
+    void RenderCaptureLayerLocked(std::span<const Tegra::FramebufferConfig> framebuffers);
 
     Tegra::GPU& m_gpu;
 
@@ -90,10 +91,10 @@ private:
     std::mutex m_capture_mutex;
     Owned<MTL::Texture> m_capture_texture;
     Owned<MTL::Buffer> m_capture_readback;
-    /// Latched on the first request for the applet capture buffer, so we do not
-    /// render the capture layer every frame. It goes through the full
-    /// blit-screen path here, filters and all. The first capture after boot
-    /// comes back empty, every one after it is current.
+    /// Last composited framebuffer configs, used to render the capture layer
+    /// synchronously on the first GetAppletCaptureBuffer() call without paying
+    /// for a second full-screen render on every frame before an applet opens.
+    std::vector<Tegra::FramebufferConfig> m_last_framebuffers;
     std::atomic<bool> m_capture_requested{false};
 
     Owned<MTL::Texture> m_screenshot_texture;

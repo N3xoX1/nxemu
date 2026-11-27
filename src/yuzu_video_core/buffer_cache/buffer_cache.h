@@ -2715,7 +2715,10 @@ void BufferCache<P>::DownloadBufferMemory(Buffer& buffer, DAddr device_addr, u64
 
             gpu_modified_ranges.ForEachInRange(device_addr_out, range_size, add_download);
             ClearDownload(device_addr_out, range_size);
-            SubtractGpuModifiedRange(device_addr_out, range_size);
+            // Only subtract from gpu_modified_ranges here; the SCOPE_EXIT above clears
+            // the lock-free gpu_modified_pages filter strictly after guest RAM receives
+            // the readback, so concurrent threads keep taking buffer_cache.mutex.
+            gpu_modified_ranges.Subtract(device_addr_out, range_size);
         });
     if (total_size_bytes == 0) {
         return;

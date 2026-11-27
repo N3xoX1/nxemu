@@ -1167,7 +1167,9 @@ void TextureCache<P>::SyncEagerAliases()
     // A texture aliasing a render target is synced lazily, when a draw samples it. By then
     // another pass is usually open, and the copy ends it: a tiler stores and reloads every
     // attachment of that pass. Images known to be sampled after their alias was drawn are
-    // synced when the alias stops being a target instead.
+    // synced when the alias stops being a target instead, without refreshing their LRU tick
+    // and only while they remain actively used.
+    static constexpr u64 EAGER_ALIAS_SYNC_IDLE_FRAMES = 16;
     const auto sync_aliases_of = [&](ImageViewId view_id) {
         if (!view_id)
         {
@@ -1182,16 +1184,29 @@ void TextureCache<P>::SyncEagerAliases()
         boost::container::small_vector<ImageId, 4> pending;
         for (const AliasedImage & aliased : image.aliased_images)
         {
-            const ImageBase & alias = slot_images[aliased.id];
-            if (True(alias.flags & ImageFlagBits::EagerAliasSync) &&
-                alias.modification_tick < image.modification_tick)
+            ImageBase & alias = slot_images[aliased.id];
+            if (False(alias.flags & ImageFlagBits::EagerAliasSync))
+            {
+                continue;
+            }
+            if (alias.last_eager_use_frame == std::numeric_limits<u64>::max() ||
+                (frame_tick > alias.last_eager_use_frame &&
+                 frame_tick - alias.last_eager_use_frame > EAGER_ALIAS_SYNC_IDLE_FRAMES))
+            {
+                alias.flags &= ~ImageFlagBits::EagerAliasSync;
+                continue;
+            }
+            if (alias.modification_tick < image.modification_tick)
             {
                 pending.push_back(aliased.id);
             }
         }
         for (const ImageId alias_id : pending)
         {
-            PrepareImage(alias_id, false, false);
+            // Sync directly without touching the LRU so stale aliases remain eligible for GC.
+            Image & alias = slot_images[alias_id];
+            RefreshContents(alias, alias_id);
+            SynchronizeAliases(alias_id);
         }
     };
     for (const ImageViewId view_id : render_targets.color_buffer_ids)
@@ -4920,7 +4935,7 @@ void TextureCache<P>::SynchronizeAliases(ImageId image_id)
         return;
     }
     ++alias_sync_count;
-    if (!IsBoundRenderTarget(image_id))
+    if (!IsBoundRenderTarget(image_id) && image.last_eager_use_frame == frame_tick)
     {
         image.flags |= ImageFlagBits::EagerAliasSync;
     }
@@ -5081,6 +5096,10 @@ void TextureCache<P>::PrepareImage(ImageId image_id, bool is_modification, bool 
     }
     else
     {
+        if (!is_modification)
+        {
+            image.last_eager_use_frame = frame_tick;
+        }
         RefreshContents(image, image_id);
         SynchronizeAliases(image_id);
     }

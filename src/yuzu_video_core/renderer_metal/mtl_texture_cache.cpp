@@ -710,6 +710,7 @@ void TextureCacheRuntime::TickFrame() {
     ++frame_index;
     constexpr u64 TEMP_BUFFER_IDLE_FRAMES = 300;
     if ((frame_index % 60) == 0) {
+        bool retired_any = false;
         for (size_t log2 = 0; log2 < INDEXING_SLOTS; ++log2) {
             if (!temporary_buffers[log2]) {
                 continue;
@@ -718,11 +719,12 @@ void TextureCacheRuntime::TickFrame() {
                 scheduler.IsFree(temporary_buffer_ticks[log2])) {
                 device.RemoveResidentAllocation(temporary_buffers[log2].get());
                 temporary_buffers[log2].reset();
+                retired_any = true;
             }
         }
-    }
-    if ((frame_index % 300) == 0) {
-        Common::PurgeHostHeap();
+        if (retired_any) {
+            Common::PurgeHostHeap();
+        }
     }
 }
 

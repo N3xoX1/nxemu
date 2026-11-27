@@ -123,6 +123,8 @@ struct ImageBase {
     u64 attachment_write_tick = 0;
     /// Last frame in which the image was bound as a render target
     u64 last_render_frame = std::numeric_limits<u64>::max();
+    /// Last frame in which the image was prepared for a real non-target use (sampling/copy/blit)
+    u64 last_eager_use_frame = std::numeric_limits<u64>::max();
     /// Bit N is set when the image was bound as a render target N frames before last_render_frame
     u32 render_frame_bits = 0;
     size_t lru_index = SIZE_MAX;

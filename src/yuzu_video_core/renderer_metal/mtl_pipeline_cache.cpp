@@ -23,6 +23,7 @@
 #include "yuzu_video_core/metal_common/metal_device.h"
 #include "yuzu_video_core/transform_feedback.h"
 #include "yuzu_common/scope_exit.h"
+#include "yuzu_common/virtual_buffer.h"
 #include "yuzu_video_core/shader_notify.h"
 #include "yuzu_video_core/renderer_metal/mtl_pipeline_cache.h"
 #include "yuzu_video_core/renderer_metal/mtl_scheduler.h"
@@ -764,6 +765,11 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
     if (title_id == 0) {
         return;
     }
+    // Return temporary warmup heap pages (SPIR-V/IR/MSL) to the OS once loading finishes,
+    // matching Vulkan's PipelineCache::LoadDiskResources without running on live gameplay frames.
+    SCOPE_EXIT {
+        Common::PurgeHostHeap();
+    };
     // Two caches doing different jobs. The Metal 4 archive makes *recompiling* a
     // pipeline cheap (handed back through the compiler task options), the file
     // below remembers *which* pipelines the title needs, key plus guest

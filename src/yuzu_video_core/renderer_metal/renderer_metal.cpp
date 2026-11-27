@@ -247,7 +247,13 @@ void RendererMetal::Composite(std::span<const Tegra::FramebufferConfig> framebuf
     const auto window = render_window.GetWindowInfo();
     m_bridge.Present(frame, tick, window);
 
-    // Only once asked for, this is a second full-screen render every frame.
+    // Save the last composited framebuffer configs so the very first applet
+    // capture renders synchronously on demand without paying for a second
+    // full-screen blit on every frame beforehand.
+    {
+        std::scoped_lock capture_lock{m_capture_mutex};
+        m_last_framebuffers.assign(framebuffers.begin(), framebuffers.end());
+    }
     if (m_capture_requested.load(std::memory_order_relaxed)) {
         RenderCaptureLayer(framebuffers);
     }
@@ -377,11 +383,15 @@ void RendererMetal::RenderScreenshot(std::span<const Tegra::FramebufferConfig> f
 }
 
 void RendererMetal::RenderCaptureLayer(std::span<const Tegra::FramebufferConfig> framebuffers) {
-    using namespace VideoCore::Capture;
-
     // Reached from the service thread as well as the GPU thread, see Composite.
     ScopedAutoreleasePool pool;
     std::scoped_lock capture_lock{m_capture_mutex};
+    RenderCaptureLayerLocked(framebuffers);
+}
+
+void RendererMetal::RenderCaptureLayerLocked(
+    std::span<const Tegra::FramebufferConfig> framebuffers) {
+    using namespace VideoCore::Capture;
 
     if (!m_capture_texture) {
         MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
@@ -433,6 +443,11 @@ std::vector<u8> RendererMetal::GetAppletCaptureBuffer() {
     // The guest expects the capture block-linear, hence readback plus swizzle.
     std::vector<u8> out(TiledSize);
     std::scoped_lock capture_lock{m_capture_mutex};
+    if (!m_capture_texture && !m_last_framebuffers.empty()) {
+        // First capture after boot: render the most recently composited frame
+        // synchronously on the GPU thread so the first applet is not black.
+        RenderCaptureLayerLocked(m_last_framebuffers);
+    }
     if (!m_capture_texture) {
         return out;
     }
