@@ -26,7 +26,7 @@
 enum
 {
     MODULE_LOADER_SPECS_VERSION = 0x013C,
-    MODULE_VIDEO_SPECS_VERSION = 0x0131,
+    MODULE_VIDEO_SPECS_VERSION = 0x0132,
     MODULE_CPU_SPECS_VERSION = 0x0124,
     MODULE_OPERATING_SYSTEM_SPECS_VERSION = 0x012F,
 };
@@ -211,10 +211,12 @@ enum class LogClass : uint8_t
     Render_Software,    ///< Software renderer backend
     Render_OpenGL,      ///< OpenGL backend
     Render_Vulkan,      ///< Vulkan backend
+    Render_Metal,       ///< Metal backend
     Shader,             ///< Shader recompiler
     Shader_SPIRV,       ///< Shader SPIR-V code generation
     Shader_GLASM,       ///< Shader GLASM code generation
     Shader_GLSL,        ///< Shader GLSL code generation
+    Shader_MSL,         ///< Shader MSL code generation
     Audio,              ///< Audio emulation
     Audio_DSP,          ///< The HLE implementation of the DSP
     Audio_Sink,         ///< Emulator audio output backend

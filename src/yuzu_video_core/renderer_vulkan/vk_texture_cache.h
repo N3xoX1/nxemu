@@ -189,6 +189,9 @@ public:
 
     static constexpr size_t indexing_slots = 8 * sizeof(size_t);
     std::array<vk::Buffer, indexing_slots> buffers{};
+    std::array<u64, indexing_slots> buffer_ticks{};
+    std::array<u64, indexing_slots> buffer_frames{};
+    u64 frame_counter{};
 };
 
 class Image : public VideoCommon::ImageBase {

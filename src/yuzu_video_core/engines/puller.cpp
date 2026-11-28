@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2022 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "video_settings.h"
 #include "yuzu_common/yuzu_assert.h"
 #include "yuzu_common/logging/log.h"
 #include "yuzu_common/settings.h"
@@ -68,6 +69,16 @@ void Puller::ProcessFenceActionMethod() {
         // scheduling, the pending fences are released as before.
         const auto& syncpoints = gpu.Host1x().GetSyncpointManager();
         if (syncpoints.IsReadyHost(regs.fence_action.syncpoint_id, regs.fence_value)) {
+            break;
+        }
+        // Only FenceManager::SignalSyncPoint advances syncpoints_guest ahead of
+        // syncpoints_host, meaning the producing GPU work is already encoded earlier on
+        // the same in-order host GPU queue. A GPU-side ordering barrier suffices without
+        // stalling the GPU thread in WaitForFence(). Skip under Exact accuracy so strict
+        // synchronous readback/fence semantics remain intact.
+        if (!Settings::IsGpuReadbackExact() &&
+            syncpoints.IsReadyGuest(regs.fence_action.syncpoint_id, regs.fence_value)) {
+            rasterizer->WaitForIdle();
             break;
         }
         rasterizer->ReleaseFences();

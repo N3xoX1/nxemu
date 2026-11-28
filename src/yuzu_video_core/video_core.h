@@ -29,6 +29,9 @@ class RendererBase;
 
 /// Creates an emulated GPU instance using the given system context. `display` is what the Vulkan
 /// renderer draws with and presents to; the other renderers do without.
+/// Name of the renderer the running GPU was created with ("Metal", "Vulkan", ...), empty before.
+const char * ActiveRendererName();
+
 std::unique_ptr<Tegra::GPU> CreateGPU(ISystemModules & modules, Core::Frontend::EmuWindow & emu_window, Tegra::Host1x::Host1x & host1x, Vulkan::Display * display);
 
 struct DisplayDeleter {

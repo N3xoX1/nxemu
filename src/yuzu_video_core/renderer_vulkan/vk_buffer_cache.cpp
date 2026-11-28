@@ -1107,8 +1107,87 @@ void BufferCacheRuntime::BindHostUint8IndexBuffer(std::span<const u8> indices, u
     });
 }
 
+void BufferCacheRuntime::BindHostQuadIndexBuffer(std::span<const u8> indices,
+                                                 IndexFormat index_format, u32 base_vertex,
+                                                 u32 num_indices, bool is_strip) {
+    // Mirrors vulkan_quad_indexed.comp exactly, corner order included: reversing it
+    // flips the facing and the quad is culled.
+    static constexpr std::array<u32, 6> QUAD_CORNERS{0, 1, 2, 0, 2, 3};
+    static constexpr std::array<u32, 6> STRIP_CORNERS{0, 3, 1, 0, 2, 3};
+    const u32 index_size = index_format == IndexFormat::UnsignedByte    ? 1
+                           : index_format == IndexFormat::UnsignedShort ? 2
+                                                                        : 4;
+    const size_t available_indices = indices.size() / index_size;
+    const size_t bounded_indices = std::min<size_t>(num_indices, available_indices);
+    const size_t primitives =
+        bounded_indices < 4 ? 0 : (is_strip ? (bounded_indices - 2) / 2 : bounded_indices / 4);
+    if (primitives == 0) {
+        ReserveNullBuffer();
+        scheduler.Record([this](vk::CommandBuffer cmdbuf) {
+            cmdbuf.BindIndexBuffer(*null_buffer, 0, VK_INDEX_TYPE_UINT32);
+        });
+        return;
+    }
+    const size_t num_tri_vertices = primitives * 6;
+    auto staging = staging_pool.Request(num_tri_vertices * sizeof(u32), MemoryUsage::Upload);
+    u32* const out = reinterpret_cast<u32*>(staging.mapped_span.data());
+    const u8* const src = indices.data();
+    const auto read = [src, index_size](size_t at) -> u32 {
+        switch (index_size) {
+        case 1:
+            return src[at];
+        case 2: {
+            u16 value;
+            std::memcpy(&value, src + at * 2, sizeof(value));
+            return value;
+        }
+        default: {
+            u32 value;
+            std::memcpy(&value, src + at * 4, sizeof(value));
+            return value;
+        }
+        }
+    };
+    const auto& corners = is_strip ? STRIP_CORNERS : QUAD_CORNERS;
+    const size_t stride = is_strip ? 2 : 4;
+    if (!is_strip && index_size == 4) {
+        for (size_t id = 0; id < primitives; ++id) {
+            u32 q[4];
+            std::memcpy(q, src + id * 16, sizeof(q));
+            u32* const tri = out + id * 6;
+            tri[0] = q[0] + base_vertex;
+            tri[1] = q[1] + base_vertex;
+            tri[2] = q[2] + base_vertex;
+            tri[3] = q[0] + base_vertex;
+            tri[4] = q[2] + base_vertex;
+            tri[5] = q[3] + base_vertex;
+        }
+    } else {
+        for (size_t id = 0; id < primitives; ++id) {
+            for (size_t k = 0; k < 6; ++k) {
+                out[id * 6 + k] = read(id * stride + corners[k]) + base_vertex;
+            }
+        }
+    }
+    scheduler.Record([buffer = staging.buffer, offset = staging.offset](vk::CommandBuffer cmdbuf) {
+        cmdbuf.BindIndexBuffer(buffer, offset, VK_INDEX_TYPE_UINT32);
+    });
+}
+
 void BufferCacheRuntime::BindQuadIndexBuffer(PrimitiveTopology topology, u32 first, u32 count) {
-    if (count == 0) {
+    // Guard in 64-bit against bogus/corrupted guest vertex counts (or first + count
+    // overflow) before growing the quad LUT buffer (which stores 4 offset copies).
+    static constexpr u64 MAX_QUAD_LUT_VERTICES = 4ULL * 1024 * 1024;
+    const u64 required_vertices = u64{first} + u64{count};
+    if (count == 0 || required_vertices > MAX_QUAD_LUT_VERTICES) {
+        if (required_vertices > MAX_QUAD_LUT_VERTICES) {
+            static std::atomic<u32> logged{0};
+            if (logged.fetch_add(1, std::memory_order_relaxed) < 16) {
+                LOG_WARNING(Render_Vulkan,
+                            "Refusing quad LUT growth for huge draw (topology={} first={} count={})",
+                            static_cast<u32>(topology), first, count);
+            }
+        }
         ReserveNullBuffer();
         scheduler.Record([this](vk::CommandBuffer cmdbuf) {
             cmdbuf.BindIndexBuffer(*null_buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -1117,10 +1196,10 @@ void BufferCacheRuntime::BindQuadIndexBuffer(PrimitiveTopology topology, u32 fir
     }
 
     if (topology == PrimitiveTopology::Quads) {
-        quad_array_index_buffer->UpdateBuffer(first + count);
+        quad_array_index_buffer->UpdateBuffer(static_cast<u32>(required_vertices));
         quad_array_index_buffer->BindBuffer(first);
     } else if (topology == PrimitiveTopology::QuadStrip) {
-        quad_strip_index_buffer->UpdateBuffer(first + count);
+        quad_strip_index_buffer->UpdateBuffer(static_cast<u32>(required_vertices));
         quad_strip_index_buffer->BindBuffer(first);
     }
 }

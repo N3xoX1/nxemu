@@ -14,6 +14,7 @@
 #include "yuzu_common/bit_cast.h"
 #include "yuzu_common/bit_util.h"
 #include "yuzu_common/settings.h"
+#include "yuzu_common/virtual_buffer.h"
 #include "video_settings.h"
 
 #include "yuzu_video_core/renderer_vulkan/vk_texture_cache.h"
@@ -1037,6 +1038,8 @@ bool TextureCacheRuntime::ShouldReinterpret(Image& dst, Image& src) {
 
 VkBuffer TextureCacheRuntime::GetTemporaryBuffer(size_t needed_size) {
     const auto level = (8 * sizeof(size_t)) - std::countl_zero(needed_size - 1ULL);
+    buffer_ticks[level] = scheduler.CurrentTick();
+    buffer_frames[level] = frame_counter;
     if (buffers[level]) {
         return *buffers[level];
     }
@@ -1815,6 +1818,7 @@ void TextureCacheRuntime::ReleaseMsaaScratchImage(VkImage image) {
 }
 
 void TextureCacheRuntime::TickFrame() {
+    ++frame_counter;
     msaa_scratch_last = static_cast<size_t>(-1);
     // Retire completed views/framebuffers before their scratch images are evicted.
     blit_image_helper.TickFrame();
@@ -1826,6 +1830,20 @@ void TextureCacheRuntime::TickFrame() {
         }
         return ++scratch.unused_frames > MAX_UNUSED_SCRATCH_FRAMES;
     });
+    static constexpr u64 MAX_UNUSED_TEMP_BUFFER_FRAMES = 300;
+    bool retired_any = false;
+    for (size_t level = 0; level < indexing_slots; ++level) {
+        if (buffers[level] && frame_counter - buffer_frames[level] >= MAX_UNUSED_TEMP_BUFFER_FRAMES &&
+            scheduler.IsFree(buffer_ticks[level])) {
+            buffers[level].reset();
+            buffer_ticks[level] = 0;
+            buffer_frames[level] = 0;
+            retired_any = true;
+        }
+    }
+    if (retired_any) {
+        Common::PurgeHostHeap();
+    }
 }
 
 Image::Image(TextureCacheRuntime& runtime_, const ImageInfo& info_, GPUVAddr gpu_addr_,

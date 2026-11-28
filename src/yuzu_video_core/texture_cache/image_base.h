@@ -45,6 +45,8 @@ enum class ImageFlagBits : u32 {
     IsDecoding = 1 << 17, ///< Is currently being decoded asynchronously.
     DownloadQueued = 1 << 18, ///< Temporary mark while deduplicating a download batch.
     NativeReadTracked = 1 << 19, ///< Native reads require GPU-written image data downloaded.
+    EagerAliasSync = 1 << 20, ///< Synced from an alias while sampled; synced when that alias
+                              ///< stops being a render target instead.
 };
 DECLARE_ENUM_FLAG_OPERATORS(ImageFlagBits)
 
@@ -121,6 +123,8 @@ struct ImageBase {
     u64 attachment_write_tick = 0;
     /// Last frame in which the image was bound as a render target
     u64 last_render_frame = std::numeric_limits<u64>::max();
+    /// Last frame in which the image was prepared for a real non-target use (sampling/copy/blit)
+    u64 last_eager_use_frame = std::numeric_limits<u64>::max();
     /// Bit N is set when the image was bound as a render target N frames before last_render_frame
     u32 render_frame_bits = 0;
     size_t lru_index = SIZE_MAX;

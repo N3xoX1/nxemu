@@ -72,6 +72,20 @@ public:
         SignalFence(std::move(do_nothing));
     }
 
+    /// Run func when the last fence already queued retires, without submitting a new fence.
+    bool AttachToLastFence(std::function<void()>&& func) {
+        if constexpr (can_async_check) {
+            std::scoped_lock lock(guard);
+            if (pending_operations.empty()) {
+                return false;
+            }
+            pending_operations.back().emplace_back(std::move(func));
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     void SyncOperation(std::function<void()>&& func) {
         uncommitted_operations.emplace_back(std::move(func));
     }
@@ -376,8 +390,11 @@ private:
 
     void PopAsyncFlushes() {
         {
-            std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
+            std::scoped_lock lock{texture_cache.mutex};
             texture_cache.PopAsyncFlushes();
+        }
+        {
+            std::scoped_lock lock{buffer_cache.mutex};
             buffer_cache.PopAsyncFlushes();
         }
         query_cache.PopAsyncFlushes();

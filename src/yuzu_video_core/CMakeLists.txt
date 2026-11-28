@@ -373,6 +373,8 @@ add_library(video_core STATIC
     texture_cache/accelerated_swizzle.h
     texture_cache/decode_bc.cpp
     texture_cache/decode_bc.h
+    texture_cache/expand_format.cpp
+    texture_cache/expand_format.h
     texture_cache/descriptor_table.h
     texture_cache/formatter.cpp
     texture_cache/formatter.h
@@ -584,6 +586,71 @@ if (ENABLE_NSIGHT_AFTERMATH)
     endif()
     target_compile_definitions(video_core PRIVATE HAS_NSIGHT_AFTERMATH)
     target_include_directories(video_core PRIVATE "$ENV{NSIGHT_AFTERMATH_SDK}/include")
+endif()
+
+if (APPLE)
+    target_sources(video_core PRIVATE
+        metal_common/metal_device.cpp
+        metal_common/metal_device.h
+        metal_common/metal_impl.cpp
+        metal_common/metal_memory_allocator.cpp
+        metal_common/metal_memory_allocator.h
+        metal_common/metal_wrapper.h
+        renderer_metal/fixed_pipeline_state.cpp
+        renderer_metal/fixed_pipeline_state.h
+        renderer_metal/maxwell_to_mtl.cpp
+        renderer_metal/maxwell_to_mtl.h
+        renderer_metal/mtl_argument_buffer.cpp
+        renderer_metal/mtl_argument_buffer.h
+        renderer_metal/mtl_blit_image.cpp
+        renderer_metal/mtl_blit_image.h
+        renderer_metal/mtl_blit_screen.cpp
+        renderer_metal/mtl_blit_screen.h
+        renderer_metal/mtl_buffer_cache.cpp
+        renderer_metal/mtl_buffer_cache.h
+        renderer_metal/mtl_buffer_cache_base.cpp
+        renderer_metal/mtl_compute_pipeline.cpp
+        renderer_metal/mtl_compute_pipeline.h
+        renderer_metal/mtl_display_bridge.cpp
+        renderer_metal/mtl_display_bridge.h
+        renderer_metal/mtl_encoder.h
+        renderer_metal/mtl_fence_manager.cpp
+        renderer_metal/mtl_fence_manager.h
+        renderer_metal/mtl_graphics_pipeline.cpp
+        renderer_metal/mtl_graphics_pipeline.h
+        renderer_metal/mtl_index_pass.cpp
+        renderer_metal/mtl_index_pass.h
+        renderer_metal/mtl_master_semaphore.cpp
+        renderer_metal/mtl_master_semaphore.h
+        renderer_metal/mtl_pipeline_cache.cpp
+        renderer_metal/mtl_pipeline_cache.h
+        renderer_metal/mtl_rasterizer.cpp
+        renderer_metal/mtl_rasterizer.h
+        renderer_metal/mtl_render_pass_state.cpp
+        renderer_metal/mtl_render_pass_state.h
+        renderer_metal/mtl_scheduler.cpp
+        renderer_metal/mtl_scheduler.h
+        renderer_metal/mtl_shader_util.cpp
+        renderer_metal/mtl_shader_util.h
+        renderer_metal/mtl_staging_buffer_pool.cpp
+        renderer_metal/mtl_staging_buffer_pool.h
+        renderer_metal/mtl_texture_cache.cpp
+        renderer_metal/mtl_texture_cache.h
+        renderer_metal/mtl_texture_cache_base.cpp
+        renderer_metal/mtl_transform_feedback.cpp
+        renderer_metal/mtl_transform_feedback.h
+        renderer_metal/renderer_metal.cpp
+        renderer_metal/renderer_metal.h
+    )
+    target_compile_definitions(video_core PUBLIC HAS_METAL)
+    target_link_libraries(video_core PUBLIC Apple::MetalCpp)
+    target_link_libraries(video_core PRIVATE spirv-cross-core spirv-cross-glsl spirv-cross-msl)
+    foreach(framework Metal QuartzCore Foundation CoreGraphics)
+        find_library(NXEMU_${framework}_FRAMEWORK ${framework} REQUIRED)
+        target_link_libraries(video_core PRIVATE ${NXEMU_${framework}_FRAMEWORK})
+    endforeach()
+    # metal-cpp calls into the Objective-C runtime directly
+    set_source_files_properties(metal_common/metal_impl.cpp PROPERTIES COMPILE_OPTIONS "-fno-objc-arc")
 endif()
 
 if (MSVC)

@@ -149,6 +149,13 @@
                     </div>
                     <select id="vram" />
                   </div>
+                  <div id="graphics-api-row" class="row">
+                    <div class="row-texts">
+                      <div class="row-label">Graphics API</div>
+                      <div class="row-text">Takes effect at the next game start.</div>
+                    </div>
+                    <select id="graphics-api" />
+                  </div>
                 </div>
                 <div class="card">
                   <div class="card-title" data-upper=""><img src="images/layers.png" />

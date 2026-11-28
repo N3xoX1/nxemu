@@ -46,6 +46,7 @@ enum class RendererBackend : uint32_t
     OpenGL = 0,
     Vulkan,
     Null,
+    Metal,
 };
 
 enum class ShaderBackend : uint32_t
@@ -331,6 +332,8 @@ nxinterface IVideo
     virtual VideoPresentationState GetPresentationState() = 0;
     virtual void MeasureGpuTime(bool measure) = 0;
     virtual uint64_t GpuTimeNs() = 0;
+    /// The renderer actually running, which a setting change only applies on the next launch.
+    virtual const char * RendererName() = 0;
 };
 
 EXPORT IVideo * CALL CreateVideo(IRenderWindow & renderWindow, ISystemModules & modules);

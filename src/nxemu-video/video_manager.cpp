@@ -173,7 +173,10 @@ struct VideoManager::Impl
 
     Vulkan::Display * EnsureDisplay()
     {
-        if (m_display || videoSettings.renderer_backend != RendererBackend::Vulkan)
+        // The Metal renderer shows its frames through the Vulkan display too: the
+        // display owns the window and draws the interface.
+        if (m_display || (videoSettings.renderer_backend != RendererBackend::Vulkan &&
+                          videoSettings.renderer_backend != RendererBackend::Metal))
         {
             return m_display.get();
         }
@@ -618,6 +621,10 @@ void VideoManager::PushCommandBuffer(int32_t bindId, const uint32_t * commandLis
 
 RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * pointer, uint64_t size, RasterizerDownloadArea current_area)
 {
+    if (impl == nullptr || impl->m_gpuCore == nullptr || impl->m_host1x == nullptr || pointer == nullptr || size == 0)
+    {
+        return current_area;
+    }
     thread_local Common::ScratchBuffer<u32> scratch;
     RasterizerDownloadArea area = current_area;
     impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
@@ -652,6 +659,10 @@ RasterizerDownloadArea VideoManager::HandleRasterizerDownload(const uint8_t * po
 
 void VideoManager::HandleRasterizerWrite(const uint8_t * pointer, uint64_t size, uint64_t * last_page, RasterizerDirtyCollect collect, void * user_data)
 {
+    if (impl == nullptr || impl->m_gpuCore == nullptr || impl->m_host1x == nullptr || pointer == nullptr || size == 0)
+    {
+        return;
+    }
     constexpr uint64_t page_bits = 12;
     thread_local Common::ScratchBuffer<u32> scratch;
     impl->m_host1x->MemoryManager().ApplyOpOnPointer(pointer, scratch, [&](DAddr address) {
@@ -729,6 +740,11 @@ void VideoManager::MeasureGpuTime(bool measure)
 uint64_t VideoManager::GpuTimeNs()
 {
     return VideoCore::gpu_time_status.BusyNs();
+}
+
+const char * VideoManager::RendererName()
+{
+    return VideoCore::ActiveRendererName();
 }
 
 uint32_t VideoManager::ShadersBuilding()
