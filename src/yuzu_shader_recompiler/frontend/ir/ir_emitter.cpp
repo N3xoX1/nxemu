@@ -1510,6 +1510,18 @@ U32U64 IREmitter::GlobalAtomicExchange(const U64& pointer_offset, const U32U64& 
     }
 }
 
+U32U64 IREmitter::GlobalAtomicCompareExchange(const U64& pointer_offset, const U32U64& value,
+                                              const U32U64& compare) {
+    switch (value.Type()) {
+    case Type::U32:
+        return Inst<U32>(Opcode::GlobalAtomicCompareExchange32, pointer_offset, value, compare);
+    case Type::U64:
+        return Inst<U64>(Opcode::GlobalAtomicCompareExchange64, pointer_offset, value, compare);
+    default:
+        ThrowInvalidType(value.Type());
+    }
+}
+
 F32 IREmitter::GlobalAtomicF32Add(const U64& pointer_offset, const Value& value,
                                   const FpControl control) {
     return Inst<F32>(Opcode::GlobalAtomicAddF32, Flags{control}, pointer_offset, value);

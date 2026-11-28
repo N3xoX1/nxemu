@@ -68,10 +68,13 @@ void WriteStorage32(EmitContext& ctx, const IR::Value& binding, const IR::Value&
 
 void WriteStorageByCasLoop(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
                            Id value, Id bit_offset, Id bit_count) {
-    const Id pointer{StoragePointer(ctx, binding, offset, ctx.storage_types.U32, sizeof(u32),
-                                    &StorageDefinitions::U32)};
-    ctx.OpFunctionCall(ctx.TypeVoid(), ctx.write_storage_cas_loop_func, pointer, value, bit_offset,
-                       bit_count);
+    if (!binding.IsImmediate()) {
+        throw NotImplementedException("Dynamic storage buffer indexing");
+    }
+    const u32 binding_idx{binding.U32()};
+    const Id index{StorageIndex(ctx, offset, sizeof(u32))};
+    ctx.OpFunctionCall(ctx.TypeVoid(), ctx.write_storage_cas_loop_funcs.at(binding_idx), index,
+                       value, bit_offset, bit_count);
 }
 } // Anonymous namespace
 

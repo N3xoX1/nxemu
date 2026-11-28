@@ -959,7 +959,8 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
                     return TextureInst{addr, &inst, block, std::move(sources)};
                 }
             }
-            if (host_info.support_separate_sampler && sampled && env.ShaderStage() != Stage::Compute) {
+            if (host_info.support_separate_sampler && sampled &&
+                (env.ShaderStage() != Stage::Compute || host_info.support_compute_direct_textures)) {
                 const auto pool = env.ReadTexturePoolInfo();
                 if (pool && pool->num_textures != 0) {
                     // One element is not declared as an array.

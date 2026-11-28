@@ -58,6 +58,18 @@ Shader::TexturePoolInfo GraphicsTexturePoolInfo(const Maxwell& regs) {
     };
 }
 
+Shader::TexturePoolInfo ComputeTexturePoolInfo(
+    const Tegra::Engines::KeplerCompute& kepler_compute) {
+    const auto& regs = kepler_compute.regs;
+    const bool linked = kepler_compute.launch_description.linked_tsc != 0;
+    const u32 num_textures = std::min(regs.tic.limit + 1U, 1U << 20);
+    return {
+        .num_textures = num_textures,
+        .num_samplers = linked ? num_textures : std::min(regs.tsc.limit + 1U, 1U << 12),
+        .linked_samplers = linked,
+    };
+}
+
 static u32 CbufSizeQueryMask(const std::unordered_map<u64, u32>& values) {
     u32 mask{values.contains(POOL_TEXTURES_KEY) ? TEXTURE_POOL_SIZE_BIT : 0U};
     for (const auto& [key, value] : values) {
@@ -793,6 +805,14 @@ u32 ComputeEnvironment::ReadCbufValue(u32 cbuf_index, u32 cbuf_offset) {
     }
     if (recording_queries) cbuf_values.emplace(MakeCbufKey(cbuf_index, cbuf_offset), value);
     return value;
+}
+
+std::optional<Shader::TexturePoolInfo> ComputeEnvironment::ReadTexturePoolInfo() {
+    const Shader::TexturePoolInfo pool{ComputeTexturePoolInfo(*kepler_compute)};
+    if (recording_queries) cbuf_values.emplace(POOL_TEXTURES_KEY, pool.num_textures);
+    if (recording_queries) cbuf_values.emplace(POOL_SAMPLERS_KEY,
+                        pool.num_samplers | (pool.linked_samplers ? POOL_LINKED_SAMPLERS_BIT : 0U));
+    return pool;
 }
 
 Shader::TextureType ComputeEnvironment::ReadTextureType(u32 handle) {

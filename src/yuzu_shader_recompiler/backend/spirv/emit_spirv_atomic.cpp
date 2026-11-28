@@ -285,6 +285,15 @@ Id EmitStorageAtomicExchange32(EmitContext& ctx, const IR::Value& binding, const
     return StorageAtomicU32(ctx, binding, offset, value, &Sirit::Module::OpAtomicExchange);
 }
 
+Id EmitStorageAtomicCompareExchange32(EmitContext& ctx, const IR::Value& binding,
+                                      const IR::Value& offset, Id value, Id compare) {
+    const Id pointer{StoragePointer(ctx, ctx.storage_types.U32, &StorageDefinitions::U32, binding,
+                                    offset, sizeof(u32))};
+    const auto [scope, semantics]{AtomicArgs(ctx)};
+    return ctx.OpAtomicCompareExchange(ctx.U32[1], pointer, scope, semantics, semantics, value,
+                                       compare);
+}
+
 Id EmitStorageAtomicIAdd64(EmitContext& ctx, IR::Inst* inst, const IR::Value& binding,
                            const IR::Value& offset, Id value) {
     if (CanSplitAddReduction(ctx, *inst, binding)) {
@@ -358,6 +367,19 @@ Id EmitStorageAtomicExchange64(EmitContext& ctx, const IR::Value& binding, const
     return original;
 }
 
+Id EmitStorageAtomicCompareExchange64(EmitContext& ctx, const IR::Value& binding,
+                                      const IR::Value& offset, Id value, Id compare) {
+    if (!ctx.profile.support_descriptor_aliasing || !ctx.profile.support_int64_atomics) {
+        throw NotImplementedException(
+            "StorageAtomicCompareExchange64 requires descriptor aliasing and int64 atomics");
+    }
+    const Id pointer{StoragePointer(ctx, ctx.storage_types.U64, &StorageDefinitions::U64, binding,
+                                    offset, sizeof(u64))};
+    const auto [scope, semantics]{AtomicArgs(ctx)};
+    return ctx.OpAtomicCompareExchange(ctx.U64, pointer, scope, semantics, semantics, value,
+                                       compare);
+}
+
 Id EmitStorageAtomicIAdd32x2(EmitContext& ctx, IR::Inst* inst, const IR::Value& binding,
                              const IR::Value& offset, Id value) {
     if (CanSplitAddReduction(ctx, *inst, binding)) {
@@ -414,6 +436,11 @@ Id EmitStorageAtomicExchange32x2(EmitContext& ctx, const IR::Value& binding,
     const Id original{ctx.OpLoad(ctx.U32[2], pointer)};
     ctx.OpStore(pointer, value);
     return original;
+}
+
+Id EmitStorageAtomicCompareExchange32x2(EmitContext&, const IR::Value&, const IR::Value&, Id, Id) {
+    throw NotImplementedException(
+        "StorageAtomicCompareExchange32x2 requires native 64-bit atomics");
 }
 
 Id EmitStorageAtomicAddF32(EmitContext& ctx, const IR::Value& binding, const IR::Value& offset,
@@ -515,6 +542,11 @@ Id EmitGlobalAtomicExchange32(EmitContext& ctx, Id address, Id value) {
     return GlobalAtomicU32(ctx, ctx.global_atomic_exchange_func_u32, address, value);
 }
 
+Id EmitGlobalAtomicCompareExchange32(EmitContext& ctx, Id address, Id value, Id compare) {
+    return ctx.OpFunctionCall(ctx.U32[1], ctx.global_atomic_compare_exchange_func_u32, address,
+                              value, compare);
+}
+
 Id EmitGlobalAtomicIAdd64(EmitContext&) {
     throw NotImplementedException("SPIR-V Instruction");
 }
@@ -559,6 +591,10 @@ Id EmitGlobalAtomicExchange64(EmitContext&) {
     throw NotImplementedException("SPIR-V Instruction");
 }
 
+Id EmitGlobalAtomicCompareExchange64(EmitContext&) {
+    throw NotImplementedException("SPIR-V Instruction");
+}
+
 Id EmitGlobalAtomicIAdd32x2(EmitContext&) {
     throw NotImplementedException("SPIR-V Instruction");
 }
@@ -600,6 +636,10 @@ Id EmitGlobalAtomicXor32x2(EmitContext&) {
 }
 
 Id EmitGlobalAtomicExchange32x2(EmitContext&) {
+    throw NotImplementedException("SPIR-V Instruction");
+}
+
+Id EmitGlobalAtomicCompareExchange32x2(EmitContext&) {
     throw NotImplementedException("SPIR-V Instruction");
 }
 

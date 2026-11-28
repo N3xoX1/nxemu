@@ -175,6 +175,13 @@ void EmitStorageAtomicExchange32(EmitContext& ctx, IR::Inst& inst, const IR::Val
                ctx.var_alloc.Consume(offset), value);
 }
 
+void EmitStorageAtomicCompareExchange32(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
+                                        const IR::Value& offset, std::string_view value,
+                                        std::string_view compare) {
+    ctx.AddU32("{}=atomicCompSwap({}_ssbo{}[{}>>2],{},{});", inst, ctx.stage_name, binding.U32(),
+               ctx.var_alloc.Consume(offset), compare, value);
+}
+
 void EmitStorageAtomicIAdd64(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                              const IR::Value& offset, std::string_view value) {
     LOG_WARNING(Shader_GLSL, "Int64 atomics not supported, fallback to non-atomic");
@@ -362,6 +369,11 @@ void EmitStorageAtomicExchange32x2(EmitContext& ctx, IR::Inst& inst, const IR::V
                  ctx.stage_name, binding.U32(), ctx.var_alloc.Consume(offset), value);
 }
 
+void EmitStorageAtomicCompareExchange32x2(EmitContext&, IR::Inst&, const IR::Value&,
+                                          const IR::Value&, std::string_view, std::string_view) {
+    throw NotImplementedException("GLSL 64-bit atomic compare-exchange not supported");
+}
+
 void EmitStorageAtomicAddF32(EmitContext& ctx, IR::Inst& inst, const IR::Value& binding,
                              const IR::Value& offset, std::string_view value) {
     SsboCasFunctionF32(ctx, inst, binding, offset, value, "CasFloatAdd");
@@ -441,6 +453,10 @@ void EmitGlobalAtomicExchange32(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
 }
 
+void EmitGlobalAtomicCompareExchange32(EmitContext&) {
+    throw NotImplementedException("GLSL Instruction");
+}
+
 void EmitGlobalAtomicIAdd64(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
 }
@@ -485,6 +501,15 @@ void EmitGlobalAtomicExchange64(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
 }
 
+void EmitGlobalAtomicCompareExchange64(EmitContext&) {
+    throw NotImplementedException("GLSL Instruction");
+}
+
+void EmitStorageAtomicCompareExchange64(EmitContext&, IR::Inst&, const IR::Value&, const IR::Value&,
+                                        std::string_view, std::string_view) {
+    throw NotImplementedException("GLSL 64-bit atomic compare-exchange not supported");
+}
+
 void EmitGlobalAtomicIAdd32x2(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
 }
@@ -526,6 +551,10 @@ void EmitGlobalAtomicXor32x2(EmitContext&) {
 }
 
 void EmitGlobalAtomicExchange32x2(EmitContext&) {
+    throw NotImplementedException("GLSL Instruction");
+}
+
+void EmitGlobalAtomicCompareExchange32x2(EmitContext&) {
     throw NotImplementedException("GLSL Instruction");
 }
 

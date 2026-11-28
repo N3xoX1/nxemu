@@ -95,6 +95,11 @@ void TranslatorVisitor::ALD(u64 insn) {
 }
 
 void TranslatorVisitor::AST(u64 insn) {
+    // Fragment and compute stages have no VTG attribute output buffer; fragment
+    // outputs are emitted via EXIT. Ignore stray AST instructions in those stages.
+    if (env.ShaderStage() == Stage::Fragment || env.ShaderStage() == Stage::Compute) {
+        return;
+    }
     union {
         u64 raw;
         BitField<0, 8, IR::Reg> src_reg;

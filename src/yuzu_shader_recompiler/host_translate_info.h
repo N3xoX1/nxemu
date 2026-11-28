@@ -25,6 +25,7 @@ struct HostTranslateInfo {
     u32 max_storage_images_per_stage{};
     bool support_null_descriptor{};
     bool support_separate_sampler{}; ///< True when images and samplers can be combined in shaders
+    bool support_compute_direct_textures{}; ///< True when compute stages bind direct Set 1 texture/sampler tables
 };
 
 } // namespace Shader

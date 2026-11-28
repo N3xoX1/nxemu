@@ -12,6 +12,9 @@ void EmitJoin(EmitContext&) {
 }
 
 void EmitDemoteToHelperInvocation(EmitContext& ctx) {
+    if (ctx.stage != Stage::Fragment) {
+        return;
+    }
     ctx.Add("discard;");
 }
 
