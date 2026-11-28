@@ -168,7 +168,7 @@ public:
     [[nodiscard]] ImageView& GetImageView(u32 index) noexcept;
 
     /// Mark an image as modified from the GPU
-    void MarkModification(ImageId id) noexcept;
+    void MarkModification(ImageId id);
 
     /// Fill image_view_ids with the graphics images in indices
     template <bool has_blacklists>
@@ -539,7 +539,9 @@ private:
     void RemoveFramebuffers(std::span<const ImageViewId> removed_views);
 
     /// Mark an image as modified from the GPU
-    void MarkModification(ImageBase& image, ImageId image_id) noexcept;
+    void MarkModification(ImageBase& image, ImageId image_id);
+    /// Queue a preemptive readback once per batch for CPU-observed images.
+    void QueuePreemptiveDownload(ImageBase& image, ImageId image_id);
     void MarkUnpublishedRead(ImageBase& image);
     void RefreshUnpublishedRead(DAddr addr, size_t size);
     void UpdateNativeReadTracking(ImageBase& image, ImageId image_id);

@@ -211,6 +211,7 @@ Tegra::MemoryManager* TextureCache<P>::ImageGpuMemory(const ImageBase& image) co
 
 template <class P>
 void TextureCache<P>::CancelPendingDownloads(ImageId id) {
+    slot_images[id].flags &= ~ImageFlagBits::DownloadQueued;
     // The slot is erased (and may be reused) before queued downloads are processed.
     // Uncommitted copies were not recorded yet, so drop them; committed copies already
     // target the sentenced image and only need their publication skipped.
@@ -436,7 +437,7 @@ typename P::ImageView& TextureCache<P>::GetImageView(u32 index) noexcept {
 }
 
 template <class P>
-void TextureCache<P>::MarkModification(ImageId id) noexcept {
+void TextureCache<P>::MarkModification(ImageId id) {
     MarkModification(slot_images[id], id);
 }
 
@@ -1451,11 +1452,8 @@ bool TextureCache<P>::BlitImage(const Tegra::Engines::Fermi2D::Surface& dst,
         runtime.BlitImage(dst_framebuffer, dst_view, src_view, dst_region, src_region, copy.filter,
                           copy.operation);
     }
-    // Fermi2D bypasses BindRenderTarget and must enqueue preemptive readbacks.
-    const ImageViewBase& dst_view = slot_image_views[dst_view_id];
-    if (True(dst_view.flags & ImageViewFlagBits::PreemtiveDownload)) {
-        uncommitted_downloads.emplace_back(PendingDownload{true, 0, dst_id});
-    }
+    // Fermi2D already called PrepareImage(dst_id, true, false) -> MarkModification ->
+    // QueuePreemptiveDownload, so observed destinations are queued once per batch.
     return true;
 }
 
@@ -1738,12 +1736,13 @@ bool TextureCache<P>::TryDownloadObservedImage(Image& image, AsyncBuffer& map,
 
 template <class P>
 void TextureCache<P>::CommitAsyncFlushes() {
-    DeduplicateDownloads();
     for (auto& download : uncommitted_downloads) {
         download.observation_serial = readback_pages.Serial();
         if (download.is_swizzle) {
-            download.modification_tick = slot_images[download.object_id].modification_tick;
-            download.gpu_write_tick = slot_images[download.object_id].gpu_write_tick;
+            Image& image = slot_images[download.object_id];
+            image.flags &= ~ImageFlagBits::DownloadQueued;
+            download.modification_tick = image.modification_tick;
+            download.gpu_write_tick = image.gpu_write_tick;
         }
     }
     ProtectCommittedDownloads();
@@ -2179,14 +2178,6 @@ bool TextureCache<P>::DmaImageToImage(const Tegra::DMA::ImageCopy& copy_info,
                    .depth = 1},
     };
     CopyImage(dst_id, src_id, {copy});
-
-    // Match framebuffer blits: native readbacks must observe the new contents.
-    for (const ImageViewId view_id : slot_images[dst_id].image_view_ids) {
-        if (True(slot_image_views[view_id].flags & ImageViewFlagBits::PreemtiveDownload)) {
-            uncommitted_downloads.emplace_back(PendingDownload{true, 0, dst_id});
-            break;
-        }
-    }
     return true;
 }
 
@@ -4018,7 +4009,7 @@ void TextureCache<P>::RefreshUnpublishedRead(DAddr addr, size_t size) {
 }
 
 template <class P>
-void TextureCache<P>::MarkModification(ImageBase& image, ImageId image_id) noexcept {
+void TextureCache<P>::MarkModification(ImageBase& image, ImageId image_id) {
     if (!image.aliased_images.empty()) {
         BumpDescriptorEpoch();
     }
@@ -4033,6 +4024,18 @@ void TextureCache<P>::MarkModification(ImageBase& image, ImageId image_id) noexc
     }
     NotifyNativeImageModification(image, image_id);
     UpdateNativeReadTracking(image, image_id);
+    QueuePreemptiveDownload(image, image_id);
+}
+
+template <class P>
+void TextureCache<P>::QueuePreemptiveDownload(ImageBase& image, ImageId image_id) {
+    if (!image.info.forced_flushed ||
+        True(image.flags & (ImageFlagBits::DownloadQueued | ImageFlagBits::Remapped)) ||
+        image.unswizzled_size_bytes == 0) {
+        return;
+    }
+    image.flags |= ImageFlagBits::DownloadQueued;
+    uncommitted_downloads.emplace_back(PendingDownload{true, 0, image_id});
 }
 
 template <class P>
@@ -4264,8 +4267,7 @@ void TextureCache<P>::BindRenderTarget(ImageViewId* old_id, ImageViewId new_id) 
     if (new_id) {
         const ImageViewBase& old_view = slot_image_views[new_id];
         if (True(old_view.flags & ImageViewFlagBits::PreemtiveDownload)) {
-            const PendingDownload new_download{true, 0, old_view.image_id};
-            uncommitted_downloads.emplace_back(new_download);
+            QueuePreemptiveDownload(slot_images[old_view.image_id], old_view.image_id);
         }
     }
     *old_id = new_id;
