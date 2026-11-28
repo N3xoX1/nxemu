@@ -6,6 +6,7 @@
 #include <bit>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -46,6 +47,7 @@ struct ConstBufferAddr {
     u32 index_cbuf_index{};
     u32 index_cbuf_offset{};
     u32 index_shift{};
+    std::vector<TextureHandleTerm> extra_terms;
 };
 
 struct TextureInst {
@@ -360,6 +362,11 @@ bool IsTextureInstruction(const IR::Inst& inst) {
 class TextureHandleTracker;
 std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst * inst, Environment & env,
                                                  TextureHandleTracker & tracker);
+std::optional<u32> TryGetMaskOperand(const IR::Inst * inst, Environment & env, IR::Value & target);
+std::optional<ConstBufferAddr> CombineHandles(ConstBufferAddr lhs, ConstBufferAddr rhs);
+ConstBufferAddr ApplyHandleMask(ConstBufferAddr addr, u32 mask);
+std::optional<ConstBufferAddr> ApplyHandleShiftLeft(ConstBufferAddr addr, u32 shift);
+bool IsDynamicHandle(const ConstBufferAddr & addr);
 
 // Evaluate the value expression, not the first cbuf reachable anywhere in its
 // operands. In particular, Phi and Select inputs must agree unless the branch
@@ -381,6 +388,11 @@ public:
     bool HasContradictoryUniformConditions()
     {
         return conditions.HasContradictoryUniformConditions();
+    }
+
+    bool InAlternatives() const noexcept
+    {
+        return in_alternatives;
     }
 
     std::optional<ConstBufferAddr> Track(IR::Value value)
@@ -462,61 +474,292 @@ public:
         return cache.at(root);
     }
 
-    // Only finite Phi/Select merges of proven descriptors qualify. A cbuf in
-    // an unsupported address expression is not evidence of a texture source.
+    // Only finite Phi/Select/OR/AND/SHL graphs of proven scalar descriptors qualify.
+    // Fixed-point evaluation handles loop-carried handle accumulation such as
+    // `x = c1384; loop { if (p) x |= c416; }; use(x | c400)` without guessing.
     std::vector<ConstBufferAddr> Alternatives(IR::Value value, u32 limit)
     {
-        std::vector<ConstBufferAddr> result;
-        std::unordered_set<ConstBufferAddr, AddressHash, AddressEqual> unique;
-        std::vector<IR::Value> pending{value};
-        std::unordered_set<const IR::Inst *> visited;
-        const auto add = [&](const ConstBufferAddr & addr) {
-            if (addr.count != 1 || addr.is_direct || !addr.dynamic_offset.IsEmpty()) return false;
-            if (unique.insert(addr).second) result.push_back(addr);
-            return result.size() <= limit;
+        if (limit == 0) return {};
+        const auto root_value = value.Resolve();
+        if (root_value.IsImmediate()) return {};
+        const auto is_scalar = [](const ConstBufferAddr & addr) {
+            return !addr.is_direct && !IsDynamicHandle(addr);
         };
-        while (!pending.empty())
+        if (const auto direct = Track(root_value))
         {
-            const auto input = pending.back().Resolve();
-            pending.pop_back();
-            if (const auto * inst = input.TryInstRecursive(); inst && CrossesLoop(inst))
+            if (is_scalar(*direct)) return {*direct};
+            return {};
+        }
+
+        const bool prev_in_alt = in_alternatives;
+        in_alternatives = true;
+        struct ScopeReset
+        {
+            bool & flag;
+            bool previous;
+            ~ScopeReset() { flag = previous; }
+        } reset{in_alternatives, prev_in_alt};
+
+        enum class NodeKind : u8
+        {
+            Leaf,
+            Undef,
+            Merge,
+            Or,
+            OrImm,
+            AndMask,
+            ShiftLeft,
+        };
+        struct AltNode
+        {
+            const IR::Inst * inst{};
+            NodeKind kind{NodeKind::Leaf};
+            u32 imm{};
+            boost::container::small_vector<size_t, 4> deps;
+            std::vector<ConstBufferAddr> values;
+            std::unordered_set<ConstBufferAddr, AddressHash, AddressEqual> seen;
+        };
+
+        static constexpr size_t MAX_ALT_NODES = 64;
+        static constexpr size_t MAX_ALT_ITERS = 64;
+        const u32 effective_limit = std::min(limit, 64U);
+
+        std::vector<AltNode> nodes;
+        std::unordered_map<const IR::Inst *, size_t> node_map;
+        std::vector<size_t> worklist;
+
+        const auto intern = [&](IR::Value operand) -> std::optional<size_t> {
+            operand = operand.Resolve();
+            if (operand.IsImmediate()) return std::nullopt;
+            const auto * inst = operand.Inst();
+            if (const auto it = node_map.find(inst); it != node_map.end()) return it->second;
+            if (nodes.size() >= MAX_ALT_NODES) return std::nullopt;
+            const size_t idx = nodes.size();
+            nodes.push_back(AltNode{.inst = inst});
+            node_map.emplace(inst, idx);
+            worklist.push_back(idx);
+            return idx;
+        };
+
+        const auto add_val = [&](AltNode & node, const ConstBufferAddr & addr) -> bool {
+            if (!is_scalar(addr)) return false;
+            if (node.seen.insert(addr).second)
+            {
+                node.values.push_back(addr);
+                return node.values.size() <= effective_limit;
+            }
+            return true;
+        };
+
+        if (!intern(root_value)) return {};
+
+        while (!worklist.empty())
+        {
+            const size_t idx = worklist.back();
+            worklist.pop_back();
+            const IR::Inst * inst = nodes[idx].inst;
+
+            if (CrossesLoop(inst))
             {
                 // Keep the actual loop-carried handle as the runtime selector.
                 // Only its finite, context-independent cbuf sources are collected.
-                const auto incoming = Unconditional().Alternatives(input, limit);
+                const auto incoming = Unconditional().Alternatives(IR::Value{const_cast<IR::Inst *>(inst)}, effective_limit);
                 if (incoming.empty()) return {};
+                nodes[idx].kind = NodeKind::Leaf;
                 for (const auto & addr : incoming)
-                    if (!add(addr)) return {};
+                    if (!add_val(nodes[idx], addr)) return {};
                 continue;
             }
-            if (const auto addr = Track(input))
+            if (const auto tracked = Track(IR::Value{const_cast<IR::Inst *>(inst)}))
             {
-                if (!add(*addr)) return {};
+                nodes[idx].kind = NodeKind::Leaf;
+                if (!add_val(nodes[idx], *tracked)) return {};
                 continue;
             }
-            if (input.IsImmediate()) return {};
-            const auto * inst = input.Inst();
-            if (!visited.insert(inst).second) continue;
-            if (inst->GetOpcode() == IR::Opcode::UndefU32) continue;
-            if (inst->GetOpcode() == IR::Opcode::Phi)
+
+            switch (inst->GetOpcode())
             {
+            case IR::Opcode::UndefU32:
+                nodes[idx].kind = NodeKind::Undef;
+                break;
+            case IR::Opcode::Phi: {
+                nodes[idx].kind = NodeKind::Merge;
+                boost::container::small_vector<IR::Value, 8> inputs;
                 for (size_t i = 0; i < inst->NumArgs(); ++i)
-                    if (IncomingPossible(inst, i)) pending.push_back(inst->Arg(i));
+                {
+                    if (!IncomingPossible(inst, i)) continue;
+                    const IR::Value arg = inst->Arg(i).Resolve();
+                    const auto * inner = arg.TryInstRecursive();
+                    if (conditional && inner && inner != inst && inner->GetOpcode() == IR::Opcode::Phi)
+                    {
+                        bool pruned{};
+                        boost::container::small_vector<IR::Value, 4> inner_inputs;
+                        for (size_t j = 0; j < inner->NumArgs(); ++j)
+                        {
+                            if (!IncomingPossible(inner, j)) continue;
+                            if (!conditions.IncomingPossibleThrough(inst, i, inner, j))
+                            {
+                                pruned = true;
+                                continue;
+                            }
+                            inner_inputs.push_back(inner->Arg(j));
+                        }
+                        if (pruned)
+                        {
+                            for (const auto & v : inner_inputs) inputs.push_back(v);
+                            continue;
+                        }
+                    }
+                    inputs.push_back(arg);
+                }
+                for (const auto & input : inputs)
+                {
+                    const auto dep = intern(input);
+                    if (!dep) return {};
+                    nodes[idx].deps.push_back(*dep);
+                }
+                break;
             }
-            else if (inst->GetOpcode() == IR::Opcode::SelectU32)
-            {
+            case IR::Opcode::SelectU32: {
+                nodes[idx].kind = NodeKind::Merge;
                 if (const auto truth = Truth(inst->Arg(0)))
-                    pending.push_back(inst->Arg(*truth ? 1 : 2));
+                {
+                    const auto dep = intern(inst->Arg(*truth ? 1 : 2));
+                    if (!dep) return {};
+                    nodes[idx].deps.push_back(*dep);
+                }
                 else
                 {
-                    pending.push_back(inst->Arg(1));
-                    pending.push_back(inst->Arg(2));
+                    const auto dep1 = intern(inst->Arg(1));
+                    const auto dep2 = intern(inst->Arg(2));
+                    if (!dep1 || !dep2) return {};
+                    nodes[idx].deps.push_back(*dep1);
+                    nodes[idx].deps.push_back(*dep2);
                 }
+                break;
             }
-            else
-                return {}; // Not a finite merge of known descriptors.
+            case IR::Opcode::BitwiseOr32: {
+                bool handled_imm{};
+                for (size_t imm_arg = 0; imm_arg < 2; ++imm_arg)
+                {
+                    if (inst->Arg(imm_arg).IsImmediate())
+                    {
+                        const u32 imm = inst->Arg(imm_arg).U32();
+                        if ((imm & 0xfffffU) != 0) return {};
+                        const auto dep = intern(inst->Arg(1 - imm_arg));
+                        if (!dep) return {};
+                        nodes[idx].kind = NodeKind::OrImm;
+                        nodes[idx].imm = imm;
+                        nodes[idx].deps.push_back(*dep);
+                        handled_imm = true;
+                        break;
+                    }
+                }
+                if (!handled_imm)
+                {
+                    const auto dep0 = intern(inst->Arg(0));
+                    const auto dep1 = intern(inst->Arg(1));
+                    if (!dep0 || !dep1) return {};
+                    nodes[idx].kind = NodeKind::Or;
+                    nodes[idx].deps.push_back(*dep0);
+                    nodes[idx].deps.push_back(*dep1);
+                }
+                break;
+            }
+            case IR::Opcode::BitwiseAnd32: {
+                IR::Value target;
+                const auto mask = TryGetMaskOperand(inst, env, target);
+                if (!mask) return {};
+                const auto dep = intern(target);
+                if (!dep) return {};
+                nodes[idx].kind = NodeKind::AndMask;
+                nodes[idx].imm = *mask;
+                nodes[idx].deps.push_back(*dep);
+                break;
+            }
+            case IR::Opcode::ShiftLeftLogical32: {
+                const IR::Value shift{inst->Arg(1)};
+                if (!shift.IsImmediate() || shift.U32() >= 32) return {};
+                const auto dep = intern(inst->Arg(0));
+                if (!dep) return {};
+                nodes[idx].kind = NodeKind::ShiftLeft;
+                nodes[idx].imm = shift.U32();
+                nodes[idx].deps.push_back(*dep);
+                break;
+            }
+            default:
+                return {}; // Not a finite merge/combination of known descriptors.
+            }
         }
-        return result;
+
+        bool converged{};
+        for (size_t iter = 0; iter < MAX_ALT_ITERS; ++iter)
+        {
+            bool changed{};
+            for (size_t rev = nodes.size(); rev-- > 0;)
+            {
+                auto & node = nodes[rev];
+                const size_t before = node.values.size();
+                switch (node.kind)
+                {
+                case NodeKind::Leaf:
+                case NodeKind::Undef:
+                    break;
+                case NodeKind::Merge:
+                    for (const size_t dep : node.deps)
+                        for (const auto & addr : nodes[dep].values)
+                            if (!add_val(node, addr)) return {};
+                    break;
+                case NodeKind::OrImm:
+                    for (const auto & addr : nodes[node.deps[0]].values)
+                    {
+                        auto combined = addr;
+                        combined.handle_or_bits |= node.imm;
+                        if (!add_val(node, combined)) return {};
+                    }
+                    break;
+                case NodeKind::Or:
+                    for (const auto & lhs : nodes[node.deps[0]].values)
+                        for (const auto & rhs : nodes[node.deps[1]].values)
+                        {
+                            const auto combined = CombineHandles(lhs, rhs);
+                            if (!combined || !add_val(node, *combined)) return {};
+                        }
+                    break;
+                case NodeKind::AndMask:
+                    for (const auto & addr : nodes[node.deps[0]].values)
+                        if (!add_val(node, ApplyHandleMask(addr, node.imm))) return {};
+                    break;
+                case NodeKind::ShiftLeft:
+                    for (const auto & addr : nodes[node.deps[0]].values)
+                    {
+                        const auto shifted = ApplyHandleShiftLeft(addr, node.imm);
+                        if (!shifted || !add_val(node, *shifted)) return {};
+                    }
+                    break;
+                }
+                if (node.values.size() != before) changed = true;
+            }
+            if (!changed)
+            {
+                converged = true;
+                break;
+            }
+        }
+        if (!converged || nodes[0].values.empty()) return {};
+
+        // An arithmetic/bitwise op whose operand stayed empty (e.g. UndefU32 | c400)
+        // combines uninitialized bits and must not silently disappear.
+        for (const auto & node : nodes)
+        {
+            if (node.kind == NodeKind::Or || node.kind == NodeKind::OrImm ||
+                node.kind == NodeKind::AndMask || node.kind == NodeKind::ShiftLeft)
+            {
+                for (const size_t dep : node.deps)
+                    if (nodes[dep].values.empty()) return {};
+            }
+        }
+        return std::move(nodes[0].values);
     }
 
 private:
@@ -573,7 +816,8 @@ public:
                a.mask == b.mask && a.secondary_mask == b.secondary_mask &&
                a.has_index_cbuf == b.has_index_cbuf &&
                a.index_cbuf_index == b.index_cbuf_index &&
-               a.index_cbuf_offset == b.index_cbuf_offset && a.index_shift == b.index_shift;
+               a.index_cbuf_offset == b.index_cbuf_offset && a.index_shift == b.index_shift &&
+               a.extra_terms == b.extra_terms;
     }
 
 private:
@@ -583,12 +827,22 @@ private:
         size_t operator()(const ConstBufferAddr & addr) const
         {
             size_t hash{};
+            const auto mix = [&](u32 part) {
+                hash ^= part + 0x9e3779b9U + (hash << 6) + (hash >> 2);
+            };
             for (const u32 part : {addr.index, addr.offset, addr.shift_left, addr.secondary_index,
                                    addr.secondary_offset, addr.secondary_shift_left,
                                    u32{addr.has_secondary}, addr.handle_or_bits, addr.mask,
                                    addr.secondary_mask, u32{addr.has_index_cbuf},
                                    addr.index_cbuf_index, addr.index_cbuf_offset, addr.index_shift})
-                hash ^= part + 0x9e3779b9U + (hash << 6) + (hash >> 2);
+                mix(part);
+            for (const auto & term : addr.extra_terms)
+            {
+                mix(term.cbuf_index);
+                mix(term.cbuf_offset);
+                mix(term.shift_left);
+                mix(term.mask);
+            }
             return hash;
         }
     };
@@ -674,6 +928,7 @@ private:
     const IR::Program & program;
     ConditionalValueResolver conditions;
     bool conditional;
+    bool in_alternatives{};
     std::unique_ptr<TextureHandleTracker> unconditional;
     std::unordered_map<const IR::Inst *, std::optional<ConstBufferAddr>> cache;
 };
@@ -761,70 +1016,207 @@ std::optional<u32> TryGetConstant(IR::Value& value, Environment& env) {
     return env.ReadCbufValue(index_number, offset_number);
 }
 
+constexpr size_t MAX_HANDLE_TERMS = 8;
+
+bool IsDynamicHandle(const ConstBufferAddr& addr) {
+    return addr.count > 1 || !addr.dynamic_offset.IsEmpty() || addr.has_index_cbuf ||
+           !addr.array_index.IsEmpty();
+}
+
+bool TermLess(const TextureHandleTerm& a, const TextureHandleTerm& b) {
+    return std::tie(a.shift_left, a.cbuf_index, a.cbuf_offset, a.mask) <
+           std::tie(b.shift_left, b.cbuf_index, b.cbuf_offset, b.mask);
+}
+
+void CanonicalizeTerms(ConstBufferAddr& addr) {
+    std::vector<TextureHandleTerm> terms;
+    if (!IsDynamicHandle(addr)) {
+        terms.push_back({addr.index, addr.offset, addr.shift_left, addr.mask});
+        if (addr.has_secondary) {
+            terms.push_back(
+                {addr.secondary_index, addr.secondary_offset, addr.secondary_shift_left,
+                 addr.secondary_mask});
+        }
+        terms.insert(terms.end(), addr.extra_terms.begin(), addr.extra_terms.end());
+        std::ranges::sort(terms, TermLess);
+        terms.erase(std::unique(terms.begin(), terms.end()), terms.end());
+        addr.index = terms[0].cbuf_index;
+        addr.offset = terms[0].cbuf_offset;
+        addr.shift_left = terms[0].shift_left;
+        addr.mask = terms[0].mask;
+        if (terms.size() >= 2) {
+            addr.has_secondary = true;
+            addr.secondary_index = terms[1].cbuf_index;
+            addr.secondary_offset = terms[1].cbuf_offset;
+            addr.secondary_shift_left = terms[1].shift_left;
+            addr.secondary_mask = terms[1].mask;
+            addr.extra_terms.assign(terms.begin() + 2, terms.end());
+        } else {
+            addr.has_secondary = false;
+            addr.secondary_index = 0;
+            addr.secondary_offset = 0;
+            addr.secondary_shift_left = 0;
+            addr.secondary_mask = ~0U;
+            addr.extra_terms.clear();
+        }
+    } else if (addr.has_secondary) {
+        terms.push_back({addr.secondary_index, addr.secondary_offset, addr.secondary_shift_left,
+                         addr.secondary_mask});
+        terms.insert(terms.end(), addr.extra_terms.begin(), addr.extra_terms.end());
+        std::ranges::sort(terms, TermLess);
+        terms.erase(std::unique(terms.begin(), terms.end()), terms.end());
+        addr.secondary_index = terms[0].cbuf_index;
+        addr.secondary_offset = terms[0].cbuf_offset;
+        addr.secondary_shift_left = terms[0].shift_left;
+        addr.secondary_mask = terms[0].mask;
+        addr.extra_terms.assign(terms.begin() + 1, terms.end());
+    }
+}
+
 std::optional<ConstBufferAddr> CombineHandles(ConstBufferAddr lhs, ConstBufferAddr rhs) {
-    if (lhs.has_secondary || rhs.has_secondary) {
+    if (lhs.is_direct || rhs.is_direct) {
         return std::nullopt;
     }
-    if (lhs.count > 1 && rhs.count > 1) {
+    const bool lhs_dyn = IsDynamicHandle(lhs);
+    const bool rhs_dyn = IsDynamicHandle(rhs);
+    if (lhs_dyn && rhs_dyn) {
         return std::nullopt;
     }
-    // Only the primary component may be dynamically indexed. A shared
-    // sampler from the other component always has a fixed offset.
-    if (rhs.count > 1) {
+    // Only the primary component may be dynamically indexed. Shared sampler/extra
+    // components always have fixed scalar offsets.
+    if (rhs_dyn) {
         std::swap(lhs, rhs);
-    } else if (lhs.count == 1 &&
-               (lhs.shift_left > 0 || lhs.index > rhs.index || lhs.offset > rhs.offset)) {
-        std::swap(lhs, rhs);
     }
-    if (!rhs.dynamic_offset.IsEmpty()) {
-        return std::nullopt;
-    }
-    // Combining a fixed sampler must preserve the primary's uniform-index proof.
-    // Dropping it expands one per-draw handle into the entire cbuf descriptor array.
     auto combined = lhs;
-    combined.secondary_index = rhs.index;
-    combined.secondary_offset = rhs.offset;
-    combined.secondary_shift_left = rhs.shift_left;
-    combined.has_secondary = true;
     combined.handle_or_bits |= rhs.handle_or_bits;
-    combined.secondary_mask = rhs.mask;
+    std::vector<TextureHandleTerm> terms;
+    if (IsDynamicHandle(combined)) {
+        if (combined.has_secondary) {
+            terms.push_back({combined.secondary_index, combined.secondary_offset,
+                             combined.secondary_shift_left, combined.secondary_mask});
+        }
+        terms.insert(terms.end(), combined.extra_terms.begin(), combined.extra_terms.end());
+        terms.push_back({rhs.index, rhs.offset, rhs.shift_left, rhs.mask});
+        if (rhs.has_secondary) {
+            terms.push_back({rhs.secondary_index, rhs.secondary_offset, rhs.secondary_shift_left,
+                             rhs.secondary_mask});
+        }
+        terms.insert(terms.end(), rhs.extra_terms.begin(), rhs.extra_terms.end());
+        std::ranges::sort(terms, TermLess);
+        terms.erase(std::unique(terms.begin(), terms.end()), terms.end());
+        if (1 + terms.size() > MAX_HANDLE_TERMS) {
+            return std::nullopt;
+        }
+        combined.has_secondary = true;
+        combined.secondary_index = terms[0].cbuf_index;
+        combined.secondary_offset = terms[0].cbuf_offset;
+        combined.secondary_shift_left = terms[0].shift_left;
+        combined.secondary_mask = terms[0].mask;
+        combined.extra_terms.assign(terms.begin() + 1, terms.end());
+        return combined;
+    }
+    terms.push_back({combined.index, combined.offset, combined.shift_left, combined.mask});
+    if (combined.has_secondary) {
+        terms.push_back({combined.secondary_index, combined.secondary_offset,
+                         combined.secondary_shift_left, combined.secondary_mask});
+    }
+    terms.insert(terms.end(), combined.extra_terms.begin(), combined.extra_terms.end());
+    terms.push_back({rhs.index, rhs.offset, rhs.shift_left, rhs.mask});
+    if (rhs.has_secondary) {
+        terms.push_back({rhs.secondary_index, rhs.secondary_offset, rhs.secondary_shift_left,
+                         rhs.secondary_mask});
+    }
+    terms.insert(terms.end(), rhs.extra_terms.begin(), rhs.extra_terms.end());
+    std::ranges::sort(terms, TermLess);
+    terms.erase(std::unique(terms.begin(), terms.end()), terms.end());
+    if (terms.size() > MAX_HANDLE_TERMS) {
+        return std::nullopt;
+    }
+    combined.index = terms[0].cbuf_index;
+    combined.offset = terms[0].cbuf_offset;
+    combined.shift_left = terms[0].shift_left;
+    combined.mask = terms[0].mask;
+    if (terms.size() >= 2) {
+        combined.has_secondary = true;
+        combined.secondary_index = terms[1].cbuf_index;
+        combined.secondary_offset = terms[1].cbuf_offset;
+        combined.secondary_shift_left = terms[1].shift_left;
+        combined.secondary_mask = terms[1].mask;
+        combined.extra_terms.assign(terms.begin() + 2, terms.end());
+    } else {
+        combined.has_secondary = false;
+        combined.secondary_index = 0;
+        combined.secondary_offset = 0;
+        combined.secondary_shift_left = 0;
+        combined.secondary_mask = ~0U;
+        combined.extra_terms.clear();
+    }
     return combined;
 }
 
-// True when the fixed word `part` is already one of the two words ORed into `handle`,
-// so `handle | part == handle`.
-bool HasComponent(const ConstBufferAddr& handle, const ConstBufferAddr& part) {
-    if ((part.handle_or_bits & ~handle.handle_or_bits) != 0) {
-        return false;
+ConstBufferAddr ApplyHandleMask(ConstBufferAddr addr, u32 mask) {
+    addr.mask &= mask;
+    if (addr.has_secondary) {
+        addr.secondary_mask &= mask;
     }
-    const bool primary = handle.index == part.index && handle.offset == part.offset &&
-                         handle.shift_left == part.shift_left && handle.mask == part.mask;
-    const bool secondary = handle.secondary_index == part.index &&
-                           handle.secondary_offset == part.offset &&
-                           handle.secondary_shift_left == part.shift_left &&
-                           handle.secondary_mask == part.mask;
-    return primary || secondary;
+    for (auto& term : addr.extra_terms) {
+        term.mask &= mask;
+    }
+    addr.handle_or_bits &= mask;
+    CanonicalizeTerms(addr);
+    return addr;
 }
 
-// `x | c` where `x` is a merge whose every input is either `a` or `a | c` (a loop or branch
-// that may already have merged the sampler word). OR is idempotent, so all paths give the
-// same `a | c`. Any other input, or two different results, leaves the handle unresolved.
+std::optional<ConstBufferAddr> ApplyHandleShiftLeft(ConstBufferAddr addr, u32 shift) {
+    if (shift == 0) {
+        return addr;
+    }
+    if (shift >= 32 || addr.has_secondary || !addr.extra_terms.empty() || addr.shift_left != 0) {
+        return std::nullopt;
+    }
+    addr.shift_left = shift;
+    addr.mask <<= shift;
+    addr.handle_or_bits <<= shift;
+    return addr;
+}
+
+std::optional<u32> TryGetMaskOperand(const IR::Inst* inst, Environment& env, IR::Value& target) {
+    IR::Value op1{inst->Arg(0)};
+    IR::Value op2{inst->Arg(1)};
+    if (op1.IsImmediate()) {
+        std::swap(op1, op2);
+    }
+    if (!op2.IsImmediate() && !op1.IsImmediate()) {
+        if (const auto try_index = TryGetConstant(op1, env)) {
+            target = op2;
+            return *try_index;
+        }
+        if (const auto try_index_2 = TryGetConstant(op2, env)) {
+            target = op1;
+            return *try_index_2;
+        }
+        return std::nullopt;
+    }
+    if (op1.IsImmediate()) {
+        return std::nullopt;
+    }
+    target = op1;
+    return op2.U32();
+}
+
+// `x | c` where `x` is a merge whose every input combines with `c` to the same handle
+// (for example a loop or branch that may already have merged the sampler word). Any
+// distinct resulting handles leave this single-descriptor lookup unresolved so the
+// compact multi-source selector can preserve all candidates without guessing.
 std::optional<ConstBufferAddr> TrackRepeatedOr(TextureHandleTracker& tracker, IR::Value merged,
                                                const ConstBufferAddr& fixed, bool fixed_is_rhs) {
-    if (fixed.count != 1 || fixed.has_secondary || fixed.is_direct ||
-        !fixed.dynamic_offset.IsEmpty() || fixed.has_index_cbuf || !fixed.array_index.IsEmpty()) {
+    if (fixed.is_direct || IsDynamicHandle(fixed)) {
         return std::nullopt;
     }
     static constexpr u32 MAX_INPUTS = 8;
     std::optional<ConstBufferAddr> result;
     for (const ConstBufferAddr& input : tracker.Alternatives(merged, MAX_INPUTS)) {
-        std::optional<ConstBufferAddr> value;
-        if (!input.has_secondary) {
-            value = fixed_is_rhs ? CombineHandles(input, fixed) : CombineHandles(fixed, input);
-        } else if (!input.has_index_cbuf && input.array_index.IsEmpty() &&
-                   HasComponent(input, fixed)) {
-            value = input;
-        }
+        const auto value = fixed_is_rhs ? CombineHandles(input, fixed) : CombineHandles(fixed, input);
         if (!value || (result && !TextureHandleTracker::Same(*result, *value))) {
             return std::nullopt;
         }
@@ -856,7 +1248,7 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         if (lhs && rhs) {
             return CombineHandles(*lhs, *rhs);
         }
-        if (lhs || rhs) {
+        if ((lhs || rhs) && !tracker.InAlternatives()) {
             return TrackRepeatedOr(tracker, inst->Arg(lhs ? 1 : 0), lhs ? *lhs : *rhs, rhs.has_value());
         }
         return std::nullopt;
@@ -868,45 +1260,21 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
         }
         std::optional lhs{tracker.Track(inst->Arg(0))};
         if (lhs) {
-            if (lhs->has_secondary || lhs->shift_left != 0) {
-                return std::nullopt;
-            }
-            lhs->shift_left = shift.U32();
-            lhs->mask <<= shift.U32();
-            lhs->handle_or_bits = shift.U32() < 32 ? lhs->handle_or_bits << shift.U32() : 0;
+            return ApplyHandleShiftLeft(*lhs, shift.U32());
         }
-        return lhs;
-        break;
+        return std::nullopt;
     }
     case IR::Opcode::BitwiseAnd32: {
-        IR::Value op1{inst->Arg(0)};
-        IR::Value op2{inst->Arg(1)};
-        if (op1.IsImmediate()) {
-            std::swap(op1, op2);
+        IR::Value target;
+        const auto mask = TryGetMaskOperand(inst, env, target);
+        if (!mask) {
+            return std::nullopt;
         }
-        if (!op2.IsImmediate() && !op1.IsImmediate()) {
-            do {
-                auto try_index = TryGetConstant(op1, env);
-                if (try_index) {
-                    op1 = op2;
-                    op2 = IR::Value{*try_index};
-                    break;
-                }
-                auto try_index_2 = TryGetConstant(op2, env);
-                if (try_index_2) {
-                    op2 = IR::Value{*try_index_2};
-                    break;
-                }
-                return std::nullopt;
-            } while (false);
-        }
-        std::optional lhs{tracker.Track(op1)};
+        std::optional lhs{tracker.Track(target)};
         if (lhs) {
-            lhs->mask &= op2.U32();
-            lhs->handle_or_bits &= op2.U32();
+            return ApplyHandleMask(*lhs, *mask);
         }
-        return lhs;
-        break;
+        return std::nullopt;
     }
     case IR::Opcode::GetCbufU32x2:
     case IR::Opcode::GetCbufU32:
@@ -1002,7 +1370,10 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
             // Preserve the original handle and select its texture/sampler at runtime.
             const bool sampled = IsRuntimeSampled(inst);
             const bool fetch = inst.GetOpcode() == IR::Opcode::BindlessImageFetch;
-            if (host_info.support_separate_sampler && (sampled || fetch)) {
+            const bool gather = (inst.GetOpcode() == IR::Opcode::BindlessImageGather ||
+                                 inst.GetOpcode() == IR::Opcode::BindlessImageGatherDref) &&
+                                inst.Flags<IR::TextureInstInfo>().type != TextureType::Buffer;
+            if (host_info.support_separate_sampler && (sampled || fetch || gather)) {
                 // Keep finite merges compact. The original guest handle selects
                 // among these cbuf sources, so no path is guessed and the full
                 // guest TIC table does not need to be uploaded.
@@ -1018,7 +1389,7 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
                         sources.push_back({choice.has_secondary, choice.index, choice.offset, choice.shift_left,
                                            choice.secondary_index, choice.secondary_offset, choice.secondary_shift_left,
                                            1, 1U << choice.size_shift, choice.handle_or_bits,
-                                           choice.mask, choice.secondary_mask});
+                                           choice.mask, choice.secondary_mask, choice.extra_terms});
                         if (i == 0) continue; // The default index needs no handle comparison.
                         auto handle = ir.GetCbuf(ir.Imm32(choice.index), ir.Imm32(choice.offset));
                         if (choice.shift_left != 0) handle = ir.ShiftLeftLogical(handle, ir.Imm32(choice.shift_left));
@@ -1028,6 +1399,12 @@ TextureInst MakeInst(Environment& env, IR::Block* block, IR::Inst& inst,
                             if (choice.secondary_shift_left != 0) secondary = ir.ShiftLeftLogical(secondary, ir.Imm32(choice.secondary_shift_left));
                             if (choice.secondary_mask != ~0U) secondary = ir.BitwiseAnd(secondary, ir.Imm32(choice.secondary_mask));
                             handle = ir.BitwiseOr(handle, secondary);
+                        }
+                        for (const auto& term : choice.extra_terms) {
+                            auto extra = ir.GetCbuf(ir.Imm32(term.cbuf_index), ir.Imm32(term.cbuf_offset));
+                            if (term.shift_left != 0) extra = ir.ShiftLeftLogical(extra, ir.Imm32(term.shift_left));
+                            if (term.mask != ~0U) extra = ir.BitwiseAnd(extra, ir.Imm32(term.mask));
+                            handle = ir.BitwiseOr(handle, extra);
                         }
                         if (choice.handle_or_bits != 0) handle = ir.BitwiseOr(handle, ir.Imm32(choice.handle_or_bits));
                         selected = IR::U32{ir.Select(ir.IEqual(IR::U32{inst.Arg(0)}, handle), ir.Imm32(static_cast<u32>(i)), selected)};
@@ -1097,6 +1474,7 @@ TextureHandleSource TextureQuerySource(const ConstBufferAddr& cbuf) {
     source.handle_or_bits = cbuf.handle_or_bits;
     source.mask = cbuf.mask;
     source.secondary_mask = cbuf.secondary_mask;
+    source.extra_terms = cbuf.extra_terms;
     source.count = 1;
     return source;
 }
@@ -1115,7 +1493,8 @@ bool SameStaticHandle(const ConstBufferAddr& lhs, const ConstBufferAddr& rhs) {
             (lhs.secondary_index == rhs.secondary_index &&
              lhs.secondary_offset == rhs.secondary_offset &&
              lhs.secondary_shift_left == rhs.secondary_shift_left &&
-             lhs.secondary_mask == rhs.secondary_mask));
+             lhs.secondary_mask == rhs.secondary_mask)) &&
+           lhs.extra_terms == rhs.extra_terms;
 }
 
 std::optional<TextureType> AgreedSiblingTextureType(const TextureInstVector& instructions,
@@ -1202,7 +1581,8 @@ public:
                    desc.count == existing.count && desc.stride == existing.stride &&
                    desc.handle_or_bits == existing.handle_or_bits &&
                    desc.mask == existing.mask && desc.secondary_mask == existing.secondary_mask &&
-                   desc.has_secondary == existing.has_secondary && desc.sources == existing.sources;
+                   desc.has_secondary == existing.has_secondary &&
+                   desc.extra_terms == existing.extra_terms && desc.sources == existing.sources;
         });
     }
 
@@ -1235,7 +1615,8 @@ public:
                    desc.index_cbuf_index == existing.index_cbuf_index &&
                    desc.index_cbuf_offset == existing.index_cbuf_offset &&
                    desc.index_shift == existing.index_shift &&
-                   desc.is_direct == existing.is_direct && desc.sources == existing.sources;
+                   desc.is_direct == existing.is_direct &&
+                   desc.extra_terms == existing.extra_terms && desc.sources == existing.sources;
         })};
         // TODO: Read this from TIC
         texture_descriptors[index].is_multisample |= desc.is_multisample;
@@ -1497,7 +1878,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
         case IR::Opcode::ImageAtomicXor32:
         case IR::Opcode::ImageAtomicExchange32:
         case IR::Opcode::ImageWrite: {
-            if (cbuf.has_secondary) {
+            if (cbuf.has_secondary || !cbuf.extra_terms.empty()) {
                 throw NotImplementedException("Unexpected separate sampler");
             }
             const bool is_written{inst->GetOpcode() != IR::Opcode::ImageRead};
@@ -1553,6 +1934,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .handle_or_bits = cbuf.handle_or_bits,
                     .mask = cbuf.mask,
                     .secondary_mask = cbuf.secondary_mask,
+                    .extra_terms = cbuf.extra_terms,
                     .sources = texture_inst.sources,
                 });
             } else {
@@ -1577,6 +1959,7 @@ void TexturePass(Environment& env, IR::Program& program, const HostTranslateInfo
                     .index_shift = cbuf.index_shift,
                     .mask = cbuf.mask,
                     .secondary_mask = cbuf.secondary_mask,
+                    .extra_terms = cbuf.extra_terms,
                     .sources = texture_inst.sources,
                 });
             }

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include <algorithm>
 #include <cassert>
+#include "yuzu_shader_recompiler/backend/spirv/spirv_emit_context.h"
 #include "yuzu_shader_recompiler/environment.h"
 #include "yuzu_shader_recompiler/exception.h"
 #include "yuzu_shader_recompiler/frontend/ir/ir_emitter.h"
@@ -7,6 +9,8 @@
 #include "yuzu_shader_recompiler/host_translate_info.h"
 #include "yuzu_shader_recompiler/ir_opt/passes.h"
 #include "yuzu_shader_recompiler/ir_opt/conditional_value.h"
+#include "yuzu_shader_recompiler/profile.h"
+#include "yuzu_shader_recompiler/runtime_info.h"
 
 namespace {
 class FetchEnvironment final : public Shader::Environment {
@@ -140,7 +144,7 @@ void FlaggedPredicateHandle(bool propagate, bool merged_predicate = false) {
 
 void PredicatePhiFacts() {
     using namespace Shader;
-    for (unsigned mode = 0; mode < 4; ++mode) {
+    for (unsigned mode = 0; mode < 5; ++mode) {
         ObjectPool<IR::Inst> pool;
         IR::Block entry{pool}, header{pool}, body{pool}, chosen{pool}, latch{pool}, end{pool};
         IR::IREmitter ir{entry};
@@ -152,6 +156,12 @@ void PredicatePhiFacts() {
         if (mode == 1) incoming = other;
         if (mode == 2) incoming = IR::Value{&*phi};
         if (mode == 3) incoming = IR::Value{&*latch.PrependNewInst(latch.end(), IR::Opcode::UndefU1)};
+        if (mode == 4) {
+            auto inner = latch.PrependNewInst(latch.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U1));
+            inner->AddPhiOperand(&body, IR::Value{&*phi});
+            inner->AddPhiOperand(&chosen, other);
+            incoming = IR::Value{&*inner};
+        }
         phi->AddPhiOperand(&latch, incoming);
         const IR::U1 condition{IR::Value{&*phi}};
         IR::Program program{};
@@ -173,7 +183,9 @@ void PredicatePhiFacts() {
         resolver.BeginBlock(&chosen);
         assert(resolver.CrossesLoop(&*phi));
         const auto truth = resolver.Truth(original);
-        if (mode == 0) assert(truth && *truth);
+        // Mode 0 (identical inputs) and mode 2 (pure self-edge loop-invariant phi)
+        // both prove `phi == original`. Distinct, undefined, and mixed-cycle phis stay opaque.
+        if (mode == 0 || mode == 2) assert(truth && *truth);
         else assert(!truth);
         assert(phi->GetOpcode() == IR::Opcode::Phi && phi->NumArgs() == 2);
         assert(phi->Arg(0) == original && phi->Arg(1) == incoming);
@@ -400,14 +412,28 @@ bool ComplementaryIfsHandle(SecondIf mode) {
     assert(fetch.Inst()->GetOpcode() == IR::Opcode::ImageFetch);
     assert(program.info.texture_descriptors.size() == 1);
     const auto& desc = program.info.texture_descriptors.front();
-    assert(!desc.is_direct && desc.count == 1 && desc.sources.empty());
+    assert(!desc.is_direct);
+    if (mode == SecondIf::OtherHandle) {
+        assert(desc.count == 2 && desc.sources.size() == 2);
+        const auto has = [&](u32 primary_off, u32 secondary_off) {
+            return std::ranges::any_of(desc.sources, [&](const auto& s) {
+                return s.cbuf_index == 2 && s.cbuf_offset == primary_off && s.has_secondary &&
+                       s.secondary_cbuf_index == 2 && s.secondary_cbuf_offset == secondary_off &&
+                       s.extra_terms.empty();
+            });
+        };
+        assert(has(360, 1384) && has(368, 1384));
+        return true;
+    }
+    assert(desc.count == 1 && desc.sources.empty());
     assert(desc.cbuf_index == 2 && desc.cbuf_offset == 360);
     assert(desc.has_secondary && desc.secondary_cbuf_index == 2 && desc.secondary_cbuf_offset == 1384);
     return true;
 }
 
-// Mortal Kombat 1 compute pattern: `r = a; if (c) r = r | s; fetch(r | s)`. Both paths
-// give `a | s`. A branch that ORs another word gives two handles and must stay unresolved.
+// Mortal Kombat 1 compute pattern: `r = a; if (c) r = r | b; fetch(r | s)`. When `b == s`,
+// both paths collapse to one static descriptor `a | s`. When `b != s`, both exact handles
+// `a | s` and `a | b | s` are bound as a compact two-source descriptor array without guessing.
 bool RepeatedOrHandle(u32 branch_word) {
     using namespace Shader;
     ObjectPool<IR::Inst> pool;
@@ -451,10 +477,201 @@ bool RepeatedOrHandle(u32 branch_word) {
     assert(fetch.Inst()->GetOpcode() == IR::Opcode::ImageFetch);
     assert(program.info.texture_descriptors.size() == 1);
     const auto& desc = program.info.texture_descriptors.front();
-    assert(!desc.is_direct && desc.count == 1 && desc.sources.empty());
-    assert(desc.cbuf_index == 2 && desc.cbuf_offset == 424);
-    assert(desc.has_secondary && desc.secondary_cbuf_index == 2 && desc.secondary_cbuf_offset == 1384);
+    assert(!desc.is_direct);
+    if (branch_word == 424) {
+        assert(desc.count == 1 && desc.sources.empty());
+        assert(desc.cbuf_index == 2 && desc.cbuf_offset == 424);
+        assert(desc.has_secondary && desc.secondary_cbuf_index == 2 && desc.secondary_cbuf_offset == 1384);
+        assert(desc.extra_terms.empty());
+    } else {
+        assert(desc.count == 2 && desc.sources.size() == 2);
+        const auto has_two = std::ranges::any_of(desc.sources, [](const auto& s) {
+            return s.cbuf_index == 2 && s.cbuf_offset == 424 && s.has_secondary &&
+                   s.secondary_cbuf_index == 2 && s.secondary_cbuf_offset == 1384 &&
+                   s.extra_terms.empty();
+        });
+        const auto has_three = std::ranges::any_of(desc.sources, [&](const auto& s) {
+            return s.cbuf_index == 2 && s.cbuf_offset == 424 && s.has_secondary &&
+                   s.secondary_cbuf_index == 2 && s.secondary_cbuf_offset == branch_word &&
+                   s.extra_terms.size() == 1 && s.extra_terms[0].cbuf_index == 2 &&
+                   s.extra_terms[0].cbuf_offset == 1384;
+        });
+        assert(has_two && has_three);
+    }
     return true;
+}
+
+// Mortal Kombat 1 compute loop pattern (`e883e8b966e8c2df` et al.):
+// `x = c1384; loop { if (p) x |= c416; } fetch(x | c400)`.
+// Fixed-point evaluation yields the exact two candidates `c400 | c1384` and
+// `c400 | c416 | c1384`, emits runtime handle selection, and compiles to SPIR-V.
+void LoopCarriedThreeWordOrHandle(bool valid_branch, bool gather_op = false) {
+    using namespace Shader;
+    ObjectPool<IR::Inst> pool;
+    IR::Block entry{pool}, header{pool}, body{pool}, branch{pool}, latch{pool}, exit_block{pool};
+    IR::IREmitter entry_ir{entry}, body_ir{body}, branch_ir{branch}, exit_ir{exit_block};
+    const auto base = entry_ir.GetCbuf(entry_ir.Imm32(2), entry_ir.Imm32(1384));
+    const auto cond = entry_ir.INotEqual(entry_ir.GetAttributeU32(IR::Attribute::Generic0X), entry_ir.Imm32(0));
+    auto phi_x = header.PrependNewInst(header.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U32));
+    const auto branch_rhs = valid_branch
+        ? branch_ir.GetCbuf(branch_ir.Imm32(2), branch_ir.Imm32(416))
+        : branch_ir.GetAttributeU32(IR::Attribute::Generic0Y);
+    const auto or_in_loop = branch_ir.BitwiseOr(IR::U32{IR::Value{&*phi_x}}, branch_rhs);
+    auto phi_next = latch.PrependNewInst(latch.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U32));
+    phi_next->AddPhiOperand(&body, IR::Value{&*phi_x});
+    phi_next->AddPhiOperand(&branch, or_in_loop);
+    phi_x->AddPhiOperand(&entry, base);
+    phi_x->AddPhiOperand(&latch, IR::Value{&*phi_next});
+    const auto handle = exit_ir.BitwiseOr(IR::U32{IR::Value{&*phi_x}},
+                                          exit_ir.GetCbuf(exit_ir.Imm32(2), exit_ir.Imm32(400)));
+    IR::TextureInstInfo flags{};
+    flags.type.Assign(TextureType::Color2D);
+    const auto tex = gather_op
+        ? exit_ir.ImageGather(handle, exit_ir.CompositeConstruct(exit_ir.Imm32(0.0f), exit_ir.Imm32(0.0f)),
+                              {}, {}, flags)
+        : exit_ir.ImageFetch(handle, exit_ir.CompositeConstruct(exit_ir.Imm32(0), exit_ir.Imm32(0)),
+                             {}, exit_ir.Imm32(0), {}, flags);
+    (void)tex;
+    IR::Program program{};
+    program.stage = Stage::Compute;
+    program.blocks = {&entry, &header, &body, &branch, &latch, &exit_block};
+    program.post_order_blocks = {&exit_block, &latch, &branch, &body, &header, &entry};
+    using Node = IR::AbstractSyntaxNode;
+    program.syntax_list = {
+        {.data = {.block = &entry}, .type = Node::Type::Block},
+        {.data = {.block = &header}, .type = Node::Type::Block},
+        {.data = {.loop = {&body, &latch, &exit_block}}, .type = Node::Type::Loop},
+        {.data = {.block = &body}, .type = Node::Type::Block},
+        {.data = {.if_node = {cond, &branch, &latch}}, .type = Node::Type::If},
+        {.data = {.block = &branch}, .type = Node::Type::Block},
+        {.data = {.end_if = {&latch}}, .type = Node::Type::EndIf},
+        {.data = {.block = &latch}, .type = Node::Type::Block},
+        {.data = {.repeat = {cond, &header, &exit_block}}, .type = Node::Type::Repeat},
+        {.data = {.block = &exit_block}, .type = Node::Type::Block},
+    };
+    class CbufFetchEnvironment final : public Shader::Environment {
+    public:
+        CbufFetchEnvironment() { stage = Shader::Stage::Compute; }
+        u64 ReadInstruction(u32) override { return 0; }
+        u32 ReadCbufValue(u32 bank, u32 offset) override {
+            if (bank != 2) return 0;
+            if (offset == 400) return 0x00100000U;
+            if (offset == 416) return 0x00200000U;
+            if (offset == 1384) return 0x00000007U;
+            return 0;
+        }
+        Shader::TextureType ReadTextureType(u32) override { return Shader::TextureType::Color2D; }
+        Shader::TexturePixelFormat ReadTexturePixelFormat(u32) override { return {}; }
+        bool IsTexturePixelFormatInteger(u32) override { return false; }
+        u32 ReadViewportTransformState() override { return 0; }
+        u32 TextureBoundBuffer() const override { return 2; }
+        u32 LocalMemorySize() const override { return 0; }
+        u32 SharedMemorySize() const override { return 0; }
+        std::array<u32, 3> WorkgroupSize() const override { return {1, 1, 1}; }
+        bool HasHLEMacroState() const override { return false; }
+        std::optional<Shader::ReplaceConstant> GetReplaceConstBuffer(u32, u32) override {
+            return std::nullopt;
+        }
+        void Dump(u64, u64) override {}
+    } env;
+    HostTranslateInfo host{};
+    host.support_separate_sampler = true;
+    host.max_bindless_descriptors_per_stage = 32;
+    bool translated = false;
+    try {
+        Optimization::TexturePass(env, program, host);
+        translated = true;
+    } catch (const NotImplementedException&) {}
+    assert(translated == valid_branch);
+    if (!valid_branch) return;
+    assert(program.info.texture_descriptors.size() == 1);
+    const auto& desc = program.info.texture_descriptors.front();
+    assert(!desc.is_direct && desc.count == 2 && desc.sources.size() == 2);
+    const auto has_two = std::ranges::any_of(desc.sources, [&](const auto& s) {
+        return s.cbuf_index == 2 && s.cbuf_offset == 400 && s.has_secondary &&
+               s.secondary_cbuf_index == 2 && s.secondary_cbuf_offset == 1384 &&
+               s.extra_terms.empty() && env.ResolveTextureHandle(s) == 0x00100007U;
+    });
+    const auto has_three = std::ranges::any_of(desc.sources, [&](const auto& s) {
+        return s.cbuf_index == 2 && s.cbuf_offset == 400 && s.has_secondary &&
+               s.secondary_cbuf_index == 2 && s.secondary_cbuf_offset == 416 &&
+               s.extra_terms.size() == 1 && s.extra_terms[0].cbuf_index == 2 &&
+               s.extra_terms[0].cbuf_offset == 1384 &&
+               env.ResolveTextureHandle(s) == 0x00300007U;
+    });
+    assert(has_two && has_three);
+    // Verify SPIR-V descriptor emission accepts the multi-source texture array without backend changes.
+    Optimization::CollectShaderInfoPass(env, program);
+    Profile profile{};
+    profile.support_sampled_image_array_nonuniform_indexing = true;
+    RuntimeInfo runtime{};
+    Backend::Bindings bindings{};
+    Backend::SPIRV::EmitContext ctx{profile, runtime, program, bindings};
+    const auto spirv = ctx.Assemble();
+    assert(spirv.size() > 5 && spirv[0] == 0x07230203U);
+    assert(ctx.textures.size() == 1 && !ctx.textures[0].is_direct && ctx.textures[0].count == 2);
+}
+
+// Verify masking propagates to all terms of a three-word handle, and UndefU32 | c400 stays rejected.
+void MaskedThreeWordAndUndefOr() {
+    using namespace Shader;
+    {
+        ObjectPool<IR::Inst> pool;
+        IR::Block block{pool};
+        IR::IREmitter ir{block};
+        const auto h = ir.BitwiseAnd(
+            ir.BitwiseOr(ir.BitwiseOr(ir.GetCbuf(ir.Imm32(2), ir.Imm32(1384)),
+                                      ir.GetCbuf(ir.Imm32(2), ir.Imm32(416))),
+                         ir.GetCbuf(ir.Imm32(2), ir.Imm32(400))),
+            ir.Imm32(0x0fffffffU));
+        IR::TextureInstInfo flags{};
+        flags.type.Assign(TextureType::Color2D);
+        (void)ir.ImageFetch(h, ir.CompositeConstruct(ir.Imm32(0), ir.Imm32(0)), {}, ir.Imm32(0), {}, flags);
+        IR::Program program{};
+        program.stage = Stage::Compute;
+        program.blocks = {&block};
+        program.post_order_blocks = {&block};
+        FetchEnvironment env;
+        env.has_pool = false;
+        HostTranslateInfo host{};
+        host.support_separate_sampler = true;
+        host.max_bindless_descriptors_per_stage = 32;
+        Optimization::TexturePass(env, program, host);
+        assert(program.info.texture_descriptors.size() == 1);
+        const auto& desc = program.info.texture_descriptors.front();
+        assert(desc.count == 1 && desc.sources.empty());
+        assert(desc.cbuf_offset == 400 && desc.mask == 0x0fffffffU);
+        assert(desc.has_secondary && desc.secondary_cbuf_offset == 416 &&
+               desc.secondary_mask == 0x0fffffffU);
+        assert(desc.extra_terms.size() == 1 && desc.extra_terms[0].cbuf_offset == 1384 &&
+               desc.extra_terms[0].mask == 0x0fffffffU);
+    }
+    {
+        ObjectPool<IR::Inst> pool;
+        IR::Block block{pool};
+        IR::IREmitter ir{block};
+        const auto undef = IR::U32{IR::Value{&*block.PrependNewInst(block.end(), IR::Opcode::UndefU32)}};
+        const auto h = ir.BitwiseOr(undef, ir.GetCbuf(ir.Imm32(2), ir.Imm32(400)));
+        IR::TextureInstInfo flags{};
+        flags.type.Assign(TextureType::Color2D);
+        (void)ir.ImageFetch(h, ir.CompositeConstruct(ir.Imm32(0), ir.Imm32(0)), {}, ir.Imm32(0), {}, flags);
+        IR::Program program{};
+        program.stage = Stage::Compute;
+        program.blocks = {&block};
+        program.post_order_blocks = {&block};
+        FetchEnvironment env;
+        env.has_pool = false;
+        HostTranslateInfo host{};
+        host.support_separate_sampler = true;
+        host.max_bindless_descriptors_per_stage = 32;
+        bool rejected = false;
+        try {
+            Optimization::TexturePass(env, program, host);
+        } catch (const NotImplementedException&) {
+            rejected = true;
+        }
+        assert(rejected);
+    }
 }
 } // namespace
 
@@ -477,8 +694,12 @@ void TestRuntimeTextureFetch() {
     // The data path stays reachable: these must keep failing instead of guessing.
     assert(!ComplementaryIfsHandle(SecondIf::OtherWord));
     assert(!ComplementaryIfsHandle(SecondIf::SamePolarity));
-    // Two proven handles on the two paths are not one static descriptor.
-    assert(!ComplementaryIfsHandle(SecondIf::OtherHandle));
+    // Two proven handles on the two paths become a compact two-source descriptor array.
+    assert(ComplementaryIfsHandle(SecondIf::OtherHandle));
     assert(RepeatedOrHandle(424));
-    assert(!RepeatedOrHandle(432));
+    assert(RepeatedOrHandle(432));
+    LoopCarriedThreeWordOrHandle(true, false);
+    LoopCarriedThreeWordOrHandle(true, true);
+    LoopCarriedThreeWordOrHandle(false, false);
+    MaskedThreeWordAndUndefOr();
 }

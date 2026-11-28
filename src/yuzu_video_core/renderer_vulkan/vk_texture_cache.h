@@ -350,6 +350,7 @@ private:
     const Device* device = nullptr;
     const SlotVector<Image>* slot_images = nullptr;
     bool identity_swizzle = false;
+    PixelFormat typeless_storage_format{};
 
     // Declared before the views so Vulkan destroys views before their backing images.
     // One allocation per image dimension: 1D, 2D (including cube/array) and 3D.

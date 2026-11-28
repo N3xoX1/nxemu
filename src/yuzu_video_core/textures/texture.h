@@ -155,7 +155,7 @@ static_assert(sizeof(TextureHandle) == 4, "TextureHandle has wrong size");
 
 template <typename Descriptor>
 [[nodiscard]] constexpr u32 ComposeTextureHandle(const Descriptor& desc, u32 primary,
-                                                u32 secondary = 0) {
+                                                u32 secondary = 0, u32 extra_or = 0) {
     if constexpr (requires { desc.has_secondary; }) {
         const u32 raw = [&] {
             if constexpr (requires { desc.mask; }) {
@@ -169,9 +169,9 @@ template <typename Descriptor>
                            : primary;
             }
         }();
-        return raw | desc.handle_or_bits;
+        return raw | desc.handle_or_bits | extra_or;
     } else {
-        return primary;
+        return primary | extra_or;
     }
 }
 

@@ -309,24 +309,43 @@ private:
     }
 
     // Prove identical boolean inputs without rewriting SSA or consulting facts
-    // from the use block. Cycles, undefined and distinct inputs stay opaque.
-    static IR::Value TrivialPredicatePhi(IR::Value value,
-        std::unordered_map<const IR::Inst*, IR::Value>& cache, unsigned depth = 0)
+    // from the use block. A cycle of U1 phis (for example a structured goto
+    // flag carried untouched through an inner loop) is invariant when every
+    // external edge delivers the same single value and no edge is undefined.
+    static IR::Value TrivialPredicatePhi(IR::Value value)
     {
         value = value.Resolve();
-        const auto* inst = value.TryInstRecursive();
-        if (!inst) return value;
-        if (inst->GetOpcode() == IR::Opcode::UndefU1) return {};
-        if (inst->GetOpcode() != IR::Opcode::Phi) return value;
-        if (value.Type() != IR::Type::U1 || depth >= 64) return {};
-        if (!cache.emplace(inst, IR::Value{}).second) return cache.at(inst);
+        const auto* root = value.TryInstRecursive();
+        if (!root || root->GetOpcode() != IR::Opcode::Phi || value.Type() != IR::Type::U1)
+            return value;
+        static constexpr size_t MAX_VISITED = 64;
+        std::unordered_set<const IR::Inst*> visited;
+        std::vector<const IR::Inst*> work{root};
+        visited.insert(root);
         IR::Value same;
-        for (size_t index = 0; index < inst->NumArgs(); ++index) {
-            const auto input = TrivialPredicatePhi(inst->Arg(index), cache, depth + 1);
-            if (input.IsEmpty() || (!same.IsEmpty() && same != input)) return {};
-            same = input;
+        while (!work.empty())
+        {
+            const IR::Inst* phi = work.back();
+            work.pop_back();
+            for (size_t index = 0; index < phi->NumArgs(); ++index)
+            {
+                const IR::Value arg = phi->Arg(index).Resolve();
+                const auto* inst = arg.TryInstRecursive();
+                if (inst && inst->GetOpcode() == IR::Opcode::UndefU1) return {};
+                if (inst && inst->GetOpcode() == IR::Opcode::Phi)
+                {
+                    if (arg.Type() != IR::Type::U1) return {};
+                    if (visited.insert(inst).second)
+                    {
+                        if (visited.size() > MAX_VISITED) return {};
+                        work.push_back(inst);
+                    }
+                    continue;
+                }
+                if (!same.IsEmpty() && same != arg) return {};
+                same = arg;
+            }
         }
-        cache[inst] = same;
         return same;
     }
 
@@ -336,8 +355,7 @@ private:
         while (const auto * inst = value.TryInstRecursive())
         {
             if (inst->GetOpcode() == IR::Opcode::Phi) {
-                std::unordered_map<const IR::Inst*, IR::Value> cache;
-                const auto input = TrivialPredicatePhi(value, cache);
+                const auto input = TrivialPredicatePhi(value);
                 if (input.IsEmpty()) break;
                 value = input;
                 continue;

@@ -188,6 +188,15 @@ struct StorageBufferDescriptor {
     auto operator<=>(const StorageBufferDescriptor&) const = default;
 };
 
+struct TextureHandleTerm {
+    u32 cbuf_index{};
+    u32 cbuf_offset{};
+    u32 shift_left{};
+    u32 mask{~0U};
+
+    auto operator<=>(const TextureHandleTerm&) const = default;
+};
+
 struct TextureHandleSource {
     bool has_secondary;
     u32 cbuf_index;
@@ -201,6 +210,8 @@ struct TextureHandleSource {
     u32 handle_or_bits{};
     u32 mask{~0U};
     u32 secondary_mask{~0U};
+    /// Additional constant-buffer words ORed into the handle beyond primary and secondary.
+    std::vector<TextureHandleTerm> extra_terms;
 
     auto operator<=>(const TextureHandleSource&) const = default;
 };
@@ -218,6 +229,8 @@ struct TextureBufferDescriptor {
     u32 handle_or_bits{};
     u32 mask{~0U};
     u32 secondary_mask{~0U};
+    /// Additional constant-buffer words ORed into the handle beyond primary and secondary.
+    std::vector<TextureHandleTerm> extra_terms;
 
     /// Compact alternatives for a handle selected by a Phi or Select.
     std::vector<TextureHandleSource> sources;
@@ -266,6 +279,8 @@ struct TextureDescriptor {
     u32 index_shift{};
     u32 mask{~0U};
     u32 secondary_mask{~0U};
+    /// Additional constant-buffer words ORed into the handle beyond primary and secondary.
+    std::vector<TextureHandleTerm> extra_terms;
 
     /// Finite SSA alternatives, bound as a compact array instead of the entire TIC table.
     std::vector<TextureHandleSource> sources;

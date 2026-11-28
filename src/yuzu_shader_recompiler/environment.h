@@ -34,13 +34,19 @@ public:
     // Preserve the source of a handle used only to classify a texture. Literal
     // constant folding and branch-table reads still use ReadCbufValue directly.
     [[nodiscard]] u32 ResolveTextureHandle(const TextureHandleSource& source) {
-        const u32 primary = (ReadCbufValue(source.cbuf_index, source.cbuf_offset)
-                             << source.shift_left) & source.mask;
-        const u32 secondary = source.has_secondary
-            ? ((ReadCbufValue(source.secondary_cbuf_index, source.secondary_cbuf_offset)
-                << source.secondary_shift_left) & source.secondary_mask)
-            : 0;
-        return primary | secondary | source.handle_or_bits;
+        u32 handle = ((ReadCbufValue(source.cbuf_index, source.cbuf_offset) << source.shift_left) &
+                      source.mask) |
+                     source.handle_or_bits;
+        if (source.has_secondary) {
+            handle |= (ReadCbufValue(source.secondary_cbuf_index, source.secondary_cbuf_offset)
+                       << source.secondary_shift_left) &
+                      source.secondary_mask;
+        }
+        for (const auto& term : source.extra_terms) {
+            handle |= (ReadCbufValue(term.cbuf_index, term.cbuf_offset) << term.shift_left) &
+                      term.mask;
+        }
+        return handle;
     }
     [[nodiscard]] virtual u32 ReadTextureQuery(const TextureHandleSource& source, TextureQueryKind kind) {
         return QueryTextureHandle(ResolveTextureHandle(source), kind);

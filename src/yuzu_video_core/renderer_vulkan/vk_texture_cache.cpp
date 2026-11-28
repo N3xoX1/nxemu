@@ -2410,6 +2410,22 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
         identity_swizzle &= swizzle[component] == own ||
                             (component >= num_channels && swizzle[component] == lacked);
     }
+    // Maxwell TICs encode BGRA8/BGRX8 as A8B8G8R8_UNORM with a B/G/R/* swizzle. Vulkan storage
+    // image views require an identity component mapping, so preserve the R/B swap through
+    // B8G8R8A8_UNORM for typeless formatted image loads/stores when the device and backing image
+    // support it.
+    typeless_storage_format = format;
+    if (!info.IsRenderTarget() && format == PixelFormat::A8B8G8R8_UNORM &&
+        swizzle[0] == SwizzleSource::B && swizzle[1] == SwizzleSource::G &&
+        swizzle[2] == SwizzleSource::R &&
+        (swizzle[3] == SwizzleSource::A || swizzle[3] == SwizzleSource::OneFloat ||
+         swizzle[3] == SwizzleSource::Zero) &&
+        VideoCore::Surface::IsViewCompatible(image.info.format, PixelFormat::B8G8R8A8_UNORM, false,
+                                             true) &&
+        device->IsFormatSupported(VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT,
+                                  FormatType::Optimal)) {
+        typeless_storage_format = PixelFormat::B8G8R8A8_UNORM;
+    }
     const VkImageViewUsageCreateInfo image_view_usage{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,
         .pNext = nullptr,
@@ -2588,10 +2604,12 @@ VkImageView ImageView::StorageView(Shader::TextureType texture_type,
     if (!image_handle) {
         return VK_NULL_HANDLE;
     }
-    const VkFormat view_format = image_format == Shader::ImageFormat::Typeless
-                                    ? MaxwellToVK::SurfaceFormat(*device, FormatType::Optimal,
-                                                                false, format).format
-                                    : Format(image_format);
+    const VkFormat view_format =
+        image_format == Shader::ImageFormat::Typeless
+            ? MaxwellToVK::SurfaceFormat(*device, FormatType::Optimal, false,
+                                         typeless_storage_format)
+                  .format
+            : Format(image_format);
     if (!storage_views) {
         storage_views = std::make_unique<StorageViews>();
     }
