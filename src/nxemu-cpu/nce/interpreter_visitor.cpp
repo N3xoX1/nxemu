@@ -527,6 +527,38 @@ bool InterpreterVisitor::LDR_lit_fpsimd(Imm<2> opc, Imm<19> imm19, Vec Vt) {
     return true;
 }
 
+bool InterpreterVisitor::DC_ZVA(Reg Rt) {
+    // Switch / Apple Silicon DCZID_EL0 block size is 64 bytes (4 << 4). Query hardware
+    // on AArch64 when available so block size always matches what the guest observed.
+    size_t block_size = 64;
+#if defined(__aarch64__)
+    u64 dczid = 0;
+    asm volatile("mrs %0, dczid_el0" : "=r"(dczid));
+    if ((dczid & 0x10) == 0) {
+        block_size = size_t{4} << (dczid & 0xf);
+    }
+#endif
+    const u64 addr = this->GetReg(Rt) & ~(static_cast<u64>(block_size) - 1);
+    std::array<u8, 256> zeros{};
+    for (size_t done = 0; done < block_size;) {
+        const size_t chunk = std::min(block_size - done, zeros.size());
+        m_memory.WriteBlock(addr + done, zeros.data(), chunk);
+        done += chunk;
+    }
+    return true;
+}
+
+bool InterpreterVisitor::STNP_LDNP_gen(Imm<1> upper_opc, Imm<1> L, Imm<7> imm7, Reg Rt2, Reg Rn,
+                                       Reg Rt) {
+    return this->STP_LDP_gen(Imm<2>{upper_opc.ZeroExtend() << 1}, true, false, L, imm7, Rt2, Rn,
+                             Rt);
+}
+
+bool InterpreterVisitor::STNP_LDNP_fpsimd(Imm<2> opc, Imm<1> L, Imm<7> imm7, Vec Vt2, Reg Rn,
+                                          Vec Vt) {
+    return this->STP_LDP_fpsimd(opc, true, false, L, imm7, Vt2, Rn, Vt);
+}
+
 bool InterpreterVisitor::STP_LDP_gen(Imm<2> opc, bool not_postindex, bool wback, Imm<1> L,
                                      Imm<7> imm7, Reg Rt2, Reg Rn, Reg Rt) {
     if ((L == 0 && opc.Bit<0>() == 1) || opc == 0b11) {

@@ -468,14 +468,19 @@ std::span<GPUDirtyMemoryManager> System::GetGPUDirtyMemoryManager()
 
 void System::GatherGPUDirtyMemory(ICacheInvalidator * invalidator, bool rearm_native_reads)
 {
-    if (Kernel::KProcess * process = impl->kernel.ApplicationProcess())
+    Kernel::KProcess * process = impl->kernel.ApplicationProcess();
+    if (process != nullptr)
     {
-        process->GetCoreMemory().FlushNceWrites(rearm_native_reads);
+        process->GetCoreMemory().FlushNceWrites(rearm_native_reads, /*defer_release=*/true);
         process->GetCoreMemory().HarvestCpuWrites();
     }
     for (auto & manager : impl->gpu_dirty_memory_managers)
     {
         manager.Gather(invalidator);
+    }
+    if (process != nullptr)
+    {
+        process->GetCoreMemory().CompleteNceWriteFlush();
     }
 }
 

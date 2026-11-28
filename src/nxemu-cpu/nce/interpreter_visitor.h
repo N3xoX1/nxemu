@@ -85,7 +85,12 @@ public:
     bool LDR_lit_gen(bool opc_0, Imm<19> imm19, Reg Rt) override;
     bool LDR_lit_fpsimd(Imm<2> opc, Imm<19> imm19, Vec Vt) override;
 
+    // SYS: Data Cache
+    bool DC_ZVA(Reg Rt) override;
+
     // Loads and stores - Load/Store register pair
+    bool STNP_LDNP_gen(Imm<1> upper_opc, Imm<1> L, Imm<7> imm7, Reg Rt2, Reg Rn, Reg Rt) override;
+    bool STNP_LDNP_fpsimd(Imm<2> opc, Imm<1> L, Imm<7> imm7, Vec Vt2, Reg Rn, Vec Vt) override;
     bool STP_LDP_gen(Imm<2> opc, bool not_postindex, bool wback, Imm<1> L, Imm<7> imm7, Reg Rt2,
                      Reg Rn, Reg Rt) override;
     bool STP_LDP_fpsimd(Imm<2> opc, bool not_postindex, bool wback, Imm<1> L, Imm<7> imm7, Vec Vt2,

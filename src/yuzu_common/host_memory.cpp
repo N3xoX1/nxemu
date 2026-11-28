@@ -766,12 +766,16 @@ public:
             return true;
         }
 #ifdef __linux__
-        // madvise rounds the length up to a host page. Let the caller memset partial pages
-        // so an adjacent allocation keeps its bytes.
-        if (!Common::IsAligned(physical_offset, host_page_size) ||
-            !Common::IsAligned(length, host_page_size)) {
+        // madvise/fallocate require host-page alignment. On 16 KiB Android/Linux devices,
+        // Switch allocations are 4 KiB-aligned, so punch holes across the aligned interior
+        // and zero only the sub-page edges without disturbing neighboring guest memory.
+        const size_t range_end = physical_offset + length;
+        const size_t aligned_begin = AlignUp(physical_offset, host_page_size);
+        const size_t aligned_end = AlignDown(range_end, host_page_size);
+        if (aligned_begin >= aligned_end) {
             return false;
         }
+        const size_t aligned_len = aligned_end - aligned_begin;
         // Set MADV_REMOVE on backing map to destroy it instantly.
         // This also deletes the area from the backing file.
         enum class HolePunchMode : u8 { MadviseRemove, FallocatePunch, Unsupported };
@@ -780,12 +784,21 @@ public:
             return err == EOPNOTSUPP || err == EINVAL || err == ENOSYS || err == EPERM ||
                    err == EACCES;
         };
+        const auto zero_edges = [&] {
+            if (aligned_begin > physical_offset) {
+                std::memset(backing_base + physical_offset, 0, aligned_begin - physical_offset);
+            }
+            if (range_end > aligned_end) {
+                std::memset(backing_base + aligned_end, 0, range_end - aligned_end);
+            }
+        };
         const auto mode = static_cast<HolePunchMode>(hole_punch_mode.load(std::memory_order_relaxed));
         if (mode == HolePunchMode::Unsupported) {
             return false;
         }
         if (mode == HolePunchMode::MadviseRemove &&
-            madvise(backing_base + physical_offset, length, MADV_REMOVE) == 0) {
+            madvise(backing_base + aligned_begin, aligned_len, MADV_REMOVE) == 0) {
+            zero_edges();
             return true;
         }
         // Some Android kernels reject MADV_REMOVE on the memfd. Punching the hole in the file
@@ -794,7 +807,7 @@ public:
             int ret;
             do {
                 ret = fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-                                static_cast<off_t>(physical_offset), static_cast<off_t>(length));
+                                static_cast<off_t>(aligned_begin), static_cast<off_t>(aligned_len));
             } while (ret != 0 && errno == EINTR);
             if (ret == 0) {
                 if (hole_punch_mode.exchange(static_cast<u8>(HolePunchMode::FallocatePunch),
@@ -803,6 +816,7 @@ public:
                     LOG_WARNING(HW_Memory,
                                 "MADV_REMOVE unsupported; punching holes in the backing instead");
                 }
+                zero_edges();
                 return true;
             }
         }
@@ -819,9 +833,28 @@ public:
         });
         return false;
 #elif defined(__APPLE__)
-        // The backing is a Mach named memory entry, which has no hole punching. Zero the region,
-        // then mark its whole host pages reusable: the kernel takes them back without writing
-        // them out, and a page it took reads as zero again. Either way the region reads as zero.
+        // On macOS, a fallback memset(0) faults every 16 KiB page of a freshly allocated
+        // guest heap into backing_base (and causes XNU phys_footprint to double-count pages
+        // also mapped in NceDirectMap). MADV_ZERO leaves virgin pages unfaulted (0 bytes
+        // physical footprint) and zeros already-resident host pages without disturbing
+        // neighbors; MarkReusable (MADV_FREE_REUSABLE) then marks those whole host pages
+        // safely reclaimable.
+#if defined(MADV_ZERO)
+        const size_t range_end = physical_offset + length;
+        const size_t aligned_begin = AlignUp(physical_offset, host_page_size);
+        const size_t aligned_end = AlignDown(range_end, host_page_size);
+        if (aligned_begin < aligned_end &&
+            madvise(backing_base + aligned_begin, aligned_end - aligned_begin, MADV_ZERO) == 0) {
+            MarkReusable(backing_base + aligned_begin, aligned_end - aligned_begin);
+            if (aligned_begin > physical_offset) {
+                std::memset(backing_base + physical_offset, 0, aligned_begin - physical_offset);
+            }
+            if (range_end > aligned_end) {
+                std::memset(backing_base + aligned_end, 0, range_end - aligned_end);
+            }
+            return true;
+        }
+#endif
         u8* const data = backing_base + physical_offset;
         std::memset(data, 0, length);
         MarkReusable(data, length);
@@ -1327,6 +1360,29 @@ void HostMemory::ProtectAccess(size_t virtual_offset, size_t length, MemoryPermi
     }
 #endif
     Protect(virtual_offset, length, allowed);
+}
+
+void HostMemory::ProtectAccessBatch(std::span<const ProtectAccessRange> ranges) {
+    if (ranges.empty()) {
+        return;
+    }
+#if defined(__APPLE__)
+    if (impl && impl->nce_map) {
+        thread_local std::vector<NceDirectMap::AccessMaskRange> batch;
+        batch.clear();
+        batch.reserve(ranges.size());
+        for (const ProtectAccessRange& r : ranges) {
+            batch.push_back(
+                {static_cast<u64>(r.virtual_offset), static_cast<u64>(r.length),
+                 static_cast<u32>(r.allowed)});
+        }
+        impl->nce_map->SetAccessMaskBatch(batch);
+        return;
+    }
+#endif
+    for (const ProtectAccessRange& r : ranges) {
+        Protect(r.virtual_offset, r.length, r.allowed);
+    }
 }
 
 bool HostMemory::UsesNce() const {

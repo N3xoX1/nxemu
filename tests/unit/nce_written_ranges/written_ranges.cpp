@@ -363,6 +363,108 @@ int main() {
         check(empty.ranges.empty(), "empty gathers do not replay completed writes");
     }
 
+    // GPU readback merge must honor the same 4-byte aligned word ownership granularity
+    // as ForEachNceWrittenRange: a single modified byte inside a word protects the entire
+    // 4-byte word from being partially overwritten by a pending GPU download.
+    {
+        Page snapshot;
+        snapshot.fill(0xff);
+        Page guest = snapshot;
+        // CPU stores 0xFFFFFF00 (bytes: 00 FF FF FF) into word 0 while words 1..7 stay untouched.
+        guest[0] = 0x00;
+
+        std::array<u8, 32> gpu_download{};
+        gpu_download.fill(0xaa);
+        // Distinct pattern in word 1..7 so we can verify untouched words receive GPU bytes.
+        for (size_t i = 4; i < gpu_download.size(); ++i) {
+            gpu_download[i] = static_cast<u8>(0xb0 + i);
+        }
+
+        Core::MergeNceReadbackWords(snapshot.data(), guest.data(), 0, gpu_download.data(),
+                                    gpu_download.size());
+
+        check(guest[0] == 0x00 && guest[1] == 0xff && guest[2] == 0xff && guest[3] == 0xff,
+              "readback merge preserves the full 4-byte CPU-written word (no 00 AA AA AA tear)");
+        check(snapshot[0] == 0xff && snapshot[1] == 0xff && snapshot[2] == 0xff && snapshot[3] == 0xff,
+              "readback merge leaves snapshot of CPU-written word untouched");
+        bool gpu_copied = true;
+        for (size_t i = 4; i < gpu_download.size(); ++i) {
+            gpu_copied &= (guest[i] == gpu_download[i]) && (snapshot[i] == gpu_download[i]);
+        }
+        check(gpu_copied, "untouched words take GPU download bytes in both guest RAM and snapshot");
+        const Ranges ranges = Written(guest, snapshot);
+        check(ranges == Ranges{{0, 4}},
+              "subsequent flush reports only the intact CPU-written 4-byte word");
+    }
+
+    // Unaligned readback chunks (leading partial, trailing partial, and sub-word interior)
+    // must still check the enclosing aligned 4-byte word before overwriting any bytes.
+    {
+        Page snapshot;
+        snapshot.fill(0xff);
+        Page guest = snapshot;
+        // Word 0 ([0..3]) modified at byte 0; word 1 ([4..7]) untouched;
+        // word 2 ([8..11]) modified at byte 11 (outside [2..10] readback end!).
+        guest[0] = 0x11;
+        guest[11] = 0x22;
+
+        std::array<u8, 8> gpu_download{};
+        gpu_download.fill(0xaa);
+        // Readback covers [2..10): leading bytes [2..3] of word 0, full word 1 [4..7],
+        // and trailing bytes [8..9] of word 2.
+        Core::MergeNceReadbackWords(snapshot.data(), guest.data(), 2, gpu_download.data(),
+                                    gpu_download.size());
+
+        check(guest[0] == 0x11 && guest[1] == 0xff && guest[2] == 0xff && guest[3] == 0xff,
+              "leading unaligned readback does not clobber bytes of a CPU-written word");
+        check(guest[4] == 0xaa && guest[5] == 0xaa && guest[6] == 0xaa && guest[7] == 0xaa &&
+                  snapshot[4] == 0xaa && snapshot[7] == 0xaa,
+              "untouched middle word between unaligned edges receives GPU bytes");
+        check(guest[8] == 0xff && guest[9] == 0xff && guest[10] == 0xff && guest[11] == 0x22,
+              "trailing unaligned readback does not clobber bytes of a CPU-written word");
+
+        // Sub-word readback completely inside a single word [12..15]:
+        // word 3 untouched -> [13..15) updated; word 4 modified at byte 16 -> [17..19) preserved.
+        guest[16] = 0x33;
+        const std::array<u8, 2> tiny{0x55, 0x66};
+        Core::MergeNceReadbackWords(snapshot.data(), guest.data(), 13, tiny.data(), tiny.size());
+        Core::MergeNceReadbackWords(snapshot.data(), guest.data(), 17, tiny.data(), tiny.size());
+        check(guest[12] == 0xff && guest[13] == 0x55 && guest[14] == 0x66 && guest[15] == 0xff,
+              "sub-word readback updates only its span inside an untouched word");
+        check(guest[16] == 0x33 && guest[17] == 0xff && guest[18] == 0xff && guest[19] == 0xff,
+              "sub-word readback preserves a CPU-written word");
+    }
+
+    // Multi-snapshot merge preserves any 4-byte word differing from ANY snapshot
+    // (e.g. page in both nce_written and nce_flushing, or aliased across VAs).
+    {
+        Page snap_a;
+        Page snap_b;
+        snap_a.fill(0xff);
+        snap_b.fill(0xff);
+        Page guest = snap_a;
+        // Word 0 differs from both; word 1 differs only from snap_b; word 2..7 match both.
+        guest[0] = 0x10;
+        snap_b[7] = 0x20;
+
+        std::array<u8, 32> gpu_download{};
+        gpu_download.fill(0x77);
+        u8* refs[2] = {snap_a.data(), snap_b.data()};
+        Core::MergeNceReadbackWordsMulti(refs, 2, guest.data(), 0, gpu_download.data(),
+                                         gpu_download.size());
+
+        check(guest[0] == 0x10 && guest[1] == 0xff && guest[2] == 0xff && guest[3] == 0xff,
+              "multi-snapshot merge keeps word modified in both snapshots");
+        check(guest[4] == 0xff && guest[5] == 0xff && guest[6] == 0xff && guest[7] == 0xff &&
+                  snap_a[4] == 0xff && snap_b[7] == 0x20,
+              "multi-snapshot merge keeps word differing from any snapshot");
+        bool rest_ok = true;
+        for (size_t i = 8; i < gpu_download.size(); ++i) {
+            rest_ok &= (guest[i] == 0x77) && (snap_a[i] == 0x77) && (snap_b[i] == 0x77);
+        }
+        check(rest_ok, "multi-snapshot merge writes untouched words to guest and all snapshots");
+    }
+
     std::printf("NCE written ranges: %u failures\n", failures);
     return failures ? EXIT_FAILURE : EXIT_SUCCESS;
 }

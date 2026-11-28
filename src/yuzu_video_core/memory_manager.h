@@ -104,6 +104,9 @@ public:
      */
     void ReadBlockUnsafe(GPUVAddr gpu_src_addr, void* dest_buffer, std::size_t size) const;
     void WriteBlockUnsafe(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
+    void WriteBlockForGpuReadback(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
+    bool TryRunInPlaceGpuReadback(GPUVAddr gpu_dest_addr, std::size_t size,
+                                  void (*fn)(u8*, u64, void*), void* user);
     void WriteBlockCached(GPUVAddr gpu_dest_addr, const void* src_buffer, std::size_t size);
     /// Empty when the upload is not one contiguous device range
     std::optional<DAddr> WriteConstBufferCached(GPUVAddr gpu_dest_addr, const void* src_buffer,

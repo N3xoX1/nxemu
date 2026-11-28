@@ -10,25 +10,27 @@
 // - Host pages are 16 KiB: a fault on a page the guest may access comes from a host page shared
 //   with other guest pages (see Common::NceDirectMap), and the access is emulated.
 
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <pthread.h>
+#include <sched.h>
 #include <signal.h>
 #include <sys/ucontext.h>
 
 #include "arm_dynarmic.h"
 #include "nce/arm_nce.h"
-#include <libkern/OSCacheControl.h>
 #include "nce/interpreter_visitor.h"
+#include "nce/patcher.h"
 #include "nce/read_thunk.h"
 #include "nce/store_thunk.h"
 #include "yuzu_common/literals.h"
 #include "yuzu_common/yuzu_assert.h"
+#include <libkern/OSCacheControl.h>
 
 namespace Core
 {
@@ -45,20 +47,28 @@ constexpr u64 GuestPageSize = 0x1000;
 
 // Sample the interpreter fallback, not every guest memory access. Fixed TLS
 // storage avoids allocating in the signal handler; bounded probing may drop samples.
-void ProfileReadFault(u64 pc, bool write = false) {
+void ProfileReadFault(u64 pc, bool write = false)
+{
     static const bool enabled = std::getenv("NXEMU_NCE_FAULT_INSTRUCTIONS") != nullptr;
     if (!enabled) return;
     static thread_local u64 sequence{};
     if ((++sequence & 255) != 0) return;
-    struct Site { u64 pc{}; u32 instruction{}, samples{}; bool write{}; };
+    struct Site
+    {
+        u64 pc{};
+        u32 instruction{}, samples{};
+        bool write{};
+    };
     static thread_local std::array<Site, 512> sites{};
     const size_t hash = ((pc >> 2) ^ (pc >> 13)) & (sites.size() - 1);
-    for (size_t probe = 0; probe < 4; ++probe) {
-        auto& site = sites[(hash + probe) & (sites.size() - 1)];
-        if (site.pc == 0 || site.pc == pc) {
+    for (size_t probe = 0; probe < 4; ++probe)
+    {
+        auto & site = sites[(hash + probe) & (sites.size() - 1)];
+        if (site.pc == 0 || site.pc == pc)
+        {
             site.pc = pc;
             site.write = write;
-            site.instruction = *reinterpret_cast<const u32*>(pc);
+            site.instruction = *reinterpret_cast<const u32 *>(pc);
             ++site.samples;
             break;
         }
@@ -68,7 +78,8 @@ void ProfileReadFault(u64 pc, bool write = false) {
     const auto now = Clock::now();
     if (now - reported < std::chrono::seconds(5)) return;
     // Report the largest sampled sites without allocating or sorting a copy.
-    for (unsigned rank = 0; rank < 8; ++rank) {
+    for (unsigned rank = 0; rank < 8; ++rank)
+    {
         auto best = sites.begin();
         for (auto it = sites.begin(); it != sites.end(); ++it)
             if (it->samples > best->samples) best = it;
@@ -80,6 +91,53 @@ void ProfileReadFault(u64 pc, bool write = false) {
     }
     sites = {};
     reported = now;
+}
+
+uint64_t InstallOrEmitNceThunk(ArmNce & nce, u64 pc, bool is_write)
+{
+    IKernelProcess * process = nce.m_running_thread->GetOwnerProcess();
+    if (const u64 existing = process->InstallNceReadHandler(pc))
+    {
+        return existing;
+    }
+    static const bool enabled = std::getenv("NXEMU_NCE_NO_THUNKS") == nullptr;
+    if (!enabled) return 0;
+    const u64 atomic_table = process->GetPageTable().GetNceAtomicTable();
+    if (atomic_table == 0) return 0;
+    struct EmitCtx
+    {
+        u64 pc;
+        bool is_write;
+        u64 atomic_table;
+    } ctx{pc, is_write, atomic_table};
+    const auto emit = [](void * raw, uint64_t thunk_va,
+                         uint32_t * out_words, size_t max_words, size_t * out_word_count,
+                         NativeCodeEntry * out_restarts, size_t max_restarts,
+                         size_t * out_restart_count) -> bool {
+        const auto & c = *static_cast<const EmitCtx *>(raw);
+        const u32 insn = *reinterpret_cast<const u32 *>(c.pc);
+        const bool write = c.is_write || NCE::StoreThunk::Cache(insn);
+        if (write ? !NCE::StoreThunk::Eligible(insn) : !NCE::ReadThunk::Eligible(insn))
+        {
+            return false;
+        }
+        std::array<std::pair<u64, u64>, 64> pairs{};
+        size_t restart_count = 0;
+        const size_t cap = std::min<size_t>(max_restarts, pairs.size());
+        if (!NCE::Patcher::EmitDynamicThunk(c.pc, insn, write, thunk_va, c.atomic_table,
+                                            out_words, max_words, *out_word_count,
+                                            pairs.data(), cap, restart_count))
+        {
+            return false;
+        }
+        for (size_t i = 0; i < restart_count; ++i)
+        {
+            out_restarts[i] = {pairs[i].first, pairs[i].second};
+        }
+        *out_restart_count = restart_count;
+        return true;
+    };
+    return process->InstallNceDynamicThunk(pc, 256, emit, &ctx);
 }
 
 struct sigaction g_orig_enter_action;
@@ -157,9 +215,13 @@ u64 & Gpr(Mcontext * mc, size_t index)
 
 // Darwin stores X29/X30 outside __x[29]; use the explicit fields rather than
 // indexing beyond that array when a thunk reads or restores these registers.
-struct SignalRegisters {
-    Mcontext* context;
-    u64& operator[](size_t index) { return Gpr(context, index); }
+struct SignalRegisters
+{
+    Mcontext * context;
+    u64 & operator[](size_t index)
+    {
+        return Gpr(context, index);
+    }
 };
 
 NativeExecutionParameters * CurrentThreadParameters()
@@ -199,7 +261,6 @@ void InstallHandler(int sig, void (*handler)(int, siginfo_t *, void *), struct s
     sigaddset(&action.sa_mask, SIGSEGV);
     sigaction(sig, &action, previous);
 }
-
 
 } // namespace
 
@@ -277,31 +338,35 @@ void ArmNce::SaveGuestContext(GuestContext * guest_ctx, void * raw_context)
 bool ArmNce::HandleGuestFault(ArmNce & nce, int sig, siginfo_t * /*info*/, void * raw_context)
 {
     Mcontext * mc = GetMcontext(raw_context);
-    if (sig == SIGTRAP) {
+    if (sig == SIGTRAP)
+    {
         const auto pc = mc->__ss.__pc;
-        const auto instruction = *reinterpret_cast<const u32*>(pc);
-        if (NCE::StoreThunk::IsTrap(instruction)) {
-            u64 original_pc;u32 original;
-            std::memcpy(&original_pc, reinterpret_cast<const void*>(pc + 4), 8);
-            std::memcpy(&original, reinterpret_cast<const void*>(pc + 12), 4);
+        const auto instruction = *reinterpret_cast<const u32 *>(pc);
+        if (NCE::StoreThunk::IsTrap(instruction))
+        {
+            u64 original_pc;
+            u32 original;
+            std::memcpy(&original_pc, reinterpret_cast<const void *>(pc + 4), 8);
+            std::memcpy(&original, reinterpret_cast<const void *>(pc + 12), 4);
             if (!NCE::StoreThunk::Eligible(original)) return false;
             SignalRegisters registers{mc};
             NCE::StoreThunk::Complete(*nce.m_guest_ctx.memory, registers, mc->__ss.__sp, mc->__ss.__pc,
-                original_pc, original, static_cast<NCE::StoreThunk::Trap>((instruction >> 5) & 0xffff), mc->__ns.__v);
+                                      original_pc, original, static_cast<NCE::StoreThunk::Trap>((instruction >> 5) & 0xffff), mc->__ns.__v);
             return true;
         }
-        if (NCE::ReadThunk::IsTrap(instruction)) {
+        if (NCE::ReadThunk::IsTrap(instruction))
+        {
             // Literals follow this private trap in our own immutable patch section.
             u64 original_pc;
             u32 original_instruction;
-            std::memcpy(&original_pc, reinterpret_cast<const void*>(pc + 4), sizeof(original_pc));
-            std::memcpy(&original_instruction, reinterpret_cast<const void*>(pc + 12), sizeof(original_instruction));
+            std::memcpy(&original_pc, reinterpret_cast<const void *>(pc + 4), sizeof(original_pc));
+            std::memcpy(&original_instruction, reinterpret_cast<const void *>(pc + 12), sizeof(original_instruction));
             if (!NCE::ReadThunk::Eligible(original_instruction)) return false;
             SignalRegisters registers{mc};
             NCE::ReadThunk::Complete(*nce.m_guest_ctx.memory, registers, mc->__ss.__sp,
-                                    mc->__ss.__pc, original_pc, original_instruction,
-                                    ((instruction >> 5) & 0xffff) != NCE::ReadThunk::PlainTrap,
-                                    ((instruction >> 5) & 0xffff) == NCE::ReadThunk::CompletedTrap, mc->__ns.__v);
+                                     mc->__ss.__pc, original_pc, original_instruction,
+                                     ((instruction >> 5) & 0xffff) != NCE::ReadThunk::PlainTrap,
+                                     ((instruction >> 5) & 0xffff) == NCE::ReadThunk::CompletedTrap, mc->__ns.__v);
             return true;
         }
         const auto restart = nce.m_running_thread->GetOwnerProcess()->GetNceRestartPc(pc);
@@ -313,12 +378,23 @@ bool ArmNce::HandleGuestFault(ArmNce & nce, int sig, siginfo_t * /*info*/, void 
         if (reg == 31) return false;
         const auto address = Gpr(mc, reg);
         const bool write = (immediate & 0x20) != 0;
-        auto& memory = *nce.m_guest_ctx.memory;
+        auto & memory = *nce.m_guest_ctx.memory;
         if (!memory.NceAccessAllowed(address, write)) return false;
-        if (write) {
-            memory.NceTrackWrites(address);
-            memory.InvalidateNCE(address & ~(GuestPageSize - 1), GuestPageSize);
-        } else {
+        if (write)
+        {
+            // Prefer 4 KiB canonical write preparation (atomic_table scope) to avoid
+            // snapshotting/downloading unrelated 16 KiB host-page neighbors or spinning
+            // when a neighbor is deferred in nce_read_cached.
+            if (!memory.NcePrepareCanonicalWrite(address) && !memory.NceTrackWrites(address))
+            {
+                if (!memory.InvalidateNCE(address & ~(GuestPageSize - 1), GuestPageSize))
+                {
+                    sched_yield();
+                }
+            }
+        }
+        else
+        {
             memory.NceTrackReads(address);
         }
         mc->__ss.__pc = restart;
@@ -351,8 +427,9 @@ bool ArmNce::HandleGuestFault(ArmNce & nce, int sig, siginfo_t * /*info*/, void 
     // A synthetic spill/restore fault must complete the original load. Its stack
     // address must never enter GPU tracking as if it were that load's address.
     if (restart_pc != mc->__ss.__pc &&
-        (NCE::ReadThunk::IsTrap(*reinterpret_cast<const u32*>(restart_pc)) ||
-         NCE::StoreThunk::IsTrap(*reinterpret_cast<const u32*>(restart_pc)))) {
+        (NCE::ReadThunk::IsTrap(*reinterpret_cast<const u32 *>(restart_pc)) ||
+         NCE::StoreThunk::IsTrap(*reinterpret_cast<const u32 *>(restart_pc))))
+    {
         mc->__ss.__pc = restart_pc;
         return true;
     }
@@ -363,8 +440,30 @@ bool ArmNce::HandleGuestFault(ArmNce & nce, int sig, siginfo_t * /*info*/, void 
 
     if (!esr.IsAlignment())
     {
+        if (!translated_atomic)
+        {
+            const u32 fault_insn = *reinterpret_cast<const u32 *>(mc->__ss.__pc);
+            if (NCE::StoreThunk::Cache(fault_insn))
+            {
+                // Data cache maintenance (DC CIVAC/CVAC/CVAU) does not modify memory.
+                // Never route it through NceTrackWrites/NceTrackReads or InvalidateNCE,
+                // which would open GPU-read-cached pages without downloading them.
+                if (InstallOrEmitNceThunk(nce, mc->__ss.__pc, /*is_write=*/true))
+                {
+                    return true;
+                }
+                const bool write = (fault_insn & ~31u) == 0xd50b7e20u;
+                if (memory.NceAccessAllowed(fault_address, write))
+                {
+                    NCE::StoreThunk::ExecuteCache(fault_insn, memory.GetPointerSilent(fault_address));
+                }
+                mc->__ss.__pc += 4;
+                return true;
+            }
+        }
         if (esr.IsWrite() && !translated_atomic &&
-            nce.m_running_thread->GetOwnerProcess()->InstallNceReadHandler(mc->__ss.__pc)) {
+            InstallOrEmitNceThunk(nce, mc->__ss.__pc, /*is_write=*/true))
+        {
             // Re-execute the published branch; restarting directly at its spill PC
             // would apply fault metadata before the spill has actually executed.
             return true;
@@ -396,19 +495,26 @@ bool ArmNce::HandleGuestFault(ArmNce & nce, int sig, siginfo_t * /*info*/, void 
     // A runtime atomic trampoline uses the canonical backing once GPU tracking has opened
     // access. Retrying its address translation preserves native LL/SC semantics; interpreting
     // just the store after a signal would have lost the hardware exclusive reservation.
-    if (translated_atomic && !esr.IsAlignment()) {
-        if (atomic_handler) {
+    if (translated_atomic && !esr.IsAlignment())
+    {
+        if (atomic_handler)
+        {
             // A store can report failure without faulting when its load used another VA
             // alias. Switch both halves of every registered pair, not just this instruction.
             nce.m_running_thread->GetOwnerProcess()->EnableNceAtomicHandlers();
             mc->__ss.__pc = atomic_handler;
-        } else mc->__ss.__pc = restart_pc;
+        }
+        else
+            mc->__ss.__pc = restart_pc;
         return true;
     }
 
-    if (!translated_atomic && !esr.IsWrite() && !esr.IsAlignment()) {
-        if (const auto handler = nce.m_running_thread->GetOwnerProcess()->InstallNceReadHandler(mc->__ss.__pc)) {
-            mc->__ss.__pc = handler;
+    if (!translated_atomic && !esr.IsWrite() && !esr.IsAlignment())
+    {
+        if (InstallOrEmitNceThunk(nce, mc->__ss.__pc, /*is_write=*/false))
+        {
+            // Re-execute the newly patched branch directly (matching the store-thunk
+            // path above), avoiding a redundant SIGTRAP via GetNceRestartPc(spill_pc).
             return true;
         }
     }
@@ -499,9 +605,11 @@ CpuHaltReason ArmNce::RunThread(IKernelThread * thread)
     m_guest_ctx.tpidr_el0 = thread_params->tpidr_el0;
     thread_params->native_context = nullptr;
     thread_params->is_running = false;
+    // Clear TSD before returning so a destroyed KThread's NativeExecutionParameters
+    // can never be dereferenced if a host signal arrives later on this thread.
+    pthread_setspecific(ThreadParametersKey(), nullptr);
     // A break that arrived in host code was dropped as spurious.
     m_break_pending.store(false, std::memory_order_release);
-
 
     return TranslateHaltReason(hr);
 }
@@ -514,16 +622,27 @@ void ArmNce::Initialize()
         m_thread_port = pthread_mach_thread_np(m_thread);
     }
 
-    // Configure signal stack.
-    if (!m_stack)
+    // Own the alternate signal stack per host thread (RAII SS_DISABLE on thread exit)
+    // so destroying ArmNce never frees memory still installed in sigaltstack.
+    struct ThreadAltStack
     {
-        m_stack = std::make_unique<u8[]>(StackSize);
-
-        stack_t ss{};
-        ss.ss_sp = m_stack.get();
-        ss.ss_size = StackSize;
-        sigaltstack(&ss, nullptr);
-    }
+        std::unique_ptr<u8[]> buffer;
+        ThreadAltStack() : buffer(std::make_unique<u8[]>(StackSize))
+        {
+            stack_t ss{};
+            ss.ss_sp = buffer.get();
+            ss.ss_size = StackSize;
+            sigaltstack(&ss, nullptr);
+        }
+        ~ThreadAltStack()
+        {
+            stack_t disable{};
+            disable.ss_flags = SS_DISABLE;
+            sigaltstack(&disable, nullptr);
+        }
+    };
+    thread_local ThreadAltStack alt_stack;
+    (void)alt_stack;
 
     // Set up signals.
     static std::once_flag flag;

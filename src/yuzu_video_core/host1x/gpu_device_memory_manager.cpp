@@ -694,39 +694,165 @@ void DeviceMemoryManager<Traits>::WriteBlockForGpuReadback(DAddr address,
                                                          const void* src_pointer, size_t size)
 {
     MarkEngineWrittenAliases(address, size);
-    if (size < 96 * 1024 * 1024) {
-        // Retirement holds the cache mutex and excludes cancelled CPU writes.
-        WalkBlock(address, size, [&](size_t, DAddr current_vaddr)
-            {
-                LOG_ERROR(HW_Memory, "Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
-            },
-            [&](size_t copy_amount, u8* const dst_ptr)
-            {
-                Common::CopyChangedMemoryForReadback(dst_ptr, src_pointer, copy_amount);
-            },
-            [&](const std::size_t copy_amount)
-            {
-                src_pointer = static_cast<const u8*>(src_pointer) + copy_amount;
-            });
-        return;
-    }
+    const bool coalesce = size >= 96 * 1024 * 1024;
     Common::CoalescedMemoryCopy copies;
-    // Walk the original page mappings. Only combine the resulting host spans;
-    // do not infer continuity across a hole, alias or unrelated physical page.
-    WalkBlock(address, size, [&](size_t copy_amount, DAddr current_vaddr)
+#if defined(__APPLE__)
+    // A process can hold CPU stores to these pages the caches do not know yet; it merges them.
+    DAddr cursor = address;
+    IMemory* memory = nullptr;
+    size_t memory_asid = std::numeric_limits<size_t>::max();
+    const auto copy_changed = [](u8* dst, const u8* src, u64 bytes, void*) {
+        Common::CopyChangedMemoryForReadback(dst, src, bytes);
+    };
+    // Retirement holds the cache mutex and excludes cancelled CPU writes.
+    WalkBlock(address, size, [&](size_t, DAddr current_vaddr)
         {
             copies.Flush();
-            LOG_ERROR(HW_Memory,"Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
+            LOG_ERROR(HW_Memory, "Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
         },
         [&](size_t copy_amount, u8* const dst_ptr)
         {
-            copies.Append(dst_ptr, src_pointer, copy_amount);
+            const u8* const src = static_cast<const u8*>(src_pointer);
+            for (size_t done = 0; done < copy_amount;)
+            {
+                const DAddr at = cursor + done;
+                const auto [asid, backing] = ExtractCPUBacking(at >> DEVICE_PAGEBITS);
+                const VAddr base = Common::AlignDown(backing, DEVICE_PAGESIZE);
+                size_t run = std::min<size_t>(DEVICE_PAGESIZE - (at & DEVICE_PAGEMASK), copy_amount - done);
+                // Merge the following pages while their CPU backing stays contiguous
+                while (backing != 0 && done + run < copy_amount)
+                {
+                    const auto [next_asid, next_backing] = ExtractCPUBacking((at + run) >> DEVICE_PAGEBITS);
+                    if (next_asid.id != asid.id ||
+                        Common::AlignDown(next_backing, DEVICE_PAGESIZE) != base + (at & DEVICE_PAGEMASK) + run)
+                        break;
+                    run += std::min<size_t>(DEVICE_PAGESIZE, copy_amount - done - run);
+                }
+                if (backing != 0 && asid.id != memory_asid)
+                {
+                    memory = GetRegisteredProcess(asid);
+                    memory_asid = asid.id;
+                }
+                if (backing == 0 || memory == nullptr ||
+                    !memory->WriteGpuReadback(base + (at & DEVICE_PAGEMASK), dst_ptr + done,
+                                              src + done, run, copy_changed, nullptr))
+                {
+                    if (coalesce) copies.Append(dst_ptr + done, src + done, run);
+                    else Common::CopyChangedMemoryForReadback(dst_ptr + done, src + done, run);
+                }
+                done += run;
+            }
+        },
+        [&](const std::size_t copy_amount)
+        {
+            src_pointer = static_cast<const u8*>(src_pointer) + copy_amount;
+            cursor += copy_amount;
+        });
+#else
+    // Non-Apple platforms do not hold deferred NCE CPU stores in guest RAM; avoid walking
+    // CPU backing pages or calling Memory::WriteGpuReadback (which always returns false).
+    WalkBlock(address, size, [&](size_t, DAddr current_vaddr)
+        {
+            copies.Flush();
+            LOG_ERROR(HW_Memory, "Unmapped Device WriteBlock @ 0x{:016X} (start address = 0x{:016X}, size = {})", current_vaddr, address, size);
+        },
+        [&](size_t copy_amount, u8* const dst_ptr)
+        {
+            const u8* const src = static_cast<const u8*>(src_pointer);
+            if (coalesce) copies.Append(dst_ptr, src, copy_amount);
+            else Common::CopyChangedMemoryForReadback(dst_ptr, src, copy_amount);
         },
         [&](const std::size_t copy_amount)
         {
             src_pointer = static_cast<const u8*>(src_pointer) + copy_amount;
         });
+#endif
     copies.Flush();
+}
+
+template <typename Traits>
+bool DeviceMemoryManager<Traits>::TryRunInPlaceGpuReadback(DAddr address, size_t size,
+                                                           void (*fn)(u8*, u64, void*),
+                                                           void* user)
+{
+    if (size == 0) return true;
+    if (address >= device_as_size || size > device_as_size - address) return false;
+    // Fast path requires a single contiguous physical/CPU-backed range owned by at most
+    // one registered process. Any fragmented or multi-process range falls back safely.
+    const size_t first_page = address >> DEVICE_PAGEBITS;
+    const size_t last_page = (address + size - 1) >> DEVICE_PAGEBITS;
+    if (NextContinuityBoundary(first_page + 1, last_page + 1) != last_page + 1) return false;
+    u8* const dst_ptr = GetPointer<u8>(address);
+    if (dst_ptr == nullptr) return false;
+    const uintptr_t expected_host_base = reinterpret_cast<uintptr_t>(dst_ptr);
+#if defined(__APPLE__)
+    const auto [asid0, backing0] = ExtractCPUBacking(first_page);
+    const VAddr vaddr_base = Common::AlignDown(backing0, DEVICE_PAGESIZE) + (address & DEVICE_PAGEMASK);
+    for (size_t page = first_page + 1; page <= last_page; ++page)
+    {
+        const DAddr page_addr = static_cast<DAddr>(page) << DEVICE_PAGEBITS;
+        u8* const ptr = GetPointer<u8>(page_addr);
+        if (reinterpret_cast<uintptr_t>(ptr) != expected_host_base + (page_addr - address))
+        {
+            return false;
+        }
+        const auto [asid, backing] = ExtractCPUBacking(page);
+        if (backing0 == 0)
+        {
+            if (backing != 0) return false;
+        }
+        else
+        {
+            if (backing == 0 || asid.id != asid0.id ||
+                Common::AlignDown(backing, DEVICE_PAGESIZE) !=
+                    Common::AlignDown(backing0, DEVICE_PAGESIZE) + ((page - first_page) << DEVICE_PAGEBITS))
+            {
+                return false;
+            }
+        }
+    }
+    if (backing0 == 0)
+    {
+        MarkEngineWrittenAliases(address, size);
+        fn(dst_ptr, size, user);
+        return true;
+    }
+    IMemory* const memory = GetRegisteredProcess(asid0);
+    if (memory == nullptr)
+    {
+        MarkEngineWrittenAliases(address, size);
+        fn(dst_ptr, size, user);
+        return true;
+    }
+    struct RunCtx
+    {
+        DeviceMemoryManager* self;
+        DAddr address;
+        size_t size;
+        void (*fn)(u8*, u64, void*);
+        void* user;
+    };
+    RunCtx run_ctx{this, address, size, fn, user};
+    const auto run_cb = [](u8* dst, u64 bytes, void* ctx_ptr) {
+        const auto& c = *static_cast<const RunCtx*>(ctx_ptr);
+        c.self->MarkEngineWrittenAliases(c.address, c.size);
+        c.fn(dst, bytes, c.user);
+    };
+    return memory->TryRunInPlaceGpuReadback(vaddr_base, dst_ptr, size, run_cb, &run_ctx);
+#else
+    for (size_t page = first_page + 1; page <= last_page; ++page)
+    {
+        const DAddr page_addr = static_cast<DAddr>(page) << DEVICE_PAGEBITS;
+        u8* const ptr = GetPointer<u8>(page_addr);
+        if (reinterpret_cast<uintptr_t>(ptr) != expected_host_base + (page_addr - address))
+        {
+            return false;
+        }
+    }
+    MarkEngineWrittenAliases(address, size);
+    fn(dst_ptr, size, user);
+    return true;
+#endif
 }
 
 template <typename Traits>
@@ -801,17 +927,51 @@ void DeviceMemoryManager<Traits>::RegisterNativeRead(DAddr addr, size_t size)
     if (!enabled || size == 0) return;
     Common::ScopedRangeLock lk(counter_guard, addr, size);
     const size_t end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
+    IMemory* run_memory = nullptr;
+    Asid run_asid{};
+    VAddr run_begin{};
+    size_t run_bytes{};
+    const auto flush_run = [&] {
+        if (run_bytes != 0 && run_memory != nullptr)
+        {
+            run_memory->RasterizerSetNativeReadAccess(run_begin, run_bytes, true);
+        }
+        run_bytes = 0;
+    };
+    {
+        std::scoped_lock set_lock{native_read_pages_mutex};
+        for (size_t page = addr >> DEVICE_PAGEBITS; page < end; ++page)
+        {
+            const auto [asid, address] = ExtractCPUBacking(page);
+            if (address == 0) continue;
+            native_read_pages.insert(page);
+            has_native_read_pages.store(true, std::memory_order_release);
+        }
+    }
     for (size_t page = addr >> DEVICE_PAGEBITS; page < end; ++page)
     {
         const auto [asid, address] = ExtractCPUBacking(page);
-        if (address == 0) continue;
-        if (auto* memory = GetRegisteredProcess(asid))
+        if (address == 0)
         {
-            native_read_pages.insert(page);
-            memory->RasterizerSetNativeReadAccess(Common::AlignDown(address, DEVICE_PAGESIZE),
-                                                  DEVICE_PAGESIZE, true);
+            flush_run();
+            continue;
+        }
+        const VAddr page_vaddr = Common::AlignDown(address, DEVICE_PAGESIZE);
+        if (run_bytes != 0 && asid.id == run_asid.id && page_vaddr == run_begin + run_bytes)
+        {
+            run_bytes += DEVICE_PAGESIZE;
+            continue;
+        }
+        flush_run();
+        run_memory = GetRegisteredProcess(asid);
+        if (run_memory != nullptr)
+        {
+            run_asid = asid;
+            run_begin = page_vaddr;
+            run_bytes = DEVICE_PAGESIZE;
         }
     }
+    flush_run();
 #endif
 }
 
@@ -820,21 +980,60 @@ void DeviceMemoryManager<Traits>::InvalidateNativeReadRegion(DAddr addr, size_t 
 {
 #if defined(__APPLE__)
     // The common case performs no range walk, mapping lookup or protection change.
-    if (size == 0 || native_read_pages.empty()) return;
+    if (size == 0 || !has_native_read_pages.load(std::memory_order_acquire)) return;
+    const size_t begin = addr >> DEVICE_PAGEBITS;
     const size_t end = Common::DivCeil(addr + size, DEVICE_PAGESIZE);
-    auto it = native_read_pages.lower_bound(addr >> DEVICE_PAGEBITS);
-    if (it == native_read_pages.end() || *it >= end) return;
-    Common::ScopedRangeLock lk(counter_guard, addr, size);
-    while (it != native_read_pages.end() && *it < end)
+    std::vector<size_t> pages;
     {
-        const size_t page = *it;
-        it = native_read_pages.erase(it);
-        const auto [asid, address] = ExtractCPUBacking(page);
-        if (address == 0) continue;
-        if (auto* memory = GetRegisteredProcess(asid))
-            memory->RasterizerSetNativeReadAccess(Common::AlignDown(address, DEVICE_PAGESIZE),
-                                                  DEVICE_PAGESIZE, false);
+        std::scoped_lock set_lock{native_read_pages_mutex};
+        auto it = native_read_pages.lower_bound(begin);
+        if (it == native_read_pages.end() || *it >= end) return;
+        while (it != native_read_pages.end() && *it < end)
+        {
+            pages.push_back(*it);
+            it = native_read_pages.erase(it);
+        }
+        if (native_read_pages.empty())
+        {
+            has_native_read_pages.store(false, std::memory_order_release);
+        }
     }
+    Common::ScopedRangeLock lk(counter_guard, addr, size);
+    IMemory* run_memory = nullptr;
+    Asid run_asid{};
+    VAddr run_begin{};
+    size_t run_bytes{};
+    const auto flush_run = [&] {
+        if (run_bytes != 0 && run_memory != nullptr)
+        {
+            run_memory->RasterizerSetNativeReadAccess(run_begin, run_bytes, false);
+        }
+        run_bytes = 0;
+    };
+    for (const size_t page : pages)
+    {
+        const auto [asid, address] = ExtractCPUBacking(page);
+        if (address == 0)
+        {
+            flush_run();
+            continue;
+        }
+        const VAddr page_vaddr = Common::AlignDown(address, DEVICE_PAGESIZE);
+        if (run_bytes != 0 && asid.id == run_asid.id && page_vaddr == run_begin + run_bytes)
+        {
+            run_bytes += DEVICE_PAGESIZE;
+            continue;
+        }
+        flush_run();
+        run_memory = GetRegisteredProcess(asid);
+        if (run_memory != nullptr)
+        {
+            run_asid = asid;
+            run_begin = page_vaddr;
+            run_bytes = DEVICE_PAGESIZE;
+        }
+    }
+    flush_run();
 #endif
 }
 

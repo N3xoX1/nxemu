@@ -58,6 +58,20 @@ public:
             throw;
         }
     }
+    void AppendRestarts(std::span<const NativeCodeEntry> restarts) {
+        if (restarts.empty()) return;
+        constexpr uint64_t DynamicId = ~uint64_t{0};
+        std::lock_guard guard(writer);
+        auto it = std::find_if(modules.begin(), modules.end(),
+                               [](const Module& m) { return m.id == DynamicId; });
+        if (it == modules.end()) {
+            modules.push_back({DynamicId, std::make_shared<Active>(true),
+                               {}, {restarts.begin(), restarts.end()}, {}});
+        } else {
+            it->restarts.insert(it->restarts.end(), restarts.begin(), restarts.end());
+        }
+        Publish();
+    }
     template <typename Callback>
     void VisitAtomics(Callback&& callback) const {
         ReadGuard guard(*this);
