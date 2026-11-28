@@ -1,11 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2020 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <chrono>
-#include <thread>
-#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
-#include <immintrin.h>
-#endif
 #include "yuzu_common/scope_exit.h"
 #include "yuzu_common/settings.h"
 #include "core/core.h"
@@ -39,7 +34,7 @@ void PhysicalCore::RunThread(Kernel::KThread * thread)
         std::scoped_lock lk{m_guard};
 
         // Check if we are already interrupted. If we are, we can just stop immediately.
-        if (m_is_interrupted)
+        if (IsInterrupted())
         {
             return false;
         }
@@ -242,25 +237,16 @@ void PhysicalCore::LogBacktrace()
 
 void PhysicalCore::Idle()
 {
-    // Waking a sleeping host thread costs tens of microseconds, and guest threads wake each other often
-    const std::chrono::steady_clock::time_point spin_end = std::chrono::steady_clock::now() + std::chrono::microseconds(50);
-    while (!m_is_interrupted.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < spin_end)
+    InterruptStateType expected = InterruptClear;
+    if (m_interrupt_state.compare_exchange_strong(expected, InterruptWaiting, std::memory_order_acq_rel, std::memory_order_acquire))
     {
-#if defined(_M_X64) || defined(ARCHITECTURE_x86_64)
-        _mm_pause();
-#else
-        std::this_thread::yield();
-#endif
+        m_interrupt_state.wait(InterruptWaiting, std::memory_order_acquire);
     }
-    std::unique_lock lk{m_guard};
-    m_on_interrupt.wait(lk, [this] {
-        return m_is_interrupted.load(std::memory_order_acquire);
-    });
 }
 
 bool PhysicalCore::IsInterrupted() const
 {
-    return m_is_interrupted.load(std::memory_order_acquire);
+    return m_interrupt_state.load(std::memory_order_acquire) == InterruptPending;
 }
 
 void PhysicalCore::Interrupt()
@@ -272,11 +258,11 @@ void PhysicalCore::Interrupt()
     auto * cpucore = m_cpucore;
     auto * thread = m_current_thread;
 
-    // Add interrupt flag.
-    m_is_interrupted = true;
-
-    // Interrupt ourselves.
-    m_on_interrupt.notify_one();
+    // Add interrupt flag and only wake the core if it is parked in Idle().
+    if (m_interrupt_state.exchange(InterruptPending, std::memory_order_acq_rel) == InterruptWaiting)
+    {
+        m_interrupt_state.notify_one();
+    }
 
     // If there is no thread running, we are done.
     if (cpucore == nullptr)
@@ -291,7 +277,7 @@ void PhysicalCore::Interrupt()
 void PhysicalCore::ClearInterrupt()
 {
     std::scoped_lock lk{m_guard};
-    m_is_interrupted = false;
+    m_interrupt_state.store(InterruptClear, std::memory_order_release);
 }
 
 } // namespace Kernel

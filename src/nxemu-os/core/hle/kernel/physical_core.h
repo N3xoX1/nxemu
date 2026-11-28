@@ -4,7 +4,6 @@
 #pragma once
 
 #include <atomic>
-#include <condition_variable>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -71,11 +70,15 @@ private:
     KernelCore& m_kernel;
     const uint32_t m_core_index;
 
+    using InterruptStateType = std::atomic_signed_lock_free::value_type;
+    static constexpr InterruptStateType InterruptClear = 0;
+    static constexpr InterruptStateType InterruptWaiting = 1;
+    static constexpr InterruptStateType InterruptPending = 2;
+
     std::mutex m_guard;
-    std::condition_variable m_on_interrupt;
     ICpuCore * m_cpucore{};
     KThread * m_current_thread{};
-    std::atomic_bool m_is_interrupted{};
+    std::atomic_signed_lock_free m_interrupt_state{InterruptClear};
     bool m_is_single_core{};
 };
 

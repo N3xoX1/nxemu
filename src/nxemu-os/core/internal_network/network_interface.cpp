@@ -120,6 +120,7 @@ std::vector<NetworkInterface> GetAvailableNetworkInterfaces() {
 
         u32 gateway{};
 
+#if !defined(__APPLE__)
         std::ifstream file{"/proc/net/route"};
         if (!file.is_open()) {
             LOG_ERROR(Network, "Failed to open \"/proc/net/route\"");
@@ -172,6 +173,7 @@ std::vector<NetworkInterface> GetAvailableNetworkInterfaces() {
         if (!gateway_found) {
             gateway = 0;
         }
+#endif
 
         result.emplace_back(NetworkInterface{
             .name{ifa->ifa_name},
