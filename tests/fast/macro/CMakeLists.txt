@@ -17,3 +17,13 @@ if(NOT MSVC)
     target_link_options(test_macro_interpreter_runtime PRIVATE -fsanitize=address,undefined)
 endif()
 nxemu_fast_test(test_macro_interpreter_runtime)
+
+# Random MME programs: the x64 JIT must make the same method calls as the interpreter.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|amd64)$")
+    add_executable(test_macro_jit_differential macro_jit_differential.cpp
+        macro_jit_interpreter_unit.cpp macro_jit_x64_unit.cpp)
+    target_include_directories(test_macro_jit_differential BEFORE PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/jit_stubs" "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${NXEMU_FAST_TEST_SOURCE_DIR}" "${CMAKE_CURRENT_LIST_DIR}/../../../external/xbyak")
+    nxemu_fast_test(test_macro_jit_differential)
+endif()

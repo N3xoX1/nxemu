@@ -18,6 +18,8 @@ struct Profile {
     bool disable_uniform_buffer_descriptor_aliasing{};
     bool support_int8{};
     bool support_int16{};
+    bool support_storage_buffer_8bit{};
+    bool support_storage_buffer_16bit{};
     bool support_int64{};
     bool support_vertex_instance_id{};
     bool support_float_controls{};
@@ -121,6 +123,14 @@ struct Profile {
 
     /// Compute shaders mark the device pages they write in storage and image buffers
     bool track_storage_writes{};
+
+    bool SupportsNativeStorage8Bit() const {
+        return support_int8 && support_storage_buffer_8bit && support_descriptor_aliasing;
+    }
+
+    bool SupportsNativeStorage16Bit() const {
+        return support_int16 && support_storage_buffer_16bit && support_descriptor_aliasing;
+    }
 
     bool SupportsUniformBufferDescriptorAliasing() const {
         return support_descriptor_aliasing && !disable_uniform_buffer_descriptor_aliasing;

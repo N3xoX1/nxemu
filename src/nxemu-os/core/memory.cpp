@@ -392,24 +392,43 @@ struct Memory::Impl {
         return ReadBlockImpl<true>(src_addr, dest_buffer, size);
     }
 
-    const u8 * GetSpan(const VAddr src_addr, const std::size_t size) const
+    u8 * GetSpan(const VAddr src_addr, const std::size_t size) const
     {
-        if (current_page_table->blocks[src_addr >> YUZU_PAGEBITS] ==
-            current_page_table->blocks[(src_addr + size) >> YUZU_PAGEBITS])
+        // Check the half-open range, including the zero-length case at the address-space limit.
+        if (!AddressSpaceContains(*current_page_table, src_addr, size != 0 ? size : 1))
         {
-            return GetPointerSilent(src_addr);
+            return nullptr;
         }
-        return nullptr;
-    }
-
-    u8 * GetSpan(const VAddr src_addr, const std::size_t size)
-    {
-        if (current_page_table->blocks[src_addr >> YUZU_PAGEBITS] ==
-            current_page_table->blocks[(src_addr + size) >> YUZU_PAGEBITS])
+        u8 * const first = GetPointerSilent(src_addr);
+        if (!first)
         {
-            return GetPointerSilent(src_addr);
+            return nullptr;
         }
-        return nullptr;
+        const u64 first_page = src_addr >> YUZU_PAGEBITS;
+        const u64 last_page = (src_addr + (size != 0 ? size - 1 : 0)) >> YUZU_PAGEBITS;
+        const uintptr_t host_offset = reinterpret_cast<uintptr_t>(first) - src_addr;
+        for (u64 page = first_page + 1; page <= last_page; ++page)
+        {
+            const uintptr_t offset = current_page_table->pointers[page].Pointer();
+            if (offset != 0)
+            {
+                if (offset != host_offset)
+                {
+                    return nullptr;
+                }
+            }
+            else
+            {
+                // Cached/debug pages may have no direct pointer in the page table.
+                const u64 addr = page << YUZU_PAGEBITS;
+                const u8 * const ptr = GetPointerSilent(addr);
+                if (!ptr || reinterpret_cast<uintptr_t>(ptr) - addr != host_offset)
+                {
+                    return nullptr;
+                }
+            }
+        }
+        return first;
     }
 
     template <bool UNSAFE>

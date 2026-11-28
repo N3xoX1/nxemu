@@ -368,6 +368,17 @@ target_link_libraries(test_fragment_color_rounding PRIVATE nxemu_test_support
     $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
 nxemu_unit_test(test_fragment_color_rounding)
 
+# 8/16-bit storage buffer accesses for every device feature combination.
+add_executable(test_narrow_storage narrow_storage/narrow_storage.cpp)
+target_include_directories(test_narrow_storage PRIVATE "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/external/boost" "${CMAKE_SOURCE_DIR}/external/fmt/include"
+    "${CMAKE_SOURCE_DIR}/external/sirit/include"
+    "${CMAKE_SOURCE_DIR}/external/sirit/externals/SPIRV-Headers/include")
+add_dependencies(test_narrow_storage shader_recompiler sirit fmt common)
+target_link_libraries(test_narrow_storage PRIVATE nxemu_test_support
+    $<TARGET_FILE:shader_recompiler> $<TARGET_FILE:sirit> $<TARGET_FILE:fmt> $<TARGET_FILE:common>)
+nxemu_unit_test(test_narrow_storage)
+
 # Compile unchanged conditional-rendering method bodies with fake GPU dependencies.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(_vertex_input_generated "${CMAKE_CURRENT_BINARY_DIR}/vertex_input")
@@ -397,6 +408,22 @@ if(NOT MSVC)
     target_link_options(test_vertex_input PRIVATE -fsanitize=address,undefined)
 endif()
 nxemu_unit_test(test_vertex_input)
+
+# GetSpan from nxemu-os/core/memory.cpp, extracted unchanged, against a page-by-page oracle.
+set(_memory_span_generated "${CMAKE_CURRENT_BINARY_DIR}/memory_span")
+add_custom_command(
+    OUTPUT "${_memory_span_generated}/free.inc" "${_memory_span_generated}/impl.inc"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/memory_span/extract.py"
+        "${CMAKE_SOURCE_DIR}" "${_memory_span_generated}"
+    DEPENDS memory_span/extract.py "${CMAKE_SOURCE_DIR}/src/nxemu-os/core/memory.cpp"
+    VERBATIM)
+add_executable(test_memory_span memory_span/memory_span.cpp
+    "${_memory_span_generated}/free.inc" "${_memory_span_generated}/impl.inc")
+target_include_directories(test_memory_span PRIVATE "${_memory_span_generated}"
+    "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/external/boost"
+    "${CMAKE_SOURCE_DIR}/external/fmt/include")
+target_link_libraries(test_memory_span PRIVATE nxemu_test_support yuzu_common common fmt)
+nxemu_unit_test(test_memory_span)
 set(_conditional_generated "${CMAKE_CURRENT_BINARY_DIR}/conditional_rendering")
 add_custom_command(
     OUTPUT "${_conditional_generated}/engine.inc" "${_conditional_generated}/runtime.inc"

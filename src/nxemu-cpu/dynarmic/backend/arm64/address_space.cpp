@@ -14,6 +14,7 @@
 #include "dynarmic/common/cast_util.h"
 #include "dynarmic/common/fp/fpcr.h"
 #include "dynarmic/interface/exclusive_monitor.h"
+#include <cstdlib>
 #include <mcl/scope_exit.hpp>
 
 namespace Dynarmic::Backend::Arm64 {
@@ -65,9 +66,22 @@ CodePtr AddressSpace::GetOrEmit(IR::LocationDescriptor descriptor) {
 
     NotifyCompilation(true);
     SCOPE_EXIT { NotifyCompilation(false); };
-    IR::Block ir_block = GenerateIR(descriptor);
-    const EmittedBlockInfo block_info = Emit(std::move(ir_block));
-    return block_info.entry_point;
+    try {
+        return Emit(GenerateIR(descriptor)).entry_point;
+    } catch (const CodeBufferExhausted&) {
+        // Failed emission has not published any block. Re-enable write protection,
+        // discard partial code and regenerate the IR before trying an empty cache.
+        ProtectCodeMemory();
+        ClearCache();
+        try {
+            return Emit(GenerateIR(descriptor)).entry_point;
+        } catch (const CodeBufferExhausted&) {
+            ProtectCodeMemory();
+            // Do not unwind a C++ exception through an executing JIT frame.
+            ASSERT_MSG(false, "Single ARM64 block exceeds the code cache capacity");
+            std::abort();
+        }
+    }
 }
 
 CodePtr AddressSpace::GetOrEmitWhileRunning(IR::LocationDescriptor descriptor, StackLayout& stack_layout) {
@@ -123,7 +137,7 @@ EmittedBlockInfo AddressSpace::Emit(IR::Block block) {
 
     UnprotectCodeMemory();
 
-    EmittedBlockInfo block_info = EmitArm64(code, std::move(block), GetEmitConfig(), fastmem_manager);
+    EmittedBlockInfo block_info = EmitArm64(code, std::move(block), GetEmitConfig(), fastmem_manager, GetRemainingSize());
     block_info.fastmem_patch_info.shrink_to_fit();
 
     ASSERT(block_entries.insert({block.Location(), block_info.entry_point}).second);
