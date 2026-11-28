@@ -2413,9 +2413,11 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
     // Maxwell TICs encode BGRA8/BGRX8 as A8B8G8R8_UNORM with a B/G/R/* swizzle. Vulkan storage
     // image views require an identity component mapping, so preserve the R/B swap through
     // B8G8R8A8_UNORM for typeless formatted image loads/stores when the device and backing image
-    // support it.
+    // support it. The backing image is only created with a mutable format when the device has
+    // image format lists (Vulkan 1.2 or VK_KHR_image_format_list); without it the view is invalid.
     typeless_storage_format = format;
-    if (!info.IsRenderTarget() && format == PixelFormat::A8B8G8R8_UNORM &&
+    if (!info.IsRenderTarget() && device->IsKhrImageFormatListSupported() &&
+        format == PixelFormat::A8B8G8R8_UNORM &&
         swizzle[0] == SwizzleSource::B && swizzle[1] == SwizzleSource::G &&
         swizzle[2] == SwizzleSource::R &&
         (swizzle[3] == SwizzleSource::A || swizzle[3] == SwizzleSource::OneFloat ||
