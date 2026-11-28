@@ -81,6 +81,10 @@ public:
 
     void CopyImageMSAA(Image& dst, Image& src, std::span<const VideoCommon::ImageCopy> copies);
 
+    /// Copies a 1x depth image into an MSAA depth image of the same guest memory. Each sample
+    /// takes the 1x pixel at its place in the sample grid. Returns false when it can't.
+    bool CopyDepthToMSAAAlias(Image& dst, Image& src);
+
     bool ShouldReinterpret(Image& dst, Image& src);
 
     void ReinterpretImage(Image& dst, Image& src, std::span<const VideoCommon::ImageCopy> copies);

@@ -164,6 +164,34 @@ public:
         return result;
     }
 
+    // `phi` receives `inner` over its edge `index`, and `inner` is a phi of that
+    // edge's source block. The branch taken on that edge can rule out an edge of
+    // `inner` that needs the opposite outcome of the same predicate, as in
+    // `if (c) r = h; if (!c) r = h;` where r holds unrelated data otherwise.
+    // Both branches run in the same loop iteration, so they read the same value.
+    bool IncomingPossibleThrough(const IR::Inst * phi, size_t index, const IR::Inst * inner, size_t inner_index)
+    {
+        if (!prepared) Prepare();
+        const auto owner = phi_blocks.find(phi);
+        const auto inner_owner = phi_blocks.find(inner);
+        if (owner == phi_blocks.end() || inner_owner == phi_blocks.end()) return true;
+        const IR::Block * const target = owner->second;
+        const IR::Block * const middle = phi->PhiBlock(index);
+        const IR::Block * const source = inner->PhiBlock(inner_index);
+        if (inner_owner->second != middle || loop_headers.contains(target) || loop_headers.contains(middle))
+            return true;
+        const auto to = blocks.find(target);
+        const auto via = blocks.find(middle);
+        const auto from = blocks.find(source);
+        if (to == blocks.end() || via == blocks.end() || from == blocks.end() ||
+            to->second.loop != via->second.loop || from->second.loop != via->second.loop)
+            return true;
+        const auto later = EdgeCondition(middle, target);
+        const auto earlier = EdgeCondition(source, middle);
+        if (!later || !earlier || !(later->first == earlier->first)) return true;
+        return later->second == earlier->second;
+    }
+
 private:
     struct Scope
     {
@@ -356,6 +384,18 @@ private:
             }
         }
         return {value, negated};
+    }
+
+    // The normalized predicate of a two-way branch and its value on edge from -> to.
+    std::optional<std::pair<ConditionKey, bool>> EdgeCondition(const IR::Block * from, const IR::Block * to)
+    {
+        const auto it = branches.find(from);
+        if (it == branches.end()) return std::nullopt;
+        const auto & branch = it->second;
+        if (branch.yes == branch.no || (to != branch.yes && to != branch.no)) return std::nullopt;
+        const auto [condition, negated] = Normalize(branch.condition);
+        if (condition.IsImmediate()) return std::nullopt;
+        return std::pair{Key(condition.Inst()), (to == branch.yes) != negated};
     }
 
     struct Fact

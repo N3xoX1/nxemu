@@ -335,6 +335,127 @@ void ContradictoryOuterPredicateHandle() {
     assert(desc.cbuf_index == 2 && desc.cbuf_offset == 360);
     assert(desc.has_secondary && desc.secondary_cbuf_index == 2 && desc.secondary_cbuf_offset == 1392);
 }
+enum class SecondIf { Opposite, OtherWord, SamePolarity, OppositeSsa, OtherHandle };
+
+// Mortal Kombat 1 pattern: `if (c) r = h; if (!c) r = h; fetch(r)`. The register
+// holds unrelated data when neither branch runs, which the two predicates exclude.
+bool ComplementaryIfsHandle(SecondIf mode) {
+    using namespace Shader;
+    ObjectPool<IR::Inst> pool;
+    IR::Block entry{pool}, first{pool}, merge_first{pool}, second{pool}, merge_second{pool};
+    IR::IREmitter entry_ir{entry}, first_ir{first}, second_ir{second};
+    const auto data = entry_ir.GetAttributeU32(IR::Attribute::Generic0X);
+    const bool ssa = mode == SecondIf::OppositeSsa;
+    const IR::U1 condition = ssa
+        ? entry_ir.INotEqual(entry_ir.GetAttributeU32(IR::Attribute::Generic0Y), entry_ir.Imm32(0))
+        : entry_ir.INotEqual(entry_ir.GetCbuf(entry_ir.Imm32(7), entry_ir.Imm32(108)), entry_ir.Imm32(~0U));
+    const auto handle = [](IR::IREmitter& ir, u32 texture) {
+        return ir.BitwiseOr(ir.GetCbuf(ir.Imm32(2), ir.Imm32(texture)), ir.GetCbuf(ir.Imm32(2), ir.Imm32(1384)));
+    };
+    const auto first_handle = handle(first_ir, 360);
+    auto first_phi = merge_first.PrependNewInst(merge_first.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U32));
+    first_phi->AddPhiOperand(&entry, data);
+    first_phi->AddPhiOperand(&first, first_handle);
+    IR::IREmitter merge_ir{merge_first};
+    // Maxwell re-emits the comparison, so the second predicate is a separate instruction.
+    const u32 word = mode == SecondIf::OtherWord ? 112 : 108;
+    const IR::U1 again = ssa ? condition
+        : merge_ir.INotEqual(merge_ir.GetCbuf(merge_ir.Imm32(7), merge_ir.Imm32(word)), merge_ir.Imm32(~0U));
+    const IR::U1 second_condition = mode == SecondIf::SamePolarity ? again : merge_ir.LogicalNot(again);
+    const auto second_handle = handle(second_ir, mode == SecondIf::OtherHandle ? 368 : 360);
+    auto second_phi = merge_second.PrependNewInst(merge_second.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U32));
+    second_phi->AddPhiOperand(&merge_first, IR::Value{&*first_phi});
+    second_phi->AddPhiOperand(&second, second_handle);
+    IR::IREmitter fetch_ir{merge_second};
+    IR::TextureInstInfo flags{};
+    flags.type.Assign(TextureType::Color2D);
+    const auto fetch = fetch_ir.ImageFetch(IR::U32{IR::Value{&*second_phi}},
+        fetch_ir.CompositeConstruct(fetch_ir.Imm32(0), fetch_ir.Imm32(0)), {}, fetch_ir.Imm32(0), {}, flags);
+    IR::Program program{};
+    program.stage = Stage::Fragment;
+    program.blocks = {&entry, &first, &merge_first, &second, &merge_second};
+    program.post_order_blocks = {&merge_second, &second, &merge_first, &first, &entry};
+    using Node = IR::AbstractSyntaxNode;
+    program.syntax_list = {
+        {.data = {.block = &entry}, .type = Node::Type::Block},
+        {.data = {.if_node = {condition, &first, &merge_first}}, .type = Node::Type::If},
+        {.data = {.block = &first}, .type = Node::Type::Block},
+        {.data = {.end_if = {&merge_first}}, .type = Node::Type::EndIf},
+        {.data = {.block = &merge_first}, .type = Node::Type::Block},
+        {.data = {.if_node = {second_condition, &second, &merge_second}}, .type = Node::Type::If},
+        {.data = {.block = &second}, .type = Node::Type::Block},
+        {.data = {.end_if = {&merge_second}}, .type = Node::Type::EndIf},
+        {.data = {.block = &merge_second}, .type = Node::Type::Block},
+    };
+    FetchEnvironment env;
+    env.has_pool = false;
+    HostTranslateInfo host{};
+    host.support_separate_sampler = true;
+    host.max_bindless_descriptors_per_stage = 32;
+    try {
+        Optimization::TexturePass(env, program, host);
+    } catch (const NotImplementedException&) {
+        return false;
+    }
+    assert(fetch.Inst()->GetOpcode() == IR::Opcode::ImageFetch);
+    assert(program.info.texture_descriptors.size() == 1);
+    const auto& desc = program.info.texture_descriptors.front();
+    assert(!desc.is_direct && desc.count == 1 && desc.sources.empty());
+    assert(desc.cbuf_index == 2 && desc.cbuf_offset == 360);
+    assert(desc.has_secondary && desc.secondary_cbuf_index == 2 && desc.secondary_cbuf_offset == 1384);
+    return true;
+}
+
+// Mortal Kombat 1 compute pattern: `r = a; if (c) r = r | s; fetch(r | s)`. Both paths
+// give `a | s`. A branch that ORs another word gives two handles and must stay unresolved.
+bool RepeatedOrHandle(u32 branch_word) {
+    using namespace Shader;
+    ObjectPool<IR::Inst> pool;
+    IR::Block entry{pool}, branch{pool}, merge{pool};
+    IR::IREmitter entry_ir{entry}, branch_ir{branch};
+    const auto texture = entry_ir.GetCbuf(entry_ir.Imm32(2), entry_ir.Imm32(1384));
+    const IR::U1 condition =
+        entry_ir.INotEqual(entry_ir.GetAttributeU32(IR::Attribute::Generic0X), entry_ir.Imm32(0));
+    const auto merged = branch_ir.BitwiseOr(texture, branch_ir.GetCbuf(branch_ir.Imm32(2), branch_ir.Imm32(branch_word)));
+    auto phi = merge.PrependNewInst(merge.end(), IR::Opcode::Phi, {}, static_cast<u32>(IR::Type::U32));
+    phi->AddPhiOperand(&entry, texture);
+    phi->AddPhiOperand(&branch, merged);
+    IR::IREmitter fetch_ir{merge};
+    const auto handle = fetch_ir.BitwiseOr(IR::U32{IR::Value{&*phi}}, fetch_ir.GetCbuf(fetch_ir.Imm32(2), fetch_ir.Imm32(424)));
+    IR::TextureInstInfo flags{};
+    flags.type.Assign(TextureType::Color2D);
+    const auto fetch = fetch_ir.ImageFetch(handle, fetch_ir.CompositeConstruct(fetch_ir.Imm32(0), fetch_ir.Imm32(0)),
+                                           {}, fetch_ir.Imm32(0), {}, flags);
+    IR::Program program{};
+    program.stage = Stage::Compute;
+    program.blocks = {&entry, &branch, &merge};
+    program.post_order_blocks = {&merge, &branch, &entry};
+    using Node = IR::AbstractSyntaxNode;
+    program.syntax_list = {
+        {.data = {.block = &entry}, .type = Node::Type::Block},
+        {.data = {.if_node = {condition, &branch, &merge}}, .type = Node::Type::If},
+        {.data = {.block = &branch}, .type = Node::Type::Block},
+        {.data = {.end_if = {&merge}}, .type = Node::Type::EndIf},
+        {.data = {.block = &merge}, .type = Node::Type::Block},
+    };
+    FetchEnvironment env;
+    env.has_pool = false;
+    HostTranslateInfo host{};
+    host.support_separate_sampler = true;
+    host.max_bindless_descriptors_per_stage = 32;
+    try {
+        Optimization::TexturePass(env, program, host);
+    } catch (const NotImplementedException&) {
+        return false;
+    }
+    assert(fetch.Inst()->GetOpcode() == IR::Opcode::ImageFetch);
+    assert(program.info.texture_descriptors.size() == 1);
+    const auto& desc = program.info.texture_descriptors.front();
+    assert(!desc.is_direct && desc.count == 1 && desc.sources.empty());
+    assert(desc.cbuf_index == 2 && desc.cbuf_offset == 424);
+    assert(desc.has_secondary && desc.secondary_cbuf_index == 2 && desc.secondary_cbuf_offset == 1384);
+    return true;
+}
 } // namespace
 
 void TestRuntimeTextureFetch() {
@@ -351,4 +472,13 @@ void TestRuntimeTextureFetch() {
     ImpossibleUniformFetch(false);
     ImpossibleUniformFetch(true, false); // SSA/loop-varying predicates stay conservative.
     ContradictoryOuterPredicateHandle();
+    assert(ComplementaryIfsHandle(SecondIf::Opposite));
+    assert(ComplementaryIfsHandle(SecondIf::OppositeSsa));
+    // The data path stays reachable: these must keep failing instead of guessing.
+    assert(!ComplementaryIfsHandle(SecondIf::OtherWord));
+    assert(!ComplementaryIfsHandle(SecondIf::SamePolarity));
+    // Two proven handles on the two paths are not one static descriptor.
+    assert(!ComplementaryIfsHandle(SecondIf::OtherHandle));
+    assert(RepeatedOrHandle(424));
+    assert(!RepeatedOrHandle(432));
 }

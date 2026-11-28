@@ -562,6 +562,7 @@ private:
         return same;
     }
 
+public:
     static bool Same(const ConstBufferAddr & a, const ConstBufferAddr & b)
     {
         return a.index == b.index && a.offset == b.offset && a.shift_left == b.shift_left &&
@@ -574,6 +575,8 @@ private:
                a.index_cbuf_index == b.index_cbuf_index &&
                a.index_cbuf_offset == b.index_cbuf_offset && a.index_shift == b.index_shift;
     }
+
+private:
 
     struct AddressHash
     {
@@ -603,7 +606,7 @@ private:
             for (size_t i = 0; i < inst->NumArgs(); ++i)
             {
                 if (!IncomingPossible(inst, i)) continue;
-                const auto input = Track(inst->Arg(i));
+                const auto input = TrackIncoming(inst, i);
                 if (!input || (result && !Same(*result, *input))) return std::nullopt;
                 result = input;
             }
@@ -628,6 +631,33 @@ private:
             return std::nullopt;
         }
         return TryGetConstBuffer(inst, env, *this);
+    }
+
+    // The value `phi` receives over its edge `index`. If that is a phi of the edge's
+    // source block whose inputs disagree, drop only the inner edges the branch into
+    // `phi` proves impossible. Every remaining input must still be the same handle.
+    std::optional<ConstBufferAddr> TrackIncoming(const IR::Inst * phi, size_t index)
+    {
+        const IR::Value value = phi->Arg(index).Resolve();
+        auto direct = Track(value);
+        const auto * inner = value.TryInstRecursive();
+        if (direct || !conditional || !inner || inner == phi || inner->GetOpcode() != IR::Opcode::Phi)
+            return direct;
+        std::optional<ConstBufferAddr> result;
+        bool pruned{};
+        for (size_t i = 0; i < inner->NumArgs(); ++i)
+        {
+            if (!IncomingPossible(inner, i)) continue;
+            if (!conditions.IncomingPossibleThrough(phi, index, inner, i))
+            {
+                pruned = true;
+                continue;
+            }
+            const auto input = Track(inner->Arg(i));
+            if (!input || (result && !Same(*result, *input))) return std::nullopt;
+            result = input;
+        }
+        return pruned ? PhiResult(result) : std::nullopt;
     }
 
     std::optional<ConstBufferAddr> PhiResult(std::optional<ConstBufferAddr> addr)
@@ -731,6 +761,78 @@ std::optional<u32> TryGetConstant(IR::Value& value, Environment& env) {
     return env.ReadCbufValue(index_number, offset_number);
 }
 
+std::optional<ConstBufferAddr> CombineHandles(ConstBufferAddr lhs, ConstBufferAddr rhs) {
+    if (lhs.has_secondary || rhs.has_secondary) {
+        return std::nullopt;
+    }
+    if (lhs.count > 1 && rhs.count > 1) {
+        return std::nullopt;
+    }
+    // Only the primary component may be dynamically indexed. A shared
+    // sampler from the other component always has a fixed offset.
+    if (rhs.count > 1) {
+        std::swap(lhs, rhs);
+    } else if (lhs.count == 1 &&
+               (lhs.shift_left > 0 || lhs.index > rhs.index || lhs.offset > rhs.offset)) {
+        std::swap(lhs, rhs);
+    }
+    if (!rhs.dynamic_offset.IsEmpty()) {
+        return std::nullopt;
+    }
+    // Combining a fixed sampler must preserve the primary's uniform-index proof.
+    // Dropping it expands one per-draw handle into the entire cbuf descriptor array.
+    auto combined = lhs;
+    combined.secondary_index = rhs.index;
+    combined.secondary_offset = rhs.offset;
+    combined.secondary_shift_left = rhs.shift_left;
+    combined.has_secondary = true;
+    combined.handle_or_bits |= rhs.handle_or_bits;
+    combined.secondary_mask = rhs.mask;
+    return combined;
+}
+
+// True when the fixed word `part` is already one of the two words ORed into `handle`,
+// so `handle | part == handle`.
+bool HasComponent(const ConstBufferAddr& handle, const ConstBufferAddr& part) {
+    if ((part.handle_or_bits & ~handle.handle_or_bits) != 0) {
+        return false;
+    }
+    const bool primary = handle.index == part.index && handle.offset == part.offset &&
+                         handle.shift_left == part.shift_left && handle.mask == part.mask;
+    const bool secondary = handle.secondary_index == part.index &&
+                           handle.secondary_offset == part.offset &&
+                           handle.secondary_shift_left == part.shift_left &&
+                           handle.secondary_mask == part.mask;
+    return primary || secondary;
+}
+
+// `x | c` where `x` is a merge whose every input is either `a` or `a | c` (a loop or branch
+// that may already have merged the sampler word). OR is idempotent, so all paths give the
+// same `a | c`. Any other input, or two different results, leaves the handle unresolved.
+std::optional<ConstBufferAddr> TrackRepeatedOr(TextureHandleTracker& tracker, IR::Value merged,
+                                               const ConstBufferAddr& fixed, bool fixed_is_rhs) {
+    if (fixed.count != 1 || fixed.has_secondary || fixed.is_direct ||
+        !fixed.dynamic_offset.IsEmpty() || fixed.has_index_cbuf || !fixed.array_index.IsEmpty()) {
+        return std::nullopt;
+    }
+    static constexpr u32 MAX_INPUTS = 8;
+    std::optional<ConstBufferAddr> result;
+    for (const ConstBufferAddr& input : tracker.Alternatives(merged, MAX_INPUTS)) {
+        std::optional<ConstBufferAddr> value;
+        if (!input.has_secondary) {
+            value = fixed_is_rhs ? CombineHandles(input, fixed) : CombineHandles(fixed, input);
+        } else if (!input.has_index_cbuf && input.array_index.IsEmpty() &&
+                   HasComponent(input, fixed)) {
+            value = input;
+        }
+        if (!value || (result && !TextureHandleTracker::Same(*result, *value))) {
+            return std::nullopt;
+        }
+        result = value;
+    }
+    return result;
+}
+
 std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environment& env,
                                                TextureHandleTracker& tracker) {
     switch (inst->GetOpcode()) {
@@ -749,38 +851,15 @@ std::optional<ConstBufferAddr> TryGetConstBuffer(const IR::Inst* inst, Environme
                 return source;
             }
         }
-        std::optional lhs{tracker.Track(inst->Arg(0))};
-        std::optional rhs{tracker.Track(inst->Arg(1))};
-        if (!lhs || !rhs) {
-            return std::nullopt;
+        const std::optional lhs{tracker.Track(inst->Arg(0))};
+        const std::optional rhs{tracker.Track(inst->Arg(1))};
+        if (lhs && rhs) {
+            return CombineHandles(*lhs, *rhs);
         }
-        if (lhs->has_secondary || rhs->has_secondary) {
-            return std::nullopt;
+        if (lhs || rhs) {
+            return TrackRepeatedOr(tracker, inst->Arg(lhs ? 1 : 0), lhs ? *lhs : *rhs, rhs.has_value());
         }
-        if (lhs->count > 1 && rhs->count > 1) {
-            return std::nullopt;
-        }
-        // Only the primary component may be dynamically indexed. A shared
-        // sampler from the other component always has a fixed offset.
-        if (rhs->count > 1) {
-            std::swap(lhs, rhs);
-        } else if (lhs->count == 1 &&
-                   (lhs->shift_left > 0 || lhs->index > rhs->index || lhs->offset > rhs->offset)) {
-            std::swap(lhs, rhs);
-        }
-        if (!rhs->dynamic_offset.IsEmpty()) {
-            return std::nullopt;
-        }
-        // Combining a fixed sampler must preserve the primary's uniform-index proof.
-        // Dropping it expands one per-draw handle into the entire cbuf descriptor array.
-        auto combined = *lhs;
-        combined.secondary_index = rhs->index;
-        combined.secondary_offset = rhs->offset;
-        combined.secondary_shift_left = rhs->shift_left;
-        combined.has_secondary = true;
-        combined.handle_or_bits |= rhs->handle_or_bits;
-        combined.secondary_mask = rhs->mask;
-        return combined;
+        return std::nullopt;
     }
     case IR::Opcode::ShiftLeftLogical32: {
         const IR::Value shift{inst->Arg(1)};
