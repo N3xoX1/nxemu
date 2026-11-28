@@ -1649,6 +1649,81 @@ void TextureCacheRuntime::CopyImageMSAA(Image& dst, Image& src,
     UNIMPLEMENTED_MSG("Copying images with different samples is not supported.");
 }
 
+bool TextureCacheRuntime::CopyDepthToMSAAAlias(Image& dst, Image& src) {
+    const VkImageAspectFlags aspect = dst.AspectMask();
+    if (src.info.num_samples != 1 || dst.info.num_samples == 1 ||
+        (aspect & VK_IMAGE_ASPECT_DEPTH_BIT) == 0 || src.AspectMask() != aspect) {
+        return false;
+    }
+    const bool is_rescaled = True(dst.flags & VideoCommon::ImageFlagBits::Rescaled);
+    if (is_rescaled != True(src.flags & VideoCommon::ImageFlagBits::Rescaled)) {
+        return false;
+    }
+    // Both images are at the same scale, so the MSAA sample grid still matches the 1x pixels.
+    const u32 width = is_rescaled ? resolution.ScaleUp(dst.info.size.width) : dst.info.size.width;
+    const u32 height =
+        is_rescaled ? resolution.ScaleUp(dst.info.size.height) : dst.info.size.height;
+    const auto [samples_x, samples_y] = VideoCommon::SamplesLog2(dst.info.num_samples);
+    const VideoCommon::ImageCopy copy{
+        .src_subresource = {},
+        .dst_subresource = {},
+        .src_offset = {},
+        .dst_offset = {},
+        .extent = {width >> samples_x, height >> samples_y, 1},
+    };
+    const bool copy_stencil = (aspect & VK_IMAGE_ASPECT_STENCIL_BIT) != 0 &&
+                              device.IsExtShaderStencilExportSupported();
+    TransitionImageLayout(dst);
+    scheduler.RequestOutsideRenderPassOperationContext();
+    const VkImageSubresourceRange range{
+        .aspectMask = aspect,
+        .baseMipLevel = 0,
+        .levelCount = VK_REMAINING_MIP_LEVELS,
+        .baseArrayLayer = 0,
+        .layerCount = VK_REMAINING_ARRAY_LAYERS,
+    };
+    constexpr VkPipelineStageFlags write_stages =
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT |
+        VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    // The source was last written as a depth attachment, the copy reads it in a fragment shader.
+    scheduler.Record([image = src.Handle(), range, write_stages](vk::CommandBuffer cmdbuf) {
+        const VkImageMemoryBarrier barrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .pNext = nullptr,
+            .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
+                             VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image,
+            .subresourceRange = range,
+        };
+        cmdbuf.PipelineBarrier(write_stages, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, barrier);
+    });
+    blit_image_helper.CopyToMSAADepth(render_pass_cache, dst.Handle(), dst.info.format,
+                                      src.Handle(), dst.info.num_samples, std::span(&copy, 1),
+                                      copy_stencil);
+    // Later writes to the source must wait until the copy has read it.
+    scheduler.Record([image = src.Handle(), range, write_stages](vk::CommandBuffer cmdbuf) {
+        const VkImageMemoryBarrier barrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .pNext = nullptr,
+            .srcAccessMask = 0,
+            .dstAccessMask = 0,
+            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image,
+            .subresourceRange = range,
+        };
+        cmdbuf.PipelineBarrier(VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, write_stages, 0, barrier);
+    });
+    return true;
+}
+
 u64 TextureCacheRuntime::GetDeviceLocalMemory() const {
     return device.GetDeviceLocalMemory();
 }
@@ -2335,6 +2410,24 @@ ImageView::ImageView(TextureCacheRuntime& runtime, const VideoCommon::ImageViewI
         identity_swizzle &= swizzle[component] == own ||
                             (component >= num_channels && swizzle[component] == lacked);
     }
+    // Maxwell TICs encode BGRA8/BGRX8 as A8B8G8R8_UNORM with a B/G/R/* swizzle. Vulkan storage
+    // image views require an identity component mapping, so preserve the R/B swap through
+    // B8G8R8A8_UNORM for typeless formatted image loads/stores when the device and backing image
+    // support it. The backing image is only created with a mutable format when the device has
+    // image format lists (Vulkan 1.2 or VK_KHR_image_format_list); without it the view is invalid.
+    typeless_storage_format = format;
+    if (!info.IsRenderTarget() && device->IsKhrImageFormatListSupported() &&
+        format == PixelFormat::A8B8G8R8_UNORM &&
+        swizzle[0] == SwizzleSource::B && swizzle[1] == SwizzleSource::G &&
+        swizzle[2] == SwizzleSource::R &&
+        (swizzle[3] == SwizzleSource::A || swizzle[3] == SwizzleSource::OneFloat ||
+         swizzle[3] == SwizzleSource::Zero) &&
+        VideoCore::Surface::IsViewCompatible(image.info.format, PixelFormat::B8G8R8A8_UNORM, false,
+                                             true) &&
+        device->IsFormatSupported(VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT,
+                                  FormatType::Optimal)) {
+        typeless_storage_format = PixelFormat::B8G8R8A8_UNORM;
+    }
     const VkImageViewUsageCreateInfo image_view_usage{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,
         .pNext = nullptr,
@@ -2513,10 +2606,12 @@ VkImageView ImageView::StorageView(Shader::TextureType texture_type,
     if (!image_handle) {
         return VK_NULL_HANDLE;
     }
-    const VkFormat view_format = image_format == Shader::ImageFormat::Typeless
-                                    ? MaxwellToVK::SurfaceFormat(*device, FormatType::Optimal,
-                                                                false, format).format
-                                    : Format(image_format);
+    const VkFormat view_format =
+        image_format == Shader::ImageFormat::Typeless
+            ? MaxwellToVK::SurfaceFormat(*device, FormatType::Optimal, false,
+                                         typeless_storage_format)
+                  .format
+            : Format(image_format);
     if (!storage_views) {
         storage_views = std::make_unique<StorageViews>();
     }

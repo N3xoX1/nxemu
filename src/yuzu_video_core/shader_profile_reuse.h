@@ -89,6 +89,8 @@ struct SemanticTextureProof {
             const auto& source=query.source;
             if(key==((u64{source.cbuf_index}<<32)|source.cbuf_offset) ||
                (source.has_secondary && key==((u64{source.secondary_cbuf_index}<<32)|source.secondary_cbuf_offset)))return true;
+            for(const auto& term:source.extra_terms)
+                if(key==((u64{term.cbuf_index}<<32)|term.cbuf_offset))return true;
         }
         return false;
     }
@@ -108,6 +110,8 @@ struct SemanticTextureProof {
             const auto valid=[&](u32 bank,u32 offset){return bank<banks && offset%4==0 && live.ReadCbufSize(bank)!=0;};
             if(!valid(source.cbuf_index,source.cbuf_offset) ||
                (source.has_secondary && !valid(source.secondary_cbuf_index,source.secondary_cbuf_offset)))return false;
+            for(const auto& term:source.extra_terms)
+                if(term.shift_left>=32 || !valid(term.cbuf_index,term.cbuf_offset))return false;
             if(live.ReadTextureQuery(source,query.kind)!=query.answer)return false;
         }
         return true;
@@ -273,6 +277,11 @@ inline std::optional<SyntheticAnswers> AnswerSynthetic(const DependencyProof& q,
             return differ("texture handle");
         std::vector<std::pair<u32, u32>> reads{{source.cbuf_index, source.cbuf_offset}};
         if (source.has_secondary) reads.emplace_back(source.secondary_cbuf_index, source.secondary_cbuf_offset);
+        for (const auto& term : source.extra_terms) {
+            if (term.shift_left >= 32 || !readable(term.cbuf_index, term.cbuf_offset))
+                return differ("texture handle");
+            reads.emplace_back(term.cbuf_index, term.cbuf_offset);
+        }
         for (const auto& [bank, offset] : reads) {
             if (live.HasHLEMacroState() && live.GetReplaceConstBuffer(bank, offset)) return differ("HLE replacement");
             answers.constants.try_emplace((u64{bank} << 32) | offset, live.ReadCbufValue(bank, offset));

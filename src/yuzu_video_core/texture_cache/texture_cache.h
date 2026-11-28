@@ -4154,11 +4154,62 @@ void TextureCache<P>::PrepareImage(ImageId image_id, bool is_modification, bool 
     } else {
         RefreshContents(image, image_id);
         SynchronizeAliases(image_id);
+        SynchronizeMsaaDepthAliases(image_id);
     }
     if (is_modification) {
         MarkModification(image, image_id);
     }
     lru_cache.Touch(image.lru_index, frame_tick);
+}
+
+template <class P>
+void TextureCache<P>::SynchronizeMsaaDepthAliases(ImageId image_id) {
+    // A game can map one depth buffer at two GPU addresses: once as 1x and once as MSAA.
+    // The MSAA sample grid then covers the 1x pixels one to one. The two images don't fit
+    // each other by GPU address, so they are kept as bad overlaps and were never synced.
+    Image& image = slot_images[image_id];
+    if (image.info.num_samples == 1 || image.overlapping_images.empty()) {
+        return;
+    }
+    if constexpr (requires { runtime.CopyDepthToMSAAAlias(image, image); }) {
+        const auto is_alias = [&image](const ImageBase& source) {
+            const ImageInfo& dst = image.info;
+            const ImageInfo& src = source.info;
+            return src.num_samples == 1 && source.cpu_addr == image.cpu_addr &&
+                   source.guest_size_bytes == image.guest_size_bytes &&
+                   src.type == ImageType::e2D && dst.type == ImageType::e2D &&
+                   src.format == dst.format &&
+                   GetFormatType(dst.format) != SurfaceType::ColorTexture &&
+                   src.size.width == dst.size.width && src.size.height == dst.size.height &&
+                   src.size.depth == dst.size.depth && src.block == dst.block &&
+                   src.tile_width_spacing == dst.tile_width_spacing &&
+                   src.resources.levels == 1 && dst.resources.levels == 1 &&
+                   src.resources.layers == 1 && dst.resources.layers == 1 &&
+                   True(source.flags & ImageFlagBits::Rescaled) ==
+                       True(image.flags & ImageFlagBits::Rescaled);
+        };
+        ImageId newest_id{};
+        u64 newest_tick = image.modification_tick;
+        for (const ImageId overlap_id : image.overlapping_images) {
+            const Image& source = slot_images[overlap_id];
+            if (source.modification_tick > newest_tick &&
+                True(source.flags & ImageFlagBits::GpuModified) && is_alias(source)) {
+                newest_id = overlap_id;
+                newest_tick = source.modification_tick;
+            }
+        }
+        if (!newest_id) {
+            return;
+        }
+        Image& source = slot_images[newest_id];
+        if (!runtime.CopyDepthToMSAAAlias(image, source)) {
+            return;
+        }
+        image.modification_tick = newest_tick;
+        NotifyNativeImageModification(image, image_id);
+        image.flags |= ImageFlagBits::GpuModified;
+        UpdateNativeReadTracking(image, image_id);
+    }
 }
 
 template <class P>

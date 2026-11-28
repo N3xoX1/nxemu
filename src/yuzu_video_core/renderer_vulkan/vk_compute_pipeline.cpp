@@ -194,6 +194,16 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
                 secondary_offset = desc.secondary_cbuf_offset;
             }
         }
+        u32 extra_or{};
+        if constexpr (requires { desc.extra_terms; }) {
+            if (!desc.extra_terms.empty()) [[unlikely]] {
+                for (const auto& term : desc.extra_terms) {
+                    ASSERT(((qmd.const_buffer_enable_mask >> term.cbuf_index) & 1) != 0);
+                    const u32 word = bind_cbuf(term.cbuf_index, 1).Read(term.cbuf_offset);
+                    extra_or |= (word << term.shift_left) & term.mask;
+                }
+            }
+        }
         return [=](u32 index) {
             const u32 delta = index * desc.stride;
             const u32 offset = desc.cbuf_offset + delta + uniform_offset;
@@ -206,7 +216,8 @@ void ComputePipeline::Configure(Tegra::Engines::KeplerCompute& kepler_compute,
             }
             const u32 raw = primary.Read(offset);
             return TexturePair(Tegra::Texture::ComposeTextureHandle(
-                                   desc, raw, has_secondary ? secondary.Read(secondary_offset) : 0),
+                                   desc, raw, has_secondary ? secondary.Read(secondary_offset) : 0,
+                                   extra_or),
                                via_header_index);
         };
     }};

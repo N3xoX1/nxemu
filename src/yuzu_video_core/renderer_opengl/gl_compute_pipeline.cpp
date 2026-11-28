@@ -122,6 +122,15 @@ void ComputePipeline::Configure() {
         const GPUVAddr addr{cbufs[desc.cbuf_index].Address() + offset};
         if constexpr (std::is_same_v<decltype(desc), const Shader::TextureDescriptor&> ||
                       std::is_same_v<decltype(desc), const Shader::TextureBufferDescriptor&>) {
+            u32 extra_or{};
+            if (!desc.extra_terms.empty()) [[unlikely]] {
+                for (const auto& term : desc.extra_terms) {
+                    ASSERT(((qmd.const_buffer_enable_mask >> term.cbuf_index) & 1) != 0);
+                    const u32 word = gpu_memory->Read<u32>(cbufs[term.cbuf_index].Address() +
+                                                           term.cbuf_offset);
+                    extra_or |= (word << term.shift_left) & term.mask;
+                }
+            }
             if (desc.has_secondary) {
                 ASSERT(((qmd.const_buffer_enable_mask >> desc.secondary_cbuf_index) & 1) != 0);
                 const u32 secondary_offset{desc.secondary_cbuf_offset};
@@ -129,10 +138,12 @@ void ComputePipeline::Configure() {
                                              secondary_offset};
                 return TexturePair(Tegra::Texture::ComposeTextureHandle(
                                        desc, gpu_memory->Read<u32>(addr),
-                                       gpu_memory->Read<u32>(separate_addr)), via_header_index);
+                                       gpu_memory->Read<u32>(separate_addr), extra_or),
+                                   via_header_index);
             }
             return TexturePair(Tegra::Texture::ComposeTextureHandle(
-                                   desc, gpu_memory->Read<u32>(addr)), via_header_index);
+                                   desc, gpu_memory->Read<u32>(addr), 0, extra_or),
+                               via_header_index);
         }
         return TexturePair(gpu_memory->Read<u32>(addr), via_header_index);
     }};

@@ -548,6 +548,9 @@ private:
     /// Synchronize image aliases, copying data if needed
     void SynchronizeAliases(ImageId image_id);
 
+    /// Bring newer 1x depth contents into an MSAA depth image mapped on the same memory
+    void SynchronizeMsaaDepthAliases(ImageId image_id);
+
     /// Records the first frame in which the image of the view is drawn to
     void MarkRenderTarget(ImageViewId view_id);
 

@@ -49,6 +49,11 @@ void SetupDirtyRenderTargets(Maxwell3D::DirtyState::Tables& tables) {
     tables[0][OFF(rt_control)] = RenderTargets;
     tables[1][OFF(rt_control)] = RenderTargetControl;
 
+    // The sample count is part of every color and depth target. A game can switch it while
+    // keeping the same target address and size, so all targets must be looked up again.
+    tables[0][OFF(anti_alias_samples_mode)] = RenderTargets;
+    tables[1][OFF(anti_alias_samples_mode)] = RenderTargetControl;
+
     static constexpr std::array zeta_flags{ZetaBuffer, RenderTargets};
     for (std::size_t i = 0; i < std::size(zeta_flags); ++i) {
         const u8 flag = zeta_flags[i];
@@ -56,6 +61,9 @@ void SetupDirtyRenderTargets(Maxwell3D::DirtyState::Tables& tables) {
         table[OFF(zeta_enable)] = flag;
         table[OFF(zeta_size.width)] = flag;
         table[OFF(zeta_size.height)] = flag;
+        // The depth sample count also follows target-independent rasterization
+        table[OFF(tir_mode)] = flag;
+        table[OFF(anti_alias_raster)] = flag;
         FillBlock(table, OFF(zeta), NUM(zeta), flag);
     }
 }

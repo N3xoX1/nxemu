@@ -164,6 +164,34 @@ public:
         return result;
     }
 
+    // `phi` receives `inner` over its edge `index`, and `inner` is a phi of that
+    // edge's source block. The branch taken on that edge can rule out an edge of
+    // `inner` that needs the opposite outcome of the same predicate, as in
+    // `if (c) r = h; if (!c) r = h;` where r holds unrelated data otherwise.
+    // Both branches run in the same loop iteration, so they read the same value.
+    bool IncomingPossibleThrough(const IR::Inst * phi, size_t index, const IR::Inst * inner, size_t inner_index)
+    {
+        if (!prepared) Prepare();
+        const auto owner = phi_blocks.find(phi);
+        const auto inner_owner = phi_blocks.find(inner);
+        if (owner == phi_blocks.end() || inner_owner == phi_blocks.end()) return true;
+        const IR::Block * const target = owner->second;
+        const IR::Block * const middle = phi->PhiBlock(index);
+        const IR::Block * const source = inner->PhiBlock(inner_index);
+        if (inner_owner->second != middle || loop_headers.contains(target) || loop_headers.contains(middle))
+            return true;
+        const auto to = blocks.find(target);
+        const auto via = blocks.find(middle);
+        const auto from = blocks.find(source);
+        if (to == blocks.end() || via == blocks.end() || from == blocks.end() ||
+            to->second.loop != via->second.loop || from->second.loop != via->second.loop)
+            return true;
+        const auto later = EdgeCondition(middle, target);
+        const auto earlier = EdgeCondition(source, middle);
+        if (!later || !earlier || !(later->first == earlier->first)) return true;
+        return later->second == earlier->second;
+    }
+
 private:
     struct Scope
     {
@@ -281,24 +309,43 @@ private:
     }
 
     // Prove identical boolean inputs without rewriting SSA or consulting facts
-    // from the use block. Cycles, undefined and distinct inputs stay opaque.
-    static IR::Value TrivialPredicatePhi(IR::Value value,
-        std::unordered_map<const IR::Inst*, IR::Value>& cache, unsigned depth = 0)
+    // from the use block. A cycle of U1 phis (for example a structured goto
+    // flag carried untouched through an inner loop) is invariant when every
+    // external edge delivers the same single value and no edge is undefined.
+    static IR::Value TrivialPredicatePhi(IR::Value value)
     {
         value = value.Resolve();
-        const auto* inst = value.TryInstRecursive();
-        if (!inst) return value;
-        if (inst->GetOpcode() == IR::Opcode::UndefU1) return {};
-        if (inst->GetOpcode() != IR::Opcode::Phi) return value;
-        if (value.Type() != IR::Type::U1 || depth >= 64) return {};
-        if (!cache.emplace(inst, IR::Value{}).second) return cache.at(inst);
+        const auto* root = value.TryInstRecursive();
+        if (!root || root->GetOpcode() != IR::Opcode::Phi || value.Type() != IR::Type::U1)
+            return value;
+        static constexpr size_t MAX_VISITED = 64;
+        std::unordered_set<const IR::Inst*> visited;
+        std::vector<const IR::Inst*> work{root};
+        visited.insert(root);
         IR::Value same;
-        for (size_t index = 0; index < inst->NumArgs(); ++index) {
-            const auto input = TrivialPredicatePhi(inst->Arg(index), cache, depth + 1);
-            if (input.IsEmpty() || (!same.IsEmpty() && same != input)) return {};
-            same = input;
+        while (!work.empty())
+        {
+            const IR::Inst* phi = work.back();
+            work.pop_back();
+            for (size_t index = 0; index < phi->NumArgs(); ++index)
+            {
+                const IR::Value arg = phi->Arg(index).Resolve();
+                const auto* inst = arg.TryInstRecursive();
+                if (inst && inst->GetOpcode() == IR::Opcode::UndefU1) return {};
+                if (inst && inst->GetOpcode() == IR::Opcode::Phi)
+                {
+                    if (arg.Type() != IR::Type::U1) return {};
+                    if (visited.insert(inst).second)
+                    {
+                        if (visited.size() > MAX_VISITED) return {};
+                        work.push_back(inst);
+                    }
+                    continue;
+                }
+                if (!same.IsEmpty() && same != arg) return {};
+                same = arg;
+            }
         }
-        cache[inst] = same;
         return same;
     }
 
@@ -308,8 +355,7 @@ private:
         while (const auto * inst = value.TryInstRecursive())
         {
             if (inst->GetOpcode() == IR::Opcode::Phi) {
-                std::unordered_map<const IR::Inst*, IR::Value> cache;
-                const auto input = TrivialPredicatePhi(value, cache);
+                const auto input = TrivialPredicatePhi(value);
                 if (input.IsEmpty()) break;
                 value = input;
                 continue;
@@ -356,6 +402,18 @@ private:
             }
         }
         return {value, negated};
+    }
+
+    // The normalized predicate of a two-way branch and its value on edge from -> to.
+    std::optional<std::pair<ConditionKey, bool>> EdgeCondition(const IR::Block * from, const IR::Block * to)
+    {
+        const auto it = branches.find(from);
+        if (it == branches.end()) return std::nullopt;
+        const auto & branch = it->second;
+        if (branch.yes == branch.no || (to != branch.yes && to != branch.no)) return std::nullopt;
+        const auto [condition, negated] = Normalize(branch.condition);
+        if (condition.IsImmediate()) return std::nullopt;
+        return std::pair{Key(condition.Inst()), (to == branch.yes) != negated};
     }
 
     struct Fact
