@@ -1175,6 +1175,7 @@ bool Device::GetSuitability(bool requires_swapchain)
 
     FOR_EACH_VK_FEATURE_EXT(FEATURE_EXTENSION);
     FOR_EACH_VK_EXTENSION(EXTENSION);
+    FOR_EACH_VK_PLATFORM_EXTENSION(EXTENSION);
 
 #undef FEATURE_EXTENSION
 #undef EXTENSION
@@ -1557,10 +1558,15 @@ void Device::CollectPhysicalMemoryInfo()
     if (GetDriverID() == VK_DRIVER_ID_MOLTENVK && extensions.memory_budget)
     {
         // Apple GPUs share system memory: use the Metal working set rather than the 4 GiB
-        // above, keeping headroom for the system and at most half of it.
+        // above, keeping headroom for the system and capping to avoid runaway VRAM growth
+        // in dynamic-resolution titles before TextureCache GC activates.
+        const u64 scale = std::max<u64>(1, videoSettings.resolution_info.ScaleUp(1));
+        const u64 mode_cap = videoSettings.vram_usage_mode == VramUsageMode::Aggressive
+                                 ? (8_GiB + 1_GiB * scale)
+                                 : (6_GiB + 1_GiB * scale);
         const u64 reserve = std::clamp<u64>(heap_budget / 8, 2_GiB, 4_GiB);
         const u64 free_budget = available_memory > static_cast<s64>(reserve) ? static_cast<u64>(available_memory) - reserve : 0;
-        device_access_memory = std::max(device_access_memory, std::min(free_budget, heap_budget / 2));
+        device_access_memory = std::min(mode_cap, std::max(device_access_memory, std::min(free_budget, heap_budget / 2)));
     }
 }
 

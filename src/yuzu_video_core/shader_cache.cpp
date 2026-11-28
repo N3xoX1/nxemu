@@ -21,6 +21,9 @@
 namespace VideoCommon {
 
 void ShaderCache::InvalidateRegion(VAddr addr, size_t size) {
+    if (!MayContainShaders(addr, size)) {
+        return;
+    }
     std::scoped_lock lock{invalidation_mutex};
     InvalidatePagesInRegion(addr, size);
     RemovePendingShaders();
@@ -32,12 +35,17 @@ void ShaderCache::InvalidateRegions(std::span<const std::pair<DAddr, size_t>> se
     }
     std::scoped_lock lock{invalidation_mutex};
     for (const auto& [addr, size] : sequences) {
-        InvalidatePagesInRegion(addr, size);
+        if (MayContainShaders(addr, size)) {
+            InvalidatePagesInRegion(addr, size);
+        }
     }
     RemovePendingShaders();
 }
 
 void ShaderCache::OnCacheInvalidation(VAddr addr, size_t size) {
+    if (!MayContainShaders(addr, size)) {
+        return;
+    }
     std::scoped_lock lock{invalidation_mutex};
     InvalidatePagesInRegion(addr, size);
 }
@@ -140,6 +148,17 @@ void ShaderCache::Register(std::unique_ptr<ShaderInfo> data, VAddr addr, size_t 
     std::scoped_lock lock{invalidation_mutex, lookup_mutex};
 
     const VAddr addr_end = addr + size;
+    // Publish coarse region bits before registering the range with device_memory so any
+    // concurrent invalidation observes MayContainShaders() == true and waits on invalidation_mutex.
+    if (size != 0) {
+        const u64 first_bucket = addr >> SHADER_REGION_BITS;
+        const u64 last_bucket = (addr_end - 1) >> SHADER_REGION_BITS;
+        for (u64 bucket = first_bucket; bucket <= last_bucket; ++bucket) {
+            const size_t idx = static_cast<size_t>(bucket & SHADER_REGION_MASK);
+            registered_regions[idx >> 6].fetch_or(u64{1} << (idx & 63),
+                                                  std::memory_order_release);
+        }
+    }
     // Before the entry is visible, so an invalidation never skips its pages
     device_memory.RegisterFlushCacheRegion(addr, size, VideoCommon::CacheType::ShaderCache);
     Entry* const entry = NewEntry(addr, addr_end, data.get());

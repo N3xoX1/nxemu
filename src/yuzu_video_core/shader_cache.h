@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <span>
@@ -156,7 +156,32 @@ private:
     /// @brief Create a new shader entry and register it
     const ShaderInfo* MakeShaderInfo(GenericEnvironment& env, VAddr cpu_addr);
 
+    static constexpr u64 SHADER_REGION_BITS = 20; // 1 MiB coarse lock-free filter
+    static constexpr size_t SHADER_REGION_WORDS = 256; // 16384 buckets (16 GiB AS)
+    static constexpr size_t SHADER_REGION_MASK = SHADER_REGION_WORDS * 64 - 1;
+
+    [[nodiscard]] bool MayContainShaders(VAddr addr, size_t size) const noexcept {
+        if (size == 0) {
+            return false;
+        }
+        const u64 first = addr >> SHADER_REGION_BITS;
+        const u64 last = (addr + size - 1) >> SHADER_REGION_BITS;
+        if (last - first >= SHADER_REGION_WORDS * 64) {
+            return true;
+        }
+        for (u64 bucket = first; bucket <= last; ++bucket) {
+            const size_t idx = static_cast<size_t>(bucket & SHADER_REGION_MASK);
+            if ((registered_regions[idx >> 6].load(std::memory_order_acquire) &
+                 (u64{1} << (idx & 63))) != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     Tegra::MaxwellDeviceMemoryManager& device_memory;
+
+    std::array<std::atomic<u64>, SHADER_REGION_WORDS> registered_regions{};
 
     mutable std::mutex lookup_mutex;
     std::mutex invalidation_mutex;

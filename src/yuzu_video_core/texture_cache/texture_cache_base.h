@@ -210,6 +210,17 @@ public:
     /// Return a reference to the given sampler id
     [[nodiscard]] Sampler& GetSampler(SamplerId id) noexcept;
 
+    /// Returns true if the image backing @p id has been modified by the GPU
+    /// (render target, shadow map, storage image, etc.) rather than being a
+    /// static CPU-uploaded texture.
+    [[nodiscard]] bool IsImageGpuModified(ImageId id) const noexcept {
+        return id && True(slot_images[id].flags & ImageFlagBits::GpuModified);
+    }
+
+    [[nodiscard]] bool HasAliasedImages(ImageId id) const noexcept {
+        return id && !slot_images[id].aliased_images.empty();
+    }
+
     /// Refresh the state for graphics image view and sampler descriptors
     void SynchronizeGraphicsDescriptors();
 
@@ -222,6 +233,10 @@ public:
     /// reaches the descriptor tables
     void NotifyUnsafeWrite(GPUVAddr gpu_addr, size_t size);
 
+    /// Counts the images brought up to date from newer aliases.
+    [[nodiscard]] u64 AliasSyncCount() const noexcept {
+        return alias_sync_count;
+    }
     /// Refresh the state for compute image view and sampler descriptors
     void SynchronizeComputeDescriptors();
 
@@ -246,6 +261,11 @@ public:
     /// UpdateRenderTargets should be called before this
     [[nodiscard]] ImageViewId ColorBufferViewId(size_t index) const noexcept {
         return render_targets.color_buffer_ids[index];
+    }
+
+    /// Image view bound as the depth render target, null when none is
+    [[nodiscard]] ImageViewId DepthBufferViewId() const noexcept {
+        return render_targets.depth_buffer_id;
     }
 
     /// Find a framebuffer with the currently bound render targets
@@ -382,6 +402,9 @@ public:
     void PrepareImage(ImageId image_id, bool is_modification, bool invalidate);
 
     Common::RecursiveMutex mutex;
+    /// Set when a render target with PreemtiveDownload is unbound so the rasterizer
+    /// can commit its readback copy promptly instead of waiting for the next guest fence.
+    std::atomic<bool> has_pending_readback_commit{false};
 
 private:
     void DeduplicateDownloads();
@@ -547,6 +570,13 @@ private:
 
     /// Synchronize image aliases, copying data if needed
     void SynchronizeAliases(ImageId image_id);
+    u64 alias_sync_count = 0;
+
+    /// Whether `image_id` is one of the bound render targets.
+    [[nodiscard]] bool IsBoundRenderTarget(ImageId image_id) const;
+
+    /// Syncs, now, the aliases of the bound targets that draws sampled after them.
+    void SyncEagerAliases();
 
     /// Records the first frame in which the image of the view is drawn to
     void MarkRenderTarget(ImageViewId view_id);
@@ -602,12 +632,13 @@ private:
     Tegra::MaxwellDeviceMemoryManager& device_memory;
     std::deque<TextureCacheGPUMap> gpu_page_table_storage;
 
+    /// The framebuffer GetFramebuffer last returned, and for which targets.
+    FramebufferId last_framebuffer_id{};
+    RenderTargets last_framebuffer_key{};
     RenderTargets render_targets;
 
     std::unordered_map<RenderTargets, FramebufferId> framebuffers;
-    /// Last framebuffer found by GetFramebuffer, cleared when framebuffers are removed
-    RenderTargets last_framebuffer_key{};
-    FramebufferId last_framebuffer_id{};
+    std::unordered_map<ImageViewId, boost::container::small_vector<RenderTargets, 4>> view_framebuffers;
 
     std::unordered_map<u64, std::vector<ImageMapId>, Common::IdentityHash<u64>> page_table;
     std::unordered_map<ImageId, boost::container::small_vector<ImageViewId, 16>> sparse_views;

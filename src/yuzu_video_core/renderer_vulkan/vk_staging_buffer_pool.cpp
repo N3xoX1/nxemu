@@ -27,8 +27,12 @@ using namespace Common::Literals;
 
 // Maximum potential alignment of a Vulkan buffer
 constexpr VkDeviceSize MAX_ALIGNMENT = 256;
-// Stream buffer size in bytes
+// Stream buffer size in bytes (smaller on Android unified memory to save 64 MiB permanently)
+#if defined(__ANDROID__)
+constexpr VkDeviceSize MAX_STREAM_BUFFER_SIZE = 64_MiB;
+#else
 constexpr VkDeviceSize MAX_STREAM_BUFFER_SIZE = 128_MiB;
+#endif
 // Unused tail so a 64 KiB UBO binding near the end of the stream buffer never reads past it.
 constexpr VkDeviceSize STREAM_BUFFER_TAIL = 64_KiB;
 

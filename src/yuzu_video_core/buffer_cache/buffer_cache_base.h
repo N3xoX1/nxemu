@@ -272,6 +272,10 @@ public:
 
     /// Brings what the GPU wrote in assembled buffers back to the buffers of their parts, once the
     /// draw or dispatch writing them is recorded
+    [[nodiscard]] bool HasSparseWrites() const noexcept {
+        return !sparse_writes.empty();
+    }
+
     void CopySparseWrites();
 
     void BindHostGeometryBuffers(bool is_indexed);
@@ -424,7 +428,7 @@ public:
     }
 
     [[nodiscard]] bool MayHaveGpuWrites(DAddr addr, size_t size) const noexcept {
-        return gpu_write_history.MayHaveWrites(addr, size);
+        return gpu_modified_pages.Any(addr, size);
     }
 
     /// Lock-free: false proves that no compute dispatch ever wrote this memory
@@ -759,12 +763,51 @@ private:
     u64 gpu_write_epoch = 0;
     u64 content_version = 0;
 
+    void AddGpuModifiedRange(DAddr addr, u64 size) {
+        if (size == 0) {
+            return;
+        }
+        gpu_modified_ranges.Add(addr, size);
+        gpu_modified_pages.Set(addr, size);
+    }
+
+    void ClearGpuModifiedPages(DAddr addr, u64 size) {
+        if (size == 0 || addr > std::numeric_limits<DAddr>::max() - size) {
+            return;
+        }
+        constexpr u64 PAGE_SIZE = decltype(gpu_modified_pages)::PAGE_SIZE;
+        const DAddr first_page = Common::AlignDown(addr, PAGE_SIZE);
+        const DAddr last_end = Common::AlignUp(addr + size, PAGE_SIZE);
+        if (gpu_modified_ranges.Empty()) {
+            gpu_modified_pages.Clear(first_page, last_end - first_page);
+            return;
+        }
+        DAddr cursor = first_page;
+        gpu_modified_ranges.ForEachInRange(
+            first_page, last_end - first_page, [&](DAddr start, DAddr end) {
+                const DAddr start_page = Common::AlignDown(start, PAGE_SIZE);
+                if (start_page > cursor) {
+                    gpu_modified_pages.Clear(cursor, start_page - cursor);
+                }
+                cursor = std::max(cursor, Common::AlignUp(end, PAGE_SIZE));
+            });
+        if (cursor < last_end) {
+            gpu_modified_pages.Clear(cursor, last_end - cursor);
+        }
+    }
+
+    void SubtractGpuModifiedRange(DAddr addr, u64 size) {
+        gpu_modified_ranges.Subtract(addr, size);
+        ClearGpuModifiedPages(addr, size);
+    }
+
     Common::RangeSet<DAddr> uncommitted_gpu_modified_ranges;
     GpuModifiedRanges<DAddr, Core::DEVICE_PAGESIZE> gpu_modified_ranges;
     GpuWriteHistory<> gpu_write_history;
     /// Buffers compute dispatches wrote, finer than gpu_write_history
     ComputeWriteHistory compute_writes;
     bool binding_compute{};
+    AtomicPageBits<> gpu_modified_pages;
 
     std::deque<Common::RangeSet<DAddr>> committed_gpu_modified_ranges;
 
@@ -805,6 +848,7 @@ private:
     size_t immediate_buffer_capacity = 0;
     Common::ScratchBuffer<u8> immediate_buffer_alloc;
     Common::ScratchBuffer<u8> host_uint8_indices;
+    Common::ScratchBuffer<u8> host_quad_indices;
 
     struct LRUItemParams {
         using ObjectType = BufferId;
